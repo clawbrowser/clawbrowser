@@ -1,0 +1,88 @@
+{
+  "request": {
+    "platform": "macos",
+    "browser": "chrome",
+    "country": "US",
+    "city": "New York",
+    "connection_type": "residential"
+  },
+  "response": {
+    "fingerprint": {
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "platform": "MacIntel",
+      "screen": {
+        "width": 1920,
+        "height": 1080,
+        "avail_width": 1920,
+        "avail_height": 1040,
+        "color_depth": 24,
+        "pixel_ratio": 2.0
+      },
+      "hardware": {
+        "concurrency": 8,
+        "memory": 8
+      },
+      "webgl": {
+        "vendor": "Apple Inc.",
+        "renderer": "Apple M1"
+      },
+      "canvas_seed": 1234567890,
+      "audio_seed": 987654321,
+      "client_rects_seed": 555555555,
+      "timezone": "America/New_York",
+      "language": [
+        "en-US",
+        "en"
+      ],
+      "fonts": [
+        "Arial",
+        "Helvetica",
+        "Times New Roman",
+        "Courier New"
+      ],
+      "media_devices": [
+        {
+          "kind": "audioinput",
+          "label": "Built-in Microphone",
+          "device_id": "default"
+        },
+        {
+          "kind": "audiooutput",
+          "label": "Built-in Speakers",
+          "device_id": "default"
+        },
+        {
+          "kind": "videoinput",
+          "label": "FaceTime HD Camera",
+          "device_id": "abc123"
+        }
+      ],
+      "plugins": [
+        {
+          "name": "PDF Viewer",
+          "description": "Portable Document Format",
+          "filename": "mhjfbmdgcfjbbpaeojofohoefgiehjai"
+        }
+      ],
+      "battery": {
+        "charging": true,
+        "level": 0.87
+      },
+      "speech_voices": [
+        "Alex",
+        "Samantha",
+        "Victoria"
+      ]
+    },
+    "proxy": {
+      "scheme": "https",
+      "country": "US",
+      "city": "New York",
+      "connection_type": "residential",
+      "host": "proxy.example.com",
+      "port": 8080,
+      "username": "user123",
+      "password": "s3cr3t"
+    }
+  }
+}

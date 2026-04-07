@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-03-23T10:00:00Z",
+  "request": {
+    "platform": "macos",
+    "browser": "chrome",
+    "country": "US"
+  },
+  "response": {
+    "fingerprint": {
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "platform": "MacIntel",
+      "screen": {
+        "width": 1280,
+        "height": 800,
+        "avail_width": 1280,
+        "avail_height": 775,
+        "color_depth": 24,
+        "pixel_ratio": 1.0
+      },
+      "hardware": {
+        "concurrency": 4,
+        "memory": 4
+      },
+      "webgl": {
+        "vendor": "Intel Inc.",
+        "renderer": "Intel Iris OpenGL Engine"
+      },
+      "canvas_seed": 42,
+      "audio_seed": 99,
+      "client_rects_seed": 7,
+      "timezone": "UTC",
+      "language": ["en-US"],
+      "fonts": ["Arial"]
+    }
+  }
+}

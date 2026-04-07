@@ -1,0 +1,412 @@
+#include "clawbrowser/verify/verify_page.h"
+
+#include "base/command_line.h"
+#include "base/environment.h"
+#include "base/json/json_writer.h"
+#include "base/logging.h"
+#include "base/path_service.h"
+#include "base/process/process.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/task/thread_pool.h"
+#include "base/values.h"
+#include "clawbrowser/cli/api_client.h"
+#include "clawbrowser/cli/profile_manager.h"
+#include "clawbrowser/fingerprint_accessor.h"
+#include "clawbrowser/grit/clawbrowser_verify_resources.h"
+#include "content/public/browser/browser_context.h"
+#include "content/public/browser/devtools_agent_host.h"
+#include "content/public/browser/storage_partition.h"
+#include "content/public/browser/web_ui.h"
+#include "content/public/browser/web_ui_data_source.h"
+#include "content/public/browser/web_contents.h"
+
+namespace clawbrowser {
+
+namespace {
+
+base::FilePath GetConfigDir() {
+  auto env = base::Environment::Create();
+  if (std::optional<std::string> override =
+          env->GetVar("CLAWBROWSER_CONFIG_DIR");
+      override.has_value() && !override->empty()) {
+    return base::FilePath::FromUTF8Unsafe(*override);
+  }
+
+  base::FilePath home_dir;
+  base::PathService::Get(base::DIR_HOME, &home_dir);
+  return home_dir.AppendASCII(".config/clawbrowser");
+}
+
+struct VerifyApiConfig {
+  std::optional<std::string> api_key;
+  std::string base_url;
+};
+
+VerifyApiConfig LoadVerifyApiConfig(base::FilePath config_dir) {
+  ProfileManager profile_manager(config_dir);
+  VerifyApiConfig config;
+  config.api_key = profile_manager.ResolveApiKey();
+  if (config.api_key.has_value())
+    config.base_url = profile_manager.ResolveBaseUrl();
+  return config;
+}
+
+std::string SerializeJson(base::ListValue list) {
+  std::string json = "[]";
+  base::JSONWriter::Write(base::Value(std::move(list)), &json);
+  return json;
+}
+
+base::DictValue SerializeMediaDevice(const RuntimeMediaDevice& device) {
+  base::DictValue item;
+  item.Set("kind", device.kind.value_or(std::string()));
+  item.Set("label", device.label.value_or(std::string()));
+  item.Set("device_id", device.device_id.value_or(std::string()));
+  return item;
+}
+
+base::DictValue SerializePlugin(const RuntimePlugin& plugin) {
+  base::DictValue item;
+  item.Set("name", plugin.name.value_or(std::string()));
+  item.Set("description", plugin.description.value_or(std::string()));
+  item.Set("filename", plugin.filename.value_or(std::string()));
+  return item;
+}
+
+}  // namespace
+
+bool VerifyFailureExitEnabledForCommandLine(
+    const base::CommandLine& command_line) {
+  return command_line.HasSwitch("verify-automation");
+}
+
+VerifyPageUI::VerifyPageUI(content::WebUI* web_ui)
+    : content::WebUIController(web_ui) {
+  automation_mode_ = VerifyFailureExitEnabledForCommandLine(
+      *base::CommandLine::ForCurrentProcess());
+  content::WebUIDataSource* source =
+      content::WebUIDataSource::CreateAndAdd(
+          web_ui->GetWebContents()->GetBrowserContext(), kVerifyHost);
+  source->SetSupportedScheme("clawbrowser");
+  SetupDataSource(source);
+  web_ui->AddRequestableScheme("clawbrowser");
+
+  web_ui->RegisterMessageCallback(
+      "verifyProxy",
+      base::BindRepeating(&VerifyPageUI::HandleVerifyProxy,
+                          base::Unretained(this)));
+  web_ui->RegisterMessageCallback(
+      "verifyComplete",
+      base::BindRepeating(&VerifyPageUI::HandleVerifyComplete,
+                          base::Unretained(this)));
+}
+
+VerifyPageUI::~VerifyPageUI() = default;
+
+void VerifyPageUI::SetupDataSource(content::WebUIDataSource* source) {
+  // Resources are embedded at compile time via grit/grd
+  source->AddResourcePath("verify.html", IDR_CLAWBROWSER_VERIFY_HTML);
+  source->AddResourcePath("verify.js", IDR_CLAWBROWSER_VERIFY_JS);
+  source->AddResourcePath("verify.css", IDR_CLAWBROWSER_VERIFY_CSS);
+  source->SetDefaultResource(IDR_CLAWBROWSER_VERIFY_HTML);
+
+  source->AddString("has_expected_values", "false");
+  source->AddString("user_agent", "");
+  source->AddString("platform", "");
+  source->AddString("language_primary", "");
+  source->AddString("languages_json", "[]");
+  source->AddString("hardware_concurrency", "0");
+  source->AddString("device_memory", "0");
+  source->AddString("screen_width", "0");
+  source->AddString("screen_height", "0");
+  source->AddString("screen_avail_width", "0");
+  source->AddString("screen_avail_height", "0");
+  source->AddString("screen_color_depth", "0");
+  source->AddString("pixel_ratio", "0");
+  source->AddString("timezone", "");
+  source->AddString("webgl_vendor", "");
+  source->AddString("webgl_renderer", "");
+  source->AddString("fonts", "[]");
+  source->AddString("media_devices_json", "");
+  source->AddString("media_devices_count", "0");
+  source->AddString("plugins_json", "");
+  source->AddString("plugins_count", "0");
+  source->AddString("battery_charging", "");
+  source->AddString("battery_level", "");
+  source->AddString("speech_voices_json", "");
+  source->AddString("speech_voices_count", "0");
+
+  // Inject expected fingerprint values as replacements in the HTML.
+  const RuntimeFingerprint* fp = FingerprintAccessor::Get();
+  if (!fp)
+    return;
+
+  source->AddString("has_expected_values", "true");
+  source->AddString("user_agent", fp->user_agent);
+  source->AddString("platform", fp->platform);
+  source->AddString("language_primary",
+                     fp->language.empty() ? "" : fp->language[0]);
+
+  // Languages as JSON array string for comparison
+  base::ListValue lang_list;
+  for (const auto& lang : fp->language)
+    lang_list.Append(lang);
+  std::string languages_json;
+  base::JSONWriter::Write(base::Value(std::move(lang_list)),
+                          &languages_json);
+  source->AddString("languages_json", languages_json);
+
+  source->AddString("hardware_concurrency",
+                     base::NumberToString(fp->hardware.concurrency));
+  source->AddString("device_memory",
+                     base::NumberToString(fp->hardware.memory));
+  source->AddString("screen_width",
+                     base::NumberToString(fp->screen.width));
+  source->AddString("screen_height",
+                     base::NumberToString(fp->screen.height));
+  source->AddString("screen_avail_width",
+                     base::NumberToString(fp->screen.avail_width));
+  source->AddString("screen_avail_height",
+                     base::NumberToString(fp->screen.avail_height));
+  source->AddString("screen_color_depth",
+                     base::NumberToString(fp->screen.color_depth));
+  source->AddString("pixel_ratio",
+                     base::NumberToString(fp->screen.pixel_ratio));
+  source->AddString("timezone", fp->timezone);
+  source->AddString("webgl_vendor", fp->webgl.vendor);
+  source->AddString("webgl_renderer", fp->webgl.renderer);
+
+  // Fonts as JSON array
+  base::ListValue fonts_list;
+  for (const auto& font : fp->fonts)
+    fonts_list.Append(font);
+  source->AddString("fonts", SerializeJson(std::move(fonts_list)));
+
+  base::ListValue media_devices_list;
+  for (const auto& device : fp->media_devices)
+    media_devices_list.Append(SerializeMediaDevice(device));
+  if (!fp->media_devices.empty()) {
+    source->AddString("media_devices_json",
+                       SerializeJson(std::move(media_devices_list)));
+  }
+
+  source->AddString("media_devices_count",
+                     base::NumberToString(fp->media_devices.size()));
+
+  base::ListValue plugins_list;
+  for (const auto& plugin : fp->plugins)
+    plugins_list.Append(SerializePlugin(plugin));
+  if (!fp->plugins.empty())
+    source->AddString("plugins_json", SerializeJson(std::move(plugins_list)));
+
+  source->AddString("plugins_count",
+                     base::NumberToString(fp->plugins.size()));
+
+  if (fp->battery) {
+    if (fp->battery->charging.has_value()) {
+      source->AddString("battery_charging",
+                        *fp->battery->charging ? "true" : "false");
+    }
+    if (fp->battery->level.has_value()) {
+      source->AddString("battery_level",
+                        base::NumberToString(*fp->battery->level));
+    }
+  }
+
+  base::ListValue speech_voices_list;
+  for (const auto& voice : fp->speech_voices)
+    speech_voices_list.Append(voice);
+  if (!fp->speech_voices.empty()) {
+    source->AddString("speech_voices_json",
+                       SerializeJson(std::move(speech_voices_list)));
+  }
+
+  source->AddString("speech_voices_count",
+                     base::NumberToString(fp->speech_voices.size()));
+}
+
+void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
+  auto send_result = [this](base::DictValue result) {
+    web_ui()->CallJavascriptFunctionUnsafe("onProxyVerifyResult",
+                                           base::Value(std::move(result)));
+  };
+
+  const RuntimeProxyConfig* proxy = FingerprintAccessor::GetProxy();
+  if (!proxy) {
+    // No proxy configured — skip proxy verification
+    base::DictValue result;
+    result.Set("match", true);
+    result.Set("actual_country", "N/A");
+    result.Set("detail", "no proxy configured");
+    send_result(std::move(result));
+    return;
+  }
+
+  if (!proxy->host.has_value() || !proxy->port.has_value() ||
+      !proxy->username.has_value() || !proxy->password.has_value() ||
+      !proxy->country.has_value()) {
+    base::DictValue result;
+    result.Set("match", true);
+    result.Set("actual_country", proxy->country.value_or("N/A"));
+    result.Set("detail", "incomplete proxy config");
+    if (proxy->country.has_value())
+      result.Set("expected_country", *proxy->country);
+    if (proxy->city.has_value())
+      result.Set("expected_city", *proxy->city);
+    send_result(std::move(result));
+    return;
+  }
+
+  VerifyProxyRequest request;
+  request.proxy.scheme = proxy->scheme;
+  request.proxy.host = *proxy->host;
+  request.proxy.port = *proxy->port;
+  request.proxy.username = *proxy->username;
+  request.proxy.password = *proxy->password;
+  request.expected_country = *proxy->country;
+  if (proxy->city.has_value())
+    request.expected_city = *proxy->city;
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock()},
+      base::BindOnce(&LoadVerifyApiConfig, GetConfigDir()),
+      base::BindOnce(
+          [](base::WeakPtr<VerifyPageUI> self,
+             VerifyProxyRequest request,
+             std::string expected_country,
+             std::optional<std::string> expected_city,
+             VerifyApiConfig config) {
+            if (!self)
+              return;
+
+            auto send_async_result =
+                [self, &expected_country, &expected_city](base::DictValue result) {
+                  result.Set("expected_country", expected_country);
+                  if (expected_city.has_value())
+                    result.Set("expected_city", *expected_city);
+                  self->web_ui()->CallJavascriptFunctionUnsafe(
+                      "onProxyVerifyResult", base::Value(std::move(result)));
+                };
+
+            if (!config.api_key.has_value()) {
+              base::DictValue result;
+              result.Set("match", false);
+              result.Set("actual_country", "N/A");
+              result.Set("detail", "API key not found");
+              send_async_result(std::move(result));
+              return;
+            }
+
+            auto* browser_context = self->web_ui()->GetWebContents()->GetBrowserContext();
+            auto* storage_partition = browser_context->GetDefaultStoragePartition();
+            if (!storage_partition) {
+              base::DictValue result;
+              result.Set("match", false);
+              result.Set("actual_country", "N/A");
+              result.Set("detail", "browser storage partition unavailable");
+              send_async_result(std::move(result));
+              return;
+            }
+
+            auto url_loader_factory =
+                storage_partition->GetURLLoaderFactoryForBrowserProcess();
+            if (!url_loader_factory) {
+              base::DictValue result;
+              result.Set("match", false);
+              result.Set("actual_country", "N/A");
+              result.Set("detail", "URL loader factory unavailable");
+              send_async_result(std::move(result));
+              return;
+            }
+
+            self->api_client_ = std::make_unique<ApiClient>(
+                config.base_url, *config.api_key,
+                std::move(url_loader_factory));
+            self->api_client_->VerifyProxy(
+                request,
+                base::BindOnce(
+                    [](base::WeakPtr<VerifyPageUI> self,
+                       std::string expected_country,
+                       std::optional<std::string> expected_city,
+                       base::expected<VerifyProxyResponse, ApiError> response) {
+                      if (!self)
+                        return;
+
+                      base::DictValue result;
+                      result.Set("expected_country", expected_country);
+                      if (expected_city.has_value())
+                        result.Set("expected_city", *expected_city);
+
+                      if (response.has_value()) {
+                        result.Set("match", response->match);
+                        result.Set("actual_country", response->actual_country);
+                        if (response->actual_city.has_value())
+                          result.Set("actual_city", *response->actual_city);
+                        if (response->ipv4.has_value())
+                          result.Set("ipv4", *response->ipv4);
+                        if (response->ipv6.has_value())
+                          result.Set("ipv6", *response->ipv6);
+                      } else {
+                        result.Set("match", false);
+                        result.Set("actual_country", "N/A");
+                        result.Set("detail", response.error().message);
+                      }
+
+                      self->api_client_.reset();
+                      self->web_ui()->CallJavascriptFunctionUnsafe(
+                          "onProxyVerifyResult", base::Value(std::move(result)));
+                    },
+                    self, std::move(expected_country), std::move(expected_city)));
+          },
+          weak_ptr_factory_.GetWeakPtr(), request, *proxy->country, proxy->city));
+}
+
+void VerifyPageUI::HandleVerifyComplete(const base::ListValue& args) {
+  if (args.empty() || !args[0].is_string())
+    return;
+
+  verification_complete_ = true;
+  verify_passed_ = (args[0].GetString() == "pass");
+  failure_exit_timer_.Stop();
+  if (!verify_passed_)
+    StartFailureExitTimer();
+}
+
+void VerifyPageUI::StartFailureExitTimer() {
+  if (!automation_mode_ || !verification_complete_ || verify_passed_)
+    return;
+
+  // Spec: if verify fails and no CDP client connects within 30s, exit(1).
+  scoped_refptr<content::DevToolsAgentHost> agent_host =
+      content::DevToolsAgentHost::GetOrCreateFor(
+      web_ui()->GetWebContents());
+  if (agent_host && agent_host->IsAttached()) {
+    // CDP client is connected — don't force exit, let client handle it
+    return;
+  }
+
+  failure_exit_timer_.Start(
+      FROM_HERE, base::Seconds(30),
+      base::BindOnce(&VerifyPageUI::OnFailureExitTimeout,
+                     base::Unretained(this)));
+}
+
+void VerifyPageUI::OnFailureExitTimeout() {
+  if (!automation_mode_) {
+    return;
+  }
+
+  // 30s elapsed, verify failed, no CDP client connected
+  scoped_refptr<content::DevToolsAgentHost> agent_host =
+      content::DevToolsAgentHost::GetOrCreateFor(
+      web_ui()->GetWebContents());
+  if (agent_host && agent_host->IsAttached()) {
+    return;  // Client connected in the meantime
+  }
+
+  LOG(ERROR) << "[clawbrowser] verify failed, no CDP client connected "
+             << "within 30s — exiting";
+  base::Process::TerminateCurrentProcessImmediately(1);
+}
+
+}  // namespace clawbrowser

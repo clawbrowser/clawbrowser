@@ -1,0 +1,24 @@
+# Pinned against Chromium revision 25a94a5662bc
+diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
+--- a/chrome/BUILD.gn
++++ b/chrome/BUILD.gn
+@@ -1558,11 +1558,16 @@ if (!is_android) {
+       output_dir = root_out_dir
+       mark_as_data = true
+     }
+ 
++    additional_extra_paks = [ "$root_gen_dir/clawbrowser/clawbrowser_verify_resources.pak" ]
++    deps = [
++      "//clawbrowser:clawbrowser_verify_resources",
++    ]
++
+     if (enable_resource_allowlist_generation) {
+       repack_allowlist = _chrome_resource_allowlist
+-      deps = [ ":resource_allowlist" ]
++      deps += [ ":resource_allowlist" ]
+     }
+ 
+     if (is_chrome_branded && !is_mac) {
+       public_deps = [ ":preinstalled_apps" ]
+     }
+   }

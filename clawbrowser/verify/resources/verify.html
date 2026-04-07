@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Clawbrowser Verification</title>
+  <link rel="stylesheet" href="verify.css">
+</head>
+<body>
+  <div id="container">
+    <h1>Clawbrowser Fingerprint Verification</h1>
+    <div id="status" class="pending">Running checks...</div>
+    <table id="results">
+      <thead>
+        <tr>
+          <th>Surface</th>
+          <th>Status</th>
+          <th>Expected</th>
+          <th>Actual</th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+    <div id="proxy-status"></div>
+  </div>
+  <div id="expected-data"
+       hidden
+       data-has-expected-values="$i18n{has_expected_values}"
+       data-user-agent="$i18n{user_agent}"
+       data-platform="$i18n{platform}"
+       data-language-primary="$i18n{language_primary}"
+       data-languages-json="$i18n{languages_json}"
+       data-hardware-concurrency="$i18n{hardware_concurrency}"
+       data-device-memory="$i18n{device_memory}"
+       data-screen-width="$i18n{screen_width}"
+       data-screen-height="$i18n{screen_height}"
+       data-screen-avail-width="$i18n{screen_avail_width}"
+       data-screen-avail-height="$i18n{screen_avail_height}"
+       data-screen-color-depth="$i18n{screen_color_depth}"
+       data-pixel-ratio="$i18n{pixel_ratio}"
+       data-timezone="$i18n{timezone}"
+       data-webgl-vendor="$i18n{webgl_vendor}"
+       data-webgl-renderer="$i18n{webgl_renderer}"
+       data-fonts="$i18n{fonts}"
+       data-media-devices-json="$i18n{media_devices_json}"
+       data-media-devices-count="$i18n{media_devices_count}"
+       data-plugins-json="$i18n{plugins_json}"
+       data-plugins-count="$i18n{plugins_count}"
+       data-battery-charging="$i18n{battery_charging}"
+       data-battery-level="$i18n{battery_level}"
+       data-speech-voices-json="$i18n{speech_voices_json}"
+       data-speech-voices-count="$i18n{speech_voices_count}"></div>
+  <script src="verify.js"></script>
+</body>
+</html>

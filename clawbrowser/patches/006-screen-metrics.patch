@@ -1,0 +1,73 @@
+# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+--- a/third_party/blink/renderer/core/frame/screen.cc
++++ b/third_party/blink/renderer/core/frame/screen.cc
+@@ -29,6 +29,7 @@
+ #include "third_party/blink/renderer/core/frame/screen.h"
+ 
+ #include "base/numerics/safe_conversions.h"
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
+ #include "third_party/blink/renderer/core/event_target_names.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+@@ -79,12 +80,16 @@
+ }
+ 
+ int Screen::height() const {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
++    return fp->screen.height;
+   if (!DomWindow())
+     return 0;
+   return GetRect(/*available=*/false).height();
+ }
+ 
+ int Screen::width() const {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
++    return fp->screen.width;
+   if (!DomWindow())
+     return 0;
+   return GetRect(/*available=*/false).width();
+@@ -97,6 +102,8 @@
+   // https://drafts.csswg.org/cssom-view/#dom-screen-colordepth
+   unsigned unknown_color_depth = 24u;
+ 
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
++    return static_cast<unsigned>(fp->screen.color_depth);
+   if (!DomWindow()) {
+     return unknown_color_depth;
+   }
+@@ -122,12 +129,16 @@
+ }
+ 
+ int Screen::availHeight() const {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
++    return fp->screen.avail_height;
+   if (!DomWindow())
+     return 0;
+   return GetRect(/*available=*/true).height();
+ }
+ 
+ int Screen::availWidth() const {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
++    return fp->screen.avail_width;
+   if (!DomWindow())
+     return 0;
+   return GetRect(/*available=*/true).width();
+--- a/third_party/blink/renderer/core/frame/local_dom_window.cc
++++ b/third_party/blink/renderer/core/frame/local_dom_window.cc
+@@ -36,6 +36,7 @@
+ #include "base/trace_event/trace_id_helper.h"
+ #include "base/trace_event/typed_macros.h"
+ #include "build/build_config.h"
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "cc/input/snap_selection_strategy.h"
+ #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+ #include "net/storage_access_api/status.h"
+@@ -1799,6 +1800,8 @@
+ }
+ 
+ double LocalDOMWindow::devicePixelRatio() const {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
++    return fp->screen.pixel_ratio;
+   if (!GetFrame())
+     return 0.0;
+ 

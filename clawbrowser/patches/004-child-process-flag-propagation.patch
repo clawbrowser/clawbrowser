@@ -1,0 +1,22 @@
+# Pinned against Chromium revision 25a94a5662bc
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -2833,6 +2833,18 @@
+       command_line->GetSwitchValueASCII(switches::kProcessType);
+   const base::CommandLine& browser_command_line =
+       *base::CommandLine::ForCurrentProcess();
++
++  if (browser_command_line.HasSwitch("clawbrowser-fp-path")) {
++    command_line->AppendSwitchPath(
++        "clawbrowser-fp-path",
++        browser_command_line.GetSwitchValuePath("clawbrowser-fp-path"));
++  }
++  if (browser_command_line.HasSwitch("clawbrowser-fp-child-data")) {
++    command_line->AppendSwitchASCII(
++        "clawbrowser-fp-child-data",
++        browser_command_line.GetSwitchValueASCII(
++            "clawbrowser-fp-child-data"));
++  }
+ 
+   static const char* const kCommonSwitchNames[] = {
+       embedder_support::kUserAgent,

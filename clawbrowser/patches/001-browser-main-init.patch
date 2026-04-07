@@ -1,0 +1,60 @@
+# Pinned against Chromium revision 25a94a5662bc
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -34,6 +34,8 @@
+ #include "chrome/browser/browser_features.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/browser_process_impl.h"
++#include "clawbrowser/proxy/proxy_auth_preloader.h"
++#include "clawbrowser/startup.h"
+ #include "chrome/browser/chrome_browser_main_extra_parts.h"
+ #include "chrome/browser/component_updater/registration.h"
+ #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
+@@ -961,6 +963,17 @@
+   // field trials (and all it depends upon).
+   browser_process_ = std::make_unique<BrowserProcessImpl>(startup_data_);
+-
++  {
++    auto early_startup_result = clawbrowser::ConfigureEarlyStartup(
++        base::CommandLine::ForCurrentProcess());
++    if (!early_startup_result.has_value()) {
++      LOG(ERROR) << "[clawbrowser] " << early_startup_result.error();
++      return 1;
++    }
++    if (early_startup_result->should_exit) {
++      return early_startup_result->exit_code;
++    }
++  }
++
+ #if BUILDFLAG(IS_ANDROID)
+   startup_data_->CreateProfilePrefService();
+ #endif
+@@ -1718,6 +1731,19 @@
+   // Now that the file thread has been started, start metrics.
+   StartMetricsRecording();
+-
++  {
++    auto startup_result = clawbrowser::RunStartup(
++        base::CommandLine::ForCurrentProcess(),
++        browser_process_->system_network_context_manager()
++            ->GetSharedURLLoaderFactory());
++    if (!startup_result.has_value()) {
++      LOG(ERROR) << "[clawbrowser] " << startup_result.error();
++      return 1;
++    }
++    if (startup_result->should_exit) {
++      return startup_result->exit_code;
++    }
++  }
++
+   // Do any initializing in the browser process that requires all threads
+   // running.
+   browser_process_->PreMainMessageLoopRun();
+@@ -1897,4 +1923,7 @@
+   // `profile` may be nullptr if the profile picker is shown.
+   Profile* profile = profile_info.profile;
++  if (profile) {
++    clawbrowser::PreloadProxyAuth(profile);
++  }
+   // Call `PostProfileInit()`and set it up for profiles created later.
+   profile_init_manager_ = std::make_unique<ProfileInitManager>(this, profile);

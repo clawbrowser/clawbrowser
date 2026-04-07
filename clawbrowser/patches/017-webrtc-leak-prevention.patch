@@ -1,0 +1,68 @@
+# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+--- a/third_party/blink/renderer/modules/peerconnection/rtc_peer_connection.cc
++++ b/third_party/blink/renderer/modules/peerconnection/rtc_peer_connection.cc
+@@ -48,6 +48,7 @@
+ #include "base/task/thread_pool.h"
+ #include "build/build_config.h"
+ #include "build/buildflag.h"
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "services/metrics/public/cpp/ukm_builders.h"
+ #include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-blink.h"
+@@ -296,6 +297,10 @@
+         IceTransportPolicyFromEnum(configuration->iceTransports().AsEnum());
+   }
+ 
++  if (clawbrowser::FingerprintAccessor::GetProxy()) {
++    web_configuration.type = webrtc::PeerConnectionInterface::kRelay;
++  }
++
+   switch (configuration->bundlePolicy().AsEnum()) {
+     case V8RTCBundlePolicy::Enum::kMaxCompat:
+       web_configuration.bundle_policy =
+--- a/third_party/blink/renderer/modules/peerconnection/peer_connection_dependency_factory.cc
++++ b/third_party/blink/renderer/modules/peerconnection/peer_connection_dependency_factory.cc
+@@ -28,6 +28,7 @@
+ #include "base/trace_event/trace_event.h"
+ #include "base/unguessable_token.h"
+ #include "build/build_config.h"
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "components/webrtc/thread_wrapper.h"
+ #include "crypto/openssl_util.h"
+ #include "media/base/media_permission.h"
+@@ -1108,6 +1109,12 @@
+     }
+   }
+ 
++  if (clawbrowser::FingerprintAccessor::GetProxy()) {
++    port_config.enable_multiple_routes = false;
++    port_config.enable_nonproxied_udp = false;
++    port_config.enable_default_local_candidate = false;
++  }
++
+   std::unique_ptr<webrtc::NetworkManager> network_manager;
+   if (port_config.enable_multiple_routes) {
+     network_manager = std::make_unique<FilteringNetworkManager>(
+--- a/third_party/blink/renderer/modules/peerconnection/rtc_peer_connection_handler.cc
++++ b/third_party/blink/renderer/modules/peerconnection/rtc_peer_connection_handler.cc
+@@ -27,6 +27,7 @@
+ #include "base/threading/thread_checker.h"
+ #include "base/trace_event/trace_event.h"
+ #include "build/chromecast_buildflags.h"
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "media/base/media_switches.h"
+ #include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/public/platform/platform.h"
+@@ -601,7 +602,11 @@
+   void OnIceCandidate(const IceCandidate* candidate) override {
+     DCHECK(native_peer_connection_);
+     std::string sdp = candidate->ToString();
+-   DCHECK(!sdp.empty());
++    DCHECK(!sdp.empty());
++    if (clawbrowser::FingerprintAccessor::GetProxy() &&
++        sdp.find(" typ relay") == std::string::npos) {
++      return;
++    }
+     // The generated candidate may have been added to the pending or current
+     // local description, take a snapshot and surface them to the main thread.
+     // Remote descriptions are also surfaced because

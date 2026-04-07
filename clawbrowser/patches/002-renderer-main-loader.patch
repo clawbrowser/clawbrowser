@@ -1,0 +1,31 @@
+# Pinned against Chromium revision 25a94a5662bc
+--- a/content/renderer/renderer_main.cc
++++ b/content/renderer/renderer_main.cc
+@@ -13,6 +13,7 @@
+ #include "base/debug/debugger.h"
+ #include "base/debug/leak_annotations.h"
+ #include "base/feature_list.h"
++#include "base/logging.h"
+ #include "base/i18n/rtl.h"
+ #include "base/message_loop/message_pump.h"
+ #include "base/message_loop/message_pump_type.h"
+@@ -37,6 +38,7 @@
+ #include "content/common/content_switches_internal.h"
+ #include "content/common/features.h"
+ #include "content/common/skia_utils.h"
++#include "clawbrowser/fingerprint_loader.h"
+ #include "content/public/common/content_switches.h"
+ #include "content/public/common/main_function_params.h"
+ #include "content/public/renderer/content_renderer_client.h"
+@@ -157,6 +159,11 @@
+ 
+   const base::CommandLine& command_line = *parameters.command_line;
+ 
++  if (auto result = clawbrowser::LoadFingerprintFromCommandLine(command_line);
++      !result.has_value()) {
++    LOG(ERROR) << "[clawbrowser] renderer: " << result.error();
++  }
++
+ #if BUILDFLAG(IS_MAC)
+   base::apple::ScopedNSAutoreleasePool* pool = parameters.autorelease_pool;
+ #endif  // BUILDFLAG(IS_MAC)

@@ -1,0 +1,84 @@
+# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+index a35f78dde3..3f338fb1d5 100644
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+@@ -25,6 +25,7 @@
+ 
+ #include "third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h"
+ 
++#include <algorithm>
+ #include <memory>
+ #include <utility>
+ 
+@@ -41,6 +42,9 @@
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/trace_event/trace_event.h"
+ #include "build/build_config.h"
++#include "base/containers/span.h"
++#include "clawbrowser/fingerprint_accessor.h"
++#include "clawbrowser/noise/prng.h"
+ #include "device/vr/buildflags/buildflags.h"
+ #include "device/vr/public/mojom/vr_service.mojom-blink-forward.h"
+ #include "gpu/GLES2/gl2extchromium.h"
+@@ -3903,6 +3907,10 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+     case GL_RENDERBUFFER_BINDING:
+       return WebGLAny(script_state, renderbuffer_binding_.Get());
+     case GL_RENDERER:
++      if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++          fp && !fp->webgl.renderer.empty()) {
++        return WebGLAny(script_state, String::FromUtf8(fp->webgl.renderer));
++      }
+       return WebGLAny(script_state, String("WebKit WebGL"));
+     case GL_SAMPLE_ALPHA_TO_COVERAGE:
+       return GetBooleanParameter(script_state, pname);
+@@ -3981,6 +3989,10 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+     case GC3D_UNPACK_COLORSPACE_CONVERSION_WEBGL:
+       return WebGLAny(script_state, unpack_colorspace_conversion_);
+     case GL_VENDOR:
++      if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++          fp && !fp->webgl.vendor.empty()) {
++        return WebGLAny(script_state, String::FromUtf8(fp->webgl.vendor));
++      }
+       return WebGLAny(script_state, String("WebKit"));
+     case GL_VERSION:
+       return WebGLAny(
+@@ -3999,6 +4011,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+       return ScriptValue::CreateNull(script_state->GetIsolate());
+     case WebGLDebugRendererInfo::kUnmaskedRendererWebgl:
+       if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
++        if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++            fp && !fp->webgl.renderer.empty()) {
++          return WebGLAny(script_state,
++                          String::FromUtf8(fp->webgl.renderer));
++        }
+         return WebGLAny(script_state,
+                         String(ContextGL()->GetString(GL_RENDERER)));
+       }
+@@ -4008,6 +4025,10 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+       return ScriptValue::CreateNull(script_state->GetIsolate());
+     case WebGLDebugRendererInfo::kUnmaskedVendorWebgl:
+       if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
++        if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++            fp && !fp->webgl.vendor.empty()) {
++          return WebGLAny(script_state, String::FromUtf8(fp->webgl.vendor));
++        }
+         return WebGLAny(script_state,
+                         String(ContextGL()->GetString(GL_VENDOR)));
+       }
+@@ -5155,6 +5176,15 @@ void WebGLRenderingContextBase::ReadPixelsHelper(GLint x,
+     }
+     ContextGL()->ReadPixels(x, y, width, height, format, type, data);
+   }
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get()) {
++    clawbrowser::Prng prng(fp->canvas_seed);
++    base::span<uint8_t> pixel_bytes =
++        UNSAFE_BUFFERS(base::span(data, buffer_size.ValueOrDie()));
++    for (uint8_t& pixel : pixel_bytes) {
++      pixel = static_cast<uint8_t>(
++          std::clamp(static_cast<int>(pixel) + prng.PixelNoise(), 0, 255));
++    }
++  }
+ }
+ 
+ void WebGLRenderingContextBase::RenderbufferStorageImpl(

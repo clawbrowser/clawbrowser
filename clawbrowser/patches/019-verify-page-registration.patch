@@ -1,0 +1,243 @@
+# Pinned against Chromium revision 25a94a5662bc
+--- a/content/public/common/url_utils.cc
++++ b/content/public/common/url_utils.cc
+@@ -25,7 +25,8 @@ namespace {
+ 
+ bool IsWebUIScheme(std::string_view scheme) {
+   return scheme == content::kChromeUIScheme ||
+-         scheme == content::kChromeUIUntrustedScheme ||
++         scheme == content::kChromeUIUntrustedScheme ||
++         scheme == "clawbrowser" ||
+          scheme == content::kChromeDevToolsScheme;
+ }
+ 
+--- a/content/common/url_utils_unittest.cc
++++ b/content/common/url_utils_unittest.cc
+@@ -20,6 +20,7 @@ TEST(UrlUtilsTest, HasWebUIScheme) {
+   EXPECT_TRUE(HasWebUIScheme(CreateValidURL("chrome://test")));
+   EXPECT_TRUE(HasWebUIScheme(CreateValidURL("chrome-untrusted://test")));
+   EXPECT_TRUE(HasWebUIScheme(CreateValidURL("devtools://test")));
++  EXPECT_TRUE(HasWebUIScheme(CreateValidURL("clawbrowser://test")));
+ 
+   // Other chromium schemes not considered WebUI schemes.
+   EXPECT_FALSE(HasWebUIScheme(CreateValidURL("chrome-error://test")));
+--- a/content/renderer/render_thread_impl.cc
++++ b/content/renderer/render_thread_impl.cc
+@@ -861,6 +861,11 @@ void RenderThreadImpl::RegisterSchemes() {
+   WebSecurityPolicy::RegisterURLSchemeAsNotAllowingJavascriptURLs(
+       chrome_scheme);
+   WebSecurityPolicy::RegisterURLSchemeAsWebUI(chrome_scheme);
++  WebString clawbrowser_scheme(WebString::FromAscii("clawbrowser"));
++  WebSecurityPolicy::RegisterURLSchemeAsDisplayIsolated(clawbrowser_scheme);
++  WebSecurityPolicy::RegisterURLSchemeAsNotAllowingJavascriptURLs(
++      clawbrowser_scheme);
++  WebSecurityPolicy::RegisterURLSchemeAsWebUI(clawbrowser_scheme);
+ 
+   WebString chrome_untrusted_scheme(
+       WebString::FromAscii(kChromeUIUntrustedScheme));
+@@ -875,11 +883,13 @@ void RenderThreadImpl::RegisterSchemes() {
+ 
+   if (base::FeatureList::IsEnabled(features::kWebUICodeCache)) {
+     WebSecurityPolicy::RegisterURLSchemeAsCodeCacheWithHashing(chrome_scheme);
++    WebSecurityPolicy::RegisterURLSchemeAsCodeCacheWithHashing(clawbrowser_scheme);
+     WebSecurityPolicy::RegisterURLSchemeAsCodeCacheWithHashing(
+         chrome_untrusted_scheme);
+   }
+ 
+   if (base::FeatureList::IsEnabled(features::kWebUIBundledCodeCache)) {
++    WebSecurityPolicy::RegisterURLSchemeAsWebUIBundledBytecode(clawbrowser_scheme);
+     WebSecurityPolicy::RegisterURLSchemeAsWebUIBundledBytecode(chrome_scheme);
+     WebSecurityPolicy::RegisterURLSchemeAsWebUIBundledBytecode(
+         chrome_untrusted_scheme);
+--- a/chrome/common/chrome_content_client.cc
++++ b/chrome/common/chrome_content_client.cc
+@@ -190,6 +190,7 @@ static const char* const kChromeStandardURLSchemes[] = {
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
+     BUILDFLAG(IS_CHROMEOS)
+     webapps::kIsolatedAppScheme,
++    "clawbrowser",
+ #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) ||
+         // BUILDFLAG(IS_CHROMEOS)
+     chrome::kChromeNativeScheme,        chrome::kChromeSearchScheme,
+@@ -224,6 +225,7 @@ void ChromeContentClient::AddAdditionalSchemes(Schemes* schemes) {
+ 
+   // chrome-search: resources shouldn't trigger insecure content warnings.
+   schemes->secure_schemes.push_back(chrome::kChromeSearchScheme);
++  schemes->secure_schemes.push_back("clawbrowser");
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   // Treat extensions as secure because communication with them is entirely in
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -2190,6 +2190,7 @@
+ // view-source is allowed for these schemes.
+ void ChromeContentBrowserClient::GetAdditionalWebUISchemes(
+     std::vector<std::string>* additional_schemes) {
++  additional_schemes->emplace_back("clawbrowser");
+   additional_schemes->emplace_back(chrome::kChromeSearchScheme);
+   additional_schemes->emplace_back(dom_distiller::kDomDistillerScheme);
+   additional_schemes->emplace_back(content::kChromeDevToolsScheme);
+@@ -2199,7 +2200,8 @@
+   if (!url.is_valid()) {
+     return false;
+   }
+-  return url.SchemeIs(chrome::kChromeNativeScheme);
++  return url.SchemeIs(chrome::kChromeNativeScheme) ||
++         url.SchemeIs("clawbrowser");
+ }
+ 
+ void ChromeContentBrowserClient::GetAdditionalViewSourceSchemes(
+--- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+@@ -20,6 +20,7 @@
+ #include "chrome/browser/about_flags.h"
+ #include "chrome/browser/buildflags.h"
+ #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
++#include "clawbrowser/verify/verify_page.h"
+ #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/webui/about/about_ui.h"
+@@ -158,6 +159,9 @@
+                                              const GURL& url) {
+   // This will get called a lot to check all URLs, so do a quick check of other
+   // schemes to filter out most URLs.
++  if (url.SchemeIs("clawbrowser") && url.host() == clawbrowser::kVerifyHost) {
++    return &NewWebUI<clawbrowser::VerifyPageUI>;
++  }
+ #if BUILDFLAG(ENABLE_DEVTOOLS_FRONTEND)
+   if (!url.SchemeIs(content::kChromeDevToolsScheme)) {
+     return nullptr;
+--- a/chrome/browser/ui/startup/google_chrome_scheme_util.cc
++++ b/chrome/browser/ui/startup/google_chrome_scheme_util.cc
+@@ -143,12 +143,16 @@ bool ValidateUrl(const GURL& url) {
+       LOG(WARNING) << "Headless mode requires the --allow-chrome-scheme-url "
+                       "command-line option to access "
+                    << url;
+     }
+   }
+ #endif
+ 
++  const bool url_scheme_is_clawbrowser =
++      url.SchemeIs("clawbrowser") && url.host() == "verify";
++
+   auto* policy = content::ChildProcessSecurityPolicy::GetInstance();
+   return policy->IsWebSafeScheme(url.GetScheme()) ||
+-         url.SchemeIs(url::kFileScheme) || url_scheme_is_chrome ||
++         url.SchemeIs(url::kFileScheme) || url_scheme_is_chrome ||
++         url_scheme_is_clawbrowser ||
+          url_points_to_an_approved_settings_page ||
+          url.spec() == url::kAboutBlankURL;
+ }
+--- a/chrome/browser/ui/startup/google_chrome_scheme_util_unittest.cc
++++ b/chrome/browser/ui/startup/google_chrome_scheme_util_unittest.cc
+@@ -235,6 +235,7 @@ TEST(GoogleChromeSchemeUtilTest, ValidateUrl) {
+   EXPECT_TRUE(ValidateUrl(GURL("http://google.com")));
+   EXPECT_TRUE(ValidateUrl(GURL("https://google.com")));
+   EXPECT_TRUE(ValidateUrl(GURL("file:///tmp/test")));
++  EXPECT_TRUE(ValidateUrl(GURL("clawbrowser://verify")));
+   EXPECT_TRUE(ValidateUrl(GURL("about:blank")));
+ 
+   // chrome:// settings
+--- a/content/browser/webui/web_ui_data_source_impl.cc
++++ b/content/browser/webui/web_ui_data_source_impl.cc
+@@ -392,10 +392,11 @@
+     CHECK(url.SchemeIs(kChromeUIUntrustedScheme));
+     result = url::Origin::Create(url);
+   } else {
+-    // |source_name_| must be of the form "some-host", which means it serves
+-    // URLs of the form "chrome://some-host/".
+-    result = url::Origin::CreateFromNormalizedTuple(kChromeUIScheme,
+-                                                    source_name_, 0);
++    // |source_name_| must be of the form "some-host". If
++    // |supported_scheme_| was set, it serves URLs of the form
++    // "<scheme>://some-host/".
++    result = url::Origin::CreateFromNormalizedTuple(
++        supported_scheme_.value_or(kChromeUIScheme), source_name_, 0);
+   }
+   CHECK(!result.opaque());
+   return result;
+--- a/content/browser/webui/web_ui_impl.cc
++++ b/content/browser/webui/web_ui_impl.cc
+@@ -90,51 +90,56 @@
+ 
+   // Add generated resources.
+   base::flat_map<std::string, std::string> generated_resources;
+   webui_data_source.PopulateWebUIResources(generated_resources);
+ 
+   for (auto& [path, content] : generated_resources) {
+     // Ensures dynamic resources, e.g., string.m.js, do not have a resource id.
+     CHECK(path_to_resource_map.find(path) == path_to_resource_map.end());
+     path_to_resource_map[path] =
+         blink::mojom::LocalResourceValue::NewResponseBody(std::move(content));
+   }
+ }
+ 
+ // Returns true if the data source from `origin` should be included for a WebUI
+ // with `current_origin`.
+ // For performance, a WebUI page should only receives data from its own data
+ // sources and shared resources.
+ // TODO(crbug.com/459528908): Allow configuring this from URLDataSource.
+ bool ShouldIncludeDataSource(const url::Origin& origin,
+                              const url::Origin& current_origin) {
+-  // We only support data sources that serve URLs of the form: chrome://*
++  if (origin == current_origin) {
++    return true;
++  }
++
++  // We only support shared data sources that serve URLs of the form:
++  // chrome://*
+   if (origin.scheme() != kChromeUIScheme) {
+     return false;
+   }
+ 
+   if (!base::FeatureList::IsEnabled(
+           features::kWebUIInProcessResourceLoadingV2)) {
+     return true;
+   }
+ 
+-  return origin == current_origin || origin.host() == kChromeUIResourcesHost ||
++  return origin.host() == kChromeUIResourcesHost ||
+          origin.host() == kChromeUIThemeHost;
+ }
+ 
+ // Helper to add a single data source to the config.
+ void AddDataSourceToConfig(
+     WebUIDataSourceImpl* webui_data_source,
+     const url::Origin& current_origin,
+     blink::mojom::LocalResourceLoaderConfig* loader_config) {
+   url::Origin origin = webui_data_source->GetOrigin();
+ 
+   if (!ShouldIncludeDataSource(origin, current_origin)) {
+     return;
+   }
+ 
+   auto loader_source = blink::mojom::LocalResourceSource::New();
+   webui_data_source->EnsureLoadTimeDataDefaultsAdded();
+   loader_source->headers =
+       URLDataManagerBackend::GetHeaders(webui_data_source, GURL("/"), "")
+           ->raw_headers();
+   loader_source->should_replace_i18n_in_js =
+--- a/content/renderer/web_ui_extension.cc
++++ b/content/renderer/web_ui_extension.cc
+@@ -48,6 +48,7 @@
+   bool webui_enabled =
+       (render_frame->GetEnabledBindings().Has(BindingsPolicyValue::kWebUi)) &&
+       (frame_url.SchemeIs(kChromeUIScheme) ||
++       frame_url.SchemeIs("clawbrowser") ||
+        frame_url.SchemeIs(url::kDataScheme));
+ 
+   if (!webui_enabled)
+--- a/content/renderer/local_resource_url_loader_factory.cc
++++ b/content/renderer/local_resource_url_loader_factory.cc
+@@ -213,8 +213,9 @@
+                                     traffic_annotation);
+     return;
+   }
+-  // Only the "chrome" scheme is supported.
+-  CHECK(request.url.GetScheme() == kChromeUIScheme);
++  // Only trusted WebUI schemes with in-process resources are supported.
++  CHECK(request.url.GetScheme() == kChromeUIScheme ||
++        request.url.GetScheme() == "clawbrowser");
+   // Parallelize calls to GetResourceAndRespond across multiple threads.
+   // Needs to be posted to a SequencedTaskRunner as Mojo requires a
+   // SequencedTaskRunner::CurrentDefaultHandle in scope.

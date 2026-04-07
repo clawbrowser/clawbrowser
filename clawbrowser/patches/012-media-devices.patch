@@ -1,0 +1,66 @@
+# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+--- a/third_party/blink/renderer/modules/mediastream/media_devices.cc
++++ b/third_party/blink/renderer/modules/mediastream/media_devices.cc
+@@ -5,6 +5,7 @@
+ #include "third_party/blink/renderer/modules/mediastream/media_devices.h"
+ 
+ #include <algorithm>
++#include <string>
+ #include <utility>
+ 
+ #include "base/feature_list.h"
+@@ -14,6 +15,7 @@
+ #include "base/strings/stringprintf.h"
+ #include "base/uuid.h"
+ #include "build/build_config.h"
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "media/base/media_permission.h"
+ #include "mojo/public/cpp/bindings/remote.h"
+ #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
+@@ -91,6 +93,31 @@
+   blink::WebRtcLogMessage("MD::" + message);
+ }
+ 
++mojom::blink::MediaDeviceType DeviceTypeFromFingerprint(
++    const clawbrowser::RuntimeMediaDevice& device) {
++  const std::string kind = device.kind.value_or("audioinput");
++  if (kind == "videoinput") {
++    return mojom::blink::MediaDeviceType::kMediaVideoInput;
++  }
++  if (kind == "audiooutput") {
++    return mojom::blink::MediaDeviceType::kMediaAudioOutput;
++  }
++  return mojom::blink::MediaDeviceType::kMediaAudioInput;
++}
++
++MediaDeviceInfoVector BuildSpoofedMediaDevices(
++    const clawbrowser::RuntimeFingerprint& fp) {
++  MediaDeviceInfoVector devices;
++  devices.ReserveInitialCapacity(fp.media_devices.size());
++  for (const auto& device : fp.media_devices) {
++    devices.push_back(MakeGarbageCollected<MediaDeviceInfo>(
++        String::FromUtf8(device.device_id.value_or(std::string())),
++        String::FromUtf8(device.label.value_or(std::string())), String(),
++        DeviceTypeFromFingerprint(device)));
++  }
++  return devices;
++}
++
+ void LogDevicesEnumerated(
+     ScriptPromiseResolverWithTracker<EnumerateDevicesResult,
+                                      IDLSequence<MediaDeviceInfo>>*
+@@ -525,6 +552,14 @@
+       kEnumerateDevicesTimeout);
+   const auto promise = result_tracker->Promise();
+ 
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && !fp->media_devices.empty()) {
++    ReportCompletedEnumerateDevices(true);
++    result_tracker->Resolve(BuildSpoofedMediaDevices(*fp));
++    tracer->End();
++    return promise;
++  }
++
+   SendLogMessage(base::StringPrintf(
+       "enumerateDevices({result_tracker=%p}, "
+       "{request_audio_input_capabilities=%s})",

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grit latest_public_release="0" current_release="1">
+  <outputs>
+    <output filename="grit/clawbrowser_verify_resources.h" type="rc_header">
+      <emit emit_type='prepend'></emit>
+    </output>
+    <output filename="clawbrowser_verify_resources.pak" type="data_package" />
+  </outputs>
+  <release seq="1">
+    <includes>
+      <include name="IDR_CLAWBROWSER_VERIFY_HTML" file="resources/verify.html" type="BINDATA" />
+      <include name="IDR_CLAWBROWSER_VERIFY_JS" file="resources/verify.js" type="BINDATA" />
+      <include name="IDR_CLAWBROWSER_VERIFY_CSS" file="resources/verify.css" type="BINDATA" />
+    </includes>
+  </release>
+</grit>

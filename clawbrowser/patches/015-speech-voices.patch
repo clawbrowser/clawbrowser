@@ -1,0 +1,74 @@
+# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+--- a/third_party/blink/renderer/modules/speech/speech_synthesis.cc
++++ b/third_party/blink/renderer/modules/speech/speech_synthesis.cc
+@@ -28,6 +28,7 @@
+ #include <tuple>
+ 
+ #include "build/build_config.h"
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "third_party/blink/public/common/thread_safe_browser_interface_broker_proxy.h"
+ #include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
+ #include "third_party/blink/public/platform/platform.h"
+@@ -47,6 +48,33 @@
+ 
+ namespace blink {
+ 
++namespace {
++
++HeapVector<Member<SpeechSynthesisVoice>> BuildSpoofedVoiceList(
++    const clawbrowser::RuntimeFingerprint& fp) {
++  HeapVector<Member<SpeechSynthesisVoice>> voices;
++  voices.ReserveInitialCapacity(fp.speech_voices.size());
++
++  const String language =
++      fp.language.empty() ? String() : String::FromUtf8(fp.language.front());
++  bool is_default = true;
++  for (const auto& voice_name : fp.speech_voices) {
++    auto voice = mojom::blink::SpeechSynthesisVoice::New();
++    voice->voice_uri = String::FromUtf8(voice_name);
++    voice->name = String::FromUtf8(voice_name);
++    voice->lang = language;
++    voice->is_local_service = true;
++    voice->is_default = is_default;
++    voices.push_back(
++        MakeGarbageCollected<SpeechSynthesisVoice>(std::move(voice)));
++    is_default = false;
++  }
++
++  return voices;
++}
++
++}  // namespace
++
+ const char SpeechSynthesis::kSupplementName[] = "SpeechSynthesis";
+ 
+ SpeechSynthesisBase* SpeechSynthesis::Create(LocalDOMWindow& window) {
+@@ -87,6 +115,13 @@
+ 
+ void SpeechSynthesis::OnSetVoiceList(
+     Vector<mojom::blink::SpeechSynthesisVoicePtr> mojom_voices) {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && !fp->speech_voices.empty()) {
++    voice_list_ = BuildSpoofedVoiceList(*fp);
++    VoicesDidChange();
++    return;
++  }
++
+   voice_list_.clear();
+   for (auto& mojom_voice : mojom_voices) {
+     voice_list_.push_back(
+@@ -96,6 +131,14 @@
+ }
+ 
+ const HeapVector<Member<SpeechSynthesisVoice>>& SpeechSynthesis::getVoices() {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && !fp->speech_voices.empty()) {
++    if (voice_list_.empty()) {
++      voice_list_ = BuildSpoofedVoiceList(*fp);
++    }
++    return voice_list_;
++  }
++
+   // Kick off initialization here to ensure voice list gets populated.
+   std::ignore = TryEnsureMojomSynthesis();
+   return voice_list_;

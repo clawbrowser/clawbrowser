@@ -1,0 +1,42 @@
+# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+--- a/third_party/blink/renderer/core/dom/element.cc
++++ b/third_party/blink/renderer/core/dom/element.cc
+@@ -34,6 +34,8 @@
+ 
+ #include "base/containers/adapters.h"
+ #include "base/feature_list.h"
++#include "clawbrowser/fingerprint_accessor.h"
++#include "clawbrowser/noise/prng.h"
+ #include "cc/input/snap_selection_strategy.h"
+ #include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/public/mojom/scroll/scroll_enums.mojom-blink.h"
+@@ -3450,6 +3452,15 @@
+   for (auto& rect : rects) {
+     GetDocument().AdjustRectForScrollAndAbsoluteZoom(rect,
+                                                      *element_layout_object);
++  }
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get()) {
++    clawbrowser::Prng prng(fp->client_rects_seed);
++    for (auto& rect : rects) {
++      rect.set_x(rect.x() + prng.SubPixelNoise());
++      rect.set_y(rect.y() + prng.SubPixelNoise());
++      rect.set_width(rect.width() + prng.SubPixelNoise());
++      rect.set_height(rect.height() + prng.SubPixelNoise());
++    }
+   }
+   return MakeGarbageCollected<DOMRectList>(rects);
+ }
+@@ -3497,6 +3508,13 @@
+   DCHECK(element_layout_object);
+   GetDocument().AdjustRectForScrollAndAbsoluteZoom(result,
+                                                    *element_layout_object);
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get()) {
++    clawbrowser::Prng prng(fp->client_rects_seed);
++    result.set_x(result.x() + prng.SubPixelNoise());
++    result.set_y(result.y() + prng.SubPixelNoise());
++    result.set_width(result.width() + prng.SubPixelNoise());
++    result.set_height(result.height() + prng.SubPixelNoise());
++  }
+   return result;
+ }
+ 

@@ -1,0 +1,789 @@
+openapi: 3.1.0
+info:
+  title: Clawbrowser API
+  version: 1.0.0
+  description: |
+    Clawbrowser backend API. Two auth contexts:
+    - Browser-facing endpoints use Unkey API key auth (bearerAuth)
+    - Dashboard-facing endpoints use Auth0 JWT auth (auth0Jwt)
+    - Webhook endpoints use signature verification
+
+tags:
+  - name: fingerprint
+    description: Browser-facing fingerprint operations (Unkey API key auth)
+  - name: dashboard
+    description: Dashboard-facing operations (Auth0 JWT auth)
+  - name: webhooks
+    description: Webhook receivers (signature verification)
+
+paths:
+  # ──────────────────────────────────────────────
+  # Browser-facing (Unkey API key auth)
+  # ──────────────────────────────────────────────
+
+  /v1/fingerprints/generate:
+    post:
+      tags: [fingerprint]
+      summary: Generate a browser fingerprint
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateRequest'
+      responses:
+        '200':
+          description: Generated fingerprint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateResponse'
+        '401':
+          description: Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/proxy/verify:
+    post:
+      tags: [fingerprint]
+      summary: Verify proxy matches expected geo parameters
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyProxyRequest'
+      responses:
+        '200':
+          description: Proxy verification result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyProxyResponse'
+        '401':
+          description: Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ──────────────────────────────────────────────
+  # Dashboard-facing (Auth0 JWT auth)
+  # ──────────────────────────────────────────────
+
+  /v1/me:
+    get:
+      tags: [dashboard]
+      summary: Get current customer profile
+      security:
+        - auth0Jwt: []
+      responses:
+        '200':
+          description: Customer profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [dashboard]
+      summary: Update current customer profile
+      security:
+        - auth0Jwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCustomerRequest'
+      responses:
+        '200':
+          description: Updated customer profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/api-keys:
+    post:
+      tags: [dashboard]
+      summary: Create a new API key
+      security:
+        - auth0Jwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApiKeyRequest'
+      responses:
+        '201':
+          description: API key created. The key value is only returned once.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateApiKeyResponse'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [dashboard]
+      summary: List customer's API keys
+      security:
+        - auth0Jwt: []
+      responses:
+        '200':
+          description: List of API keys (key values are masked)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keys]
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKey'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/api-keys/{id}:
+    delete:
+      tags: [dashboard]
+      summary: Revoke an API key
+      security:
+        - auth0Jwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: API key revoked
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/api-keys/{id}/rotate:
+    post:
+      tags: [dashboard]
+      summary: Rotate an API key (revoke old, create new)
+      security:
+        - auth0Jwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: New API key. The key value is only returned once.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateApiKeyResponse'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/usage:
+    get:
+      tags: [dashboard]
+      summary: Get current period usage stats
+      security:
+        - auth0Jwt: []
+      responses:
+        '200':
+          description: Usage statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageStats'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/usage/history:
+    get:
+      tags: [dashboard]
+      summary: Get usage over time (for charts)
+      security:
+        - auth0Jwt: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Start date (ISO 8601)
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: End date (ISO 8601)
+        - name: granularity
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: day
+      responses:
+        '200':
+          description: Usage history data points
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageHistory'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/billing/subscription:
+    get:
+      tags: [dashboard]
+      summary: Get current subscription and billing status
+      security:
+        - auth0Jwt: []
+      responses:
+        '200':
+          description: Subscription details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/billing/portal:
+    post:
+      tags: [dashboard]
+      summary: Get a URL to the billing portal for plan management
+      security:
+        - auth0Jwt: []
+      responses:
+        '200':
+          description: Billing portal URL
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                    description: Redirect URL to UniBee billing portal
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ──────────────────────────────────────────────
+  # Webhooks (signature verification)
+  # ──────────────────────────────────────────────
+
+  /v1/webhooks/auth0:
+    post:
+      tags: [webhooks]
+      summary: Auth0 post-registration webhook
+      description: |
+        Called by Auth0 after a new user registers. Creates customer record,
+        provisions Nodemaven sub-client, creates default API key, sends welcome email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Auth0WebhookPayload'
+      responses:
+        '200':
+          description: Webhook processed
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid webhook signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/webhooks/unibee:
+    post:
+      tags: [webhooks]
+      summary: UniBee payment event webhook
+      description: |
+        Called by UniBee on payment events and subscription changes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UniBeeWebhookPayload'
+      responses:
+        '200':
+          description: Webhook processed
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid webhook signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Unkey-issued API key for browser clients
+    auth0Jwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Auth0-issued JWT for dashboard clients
+
+  schemas:
+    # ──────────────────────────────────────────────
+    # Fingerprint schemas
+    # ──────────────────────────────────────────────
+
+    GenerateRequest:
+      type: object
+      required: [platform, browser, country]
+      properties:
+        platform:
+          type: string
+          enum: [macos]
+        browser:
+          type: string
+          enum: [chrome]
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2
+        city:
+          type: string
+        connection_type:
+          type: string
+          enum: [residential, datacenter, mobile]
+
+    GenerateResponse:
+      type: object
+      required: [fingerprint]
+      properties:
+        fingerprint:
+          $ref: '#/components/schemas/Fingerprint'
+        proxy:
+          $ref: '#/components/schemas/ProxyConfig'
+
+    Fingerprint:
+      type: object
+      required: [user_agent, platform, screen, hardware, webgl, canvas_seed, audio_seed, client_rects_seed, timezone, language, fonts]
+      properties:
+        user_agent:
+          type: string
+        platform:
+          type: string
+        screen:
+          $ref: '#/components/schemas/Screen'
+        hardware:
+          $ref: '#/components/schemas/Hardware'
+        webgl:
+          $ref: '#/components/schemas/WebGL'
+        canvas_seed:
+          type: integer
+        audio_seed:
+          type: integer
+        client_rects_seed:
+          type: integer
+        timezone:
+          type: string
+        language:
+          type: array
+          items:
+            type: string
+        fonts:
+          type: array
+          items:
+            type: string
+        media_devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaDevice'
+        plugins:
+          type: array
+          items:
+            $ref: '#/components/schemas/Plugin'
+        battery:
+          $ref: '#/components/schemas/Battery'
+        speech_voices:
+          type: array
+          items:
+            type: string
+
+    Screen:
+      type: object
+      required: [width, height, avail_width, avail_height, color_depth, pixel_ratio]
+      properties:
+        width: { type: integer }
+        height: { type: integer }
+        avail_width: { type: integer }
+        avail_height: { type: integer }
+        color_depth: { type: integer }
+        pixel_ratio: { type: number }
+
+    Hardware:
+      type: object
+      required: [concurrency, memory]
+      properties:
+        concurrency: { type: integer }
+        memory: { type: integer }
+
+    WebGL:
+      type: object
+      required: [vendor, renderer]
+      properties:
+        vendor: { type: string }
+        renderer: { type: string }
+
+    MediaDevice:
+      type: object
+      properties:
+        kind: { type: string, enum: [audioinput, audiooutput, videoinput] }
+        label: { type: string }
+        device_id: { type: string }
+
+    Plugin:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        filename: { type: string }
+
+    Battery:
+      type: object
+      properties:
+        charging: { type: boolean }
+        level: { type: number }
+
+    ProxyConfig:
+      type: object
+      properties:
+        scheme:
+          type: string
+          enum: [http, https, socks5]
+        country: { type: string }
+        city: { type: string }
+        connection_type: { type: string }
+        host: { type: string }
+        port: { type: integer }
+        username: { type: string }
+        password: { type: string }
+
+    VerifyProxyRequest:
+      type: object
+      required: [proxy, expected_country]
+      properties:
+        proxy:
+          type: object
+          required: [host, port, username, password]
+          properties:
+            scheme:
+              type: string
+              enum: [http, https, socks5]
+            host: { type: string }
+            port: { type: integer }
+            username: { type: string }
+            password: { type: string }
+        expected_country:
+          type: string
+          description: ISO 3166-1 alpha-2
+        expected_city:
+          type: string
+
+    VerifyProxyResponse:
+      type: object
+      required: [match, actual_country]
+      properties:
+        match:
+          type: boolean
+          description: Whether the proxy geo matches the expected country (and city if provided)
+        actual_country:
+          type: string
+        actual_city:
+          type: string
+        ipv4:
+          type: string
+          description: Detected IPv4 address of the proxy
+        ipv6:
+          type: string
+          description: Detected IPv6 address of the proxy
+
+    # ──────────────────────────────────────────────
+    # Dashboard schemas
+    # ──────────────────────────────────────────────
+
+    Customer:
+      type: object
+      required: [id, email, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        status:
+          type: string
+          enum: [provisioning, active, provisioning_failed]
+          description: Account provisioning status
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UpdateCustomerRequest:
+      type: object
+      properties:
+        name:
+          type: string
+
+    CreateApiKeyRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Human-readable label for the API key
+
+    CreateApiKeyResponse:
+      type: object
+      required: [id, name, key, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        key:
+          type: string
+          description: The API key value. Only returned once at creation time.
+        created_at:
+          type: string
+          format: date-time
+
+    ApiKey:
+      type: object
+      required: [id, name, key_prefix, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        key_prefix:
+          type: string
+          description: First 8 characters of the key for identification (e.g. "clawbrow...")
+        created_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+
+    UsageStats:
+      type: object
+      required: [period_start, period_end, fingerprint_generations, proxy_verifications]
+      properties:
+        period_start:
+          type: string
+          format: date-time
+        period_end:
+          type: string
+          format: date-time
+        fingerprint_generations:
+          type: integer
+        proxy_verifications:
+          type: integer
+
+    UsageHistory:
+      type: object
+      required: [data_points]
+      properties:
+        data_points:
+          type: array
+          items:
+            type: object
+            required: [date, fingerprint_generations, proxy_verifications]
+            properties:
+              date:
+                type: string
+                format: date
+              fingerprint_generations:
+                type: integer
+              proxy_verifications:
+                type: integer
+
+    Subscription:
+      type: object
+      required: [plan, status]
+      properties:
+        plan:
+          type: string
+          description: Current plan name
+        status:
+          type: string
+          enum: [active, past_due, cancelled, trialing]
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+        usage_limit:
+          type: integer
+          description: Max fingerprint generations per period (null if unlimited)
+        usage_current:
+          type: integer
+          description: Fingerprint generations used in current period
+
+    # ──────────────────────────────────────────────
+    # Webhook schemas
+    # ──────────────────────────────────────────────
+
+    Auth0WebhookPayload:
+      type: object
+      required: [user_id, email]
+      properties:
+        user_id:
+          type: string
+          description: Auth0 user ID
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+
+    UniBeeWebhookPayload:
+      type: object
+      required: [event, data]
+      properties:
+        event:
+          type: string
+          enum: [payment.succeeded, payment.failed, subscription.updated, subscription.cancelled]
+        data:
+          type: object
+          description: Event-specific payload (structure varies by event type)
+
+    # ──────────────────────────────────────────────
+    # Shared schemas
+    # ──────────────────────────────────────────────
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code
+        message:
+          type: string
+          description: Human-readable error message

@@ -1,0 +1,33 @@
+# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+--- a/third_party/blink/renderer/modules/battery/battery_manager.cc
++++ b/third_party/blink/renderer/modules/battery/battery_manager.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "third_party/blink/renderer/modules/battery/battery_manager.h"
+ 
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "third_party/blink/public/mojom/frame/lifecycle.mojom-blink.h"
+ #include "third_party/blink/renderer/core/dom/dom_exception.h"
+ #include "third_party/blink/renderer/core/dom/events/event.h"
+@@ -80,6 +81,10 @@
+ }
+ 
+ bool BatteryManager::charging() {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->battery && fp->battery->charging.has_value()) {
++    return *fp->battery->charging;
++  }
+   return battery_status_.Charging();
+ }
+ 
+@@ -92,6 +97,10 @@
+ }
+ 
+ double BatteryManager::level() {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->battery && fp->battery->level.has_value()) {
++    return *fp->battery->level;
++  }
+   return battery_status_.Level();
+ }
+ 
