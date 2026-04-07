@@ -35,6 +35,18 @@ ClawArgs ClawArgs::Parse(const base::CommandLine& command_line) {
   args.verbose_ = command_line.HasSwitch("verbose");
   args.skip_verify_ = command_line.HasSwitch("skip-verify");
   args.verify_automation_ = command_line.HasSwitch("verify-automation");
+  args.country_ = command_line.GetSwitchValueASCII("country");
+
+  std::string city = command_line.GetSwitchValueASCII("city");
+  if (!city.empty()) {
+    args.city_ = city;
+  }
+
+  std::string connection_type =
+      command_line.GetSwitchValueASCII("connection-type");
+  if (!connection_type.empty()) {
+    args.connection_type_ = connection_type;
+  }
 
   if (command_line.HasSwitch("output")) {
     args.json_output_ =

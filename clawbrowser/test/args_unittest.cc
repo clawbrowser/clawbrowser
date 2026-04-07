@@ -70,6 +70,20 @@ TEST(ArgsTest, ParseVerifyAutomation) {
   EXPECT_TRUE(args.verify_automation());
 }
 
+TEST(ArgsTest, ParseLocationOverrides) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("country", "DE");
+  cmd.AppendSwitchASCII("city", "Berlin");
+  cmd.AppendSwitchASCII("connection-type", "mobile");
+
+  ClawArgs args = ClawArgs::Parse(cmd);
+  EXPECT_EQ(args.country(), "DE");
+  ASSERT_TRUE(args.city().has_value());
+  EXPECT_EQ(*args.city(), "Berlin");
+  ASSERT_TRUE(args.connection_type().has_value());
+  EXPECT_EQ(*args.connection_type(), "mobile");
+}
+
 TEST(ArgsTest, VanillaMode) {
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
 

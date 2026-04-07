@@ -461,6 +461,14 @@ export CLAWBROWSER_API_KEY=your_real_api_key
 
 Then rerun `bash scripts/chromium_remote.sh integration-test`.
 
+Important:
+
+- `CLAWBROWSER_API_KEY` is the browser API key expected by the backend
+  `bearerAuth` flow
+- it is not the upstream proxy vendor key such as the raw `NodeMaven` API key
+- first-run fingerprint fetch can now be targeted explicitly with Chromium
+  switches such as `--country=DE --city=Berlin --connection-type=mobile`
+
 If you need to invoke the runner manually after setup, the helper is equivalent to:
 
 ```bash
