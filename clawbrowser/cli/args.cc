@@ -9,7 +9,10 @@ ClawArgs::ClawArgs()
       verbose_(false),
       json_output_(false),
       skip_verify_(false),
-      verify_automation_(false) {}
+      verify_automation_(false),
+      has_country_override_(false),
+      has_city_override_(false),
+      has_connection_type_override_(false) {}
 
 ClawArgs::ClawArgs(const ClawArgs&) = default;
 
@@ -35,6 +38,10 @@ ClawArgs ClawArgs::Parse(const base::CommandLine& command_line) {
   args.verbose_ = command_line.HasSwitch("verbose");
   args.skip_verify_ = command_line.HasSwitch("skip-verify");
   args.verify_automation_ = command_line.HasSwitch("verify-automation");
+  args.has_country_override_ = command_line.HasSwitch("country");
+  args.has_city_override_ = command_line.HasSwitch("city");
+  args.has_connection_type_override_ =
+      command_line.HasSwitch("connection-type");
   args.country_ = command_line.GetSwitchValueASCII("country");
 
   std::string city = command_line.GetSwitchValueASCII("city");

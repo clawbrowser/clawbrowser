@@ -466,8 +466,11 @@ Important:
 - `CLAWBROWSER_API_KEY` is the browser API key expected by the backend
   `bearerAuth` flow
 - it is not the upstream proxy vendor key such as the raw `NodeMaven` API key
-- first-run fingerprint fetch can now be targeted explicitly with Chromium
-  switches such as `--country=DE --city=Berlin --connection-type=mobile`
+- first-run fingerprint fetches for a new profile ID, and explicit refetches
+  via `--regenerate`, can be targeted with Chromium switches such as
+  `--country=DE --city=Berlin --connection-type=mobile`
+- cached profiles reuse the saved request; if you want these switches to affect
+  an existing profile, use `--regenerate` or a new `--fingerprint` ID
 
 If you need to invoke the runner manually after setup, the helper is equivalent to:
 

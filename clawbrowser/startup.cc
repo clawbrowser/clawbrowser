@@ -140,13 +140,19 @@ std::string UserAgentMetadataPlatform(const std::string& platform) {
 
 void ApplyGenerateRequestOverrides(const ClawArgs& args,
                                    GenerateRequest* request) {
-  if (!args.country().empty()) {
+  if (args.has_location_overrides()) {
+    request->country.clear();
+    request->city.reset();
+    request->connection_type.reset();
+  }
+
+  if (args.has_country_override()) {
     request->country = args.country();
   }
-  if (args.city().has_value()) {
+  if (args.has_city_override()) {
     request->city = args.city();
   }
-  if (args.connection_type().has_value()) {
+  if (args.has_connection_type_override()) {
     request->connection_type = args.connection_type();
   }
 
@@ -156,7 +162,7 @@ void ApplyGenerateRequestOverrides(const ClawArgs& args,
   if (request->browser.empty()) {
     request->browser = "chrome";
   }
-  if (request->country.empty()) {
+  if (request->country.empty() && !args.has_location_overrides()) {
     request->country = "US";
   }
 }

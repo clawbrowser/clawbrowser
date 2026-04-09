@@ -137,30 +137,32 @@ TEST_F(FingerprintLoaderTest, InlineCommandLineDataIsIgnored) {
 
 TEST_F(FingerprintLoaderTest, LoadFromChildPayloadPrefersChildData) {
   const std::string child_json = R"({
-    "user_agent": "child-ua",
-    "platform": "child-platform",
-    "screen": {
-      "width": 1,
-      "height": 2,
-      "avail_width": 3,
-      "avail_height": 4,
-      "color_depth": 24,
-      "pixel_ratio": 1.25
-    },
-    "hardware": {
-      "concurrency": 5,
-      "memory": 6
-    },
-    "webgl": {
-      "vendor": "child-vendor",
-      "renderer": "child-renderer"
-    },
-    "canvas_seed": 7,
-    "audio_seed": 8,
-    "client_rects_seed": 9,
-    "timezone": "Etc/GMT-14",
-    "language": ["en-US"],
-    "fonts": ["Example Font"]
+    "fingerprint": {
+      "user_agent": "child-ua",
+      "platform": "child-platform",
+      "screen": {
+        "width": 1,
+        "height": 2,
+        "avail_width": 3,
+        "avail_height": 4,
+        "color_depth": 24,
+        "pixel_ratio": 1.25
+      },
+      "hardware": {
+        "concurrency": 5,
+        "memory": 6
+      },
+      "webgl": {
+        "vendor": "child-vendor",
+        "renderer": "child-renderer"
+      },
+      "canvas_seed": 7,
+      "audio_seed": 8,
+      "client_rects_seed": 9,
+      "timezone": "Etc/GMT-14",
+      "language": ["en-US"],
+      "fonts": ["Example Font"]
+    }
   })";
 
   std::string child_payload = base::Base64Encode(child_json);

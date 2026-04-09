@@ -28,6 +28,15 @@ class ClawArgs {
   bool json_output() const { return json_output_; }
   bool skip_verify() const { return skip_verify_; }
   bool verify_automation() const { return verify_automation_; }
+  bool has_country_override() const { return has_country_override_; }
+  bool has_city_override() const { return has_city_override_; }
+  bool has_connection_type_override() const {
+    return has_connection_type_override_;
+  }
+  bool has_location_overrides() const {
+    return has_country_override_ || has_city_override_ ||
+           has_connection_type_override_;
+  }
   const std::string& country() const { return country_; }
   const std::optional<std::string>& city() const { return city_; }
   const std::optional<std::string>& connection_type() const {
@@ -44,6 +53,9 @@ class ClawArgs {
   bool json_output_;
   bool skip_verify_;
   bool verify_automation_;
+  bool has_country_override_;
+  bool has_city_override_;
+  bool has_connection_type_override_;
   std::string country_;
   std::optional<std::string> city_;
   std::optional<std::string> connection_type_;

@@ -33,7 +33,8 @@ std::optional<std::string> NormalizedProxyScheme(
   const std::string scheme =
       proxy.scheme.has_value() && !proxy.scheme->empty() ? *proxy.scheme
                                                          : "https";
-  if (scheme == "http" || scheme == "https" || scheme == "socks5") {
+  // Chromium's auth cache preload path only accepts HTTP-family challengers.
+  if (scheme == "http" || scheme == "https") {
     return scheme;
   }
   return std::nullopt;
