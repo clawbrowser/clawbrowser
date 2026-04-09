@@ -108,7 +108,7 @@ TEST(ProxyAuthPreloaderTest, BuildsHttpsBasicProxyChallenge) {
   EXPECT_EQ(config->credentials.password(), u"pass_xyz");
 }
 
-TEST(ProxyAuthPreloaderTest, BuildsSocks5ProxyChallengeWithConfiguredScheme) {
+TEST(ProxyAuthPreloaderTest, SkipsSocks5ProxyChallengePreload) {
   RuntimeProxyConfig proxy;
   proxy.scheme = "socks5";
   proxy.host = "proxy.example.com";
@@ -116,16 +116,7 @@ TEST(ProxyAuthPreloaderTest, BuildsSocks5ProxyChallengeWithConfiguredScheme) {
   proxy.username = "user_abc";
   proxy.password = "pass_xyz";
 
-  std::optional<ProxyAuthPreloadConfig> config =
-      BuildProxyAuthPreloadConfig(proxy);
-
-  ASSERT_TRUE(config.has_value());
-  EXPECT_TRUE(config->challenge.is_proxy);
-  EXPECT_EQ(config->challenge.challenger.scheme(), "socks5");
-  EXPECT_EQ(config->challenge.challenger.host(), "proxy.example.com");
-  EXPECT_EQ(config->challenge.challenger.port(), 1080);
-  EXPECT_EQ(config->credentials.username(), u"user_abc");
-  EXPECT_EQ(config->credentials.password(), u"pass_xyz");
+  EXPECT_FALSE(BuildProxyAuthPreloadConfig(proxy).has_value());
 }
 
 TEST(ProxyAuthPreloaderTest, SkipsMissingProxyCredentials) {

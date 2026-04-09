@@ -15,6 +15,7 @@
 #include "clawbrowser/fingerprint_accessor.h"
 #include "clawbrowser/fingerprint_loader.h"
 #include "clawbrowser/logging.h"
+#include "clawbrowser/profile_envelope.h"
 #include "net/base/net_errors.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_version.h"
@@ -78,6 +79,39 @@ class StartupTest : public testing::Test {
     std::string json;
     base::ReadFileToString(fixture, &json);
     base::WriteFile(profile_dir.AppendASCII("fingerprint.json"), json);
+  }
+
+  void WriteCachedProfileWithRequest(const std::string& id,
+                                     const GenerateRequest& request) {
+    base::FilePath profile_dir = temp_dir_.GetPath()
+        .AppendASCII(".config/clawbrowser/Browser").AppendASCII(id);
+    base::CreateDirectory(profile_dir);
+
+    base::FilePath fixture;
+    base::PathService::Get(base::DIR_SRC_TEST_DATA_ROOT, &fixture);
+    fixture = fixture.AppendASCII("clawbrowser")
+                  .AppendASCII("test")
+                  .AppendASCII("fixtures")
+                  .AppendASCII("valid_fingerprint.json");
+    std::string json;
+    ASSERT_TRUE(base::ReadFileToString(fixture, &json));
+    auto envelope = ProfileEnvelope::Parse(json);
+    ASSERT_TRUE(envelope.has_value()) << envelope.error();
+    envelope->request = request;
+    ASSERT_TRUE(base::WriteFile(profile_dir.AppendASCII("fingerprint.json"),
+                                envelope->Serialize()));
+  }
+
+  ProfileEnvelope ReadSavedProfile(const std::string& id) {
+    base::FilePath path = temp_dir_.GetPath()
+        .AppendASCII(".config/clawbrowser/Browser")
+        .AppendASCII(id)
+        .AppendASCII("fingerprint.json");
+    std::string json;
+    EXPECT_TRUE(base::ReadFileToString(path, &json));
+    auto parsed = ProfileEnvelope::Parse(json);
+    EXPECT_TRUE(parsed.has_value()) << parsed.error();
+    return *parsed;
   }
 
   void AddGenerateErrorResponse(const std::string& body,
@@ -266,6 +300,112 @@ TEST_F(StartupTest, RegenerateReplaysStoredParams) {
   // New fingerprint should be loaded
   ASSERT_NE(FingerprintAccessor::Get(), nullptr);
   EXPECT_EQ(FingerprintAccessor::Get()->user_agent, "new-ua");
+}
+
+TEST_F(StartupTest, FingerprintApiCallUsesLocationOverrides) {
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+
+  url_loader_factory_.AddResponse(
+      "https://api.clawbrowser.ai/v1/fingerprints/generate",
+      R"({
+        "fingerprint": {
+          "user_agent": "test-ua", "platform": "MacIntel",
+          "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
+                     "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
+          "hardware": {"concurrency": 8, "memory": 8},
+          "webgl": {"vendor": "v", "renderer": "r"},
+          "canvas_seed": 1, "audio_seed": 2, "client_rects_seed": 3,
+          "timezone": "Europe/Berlin", "language": ["de-DE"], "fonts": ["Arial"]
+        }
+      })");
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "fp_geo");
+  cmd.AppendSwitchASCII("country", "DE");
+  cmd.AppendSwitchASCII("city", "Berlin");
+  cmd.AppendSwitchASCII("connection-type", "mobile");
+
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+
+  ProfileEnvelope saved = ReadSavedProfile("fp_geo");
+  EXPECT_EQ(saved.request.country, "DE");
+  ASSERT_TRUE(saved.request.city.has_value());
+  EXPECT_EQ(*saved.request.city, "Berlin");
+  ASSERT_TRUE(saved.request.connection_type.has_value());
+  EXPECT_EQ(*saved.request.connection_type, "mobile");
+}
+
+TEST_F(StartupTest, FingerprintApiCallAllowsCityOnlyOverrides) {
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+
+  url_loader_factory_.AddResponse(
+      "https://api.clawbrowser.ai/v1/fingerprints/generate",
+      R"({
+        "fingerprint": {
+          "user_agent": "test-ua", "platform": "MacIntel",
+          "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
+                     "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
+          "hardware": {"concurrency": 8, "memory": 8},
+          "webgl": {"vendor": "v", "renderer": "r"},
+          "canvas_seed": 1, "audio_seed": 2, "client_rects_seed": 3,
+          "timezone": "Europe/Berlin", "language": ["de-DE"], "fonts": ["Arial"]
+        }
+      })");
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "fp_city_only");
+  cmd.AppendSwitchASCII("city", "Berlin");
+
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+
+  ProfileEnvelope saved = ReadSavedProfile("fp_city_only");
+  EXPECT_TRUE(saved.request.country.empty());
+  ASSERT_TRUE(saved.request.city.has_value());
+  EXPECT_EQ(*saved.request.city, "Berlin");
+  EXPECT_FALSE(saved.request.connection_type.has_value());
+}
+
+TEST_F(StartupTest, RegenerateCountryOverrideClearsStaleOptionalTargeting) {
+  GenerateRequest request;
+  request.platform = "macos";
+  request.browser = "chrome";
+  request.country = "DE";
+  request.city = "Berlin";
+  request.connection_type = "mobile";
+  WriteCachedProfileWithRequest("fp_regen_targeting", request);
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+
+  url_loader_factory_.AddResponse(
+      "https://api.clawbrowser.ai/v1/fingerprints/generate",
+      R"({
+        "fingerprint": {
+          "user_agent": "test-ua", "platform": "MacIntel",
+          "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
+                     "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
+          "hardware": {"concurrency": 8, "memory": 8},
+          "webgl": {"vendor": "v", "renderer": "r"},
+          "canvas_seed": 1, "audio_seed": 2, "client_rects_seed": 3,
+          "timezone": "UTC", "language": ["en"], "fonts": ["Arial"]
+        }
+      })");
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "fp_regen_targeting");
+  cmd.AppendSwitch("regenerate");
+  cmd.AppendSwitchASCII("country", "US");
+
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+
+  ProfileEnvelope saved = ReadSavedProfile("fp_regen_targeting");
+  EXPECT_EQ(saved.request.country, "US");
+  EXPECT_FALSE(saved.request.city.has_value());
+  EXPECT_FALSE(saved.request.connection_type.has_value());
 }
 
 TEST_F(StartupTest, VerboseLogging) {

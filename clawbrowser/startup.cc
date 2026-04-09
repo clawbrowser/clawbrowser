@@ -138,6 +138,35 @@ std::string UserAgentMetadataPlatform(const std::string& platform) {
   return platform;
 }
 
+void ApplyGenerateRequestOverrides(const ClawArgs& args,
+                                   GenerateRequest* request) {
+  if (args.has_location_overrides()) {
+    request->country.clear();
+    request->city.reset();
+    request->connection_type.reset();
+  }
+
+  if (args.has_country_override()) {
+    request->country = args.country();
+  }
+  if (args.has_city_override()) {
+    request->city = args.city();
+  }
+  if (args.has_connection_type_override()) {
+    request->connection_type = args.connection_type();
+  }
+
+  if (request->platform.empty()) {
+    request->platform = "macos";
+  }
+  if (request->browser.empty()) {
+    request->browser = "chrome";
+  }
+  if (request->country.empty() && !args.has_location_overrides()) {
+    request->country = "US";
+  }
+}
+
 }  // namespace
 
 base::expected<StartupResult, std::string> ConfigureEarlyStartup(
@@ -228,6 +257,7 @@ base::expected<StartupResult, std::string> RunStartup(
         params = cached->request;
       }
     }
+    ApplyGenerateRequestOverrides(args, &params);
 
     // Synchronous API call (blocking — acceptable for pre-launch)
     base::RunLoop run_loop;
