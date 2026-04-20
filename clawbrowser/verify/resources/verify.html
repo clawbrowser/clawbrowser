@@ -2,26 +2,43 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="color-scheme" content="dark light">
   <title>Clawbrowser Verification</title>
+  <link rel="icon" type="image/svg+xml" href="side-bite.svg">
   <link rel="stylesheet" href="verify.css">
 </head>
 <body>
-  <div id="container">
-    <h1>Clawbrowser Fingerprint Verification</h1>
-    <div id="status" class="pending">Running checks...</div>
-    <table id="results">
-      <thead>
-        <tr>
-          <th>Surface</th>
-          <th>Status</th>
-          <th>Expected</th>
-          <th>Actual</th>
-        </tr>
-      </thead>
-      <tbody id="results-body"></tbody>
-    </table>
-    <div id="proxy-status"></div>
-  </div>
+  <main id="container">
+    <section class="panel">
+      <p class="eyebrow">Clawbrowser verify</p>
+      <h1>Fingerprint Verification</h1>
+      <p class="lede">
+        Compare the active runtime against the loaded fingerprint profile and
+        proxy expectations.
+      </p>
+      <div id="status" class="pending">Running checks...</div>
+      <div class="table-shell">
+        <table id="results">
+          <colgroup>
+            <col class="surface-column">
+            <col class="status-column">
+            <col class="expected-column">
+            <col class="actual-column">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Surface</th>
+              <th>Status</th>
+              <th>Expected</th>
+              <th>Actual</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+      <div id="proxy-status"></div>
+    </section>
+  </main>
   <div id="expected-data"
        hidden
        data-has-expected-values="$i18n{has_expected_values}"
@@ -49,6 +66,7 @@
        data-battery-level="$i18n{battery_level}"
        data-speech-voices-json="$i18n{speech_voices_json}"
        data-speech-voices-count="$i18n{speech_voices_count}"></div>
+  <script src="verify_timezones.js"></script>
   <script src="verify.js"></script>
 </body>
 </html>

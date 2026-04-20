@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest_asyncio
 from playwright.async_api import async_playwright
+from typing import Optional
 
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures"
 WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
@@ -23,7 +24,7 @@ MOCK_SERVER_SCRIPT = PROJECT_ROOT / "clawbrowser/test/integration/mock_server.py
 DEFAULT_FINGERPRINTS_FIXTURE_PATH = PROJECT_ROOT / "api/mocks/fingerprints.json"
 DEFAULT_PROXY_FIXTURE_PATH = PROJECT_ROOT / "api/mocks/proxy.json"
 MISMATCH_PROXY_FIXTURE_PATH = PROJECT_ROOT / "api/mocks/proxy_mismatch.json"
-FINGERPRINT_ID = "fp_test"
+FINGERPRINT_ID = "test_profile"
 TEST_API_KEY = "test_api_key_123"
 CDP_READY_TIMEOUT_SECONDS = 30
 VERIFY_PAGE_URL = "clawbrowser://verify/"
@@ -50,8 +51,11 @@ def _resolve_browser_binary() -> str:
     binary = os.environ.get("CLAWBROWSER_BINARY")
     candidates = [
         Path(binary).expanduser() if binary else None,
+        WORKSPACE_ROOT / "out/CBProdMacArm64/Clawbrowser.app/Contents/MacOS/Clawbrowser",
+        WORKSPACE_ROOT / "out/CBProdMacArm64/Chromium.app/Contents/MacOS/Chromium",
+        WORKSPACE_ROOT / "out/CBFast/Clawbrowser.app/Contents/MacOS/Clawbrowser",
         WORKSPACE_ROOT / "out/CBFast/Chromium.app/Contents/MacOS/Chromium",
-        WORKSPACE_ROOT / "out/Default/chrome",
+        WORKSPACE_ROOT / "out/Default/clawbrowser",
     ]
 
     for candidate in candidates:
@@ -62,7 +66,7 @@ def _resolve_browser_binary() -> str:
         str(candidate) for candidate in candidates if candidate is not None
     )
     raise FileNotFoundError(
-        "Could not find a Chromium binary for integration tests. "
+        "Could not find a Clawbrowser binary for integration tests. "
         "Set CLAWBROWSER_BINARY or build one of:\n"
         f"{searched}"
     )
@@ -74,16 +78,43 @@ def _reserve_port() -> int:
         return sock.getsockname()[1]
 
 
-def _seed_profile(config_dir: Path, fixture_name: str):
+def _seed_profile(
+    config_dir: Path,
+    fixture_name: str,
+    *,
+    fingerprint_id: str = FINGERPRINT_ID,
+    created_at: Optional[str] = None,
+):
     fingerprint_path = FIXTURE_DIR / fixture_name
     fingerprint_data = _read_json(fingerprint_path)
-    profile_dir = config_dir / "Browser" / FINGERPRINT_ID
+    if created_at is not None:
+        fingerprint_data["created_at"] = created_at
+    profile_dir = config_dir / "Browser" / fingerprint_id
     profile_dir.mkdir(parents=True, exist_ok=True)
     (profile_dir / "fingerprint.json").write_text(
         json.dumps(fingerprint_data, indent=2) + "\n",
         encoding="utf-8",
     )
     return fingerprint_data
+
+
+def _read_saved_profile(config_dir: Path, fingerprint_id: str):
+    browser_dir = config_dir / "Browser"
+    direct_path = browser_dir / fingerprint_id / "fingerprint.json"
+    if direct_path.exists():
+        return _read_json(direct_path)
+
+    if not browser_dir.exists():
+        return None
+
+    for profile_path in browser_dir.rglob("fingerprint.json"):
+        try:
+            profile_data = _read_json(profile_path)
+        except json.JSONDecodeError:
+            continue
+        if profile_data.get("profile_id") == fingerprint_id:
+            return profile_data
+    return None
 
 
 def _seed_config(config_dir: Path, base_url: str, api_key=None):
@@ -198,9 +229,21 @@ def _stop_process(process: subprocess.Popen):
         process.wait(timeout=5)
 
 
-def _resolve_backend():
+def _resolve_backend(mode="auto"):
     base_url = os.environ.get("CLAWBROWSER_API_BASE_URL")
     api_key = os.environ.get("CLAWBROWSER_API_KEY")
+    if mode == "mock":
+        return {
+            "use_mock": True,
+            "base_url": None,
+            "api_key": TEST_API_KEY,
+        }
+    if mode == "real":
+        return {
+            "use_mock": False,
+            "base_url": base_url,
+            "api_key": api_key,
+        }
     if base_url:
         return {
             "use_mock": False,
@@ -218,11 +261,41 @@ def _resolve_backend():
 async def _launch_browser(
     *,
     fixture_name=None,
+    fingerprint_id=None,
+    backend_mode="auto",
     skip_verify=False,
     expect_verify=False,
     verify_automation=False,
     fingerprints_fixture_path=DEFAULT_FINGERPRINTS_FIXTURE_PATH,
     proxy_fixture_path=DEFAULT_PROXY_FIXTURE_PATH,
+    extra_browser_args=(),
+):
+    async with _launch_browser_with_details(
+        fixture_name=fixture_name,
+        fingerprint_id=fingerprint_id,
+        backend_mode=backend_mode,
+        skip_verify=skip_verify,
+        expect_verify=expect_verify,
+        verify_automation=verify_automation,
+        fingerprints_fixture_path=fingerprints_fixture_path,
+        proxy_fixture_path=proxy_fixture_path,
+        extra_browser_args=extra_browser_args,
+    ) as launch:
+        yield launch["page"], launch["fingerprint_data"]
+
+
+@asynccontextmanager
+async def _launch_browser_with_details(
+    *,
+    fixture_name=None,
+    fingerprint_id=None,
+    backend_mode="auto",
+    skip_verify=False,
+    expect_verify=False,
+    verify_automation=False,
+    fingerprints_fixture_path=DEFAULT_FINGERPRINTS_FIXTURE_PATH,
+    proxy_fixture_path=DEFAULT_PROXY_FIXTURE_PATH,
+    extra_browser_args=(),
 ):
     if expect_verify and skip_verify:
         raise ValueError("expect_verify and skip_verify are mutually exclusive")
@@ -230,7 +303,12 @@ async def _launch_browser(
     binary = _resolve_browser_binary()
     browser_port = _reserve_port()
     mock_port = _reserve_port()
-    backend = _resolve_backend()
+    backend = _resolve_backend(mode=backend_mode)
+    effective_fingerprint_id = fingerprint_id
+    if effective_fingerprint_id is None and fixture_name is not None:
+        effective_fingerprint_id = FINGERPRINT_ID
+    if expect_verify and effective_fingerprint_id is None:
+        raise ValueError("expect_verify requires a fingerprint_id or fixture_name")
 
     with tempfile.TemporaryDirectory(prefix="clawbrowser-it-home-") as temp_home:
         home_dir = Path(temp_home)
@@ -238,7 +316,11 @@ async def _launch_browser(
 
         fingerprint_data = None
         if fixture_name is not None:
-            fingerprint_data = _seed_profile(config_dir, fixture_name)
+            fingerprint_data = _seed_profile(
+                config_dir,
+                fixture_name,
+                fingerprint_id=effective_fingerprint_id,
+            )
 
         mock_log_path = home_dir / "mock_server.log"
         browser_log_path = home_dir / "browser.log"
@@ -279,9 +361,10 @@ async def _launch_browser(
                         binary,
                         f"--remote-debugging-port={browser_port}",
                         *DEFAULT_BROWSER_ARGS,
+                        *extra_browser_args,
                     ]
-                    if fixture_name is not None:
-                        args.append(f"--fingerprint={FINGERPRINT_ID}")
+                    if effective_fingerprint_id is not None:
+                        args.append(f"--fingerprint={effective_fingerprint_id}")
                         if skip_verify:
                             args.append("--skip-verify")
                         if verify_automation:
@@ -322,7 +405,21 @@ async def _launch_browser(
                                         VERIFY_PAGE_URL if expect_verify else None
                                     ),
                                 )
-                                yield page, fingerprint_data
+                                if (
+                                    fingerprint_data is None
+                                    and effective_fingerprint_id is not None
+                                ):
+                                    fingerprint_data = _read_saved_profile(
+                                        config_dir, effective_fingerprint_id
+                                    )
+                                yield {
+                                    "page": page,
+                                    "fingerprint_data": fingerprint_data,
+                                    "browser_port": browser_port,
+                                    "home_dir": home_dir,
+                                    "config_dir": config_dir,
+                                    "browser_log_path": browser_log_path,
+                                }
                             finally:
                                 await browser.close()
                     finally:
@@ -340,6 +437,7 @@ async def browser_with_fingerprint():
     """Launch clawbrowser through --fingerprint and return a fresh test page."""
     async with _launch_browser(
         fixture_name="valid_fingerprint.json",
+        backend_mode="mock",
         skip_verify=True,
     ) as result:
         yield result
@@ -350,6 +448,7 @@ async def verify_browser_with_fingerprint():
     """Launch clawbrowser through --fingerprint and wait for clawbrowser://verify."""
     async with _launch_browser(
         fixture_name="valid_fingerprint.json",
+        backend_mode="mock",
         expect_verify=True,
         verify_automation=True,
     ) as result:
@@ -361,6 +460,7 @@ async def verify_browser_with_proxy_mismatch():
     """Launch clawbrowser verify flow against a mismatched mock proxy response."""
     async with _launch_browser(
         fixture_name="valid_fingerprint.json",
+        backend_mode="mock",
         expect_verify=True,
         verify_automation=True,
         proxy_fixture_path=MISMATCH_PROXY_FIXTURE_PATH,
@@ -373,6 +473,7 @@ async def verify_browser_with_minimal_fingerprint():
     """Launch verify flow for a partial fingerprint without optional lists."""
     async with _launch_browser(
         fixture_name="minimal_fingerprint.json",
+        backend_mode="mock",
         expect_verify=True,
         verify_automation=True,
     ) as result:
@@ -384,6 +485,7 @@ async def browser_with_absurd_fingerprint():
     """Launch clawbrowser with an obviously fake manual smoke fixture."""
     async with _launch_browser(
         fixture_name="absurd_fingerprint.json",
+        backend_mode="mock",
         skip_verify=True,
         fingerprints_fixture_path=PROJECT_ROOT / "api/mocks/fingerprints_absurd.json",
     ) as result:
@@ -393,6 +495,6 @@ async def browser_with_absurd_fingerprint():
 @pytest_asyncio.fixture
 async def vanilla_browser():
     """Launch clawbrowser in vanilla mode (no fingerprint)."""
-    async with _launch_browser() as result:
+    async with _launch_browser(backend_mode="mock") as result:
         page, _ = result
         yield page

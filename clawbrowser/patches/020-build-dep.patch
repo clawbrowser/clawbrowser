@@ -1,4 +1,21 @@
 # Pinned against Chromium revision 25a94a5662bc
+diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
+--- a/chrome/BUILD.gn
++++ b/chrome/BUILD.gn
+@@ -153,4 +153,5 @@ if (!is_android && !is_mac) {
+     deps = [
+       "//build:chromeos_buildflags",
++      "//clawbrowser:clawbrowser_core",
+       "//printing/buildflags",
+     ]
+@@ -983,6 +984,7 @@ if (is_win) {
+     deps = [
+       ":dependencies",
+       "//build:chromeos_buildflags",
++      "//clawbrowser:clawbrowser_core",
+       "//chrome/app:command_ids",
+       "//chrome/common:buildflags",
+       "//chrome/common:version_header",
 diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn

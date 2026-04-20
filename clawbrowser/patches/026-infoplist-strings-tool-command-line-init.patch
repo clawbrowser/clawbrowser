@@ -1,0 +1,20 @@
+# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+--- a/chrome/tools/build/mac/infoplist_strings_util.cc
++++ b/chrome/tools/build/mac/infoplist_strings_util.cc
+@@ -19,6 +19,7 @@
+ #include <string_view>
+ 
+ #include "base/files/file_path.h"
++#include "base/command_line.h"
+ #include "base/files/file_util.h"
+ #include "base/i18n/icu_util.h"
+ #include "base/i18n/message_formatter.h"
+@@ -93,6 +94,8 @@ const char kAppType_Helper[] = "helper";  // Helper app
+ }  // namespace
+ 
+ int main(int argc, char* const argv[]) {
++  base::CommandLine::Init(argc, argv);
++
+   const char* version_string = nullptr;
+   const char* grit_output_dir = nullptr;
+   const char* branding_strings_name = nullptr;

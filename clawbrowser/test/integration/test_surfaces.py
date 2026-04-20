@@ -7,8 +7,8 @@ import pytest
 
 
 def _expected_ua_full_version(user_agent: str) -> str:
-    match = re.search(r"Chrome/([0-9.]+)", user_agent)
-    assert match, f"Could not parse Chrome version from {user_agent!r}"
+    match = re.search(r"Clawbrowser/([0-9.]+)", user_agent)
+    assert match, f"Could not parse Clawbrowser version from {user_agent!r}"
     return match.group(1)
 
 
@@ -24,6 +24,28 @@ async def _echo_request_headers(page):
         return r.json();
     })""")
     return {key.lower(): value for key, value in payload["headers"].items()}
+
+
+async def _timezones_match(page, expected_timezone: str) -> bool:
+    return await page.evaluate(
+        """expectedTimezone => {
+            const canonicalize = value => {
+                try {
+                    return new Intl.DateTimeFormat('en-US', {
+                        timeZone: value
+                    }).resolvedOptions().timeZone;
+                } catch (error) {
+                    return value;
+                }
+            };
+
+            const actualTimezone =
+                Intl.DateTimeFormat().resolvedOptions().timeZone;
+            return canonicalize(expectedTimezone) ===
+                canonicalize(actualTimezone);
+        }""",
+        expected_timezone,
+    )
 
 
 @pytest.mark.asyncio
@@ -148,10 +170,7 @@ async def test_device_pixel_ratio(browser_with_fingerprint):
 async def test_timezone(browser_with_fingerprint):
     page, data = browser_with_fingerprint
     fp = data["response"]["fingerprint"]
-    actual = await page.evaluate(
-        "Intl.DateTimeFormat().resolvedOptions().timeZone"
-    )
-    assert actual == fp["timezone"]
+    assert await _timezones_match(page, fp["timezone"])
 
 
 @pytest.mark.asyncio

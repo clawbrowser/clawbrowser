@@ -233,8 +233,8 @@ struct ProxyCredentials {
   std::optional<std::string> scheme;
   std::string host;
   int port = 0;
-  std::string username;
-  std::string password;
+  std::optional<std::string> username;
+  std::optional<std::string> password;
 
   static base::expected<ProxyCredentials, std::string> FromDict(
       const base::DictValue& dict);

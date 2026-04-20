@@ -30,13 +30,13 @@ Usage:
 
 This script:
 1. rsyncs the current repo to ${REMOTE_HOST}:${REMOTE_REPO_DIR}
-2. starts one remote nohup validation job
+2. starts one remote launchd-backed validation job
 3. writes one log per step under ${REMOTE_LOG_DIR}/overnight-<timestamp>/
 
 Remote steps:
   01. sync-project
   02. apply-patches
-  03. build chrome
+  03. build clawbrowser
   04. build //clawbrowser:clawbrowser_unittests
   05. build //clawbrowser:clawbrowser_browser_unittests
   06. integration-setup
@@ -45,7 +45,7 @@ Remote steps:
 Artifacts:
   summary.txt   - step-by-step pass/fail summary
   status.env    - machine-readable status
-  nohup.log     - outer runner stdout/stderr
+  nohup.log     - submitted job stdout/stderr
   01-*.log ...  - one log file per step
 
 Options:
@@ -207,45 +207,45 @@ append_summary "integration_filter=\${integration_filter}"
 cd "\${repo_dir}"
 
 run_step 01 sync-project \
-  bash scripts/chromium_remote.sh sync-project \
+  bash scripts/clawbrowser_remote.sh sync-project \
     --chromium-dir "\${chromium_dir}" \
     --project-dir "\${repo_dir}"
 
 run_step 02 apply-patches \
-  bash scripts/chromium_remote.sh apply-patches \
+  bash scripts/clawbrowser_remote.sh apply-patches \
     --chromium-dir "\${chromium_dir}" \
     --project-dir "\${repo_dir}"
 
-run_step 03 build-chrome \
-  bash scripts/chromium_remote.sh build \
+run_step 03 build-clawbrowser \
+  bash scripts/clawbrowser_remote.sh build \
     --chromium-dir "\${chromium_dir}" \
     --build-dir "\${build_dir}" \
     --project-dir "\${repo_dir}" \
     --target chrome
 
 run_step 04 build-clawbrowser_unittests \
-  bash scripts/chromium_remote.sh build \
+  bash scripts/clawbrowser_remote.sh build \
     --chromium-dir "\${chromium_dir}" \
     --build-dir "\${build_dir}" \
     --project-dir "\${repo_dir}" \
     --target //clawbrowser:clawbrowser_unittests
 
 run_step 05 build-clawbrowser_browser_unittests \
-  bash scripts/chromium_remote.sh build \
+  bash scripts/clawbrowser_remote.sh build \
     --chromium-dir "\${chromium_dir}" \
     --build-dir "\${build_dir}" \
     --project-dir "\${repo_dir}" \
     --target //clawbrowser:clawbrowser_browser_unittests
 
 run_step 06 integration-setup \
-  bash scripts/chromium_remote.sh integration-setup \
+  bash scripts/clawbrowser_remote.sh integration-setup \
     --chromium-dir "\${chromium_dir}" \
     --project-dir "\${repo_dir}" \
     --integration-venv-dir "\${integration_venv_dir}"
 
 run_step 07 integration-tests \
   env \
-    CLAWBROWSER_BINARY="\${build_dir}/Chromium.app/Contents/MacOS/Chromium" \
+    CLAWBROWSER_BINARY="\${build_dir}/Clawbrowser.app/Contents/MacOS/Clawbrowser" \
     CLAWBROWSER_PROJECT_DIR="\${repo_dir}" \
     "\${integration_venv_dir}/bin/python3" \
     clawbrowser/test/integration/run_integration_tests.py \
@@ -287,6 +287,8 @@ run_dir="\${log_root}/overnight-\${timestamp}"
 runner_path="\${run_dir}/run.sh"
 meta_path="\${run_dir}/launch.env"
 latest_link="\${log_root}/latest-overnight"
+label="dev.clawbrowser.overnight.\${timestamp}.\$\$"
+nohup_path="\${run_dir}/nohup.log"
 
 mkdir -p "\${run_dir}"
 
@@ -298,6 +300,7 @@ chmod +x "\${runner_path}"
 cat >"\${meta_path}" <<META
 timestamp=\${timestamp}
 remote_host=\$(hostname)
+label=\${label}
 repo_dir=\${repo_dir}
 chromium_dir=\${chromium_dir}
 build_dir=\${build_dir}
@@ -307,24 +310,43 @@ run_dir=\${run_dir}
 runner_path=\${runner_path}
 META
 
-nohup "\${runner_path}" "\${run_dir}" >"\${run_dir}/nohup.log" 2>&1 < /dev/null &
-pid="\$!"
+launchctl submit -l "\${label}" -- /bin/sh -c '
+"\$1" "\$2" >"\$3" 2>&1
+exit \$?
+' sh "\${runner_path}" "\${run_dir}" "\${nohup_path}"
+
+pid=""
+launchctl_dump=""
+service_registered=0
+for attempt in 1 2 3; do
+  launchctl_dump="\$(launchctl print "gui/\$(id -u)/\${label}" 2>/dev/null || true)"
+  if [[ -n "\${launchctl_dump}" ]]; then
+    service_registered=1
+  fi
+  pid="\$(printf '%s\n' "\${launchctl_dump}" | sed -n 's/^[[:space:]]*pid = \([0-9][0-9]*\)$/\1/p' | head -n 1)"
+  if [[ -n "\${pid}" || -f "\${run_dir}/status.env" || -f "\${nohup_path}" ]]; then
+    break
+  fi
+  sleep 1
+done
+
 printf 'pid=%s\n' "\${pid}" >>"\${meta_path}"
 ln -sfn "\${run_dir}" "\${latest_link}"
 
-sleep 1
-if ! kill -0 "\${pid}" 2>/dev/null; then
+if (( service_registered == 0 )) && [[ ! -f "\${run_dir}/status.env" && ! -f "\${nohup_path}" ]]; then
   echo "FAILED_TO_START=1"
   echo "RUN_DIR=\${run_dir}"
-  tail -n 50 "\${run_dir}/nohup.log" || true
+  echo "LABEL=\${label}"
+  tail -n 50 "\${nohup_path}" || true
   exit 1
 fi
 
 printf 'RUN_DIR=%s\n' "\${run_dir}"
+printf 'LABEL=%s\n' "\${label}"
 printf 'PID=%s\n' "\${pid}"
 printf 'SUMMARY=%s\n' "\${run_dir}/summary.txt"
 printf 'STATUS=%s\n' "\${run_dir}/status.env"
-printf 'NOHUP=%s\n' "\${run_dir}/nohup.log"
+printf 'NOHUP=%s\n' "\${nohup_path}"
 printf 'LATEST=%s\n' "\${latest_link}"
 EOF
   )"
@@ -349,7 +371,7 @@ main() {
     log "Skipping rsync"
   fi
 
-  log "Launching remote overnight validation under nohup"
+  log "Launching remote overnight validation under launchd"
   launch_remote_job
 }
 

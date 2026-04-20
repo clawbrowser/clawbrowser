@@ -9,10 +9,13 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/task/thread_pool.h"
 #include "base/values.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/browser/net/system_network_context_manager.h"
 #include "clawbrowser/cli/api_client.h"
 #include "clawbrowser/cli/profile_manager.h"
 #include "clawbrowser/fingerprint_accessor.h"
 #include "clawbrowser/grit/clawbrowser_verify_resources.h"
+#include "clawbrowser/verify/proxy_expectation.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/storage_partition.h"
@@ -21,6 +24,14 @@
 #include "content/public/browser/web_contents.h"
 
 namespace clawbrowser {
+
+ProxyExpectation::ProxyExpectation() = default;
+ProxyExpectation::ProxyExpectation(const ProxyExpectation&) = default;
+ProxyExpectation& ProxyExpectation::operator=(const ProxyExpectation&) =
+    default;
+ProxyExpectation::ProxyExpectation(ProxyExpectation&&) = default;
+ProxyExpectation& ProxyExpectation::operator=(ProxyExpectation&&) = default;
+ProxyExpectation::~ProxyExpectation() = default;
 
 namespace {
 
@@ -39,22 +50,83 @@ base::FilePath GetConfigDir() {
 
 struct VerifyApiConfig {
   std::optional<std::string> api_key;
-  std::string base_url;
+  std::optional<std::string> base_url;
 };
 
 VerifyApiConfig LoadVerifyApiConfig(base::FilePath config_dir) {
   ProfileManager profile_manager(config_dir);
   VerifyApiConfig config;
   config.api_key = profile_manager.ResolveApiKey();
-  if (config.api_key.has_value())
-    config.base_url = profile_manager.ResolveBaseUrl();
+  config.base_url = profile_manager.ResolveBaseUrl();
   return config;
+}
+
+ProxyExpectation LoadVerifyExpectedProxyLocation(
+    const base::FilePath& config_dir,
+    const std::optional<std::string>& generated_country) {
+  const base::CommandLine* command_line =
+      base::CommandLine::ForCurrentProcess();
+  if (!command_line) {
+    return ResolveProxyExpectation(std::string(), std::nullopt,
+                                   generated_country);
+  }
+
+  const std::string fingerprint_id =
+      command_line->GetSwitchValueASCII("fingerprint");
+  if (fingerprint_id.empty()) {
+    return ResolveProxyExpectation(std::string(), std::nullopt,
+                                   generated_country);
+  }
+
+  ProfileManager profile_manager(config_dir);
+  auto profile = profile_manager.ReadProfile(fingerprint_id);
+  if (!profile.has_value()) {
+    return ResolveProxyExpectation(std::string(), std::nullopt,
+                                   generated_country);
+  }
+
+  return ResolveProxyExpectation(profile->request.country,
+                                 profile->request.city, generated_country);
 }
 
 std::string SerializeJson(base::ListValue list) {
   std::string json = "[]";
   base::JSONWriter::Write(base::Value(std::move(list)), &json);
   return json;
+}
+
+scoped_refptr<network::SharedURLLoaderFactory> GetVerifyApiUrlLoaderFactory(
+    content::WebUI* web_ui) {
+  if (g_browser_process &&
+      g_browser_process->system_network_context_manager()) {
+    auto factory =
+        g_browser_process->system_network_context_manager()
+            ->GetSharedURLLoaderFactory();
+    if (factory) {
+      return factory;
+    }
+  }
+
+  if (!web_ui) {
+    return nullptr;
+  }
+
+  content::WebContents* web_contents = web_ui->GetWebContents();
+  if (!web_contents) {
+    return nullptr;
+  }
+
+  auto* browser_context = web_contents->GetBrowserContext();
+  if (!browser_context) {
+    return nullptr;
+  }
+
+  auto* storage_partition = browser_context->GetDefaultStoragePartition();
+  if (!storage_partition) {
+    return nullptr;
+  }
+
+  return storage_partition->GetURLLoaderFactoryForBrowserProcess();
 }
 
 base::DictValue SerializeMediaDevice(const RuntimeMediaDevice& device) {
@@ -106,8 +178,11 @@ VerifyPageUI::~VerifyPageUI() = default;
 void VerifyPageUI::SetupDataSource(content::WebUIDataSource* source) {
   // Resources are embedded at compile time via grit/grd
   source->AddResourcePath("verify.html", IDR_CLAWBROWSER_VERIFY_HTML);
+  source->AddResourcePath("verify_timezones.js",
+                          IDR_CLAWBROWSER_VERIFY_TIMEZONES_JS);
   source->AddResourcePath("verify.js", IDR_CLAWBROWSER_VERIFY_JS);
   source->AddResourcePath("verify.css", IDR_CLAWBROWSER_VERIFY_CSS);
+  source->AddResourcePath("side-bite.svg", IDR_CLAWBROWSER_SIDE_BITE_SVG);
   source->SetDefaultResource(IDR_CLAWBROWSER_VERIFY_HTML);
 
   source->AddString("has_expected_values", "false");
@@ -242,17 +317,19 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
     return;
   }
 
+  const ProxyExpectation expected =
+      LoadVerifyExpectedProxyLocation(GetConfigDir(), proxy->country);
+
   if (!proxy->host.has_value() || !proxy->port.has_value() ||
-      !proxy->username.has_value() || !proxy->password.has_value() ||
       !proxy->country.has_value()) {
     base::DictValue result;
     result.Set("match", true);
     result.Set("actual_country", proxy->country.value_or("N/A"));
     result.Set("detail", "incomplete proxy config");
-    if (proxy->country.has_value())
-      result.Set("expected_country", *proxy->country);
-    if (proxy->city.has_value())
-      result.Set("expected_city", *proxy->city);
+    if (expected.country.has_value())
+      result.Set("expected_country", *expected.country);
+    if (expected.city.has_value())
+      result.Set("expected_city", *expected.city);
     send_result(std::move(result));
     return;
   }
@@ -261,11 +338,14 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
   request.proxy.scheme = proxy->scheme;
   request.proxy.host = *proxy->host;
   request.proxy.port = *proxy->port;
-  request.proxy.username = *proxy->username;
-  request.proxy.password = *proxy->password;
-  request.expected_country = *proxy->country;
-  if (proxy->city.has_value())
-    request.expected_city = *proxy->city;
+  request.proxy.username = proxy->username;
+  request.proxy.password = proxy->password;
+  request.expected_country = expected.country.value_or(*proxy->country);
+  if (expected.city.has_value())
+    request.expected_city = *expected.city;
+
+  std::string expected_country = request.expected_country;
+  std::optional<std::string> expected_city = request.expected_city;
 
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, {base::MayBlock()},
@@ -297,19 +377,17 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
               return;
             }
 
-            auto* browser_context = self->web_ui()->GetWebContents()->GetBrowserContext();
-            auto* storage_partition = browser_context->GetDefaultStoragePartition();
-            if (!storage_partition) {
+            if (!config.base_url.has_value()) {
               base::DictValue result;
               result.Set("match", false);
               result.Set("actual_country", "N/A");
-              result.Set("detail", "browser storage partition unavailable");
+              result.Set("detail", "API base URL not found");
               send_async_result(std::move(result));
               return;
             }
 
             auto url_loader_factory =
-                storage_partition->GetURLLoaderFactoryForBrowserProcess();
+                GetVerifyApiUrlLoaderFactory(self->web_ui());
             if (!url_loader_factory) {
               base::DictValue result;
               result.Set("match", false);
@@ -320,7 +398,7 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
             }
 
             self->api_client_ = std::make_unique<ApiClient>(
-                config.base_url, *config.api_key,
+                *config.base_url, *config.api_key,
                 std::move(url_loader_factory));
             self->api_client_->VerifyProxy(
                 request,
@@ -358,7 +436,8 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
                     },
                     self, std::move(expected_country), std::move(expected_city)));
           },
-          weak_ptr_factory_.GetWeakPtr(), request, *proxy->country, proxy->city));
+          weak_ptr_factory_.GetWeakPtr(), request, std::move(expected_country),
+          std::move(expected_city)));
 }
 
 void VerifyPageUI::HandleVerifyComplete(const base::ListValue& args) {

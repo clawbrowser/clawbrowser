@@ -10,7 +10,7 @@
   },
   "response": {
     "fingerprint": {
-      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Clawbrowser/120.0.0.0 Safari/537.36",
       "platform": "MacIntel",
       "screen": {
         "width": 1920,
@@ -65,14 +65,12 @@
       "speech_voices": ["Alex", "Samantha", "Victoria"]
     },
     "proxy": {
-      "scheme": "https",
+      "scheme": "http",
       "country": "US",
       "city": "New York",
       "connection_type": "residential",
       "host": "proxy.example.com",
-      "port": 8080,
-      "username": "user123",
-      "password": "s3cr3t"
+      "port": 8080
     }
   }
 }

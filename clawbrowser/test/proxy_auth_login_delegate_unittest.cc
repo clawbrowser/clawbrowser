@@ -84,9 +84,9 @@ TEST_F(ProxyAuthLoginDelegateTest, ResolvesNulloptOnNextTaskTurnWithoutProxy) {
   EXPECT_FALSE((*callback_result).has_value());
 }
 
-TEST(ProxyAuthPreloaderTest, BuildsHttpsBasicProxyChallenge) {
+TEST(ProxyAuthPreloaderTest, BuildsHttpBasicProxyChallenge) {
   RuntimeProxyConfig proxy;
-  proxy.scheme = "https";
+  proxy.scheme = "http";
   proxy.host = "proxy.example.com";
   proxy.port = 3128;
   proxy.username = "user_abc";
@@ -97,7 +97,7 @@ TEST(ProxyAuthPreloaderTest, BuildsHttpsBasicProxyChallenge) {
 
   ASSERT_TRUE(config.has_value());
   EXPECT_TRUE(config->challenge.is_proxy);
-  EXPECT_EQ(config->challenge.challenger.scheme(), "https");
+  EXPECT_EQ(config->challenge.challenger.scheme(), "http");
   EXPECT_EQ(config->challenge.challenger.host(), "proxy.example.com");
   EXPECT_EQ(config->challenge.challenger.port(), 3128);
   EXPECT_EQ(config->challenge.scheme, "basic");
@@ -106,6 +106,22 @@ TEST(ProxyAuthPreloaderTest, BuildsHttpsBasicProxyChallenge) {
   EXPECT_EQ(config->challenge.path, "/");
   EXPECT_EQ(config->credentials.username(), u"user_abc");
   EXPECT_EQ(config->credentials.password(), u"pass_xyz");
+}
+
+TEST(ProxyAuthPreloaderTest, DefaultsMissingSchemeToHttpBasicProxyChallenge) {
+  RuntimeProxyConfig proxy;
+  proxy.host = "proxy.example.com";
+  proxy.port = 3128;
+  proxy.username = "user_abc";
+  proxy.password = "pass_xyz";
+
+  std::optional<ProxyAuthPreloadConfig> config =
+      BuildProxyAuthPreloadConfig(proxy);
+
+  ASSERT_TRUE(config.has_value());
+  EXPECT_EQ(config->challenge.challenger.scheme(), "http");
+  EXPECT_EQ(config->challenge.challenger.host(), "proxy.example.com");
+  EXPECT_EQ(config->challenge.challenger.port(), 3128);
 }
 
 TEST(ProxyAuthPreloaderTest, SkipsSocks5ProxyChallengePreload) {

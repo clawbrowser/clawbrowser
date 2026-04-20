@@ -1,6 +1,7 @@
 #ifndef CLAWBROWSER_STARTUP_H_
 #define CLAWBROWSER_STARTUP_H_
 
+#include <optional>
 #include <string>
 
 #include "base/command_line.h"
@@ -18,6 +19,11 @@ struct StartupResult {
   bool should_exit = false;  // True if --list was handled (exit after print)
   int exit_code = 0;
 };
+
+// Handle CLI-only commands that should exit before full browser startup.
+// Returns an exit code on handled commands, or std::nullopt to continue.
+base::expected<std::optional<int>, std::string> HandleBasicStartupComplete(
+    const base::CommandLine& command_line);
 
 // Run the full clawbrowser startup sequence:
 // 1. Parse CLI args
@@ -37,10 +43,16 @@ base::expected<StartupResult, std::string> RunStartup(
     base::CommandLine* command_line,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
 
-// Run the command-line-only startup phase before Chromium resolves the user
+// Run the command-line-only startup phase before Clawbrowser resolves the user
 // data directory and initializes browser/network services.
 base::expected<StartupResult, std::string> ConfigureEarlyStartup(
     base::CommandLine* command_line);
+
+// Configure command-line switches that Chromium consumes before
+// chrome::DIR_USER_DATA is initialized. This must run before Chromium's
+// InitializeUserDataDir(), otherwise a fresh launch can bind to the default
+// Chromium profile before Clawbrowser selects the fingerprint/auth profile.
+void ConfigureCommandLineBeforeUserDataDir(base::CommandLine* command_line);
 
 }  // namespace clawbrowser
 

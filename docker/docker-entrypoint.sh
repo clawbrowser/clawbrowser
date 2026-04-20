@@ -97,20 +97,6 @@ chmod 700 "${XDG_RUNTIME_DIR}"
 
 default_browser="${CLAWBROWSER_BROWSER_BINARY:-/opt/clawbrowser/chrome}"
 
-if [[ -z "${CHROME_DEVEL_SANDBOX:-}" ]]; then
-  for sandbox_path in \
-    /opt/clawbrowser/chrome_sandbox \
-    /opt/clawbrowser/chrome-sandbox \
-    /usr/lib/chromium/chrome-sandbox
-  do
-    if [[ -x "${sandbox_path}" ]]; then
-      export CHROME_DEVEL_SANDBOX="${sandbox_path}"
-      log "Using sandbox binary ${CHROME_DEVEL_SANDBOX}"
-      break
-    fi
-  done
-fi
-
 default_args=(
   "${default_browser}"
   "--no-first-run"

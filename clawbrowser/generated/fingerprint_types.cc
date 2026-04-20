@@ -674,13 +674,9 @@ base::expected<ProxyCredentials, std::string> ProxyCredentials::FromDict(
   if (!port.has_value()) return base::unexpected(port.error());
   value.port = *port;
 
-  auto username = RequireString(dict, "username");
-  if (!username.has_value()) return base::unexpected(username.error());
-  value.username = *username;
+  if (const std::string* parsed = dict.FindString("username")) value.username = *parsed;
 
-  auto password = RequireString(dict, "password");
-  if (!password.has_value()) return base::unexpected(password.error());
-  value.password = *password;
+  if (const std::string* parsed = dict.FindString("password")) value.password = *parsed;
 
   return base::ok(std::move(value));
 }
@@ -697,8 +693,8 @@ base::DictValue ProxyCredentials::ToDict() const {
   if (scheme.has_value()) dict.Set("scheme", *scheme);
   dict.Set("host", host);
   dict.Set("port", port);
-  dict.Set("username", username);
-  dict.Set("password", password);
+  if (username.has_value()) dict.Set("username", *username);
+  if (password.has_value()) dict.Set("password", *password);
   return dict;
 }
 

@@ -3,8 +3,6 @@
 #include <optional>
 
 #include "base/json/json_reader.h"
-#include "base/json/json_writer.h"
-#include "base/values.h"
 #include "net/base/load_flags.h"
 #include "net/base/net_errors.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"

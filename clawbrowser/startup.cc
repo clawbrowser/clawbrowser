@@ -1,5 +1,6 @@
 #include "clawbrowser/startup.h"
 
+#include <string_view>
 #include <utility>
 
 #include "base/environment.h"
@@ -7,12 +8,12 @@
 #include "base/json/json_writer.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
-#include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "clawbrowser/cli/api_client.h"
 #include "clawbrowser/cli/args.h"
+#include "clawbrowser/defaults.h"
 #include "clawbrowser/cli/profile_manager.h"
 #include "clawbrowser/fingerprint_accessor.h"
 #include "clawbrowser/fingerprint_loader.h"
@@ -80,20 +81,6 @@ StartupResult HandleListProfiles(const ClawArgs& args,
   return result;
 }
 
-bool ValidateFingerprintId(const std::string& fp_id,
-                           const ClawArgs& args,
-                           StartupResult* result) {
-  if (!fp_id.empty() && base::StartsWith(fp_id, "fp_")) {
-    return true;
-  }
-
-  PrintError(args, "invalid_fingerprint_id",
-             "invalid fingerprint ID: must start with 'fp_', got: " + fp_id);
-  result->should_exit = true;
-  result->exit_code = 1;
-  return false;
-}
-
 inline constexpr char kUserAgentMajorVersionSwitch[] =
     "clawbrowser-ua-major-version";
 inline constexpr char kUserAgentFullVersionSwitch[] =
@@ -101,15 +88,16 @@ inline constexpr char kUserAgentFullVersionSwitch[] =
 inline constexpr char kUserAgentPlatformSwitch[] =
     "clawbrowser-ua-platform";
 
-std::optional<std::string> ExtractChromeFullVersion(
+std::optional<std::string> ExtractClawbrowserFullVersion(
     const std::string& user_agent) {
-  constexpr char kChromeToken[] = "Chrome/";
-  const size_t token = user_agent.find(kChromeToken);
+  constexpr char kClawbrowserToken[] = "Clawbrowser/";
+  const size_t token = user_agent.find(kClawbrowserToken);
   if (token == std::string::npos) {
     return std::nullopt;
   }
 
-  const size_t start = token + std::char_traits<char>::length(kChromeToken);
+  const size_t start =
+      token + std::char_traits<char>::length(kClawbrowserToken);
   const size_t end = user_agent.find_first_of(" )", start);
   const std::string version = user_agent.substr(start, end - start);
   if (version.empty()) {
@@ -119,10 +107,10 @@ std::optional<std::string> ExtractChromeFullVersion(
   return version;
 }
 
-std::optional<std::string> ExtractChromeMajorVersion(
+std::optional<std::string> ExtractClawbrowserMajorVersion(
     const std::string& user_agent) {
   std::optional<std::string> full_version =
-      ExtractChromeFullVersion(user_agent);
+      ExtractClawbrowserFullVersion(user_agent);
   if (!full_version.has_value()) {
     return std::nullopt;
   }
@@ -137,6 +125,177 @@ std::string UserAgentMetadataPlatform(const std::string& platform) {
   }
   return platform;
 }
+
+bool HasStartupUrl(const base::CommandLine* command_line,
+                   std::string_view url) {
+  for (const auto& arg : command_line->GetArgs()) {
+    if (arg == url) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void ApplyMacAutomationSwitches(base::CommandLine* command_line) {
+#if BUILDFLAG(IS_MAC)
+  if (!command_line->HasSwitch("use-mock-keychain")) {
+    command_line->AppendSwitch("use-mock-keychain");
+  }
+#endif
+}
+
+std::string ResolveImplicitFingerprintId(ProfileManager* profile_manager) {
+  auto env = base::Environment::Create();
+  if (std::optional<std::string> default_fingerprint =
+          env->GetVar("CLAWBROWSER_DEFAULT_FINGERPRINT_ID");
+      default_fingerprint.has_value() && !default_fingerprint->empty()) {
+    return *default_fingerprint;
+  }
+
+  if (std::optional<std::string> cached_profile =
+          profile_manager->FindBestCachedProfileId();
+      cached_profile.has_value() && !cached_profile->empty()) {
+    return *cached_profile;
+  }
+
+  return kDefaultFingerprintId;
+}
+
+void ApplyDefaultFingerprintSwitch(base::CommandLine* command_line,
+                                   ProfileManager* profile_manager) {
+  if (command_line->HasSwitch("fingerprint")) {
+    return;
+  }
+
+  command_line->AppendSwitchASCII(
+      "fingerprint", ResolveImplicitFingerprintId(profile_manager));
+}
+
+void ConfigureAuthStartup(base::CommandLine* command_line,
+                          ProfileManager* profile_manager);
+void ConfigureVanillaUserDataDir(base::CommandLine* command_line,
+                                 ProfileManager* profile_manager);
+
+void ConfigureProfileStartupCommandLine(const ClawArgs& args,
+                                        base::CommandLine* command_line,
+                                        ProfileManager* profile_manager) {
+  if (args.list()) {
+    return;
+  }
+
+  const bool has_api_key = profile_manager->ResolveApiKey().has_value();
+
+  if (args.is_vanilla()) {
+    if (!has_api_key) {
+      ConfigureAuthStartup(command_line, profile_manager);
+    } else {
+      ConfigureVanillaUserDataDir(command_line, profile_manager);
+    }
+    return;
+  }
+
+  const std::string& fp_id = args.fingerprint_id();
+  if (!has_api_key) {
+    ConfigureAuthStartup(command_line, profile_manager);
+    return;
+  }
+
+  command_line->AppendSwitchPath("user-data-dir",
+                                 profile_manager->GetUserDataDir(fp_id));
+}
+
+base::FilePath GetAuthUserDataDir(ProfileManager* profile_manager) {
+  return profile_manager->GetVanillaUserDataDir().DirName().AppendASCII("Auth");
+}
+
+bool ShouldKeepVanillaStartupArg(
+    const base::CommandLine::StringType& arg) {
+  return arg != FILE_PATH_LITERAL("clawbrowser://verify/");
+}
+
+bool ShouldKeepAuthStartupArg(
+    const base::CommandLine::StringType& arg) {
+  return arg != FILE_PATH_LITERAL("clawbrowser://auth/") &&
+         arg != FILE_PATH_LITERAL("clawbrowser://verify/");
+}
+
+bool ShouldKeepAuthStartupSwitch(std::string_view switch_name) {
+  return switch_name != "restore-last-session" &&
+         switch_name != "user-data-dir" &&
+         switch_name != "no-startup-window";
+}
+
+void AppendAuthPage(base::CommandLine* command_line);
+
+void StripVerifyPage(base::CommandLine* command_line) {
+  if (!HasStartupUrl(command_line, "clawbrowser://verify/")) {
+    return;
+  }
+
+  base::CommandLine filtered(command_line->GetProgram());
+  for (const auto& [switch_name, switch_value] : command_line->GetSwitches()) {
+    filtered.AppendSwitchNative(switch_name, switch_value);
+  }
+  for (const auto& arg : command_line->GetArgs()) {
+    if (!ShouldKeepVanillaStartupArg(arg)) {
+      continue;
+    }
+    filtered.AppendArgNative(arg);
+  }
+  *command_line = filtered;
+}
+
+void ConfigureAuthStartup(base::CommandLine* command_line,
+                          ProfileManager* profile_manager) {
+  base::CommandLine filtered(command_line->GetProgram());
+  for (const auto& [switch_name, switch_value] : command_line->GetSwitches()) {
+    if (!ShouldKeepAuthStartupSwitch(switch_name)) {
+      continue;
+    }
+    filtered.AppendSwitchNative(switch_name, switch_value);
+  }
+  for (const auto& arg : command_line->GetArgs()) {
+    if (!ShouldKeepAuthStartupArg(arg)) {
+      continue;
+    }
+    filtered.AppendArgNative(arg);
+  }
+  filtered.AppendSwitchPath("user-data-dir", GetAuthUserDataDir(profile_manager));
+  AppendAuthPage(&filtered);
+  *command_line = filtered;
+}
+
+void ConfigureVanillaUserDataDir(base::CommandLine* command_line,
+                                 ProfileManager* profile_manager) {
+  command_line->AppendSwitchPath(
+      "user-data-dir", profile_manager->GetVanillaUserDataDir());
+}
+
+void AppendAuthPage(base::CommandLine* command_line) {
+  if (HasStartupUrl(command_line, "clawbrowser://auth/")) {
+    return;
+  }
+  command_line->AppendArg("clawbrowser://auth/");
+}
+
+StartupResult FallbackToVanillaBrowser(base::CommandLine* command_line,
+                                       ProfileManager* profile_manager,
+                                       bool append_auth_page) {
+  FingerprintAccessor::Reset();
+  if (append_auth_page) {
+    ConfigureAuthStartup(command_line, profile_manager);
+    return StartupResult();
+  }
+  StripVerifyPage(command_line);
+  ConfigureVanillaUserDataDir(command_line, profile_manager);
+  return StartupResult();
+}
+
+void PrintWarning(const std::string& message) {
+  fprintf(stderr, "[clawbrowser] warning: %s\n", message.c_str());
+}
+
+constexpr char kBackendBrowserName[] = "chrome";
 
 void ApplyGenerateRequestOverrides(const ClawArgs& args,
                                    GenerateRequest* request) {
@@ -160,7 +319,7 @@ void ApplyGenerateRequestOverrides(const ClawArgs& args,
     request->platform = "macos";
   }
   if (request->browser.empty()) {
-    request->browser = "chrome";
+    request->browser = kBackendBrowserName;
   }
   if (request->country.empty() && !args.has_location_overrides()) {
     request->country = "US";
@@ -169,87 +328,110 @@ void ApplyGenerateRequestOverrides(const ClawArgs& args,
 
 }  // namespace
 
-base::expected<StartupResult, std::string> ConfigureEarlyStartup(
-    base::CommandLine* command_line) {
-  ClawArgs args = ClawArgs::Parse(*command_line);
+base::expected<std::optional<int>, std::string> HandleBasicStartupComplete(
+    const base::CommandLine& command_line) {
+  ClawArgs args = ClawArgs::Parse(command_line);
   SetVerbose(args.verbose());
 
-  StartupResult result;
+  if (!args.list()) {
+    return base::ok(std::nullopt);
+  }
+
   ProfileManager profile_manager(GetConfigDir());
+  HandleListProfiles(args, &profile_manager);
+  return base::ok(0);
+}
 
-  if (args.list()) {
-    return base::ok(HandleListProfiles(args, &profile_manager));
+void ConfigureCommandLineBeforeUserDataDir(base::CommandLine* command_line) {
+  ApplyMacAutomationSwitches(command_line);
+
+  ProfileManager profile_manager(GetConfigDir());
+  ApplyDefaultFingerprintSwitch(command_line, &profile_manager);
+
+  ClawArgs args = ClawArgs::Parse(*command_line);
+  SetVerbose(args.verbose());
+  ConfigureProfileStartupCommandLine(args, command_line, &profile_manager);
+}
+
+base::expected<StartupResult, std::string> ConfigureEarlyStartup(
+    base::CommandLine* command_line) {
+  ConfigureCommandLineBeforeUserDataDir(command_line);
+  auto basic_startup_result = HandleBasicStartupComplete(*command_line);
+  if (!basic_startup_result.has_value()) {
+    return base::unexpected(basic_startup_result.error());
   }
 
-  if (args.is_vanilla()) {
-    command_line->AppendSwitchPath(
-        "user-data-dir", profile_manager.GetVanillaUserDataDir());
+  StartupResult result;
+  if (basic_startup_result->has_value()) {
+    result.should_exit = true;
+    result.exit_code = basic_startup_result->value();
     return base::ok(std::move(result));
   }
 
-  const std::string& fp_id = args.fingerprint_id();
-  if (!ValidateFingerprintId(fp_id, args, &result)) {
-    return base::ok(std::move(result));
-  }
-
-  command_line->AppendSwitchPath(
-      "user-data-dir", profile_manager.GetUserDataDir(fp_id));
   return base::ok(std::move(result));
 }
 
 base::expected<StartupResult, std::string> RunStartup(
     base::CommandLine* command_line,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {
+  ApplyMacAutomationSwitches(command_line);
+  ProfileManager profile_manager(GetConfigDir());
+  ApplyDefaultFingerprintSwitch(command_line, &profile_manager);
+  StartupResult result;
+
+  auto basic_startup_result = HandleBasicStartupComplete(*command_line);
+  if (!basic_startup_result.has_value()) {
+    return base::unexpected(basic_startup_result.error());
+  }
+  if (basic_startup_result->has_value()) {
+    result.should_exit = true;
+    result.exit_code = basic_startup_result->value();
+    return base::ok(std::move(result));
+  }
+
   ClawArgs args = ClawArgs::Parse(*command_line);
   SetVerbose(args.verbose());
-  StartupResult result;
 
   CLAW_VLOG() << "starting with args: fingerprint="
               << args.fingerprint_id();
 
-  // Resolve config directory
-  ProfileManager profile_manager(GetConfigDir());
-
-  // Handle --list
-  if (args.list()) {
-    return base::ok(HandleListProfiles(args, &profile_manager));
-  }
-
   // Vanilla mode
   if (args.is_vanilla()) {
-    command_line->AppendSwitchPath(
-        "user-data-dir", profile_manager.GetVanillaUserDataDir());
+    if (!profile_manager.ResolveApiKey().has_value()) {
+      ConfigureAuthStartup(command_line, &profile_manager);
+    } else {
+      ConfigureVanillaUserDataDir(command_line, &profile_manager);
+    }
     return base::ok(std::move(result));
   }
 
   // Fingerprint mode
   const std::string& fp_id = args.fingerprint_id();
-  if (!ValidateFingerprintId(fp_id, args, &result)) {
+  const bool needs_fetch = args.regenerate() ||
+                           !profile_manager.HasCachedProfile(fp_id);
+  std::optional<std::string> api_key = profile_manager.ResolveApiKey();
+  if (!api_key.has_value()) {
+    ConfigureAuthStartup(command_line, &profile_manager);
     return base::ok(std::move(result));
   }
 
-  bool needs_fetch = args.regenerate() ||
-                     !profile_manager.HasCachedProfile(fp_id);
-
   if (needs_fetch) {
-    // Resolve API key
-    auto api_key = profile_manager.ResolveApiKey();
-    if (!api_key) {
-      PrintError(args, "no_api_key",
-                 "API key not found. Set CLAWBROWSER_API_KEY or add "
-                 "api_key to config.json");
+    std::optional<std::string> base_url = profile_manager.ResolveBaseUrl();
+    if (!base_url.has_value()) {
+      PrintError(args, "no_api_base_url",
+                 "API base URL not found. Set CLAWBROWSER_API_BASE_URL or add "
+                 "api_base_url to config.json");
       result.should_exit = true;
       result.exit_code = 1;
       return base::ok(std::move(result));
     }
 
-    std::string base_url = profile_manager.ResolveBaseUrl();
-    ApiClient client(base_url, *api_key, url_loader_factory);
+    ApiClient client(*base_url, *api_key, url_loader_factory);
 
     // Build request params (replay from cached profile if --regenerate)
     GenerateRequest params;
     params.platform = "macos";
-    params.browser = "chrome";
+    params.browser = kBackendBrowserName;
     params.country = "US";
     if (args.regenerate() && profile_manager.HasCachedProfile(fp_id)) {
       auto cached = profile_manager.ReadProfile(fp_id);
@@ -273,19 +455,22 @@ base::expected<StartupResult, std::string> RunStartup(
 
     if (!api_result.has_value()) {
       const auto& err = api_result.error();
+      const bool invalid_api_key =
+          err.http_status == 401 || err.http_status == 403;
       std::string msg;
       if (err.http_status == 0)
-        msg = "cannot reach API at " + base_url + ": " + err.message;
-      else if (err.http_status == 401)
+        msg = "cannot reach API at " + *base_url + ": " + err.message;
+      else if (invalid_api_key)
         msg = "invalid API key";
       else if (err.http_status == 429)
         msg = "rate limited, try again later";
       else
         msg = "API server error: " + err.message;
-      PrintError(args, err.code, msg);
-      result.should_exit = true;
-      result.exit_code = 1;
-      return base::ok(std::move(result));
+      PrintWarning(msg + (invalid_api_key ? "; opening auth page"
+                                          : "; falling back to vanilla browser"));
+      return base::ok(FallbackToVanillaBrowser(
+          command_line, &profile_manager,
+          /*append_auth_page=*/invalid_api_key));
     }
 
     // Save profile envelope
@@ -297,10 +482,10 @@ base::expected<StartupResult, std::string> RunStartup(
 
     auto save_result = profile_manager.SaveProfile(fp_id, envelope);
     if (!save_result.has_value()) {
-      PrintError(args, "write_error", save_result.error());
-      result.should_exit = true;
-      result.exit_code = 1;
-      return base::ok(std::move(result));
+      PrintWarning("failed to save fingerprint profile: " + save_result.error() +
+                   "; falling back to vanilla browser");
+      return base::ok(FallbackToVanillaBrowser(
+          command_line, &profile_manager, /*append_auth_page=*/false));
     }
   }
 
@@ -308,23 +493,23 @@ base::expected<StartupResult, std::string> RunStartup(
   base::FilePath fp_path = profile_manager.GetFingerprintPath(fp_id);
   auto load_result = LoadFingerprint(fp_path);
   if (!load_result.has_value()) {
-    PrintError(args, "load_error", load_result.error());
-    result.should_exit = true;
-    result.exit_code = 1;
-    return base::ok(std::move(result));
+    PrintWarning("failed to load fingerprint profile: " + load_result.error() +
+                 "; falling back to vanilla browser");
+    return base::ok(FallbackToVanillaBrowser(
+        command_line, &profile_manager, /*append_auth_page=*/false));
   }
 
-  // Set command-line flags for Chromium
+  // Set command-line flags for Clawbrowser
   command_line->AppendSwitchPath("clawbrowser-fp-path", fp_path);
   command_line->AppendSwitchPath(
       "user-data-dir", profile_manager.GetUserDataDir(fp_id));
 #if BUILDFLAG(IS_MAC)
   auto child_payload = BuildChildFingerprintPayload(fp_path);
   if (!child_payload.has_value()) {
-    PrintError(args, "load_error", child_payload.error());
-    result.should_exit = true;
-    result.exit_code = 1;
-    return base::ok(std::move(result));
+    PrintWarning("failed to prepare child fingerprint payload: " +
+                 child_payload.error() + "; falling back to vanilla browser");
+    return base::ok(FallbackToVanillaBrowser(
+        command_line, &profile_manager, /*append_auth_page=*/false));
   }
   command_line->AppendSwitchASCII(kFingerprintChildDataSwitch, *child_payload);
 #endif
@@ -349,9 +534,9 @@ base::expected<StartupResult, std::string> RunStartup(
   if (fp && !fp->user_agent.empty()) {
     command_line->AppendSwitchASCII("user-agent", fp->user_agent);
     std::optional<std::string> major_version =
-        ExtractChromeMajorVersion(fp->user_agent);
+        ExtractClawbrowserMajorVersion(fp->user_agent);
     std::optional<std::string> full_version =
-        ExtractChromeFullVersion(fp->user_agent);
+        ExtractClawbrowserFullVersion(fp->user_agent);
     if (major_version.has_value() && full_version.has_value()) {
       command_line->AppendSwitchASCII(kUserAgentMajorVersionSwitch,
                                       *major_version);

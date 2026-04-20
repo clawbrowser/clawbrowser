@@ -30,7 +30,7 @@ ProxyAuthLoginDelegate::ProxyAuthLoginDelegate(
   // Only auto-respond for proxy auth when fingerprint is active
   const auto* proxy = FingerprintAccessor::GetProxy();
   if (proxy && auth_info.is_proxy) {
-    auto config = BuildChromiumProxyConfig(*proxy);
+    auto config = BuildClawbrowserProxyConfig(*proxy);
     if (config && !config->username.empty() && !config->password.empty()) {
       credentials.emplace(base::UTF8ToUTF16(config->username),
                           base::UTF8ToUTF16(config->password));

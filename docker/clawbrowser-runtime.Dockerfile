@@ -4,7 +4,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    chromium-sandbox \
     dbus-x11 \
     fonts-dejavu-core \
     fonts-liberation \
@@ -75,10 +74,6 @@ COPY docker-entrypoint.sh /usr/local/bin/clawbrowser-docker-entrypoint
 RUN chmod +x /usr/local/bin/clawbrowser-docker-entrypoint
 
 COPY clawbrowser-dist/ /opt/clawbrowser/
-
-RUN if [ -f /usr/lib/chromium/chrome-sandbox ]; then chmod 4755 /usr/lib/chromium/chrome-sandbox; fi \
-  && if [ -f /opt/clawbrowser/chrome_sandbox ]; then chmod 4755 /opt/clawbrowser/chrome_sandbox; fi \
-  && if [ -f /opt/clawbrowser/chrome-sandbox ]; then chmod 4755 /opt/clawbrowser/chrome-sandbox; fi
 
 ENV DISPLAY=:99 \
     XVFB_WHD=1920x1080x24 \

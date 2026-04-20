@@ -2,7 +2,51 @@
 // Expected values injected by WebUI handler via window.__clawbrowser_expected.
 // Results exposed via window.__clawbrowser_verify for CDP automation.
 
-(async function() {
+function formatProxyLocation(country, city) {
+  const normalizedCountry = country || 'N/A';
+  return city ? `${normalizedCountry} (${city})` : normalizedCountry;
+}
+
+function summarizeProxyResult(result) {
+  const expectedValue = result.expected_country
+    ? formatProxyLocation(result.expected_country, result.expected_city)
+    : (result.detail || 'N/A');
+  const actualValue = formatProxyLocation(
+    result.actual_country || '',
+    result.actual_city || ''
+  );
+
+  return {
+    check: {
+      surface: 'proxy',
+      pass: Boolean(result.match),
+      expected: expectedValue,
+      actual: actualValue,
+      actual_country: result.actual_country || '',
+      actual_city: result.actual_city || '',
+      detail: result.detail || ''
+    },
+    status: result.match
+      ? {
+          pass: true,
+          message: `IP: ${result.ipv4 || 'N/A'}, Country: ${result.actual_country || 'N/A'}`
+        }
+      : {
+          pass: false,
+          message: `Expected: ${expectedValue}, Got: ${actualValue}`
+        }
+  };
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    formatProxyLocation,
+    summarizeProxyResult
+  };
+}
+
+if (typeof document !== 'undefined') {
+  (async function() {
   const data = document.getElementById('expected-data');
   const expected = !data || data.dataset.hasExpectedValues !== 'true'
     ? null
@@ -87,6 +131,20 @@
 
   function check(surface, expectedVal, actualVal) {
     const pass = String(expectedVal) === String(actualVal);
+    setCheck({
+      surface,
+      pass,
+      expected: String(expectedVal),
+      actual: String(actualVal)
+    });
+  }
+
+  function checkTimeZone(surface, expectedVal, actualVal) {
+    const helper = globalThis.__clawbrowserVerifyTimeZones;
+    const pass = helper && typeof helper.timeZonesMatch === 'function'
+      ? helper.timeZonesMatch(expectedVal, actualVal)
+      : String(expectedVal) === String(actualVal);
+
     setCheck({
       surface,
       pass,
@@ -196,32 +254,9 @@
   }
 
   function resolveProxyResult(result) {
-    const expectedValue = result.expected_country || result.detail || 'N/A';
-    const actualValue = result.actual_city
-      ? `${result.actual_country} (${result.actual_city})`
-      : (result.actual_country || '');
-
-    setCheck({
-      surface: 'proxy',
-      pass: result.match,
-      expected: expectedValue,
-      actual: actualValue,
-      actual_country: result.actual_country || '',
-      actual_city: result.actual_city || '',
-      detail: result.detail || ''
-    });
-
-    if (result.match) {
-      proxyStatus = {
-        pass: true,
-        message: `IP: ${result.ipv4 || 'N/A'}, Country: ${result.actual_country}`
-      };
-    } else {
-      proxyStatus = {
-        pass: false,
-        message: `Expected: ${result.expected_country}, Got: ${result.actual_country}`
-      };
-    }
+    const summary = summarizeProxyResult(result);
+    setCheck(summary.check);
+    proxyStatus = summary.status;
 
     completeAsyncCheck('proxy');
   }
@@ -247,7 +282,11 @@
   check('window.devicePixelRatio', expected.pixel_ratio, window.devicePixelRatio);
 
   // Timezone
-  check('timezone', expected.timezone, Intl.DateTimeFormat().resolvedOptions().timeZone);
+  checkTimeZone(
+    'timezone',
+    expected.timezone,
+    Intl.DateTimeFormat().resolvedOptions().timeZone
+  );
 
   function recordDeterminism(surface, hash1, hash2) {
     const pass = hash1 === hash2;
@@ -473,4 +512,5 @@
 
   syncChecksComplete = true;
   finalizeIfReady();
-})();
+  })();
+}

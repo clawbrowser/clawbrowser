@@ -1,11 +1,9 @@
 {
   "request": {
     "proxy": {
-      "scheme": "https",
+      "scheme": "http",
       "host": "proxy.example.com",
-      "port": 8080,
-      "username": "user123",
-      "password": "s3cr3t"
+      "port": 8080
     },
     "expected_country": "US",
     "expected_city": "New York"

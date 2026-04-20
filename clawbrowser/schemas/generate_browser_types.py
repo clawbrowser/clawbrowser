@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Chromium-friendly browser types from browser_schema.json."""
+"""Generate Clawbrowser-friendly browser types from browser_schema.json."""
 
 from __future__ import annotations
 

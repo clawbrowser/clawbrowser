@@ -20,7 +20,7 @@ struct ProxyAuthPreloadConfig {
 std::optional<ProxyAuthPreloadConfig> BuildProxyAuthPreloadConfig(
     const RuntimeProxyConfig& proxy);
 
-// Prepopulate Chromium's profile HTTP auth cache for the active proxy.
+// Prepopulate Clawbrowser's profile HTTP auth cache for the active proxy.
 void PreloadProxyAuth(content::BrowserContext* browser_context);
 
 }  // namespace clawbrowser

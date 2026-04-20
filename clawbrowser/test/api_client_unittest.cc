@@ -144,6 +144,25 @@ TEST_F(ApiClientTest, VerifyProxySuccess) {
   EXPECT_EQ(result->actual_country, "US");
 }
 
+TEST_F(ApiClientTest, VerifyProxyRequestAllowsUnauthenticatedProxy) {
+  auto parsed = VerifyProxyRequest::FromJson(R"({
+    "proxy": {
+      "scheme": "http",
+      "host": "proxy.example.com",
+      "port": 8080
+    },
+    "expected_country": "US"
+  })");
+
+  ASSERT_TRUE(parsed.has_value()) << parsed.error();
+  EXPECT_EQ(parsed->proxy.scheme.value_or(""), "http");
+  EXPECT_EQ(parsed->proxy.host, "proxy.example.com");
+  EXPECT_EQ(parsed->proxy.port, 8080);
+  EXPECT_FALSE(parsed->proxy.username.has_value());
+  EXPECT_FALSE(parsed->proxy.password.has_value());
+  EXPECT_EQ(parsed->expected_country, "US");
+}
+
 TEST_F(ApiClientTest, NetworkFailure) {
   url_loader_factory_.AddResponse(
       GURL(kTestBaseUrl + std::string("/v1/fingerprints/generate")),

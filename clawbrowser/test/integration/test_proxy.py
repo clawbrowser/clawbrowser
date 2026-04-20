@@ -4,6 +4,8 @@ import json
 
 import pytest
 
+from clawbrowser.test.integration.test_surfaces import _timezones_match
+
 
 async def open_popup(page, url: str):
     existing_pages = list(page.context.pages)
@@ -264,6 +266,7 @@ async def test_cross_process_consistency(browser_with_fingerprint):
     tz2 = await page2.evaluate(
         "Intl.DateTimeFormat().resolvedOptions().timeZone"
     )
-    assert tz1 == tz2 == fp["timezone"]
+    assert tz1 == tz2
+    assert await _timezones_match(page1, fp["timezone"])
 
     await page2.close()

@@ -89,18 +89,22 @@
  void ChromeContentBrowserClient::GetAdditionalViewSourceSchemes(
 --- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
-@@ -20,6 +20,7 @@
+@@ -20,6 +20,8 @@
  #include "chrome/browser/about_flags.h"
  #include "chrome/browser/buildflags.h"
  #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
++#include "clawbrowser/auth/auth_page.h"
 +#include "clawbrowser/verify/verify_page.h"
  #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
  #include "chrome/browser/profiles/profile.h"
  #include "chrome/browser/ui/webui/about/about_ui.h"
-@@ -158,6 +159,9 @@
+@@ -158,6 +159,12 @@
                                               const GURL& url) {
    // This will get called a lot to check all URLs, so do a quick check of other
    // schemes to filter out most URLs.
++  if (url.SchemeIs("clawbrowser") && url.host() == clawbrowser::kAuthHost) {
++    return &NewWebUI<clawbrowser::AuthPageUI>;
++  }
 +  if (url.SchemeIs("clawbrowser") && url.host() == clawbrowser::kVerifyHost) {
 +    return &NewWebUI<clawbrowser::VerifyPageUI>;
 +  }
@@ -109,7 +113,7 @@
      return nullptr;
 --- a/chrome/browser/ui/startup/google_chrome_scheme_util.cc
 +++ b/chrome/browser/ui/startup/google_chrome_scheme_util.cc
-@@ -143,12 +143,16 @@ bool ValidateUrl(const GURL& url) {
+@@ -143,13 +143,18 @@ bool ValidateUrl(const GURL& url) {
        LOG(WARNING) << "Headless mode requires the --allow-chrome-scheme-url "
                        "command-line option to access "
                     << url;
@@ -118,7 +122,8 @@
  #endif
  
 +  const bool url_scheme_is_clawbrowser =
-+      url.SchemeIs("clawbrowser") && url.host() == "verify";
++      url.SchemeIs("clawbrowser") &&
++      (url.host() == "auth" || url.host() == "verify");
 +
    auto* policy = content::ChildProcessSecurityPolicy::GetInstance();
    return policy->IsWebSafeScheme(url.GetScheme()) ||
@@ -130,13 +135,14 @@
  }
 --- a/chrome/browser/ui/startup/google_chrome_scheme_util_unittest.cc
 +++ b/chrome/browser/ui/startup/google_chrome_scheme_util_unittest.cc
-@@ -235,6 +235,7 @@ TEST(GoogleChromeSchemeUtilTest, ValidateUrl) {
+@@ -235,6 +235,8 @@ TEST(GoogleChromeSchemeUtilTest, ValidateUrl) {
    EXPECT_TRUE(ValidateUrl(GURL("http://google.com")));
    EXPECT_TRUE(ValidateUrl(GURL("https://google.com")));
    EXPECT_TRUE(ValidateUrl(GURL("file:///tmp/test")));
++  EXPECT_TRUE(ValidateUrl(GURL("clawbrowser://auth")));
 +  EXPECT_TRUE(ValidateUrl(GURL("clawbrowser://verify")));
    EXPECT_TRUE(ValidateUrl(GURL("about:blank")));
- 
+
    // chrome:// settings
 --- a/content/browser/webui/web_ui_data_source_impl.cc
 +++ b/content/browser/webui/web_ui_data_source_impl.cc

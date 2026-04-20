@@ -26,8 +26,10 @@
         },
         "browser": {
           "type": "string",
+          "description": "Browser name. `clawbrowser` is accepted as an alias of `chrome`.",
           "enum": [
-            "chrome"
+            "chrome",
+            "clawbrowser"
           ]
         },
         "country": {
@@ -251,7 +253,6 @@
           "type": "string",
           "enum": [
             "http",
-            "https",
             "socks5"
           ]
         },
@@ -289,16 +290,13 @@
           "type": "object",
           "required": [
             "host",
-            "port",
-            "username",
-            "password"
+            "port"
           ],
           "properties": {
             "scheme": {
               "type": "string",
               "enum": [
                 "http",
-                "https",
                 "socks5"
               ]
             },

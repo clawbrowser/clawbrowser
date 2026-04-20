@@ -1,4 +1,51 @@
 # Pinned against Chromium revision 25a94a5662bc
+diff --git a/chrome/app/chrome_main_delegate.cc b/chrome/app/chrome_main_delegate.cc
+--- a/chrome/app/chrome_main_delegate.cc
++++ b/chrome/app/chrome_main_delegate.cc
+@@ -46,6 +46,7 @@
+ #include "chrome/browser/lifetime/browser_shutdown.h"
+ #include "chrome/browser/metrics/chrome_feature_list_creator.h"
+ #include "chrome/browser/startup_data.h"
++#include "clawbrowser/startup.h"
+ #include "chrome/common/buildflags.h"
+ #include "chrome/common/channel_info.h"
+ #include "chrome/common/chrome_constants.h"
+@@ -1112,7 +1113,19 @@
+ 
+   content::Profiling::ProcessStarted();
+ 
++  {
++    auto basic_startup_result = clawbrowser::HandleBasicStartupComplete(
++        command_line);
++    if (!basic_startup_result.has_value()) {
++      LOG(ERROR) << "[clawbrowser] " << basic_startup_result.error();
++      return 1;
++    }
++    if (basic_startup_result->has_value()) {
++      return basic_startup_result->value();
++    }
++  }
++
+   // Setup tracing sampler profiler as early as possible at startup if needed.
+   SetupTracing();
+ 
+ #if BUILDFLAG(IS_WIN)
+diff --git a/chrome/app/chrome_main_delegate.cc b/chrome/app/chrome_main_delegate.cc
+--- a/chrome/app/chrome_main_delegate.cc
++++ b/chrome/app/chrome_main_delegate.cc
+@@ -1332,6 +1332,10 @@
+       *base::CommandLine::ForCurrentProcess();
+   std::string process_type =
+       command_line.GetSwitchValueASCII(switches::kProcessType);
++  if (process_type.empty()) {
++    clawbrowser::ConfigureCommandLineBeforeUserDataDir(
++        base::CommandLine::ForCurrentProcess());
++  }
+ 
+   crash_reporter::InitializeCrashKeys();
+ 
+ #if BUILDFLAG(IS_POSIX)
+diff --git a/chrome/browser/chrome_browser_main.cc b/chrome/browser/chrome_browser_main.cc
 --- a/chrome/browser/chrome_browser_main.cc
 +++ b/chrome/browser/chrome_browser_main.cc
 @@ -34,6 +34,8 @@
@@ -11,9 +58,6 @@
  #include "chrome/browser/component_updater/registration.h"
  #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
 @@ -961,6 +963,17 @@
-   // field trials (and all it depends upon).
-   browser_process_ = std::make_unique<BrowserProcessImpl>(startup_data_);
--
 +  {
 +    auto early_startup_result = clawbrowser::ConfigureEarlyStartup(
 +        base::CommandLine::ForCurrentProcess());
@@ -26,6 +70,9 @@
 +    }
 +  }
 +
+   // field trials (and all it depends upon).
+   browser_process_ = std::make_unique<BrowserProcessImpl>(startup_data_);
+-
  #if BUILDFLAG(IS_ANDROID)
    startup_data_->CreateProfilePrefService();
  #endif

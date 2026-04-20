@@ -34,17 +34,17 @@ inline std::string ExtractDelimitedToken(const std::string& input,
   return input.substr(start, end - start);
 }
 
-inline std::string ChromeFullVersion(const RuntimeFingerprint& fingerprint) {
+inline std::string ClawbrowserFullVersion(const RuntimeFingerprint& fingerprint) {
   std::string version =
-      ExtractDelimitedToken(fingerprint.user_agent, "Chrome/", false);
+      ExtractDelimitedToken(fingerprint.user_agent, "Clawbrowser/", false);
   if (!version.empty()) {
     return version;
   }
   return "0.0.0.0";
 }
 
-inline std::string ChromeMajorVersion(const RuntimeFingerprint& fingerprint) {
-  const std::string full_version = ChromeFullVersion(fingerprint);
+inline std::string ClawbrowserMajorVersion(const RuntimeFingerprint& fingerprint) {
+  const std::string full_version = ClawbrowserFullVersion(fingerprint);
   const size_t dot = full_version.find('.');
   return dot == std::string::npos ? full_version
                                   : full_version.substr(0, dot);
@@ -69,11 +69,13 @@ inline std::string PlatformVersion(const RuntimeFingerprint& fingerprint) {
 inline blink::UserAgentMetadata BuildUserAgentMetadata(
     const RuntimeFingerprint& fingerprint) {
   blink::UserAgentMetadata metadata;
-  const std::string full_version = internal::ChromeFullVersion(fingerprint);
-  const std::string major_version = internal::ChromeMajorVersion(fingerprint);
+  const std::string full_version =
+      internal::ClawbrowserFullVersion(fingerprint);
+  const std::string major_version =
+      internal::ClawbrowserMajorVersion(fingerprint);
 
-  metadata.brand_version_list.emplace_back("Chromium", major_version);
-  metadata.brand_full_version_list.emplace_back("Chromium", full_version);
+  metadata.brand_version_list.emplace_back("Clawbrowser", major_version);
+  metadata.brand_full_version_list.emplace_back("Clawbrowser", full_version);
   metadata.full_version = full_version;
   metadata.platform = internal::PlatformName(fingerprint);
   metadata.platform_version = internal::PlatformVersion(fingerprint);

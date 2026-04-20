@@ -11,6 +11,10 @@
 
 namespace clawbrowser {
 
+// Build-time default API base URL. Present for packaged official builds, absent
+// for local/dev builds.
+std::optional<std::string> GetBuildDefaultApiBaseUrl();
+
 struct ProfileInfo {
   std::string id;
   std::string created_at;
@@ -27,12 +31,17 @@ class ProfileManager {
   // Resolve API key: env var CLAWBROWSER_API_KEY first, then config.json.
   std::optional<std::string> ResolveApiKey();
 
-  // Resolve API base URL: env var CLAWBROWSER_API_BASE_URL, config.json, or
-  // default.
-  std::string ResolveBaseUrl();
+  // Resolve API base URL: env var CLAWBROWSER_API_BASE_URL, then config.json.
+  std::optional<std::string> ResolveBaseUrl();
+
+  // Persist API key into config.json while preserving unrelated config keys.
+  base::expected<void, std::string> SaveApiKey(const std::string& api_key);
 
   // List all cached fingerprint profiles.
   std::vector<ProfileInfo> ListProfiles();
+
+  // Best cached profile for implicit launch when no profile was requested.
+  std::optional<std::string> FindBestCachedProfileId();
 
   // Path to fingerprint.json for a given profile ID.
   base::FilePath GetFingerprintPath(const std::string& id);
@@ -57,8 +66,6 @@ class ProfileManager {
 
  private:
   base::FilePath root_dir_;
-
-  static constexpr char kDefaultBaseUrl[] = "https://api.clawbrowser.ai";
 };
 
 }  // namespace clawbrowser

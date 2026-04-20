@@ -1,6 +1,6 @@
 # clawbrowser/generated/
 
-This directory contains Chromium-friendly C++ types generated from the
+This directory contains Clawbrowser-friendly C++ types generated from the
 canonical browser schema artifact at `clawbrowser/schemas/browser_schema.json`.
 That artifact is extracted from `api/openapi.yaml`.
 

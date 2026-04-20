@@ -451,7 +451,8 @@ components:
           enum: [macos]
         browser:
           type: string
-          enum: [chrome]
+          description: Browser name. `clawbrowser` is accepted as an alias of `chrome`.
+          enum: [chrome, clawbrowser]
         country:
           type: string
           description: ISO 3166-1 alpha-2
@@ -565,7 +566,7 @@ components:
       properties:
         scheme:
           type: string
-          enum: [http, https, socks5]
+          enum: [http, socks5]
         country: { type: string }
         city: { type: string }
         connection_type: { type: string }
@@ -580,11 +581,11 @@ components:
       properties:
         proxy:
           type: object
-          required: [host, port, username, password]
+          required: [host, port]
           properties:
             scheme:
               type: string
-              enum: [http, https, socks5]
+              enum: [http, socks5]
             host: { type: string }
             port: { type: integer }
             username: { type: string }

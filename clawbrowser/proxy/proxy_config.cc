@@ -14,8 +14,8 @@ std::optional<std::string> NormalizedProxyScheme(
     const RuntimeProxyConfig& proxy) {
   const std::string scheme =
       proxy.scheme.has_value() && !proxy.scheme->empty() ? *proxy.scheme
-                                                         : "https";
-  if (scheme == "http" || scheme == "https" || scheme == "socks5") {
+                                                         : "http";
+  if (scheme == "http" || scheme == "socks5") {
     return scheme;
   }
   return std::nullopt;
@@ -33,7 +33,7 @@ std::optional<std::string> FormatProxyServer(const RuntimeProxyConfig& proxy) {
 
 }  // namespace
 
-std::optional<ChromiumProxyConfig> BuildChromiumProxyConfig(
+std::optional<ClawbrowserProxyConfig> BuildClawbrowserProxyConfig(
     const std::optional<RuntimeProxyConfig>& proxy) {
   if (!proxy || !HasProxyEndpoint(*proxy))
     return std::nullopt;
@@ -43,7 +43,7 @@ std::optional<ChromiumProxyConfig> BuildChromiumProxyConfig(
     return std::nullopt;
   }
 
-  ChromiumProxyConfig config;
+  ClawbrowserProxyConfig config;
   config.proxy_server = *proxy_server;
   if (proxy->username.has_value())
     config.username = *proxy->username;

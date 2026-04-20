@@ -9,6 +9,7 @@
 #include "base/path_service.h"
 #include "clawbrowser/fingerprint_accessor.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "clawbrowser/profile_envelope.h"
 
 namespace clawbrowser {
 namespace {
@@ -20,6 +21,38 @@ base::FilePath GetFixturePath(const std::string& filename) {
       .AppendASCII("test")
       .AppendASCII("fixtures")
       .AppendASCII(filename);
+}
+
+GenerateResponse MakeResponseWithProxy(const std::string& username,
+                                      const std::string& password) {
+  GenerateResponse response;
+  response.fingerprint.user_agent = "test-ua";
+  response.fingerprint.platform = "test-platform";
+  response.fingerprint.screen.width = 1920;
+  response.fingerprint.screen.height = 1080;
+  response.fingerprint.screen.avail_width = 1920;
+  response.fingerprint.screen.avail_height = 1040;
+  response.fingerprint.screen.color_depth = 24;
+  response.fingerprint.screen.pixel_ratio = 1.0;
+  response.fingerprint.hardware.concurrency = 8;
+  response.fingerprint.hardware.memory = 8;
+  response.fingerprint.webgl.vendor = "vendor";
+  response.fingerprint.webgl.renderer = "renderer";
+  response.fingerprint.canvas_seed = 1;
+  response.fingerprint.audio_seed = 2;
+  response.fingerprint.client_rects_seed = 3;
+  response.fingerprint.timezone = "UTC";
+  response.fingerprint.language = {"en-US"};
+  response.fingerprint.fonts = {"Arial"};
+  response.proxy.emplace();
+  response.proxy->scheme = "http";
+  response.proxy->host = "proxy.example.com";
+  response.proxy->port = 3128;
+  response.proxy->country = "US";
+  response.proxy->city = "New York";
+  response.proxy->username = username;
+  response.proxy->password = password;
+  return response;
 }
 
 class FingerprintLoaderTest : public testing::Test {
@@ -41,7 +74,7 @@ TEST_F(FingerprintLoaderTest, LoadValidFile) {
   EXPECT_EQ(fp->user_agent,
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36");
+            "Clawbrowser/120.0.0.0 Safari/537.36");
   EXPECT_EQ(fp->screen.width, 1920);
   EXPECT_EQ(fp->canvas_seed, 1234567890);
 }
@@ -192,10 +225,65 @@ TEST_F(FingerprintLoaderTest, ChildPayloadPreservesProxyConfig) {
   ASSERT_TRUE(result.has_value()) << result.error();
   ASSERT_NE(FingerprintAccessor::Get(), nullptr);
   ASSERT_NE(FingerprintAccessor::GetProxy(), nullptr);
-  EXPECT_EQ(FingerprintAccessor::GetProxy()->scheme.value_or(""), "https");
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->scheme.value_or(""), "http");
   EXPECT_EQ(FingerprintAccessor::GetProxy()->host.value_or(""),
             "proxy.example.com");
   EXPECT_EQ(FingerprintAccessor::GetProxy()->country.value_or(""), "US");
+  EXPECT_FALSE(FingerprintAccessor::GetProxy()->username.has_value());
+  EXPECT_FALSE(FingerprintAccessor::GetProxy()->password.has_value());
+}
+
+TEST_F(FingerprintLoaderTest, LoadEncryptedProxyCredentialsFromProfileCache) {
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+
+  ProfileEnvelope envelope;
+  envelope.schema_version = ProfileEnvelope::kCurrentSchemaVersion;
+  envelope.created_at = "2026-04-09T12:00:00Z";
+  envelope.request.platform = "macos";
+  envelope.request.browser = "chrome";
+  envelope.request.country = "US";
+  envelope.response = MakeResponseWithProxy("user_abc", "pass_xyz");
+
+  base::FilePath path = temp_dir.GetPath().AppendASCII("fingerprint.json");
+  ASSERT_TRUE(base::WriteFile(path, envelope.Serialize()));
+
+  auto result = LoadFingerprint(path);
+  ASSERT_TRUE(result.has_value()) << result.error();
+  ASSERT_NE(FingerprintAccessor::GetProxy(), nullptr);
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->username.value_or(""),
+            "user_abc");
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->password.value_or(""),
+            "pass_xyz");
+}
+
+TEST_F(FingerprintLoaderTest,
+       BuildChildPayloadFromEncryptedCachePreservesProxyCredentials) {
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+
+  ProfileEnvelope envelope;
+  envelope.schema_version = ProfileEnvelope::kCurrentSchemaVersion;
+  envelope.created_at = "2026-04-09T12:00:00Z";
+  envelope.request.platform = "macos";
+  envelope.request.browser = "chrome";
+  envelope.request.country = "US";
+  envelope.response = MakeResponseWithProxy("user_abc", "pass_xyz");
+
+  base::FilePath path = temp_dir.GetPath().AppendASCII("fingerprint.json");
+  ASSERT_TRUE(base::WriteFile(path, envelope.Serialize()));
+
+  auto child_payload = BuildChildFingerprintPayload(path);
+  ASSERT_TRUE(child_payload.has_value()) << child_payload.error();
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII(kFingerprintChildDataSwitch, *child_payload);
+
+  auto result = LoadFingerprintFromCommandLine(cmd);
+  ASSERT_TRUE(result.has_value()) << result.error();
+  ASSERT_NE(FingerprintAccessor::GetProxy(), nullptr);
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->username.value_or(""), "user_abc");
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->password.value_or(""), "pass_xyz");
 }
 
 TEST_F(FingerprintLoaderTest, LoadFromCommandLineNoFlag) {

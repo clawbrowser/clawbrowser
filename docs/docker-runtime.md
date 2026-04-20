@@ -70,7 +70,7 @@ Internally the script:
 - auto-detects the archive or build directory
 - extracts archives into a temporary staging directory
 - copies the full runtime into a temporary Docker build context
-- builds [docker/clawbrowser-runtime.Dockerfile](/Users/lrdoflnlss/GolandProjects/ai_agents/clawbrowser_core/docker/clawbrowser-runtime.Dockerfile:1)
+- builds [docker/clawbrowser-runtime.Dockerfile](/Users/nomionz/dev/clawbro/clawbrowser_core/docker/clawbrowser-runtime.Dockerfile:1)
 
 Keeping the browser artifact as a `.tar.gz` is preferred over checking in an
 unpacked directory because it is smaller on disk and the helper script already
@@ -110,6 +110,7 @@ The container entrypoint:
 - launches the browser under `dbus-run-session`
 - keeps the browser in headed mode unless you explicitly pass `--headless`
 - defaults to `--no-sandbox` because that is the reliable Docker path here
+- does not require the Debian `chromium-sandbox` package or a sandbox helper
 - forwards CDP from the container IP to the browser's internal loopback socket
   when you ask for `--remote-debugging-address=0.0.0.0`
 
@@ -120,6 +121,24 @@ Default environment variables:
 - `CLAWBROWSER_WINDOW_SIZE=1920,1080`
 - `CLAWBROWSER_BROWSER_BINARY=/opt/clawbrowser/chrome`
 - `CLAWBROWSER_NO_SANDBOX=1`
+
+If the packaged browser has its default API base URL baked in, you only need to
+provide `CLAWBROWSER_API_KEY`. The startup path will resolve a fingerprint
+profile automatically, launch headed, and open `clawbrowser://verify/`.
+
+## AI Agent Quickstart
+
+```bash
+docker run --rm -it \
+  -e CLAWBROWSER_API_KEY=... \
+  -p 9222:9222 \
+  clawbrowser:headed \
+  --remote-debugging-address=0.0.0.0 \
+  --remote-debugging-port=9222
+```
+
+This boots headed, loads a fingerprint profile automatically, and opens
+`clawbrowser://verify/`.
 
 You can override them at runtime:
 

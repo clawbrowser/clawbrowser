@@ -1,4 +1,4 @@
-# Chromium Remote Build Guide
+e# Chromium Remote Build Guide
 
 This guide is for building the `clawbrowser` browser-component work inside a real Chromium checkout on a remote macOS machine.
 
@@ -27,12 +27,14 @@ Primary sources:
 
 ## What Is Project-Specific
 
-This repo is **not** a standalone Chromium checkout. The code under [clawbrowser/BUILD.gn](/Users/nomionz/dev/clawbrowser/clawbrowser/BUILD.gn#L7) assumes it lives under `chromium/src/` as `//clawbrowser`.
+This repo is **not** a standalone Chromium checkout. The code under [clawbrowser/BUILD.gn](../clawbrowser/BUILD.gn#L7) assumes it lives under `chromium/src/` as `//clawbrowser`.
 
 For this project, the minimum overlay needed for build-related work is:
 
 - `clawbrowser/` -> `chromium/src/clawbrowser/`
 - `api/openapi.yaml` -> `chromium/src/api/openapi.yaml`
+- `branding/icons/app/side-bite/` -> stays in the project repo and is used by
+  production packaging to overlay desktop app icons
 
 The helper script also patches Chromium's checked-in
 `tools/gritsettings/resource_ids.spec` on the remote checkout so the
@@ -405,6 +407,82 @@ Run Chromium on macOS:
 ```
 
 Those two runtime flags come from Chromium's macOS build instructions as a practical way to avoid repeated keychain and incoming-connection prompts in dev builds.
+
+## Detached Prod Artifacts
+
+Launch the detached remote artifact build with:
+
+```bash
+bash scripts/build_remote_prod_artifacts.sh
+```
+
+The helper:
+
+- SSHes to the remote builder, auto-detects whether it is `Darwin` or `Linux`,
+  and derives the remote home-based default paths from that host
+- optionally rsyncs the current repo to the remote checkout before launch
+- explicitly resyncs `branding/icons/app/side-bite/` and
+  `clawbrowser/resources/side_bite.svg` when rsync is enabled, so desktop app
+  icon assets are present on the remote host even if icon files changed locally
+- preflights the remote Side Bite icon files before starting the detached build;
+  `--skip-rsync` is safe only when the remote repo already has those icon files
+- claims the target prod build-directory locks before launch so a second run
+  cannot reuse `CBProdMacArm64`, `CBProdLinuxX64`, or `CBProdLinuxArm64` while
+  they are already active
+- starts exactly one detached `nohup` job and returns immediately only after the
+  remote runner writes `runner.started`
+- returns `RUN_DIR`, `PID`, `STATUS`, `SUMMARY`, `NOHUP`, `META`, `LATEST`, and
+  the expected artifact paths for that run
+- keeps the stable Chromium output directories and caches in place for
+  incremental rebuilds, while writing per-run logs and metadata under a fresh
+  `prod-artifacts-<timestamp>-<pid>/` directory
+
+Artifacts by remote OS:
+
+- macOS: builds `out/CBProdMacArm64` and writes one
+  `*-macos-arm64-<timestamp>.tar.gz`
+- Linux: builds `out/CBProdLinuxX64` and `out/CBProdLinuxArm64`, installs the
+  required sysroots, runs both arch builds in parallel with fail-fast behavior,
+  and writes `*-linux-x64-<timestamp>.tar.gz` plus
+  `*-linux-arm64-<timestamp>.tar.gz`
+
+Desktop app icons:
+
+- source WebUI/favicon SVG: `clawbrowser/resources/side_bite.svg`
+- generated macOS bundle icon: `branding/icons/app/side-bite/app.icns`
+- generated Linux bundle icons:
+  `branding/icons/app/side-bite/product_logo_*.png`
+- macOS packaging stages the app as `Clawbrowser.app`, rewrites bundle metadata
+  to `Clawbrowser`, and copies `app.icns` into
+  `Clawbrowser.app/Contents/Resources/app.icns`
+- Linux packaging exposes `clawbrowser` as the launcher, stores the real
+  browser binary as `clawbrowser.real`, copies `product_logo_*.png` into each
+  packaged Linux bundle, and mirrors those icons into the bundle `resources/`
+  directory when that directory exists
+
+Packaged launch behavior inside each archive:
+
+- macOS renames the browser executable from `Chromium` to `Clawbrowser`,
+  removes any packaged `CLAWBROWSER_DEFAULT_FINGERPRINT_ID`, and removes
+  `CFBundleIconName` so the packaged `app.icns` is authoritative
+- macOS early startup also enables `--use-mock-keychain` automatically
+- Linux stores the real browser binary as `clawbrowser.real` and the
+  `clawbrowser` launcher passes only
+  `--disable-features=DialMediaRouteProvider`, leaving profile selection and
+  verify-page startup to the browser
+
+The helper only produces `.tar.gz` artifacts.
+
+The browser code also embeds QA backend defaults for official builds after env
+vars and `config.json`. That means:
+
+- local/dev builds still use the current env/config flow
+- the packaged prod artifacts still work with those embedded defaults
+- explicit env vars or `~/.config/clawbrowser/config.json` still override the
+  embedded defaults at runtime when needed
+- packaged prod launches with no API key open `clawbrowser://auth/`, where the
+  user only needs to paste the API key; the official-build default backend for
+  those artifacts is `https://api.clawbrowser.ai`
 
 ## Browser-Level Verification
 

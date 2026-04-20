@@ -20,12 +20,13 @@ struct ProfileEnvelope {
   ~ProfileEnvelope();
 
   int schema_version = 0;
+  std::optional<std::string> profile_id;
   std::string created_at;
   GenerateRequest request;
   GenerateResponse response;
   bool schema_outdated = false;  // Set if schema_version < current
 
-  static constexpr int kCurrentSchemaVersion = 1;
+  static constexpr int kCurrentSchemaVersion = 2;
 
   // Parse from JSON string.
   // Returns envelope on success, error message on failure.

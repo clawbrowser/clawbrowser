@@ -13,7 +13,7 @@ import("//testing/test.gni")
 import("//tools/grit/grit_rule.gni")
 
 # ---------------------------------------------------------------------------
-# Grit-generated resources for clawbrowser://verify page.
+# Grit-generated resources for clawbrowser://* pages.
 # ---------------------------------------------------------------------------
 grit("clawbrowser_verify_resources") {
   source = "verify/clawbrowser_verify.grd"
@@ -93,6 +93,8 @@ source_set("clawbrowser_core") {
 
     "proxy/proxy_config.cc",
     "proxy/proxy_config.h",
+    "proxy/proxy_credentials_crypto.cc",
+    "proxy/proxy_credentials_crypto.h",
     "user_agent_metadata.h",
   ]
 
@@ -104,9 +106,22 @@ source_set("clawbrowser_core") {
   deps = [
     ":check_generated_browser_types",
     "//base:i18n",
+    "//crypto",
     "//net",
     "//services/network/public/cpp",
   ]
+
+  if (is_official_build) {
+    defines = [
+      "CLAWBROWSER_DEFAULT_API_BASE_URL=\"https://api.clawbrowser.ai\"",
+      "CLAWBROWSER_DEFAULT_DASHBOARD_URL=\"https://app.clawbrowser.ai\"",
+    ]
+  } else {
+    defines = [
+      "CLAWBROWSER_DEFAULT_API_BASE_URL=\"https://api.qa.clawbrowser.ai\"",
+      "CLAWBROWSER_DEFAULT_DASHBOARD_URL=\"https://app.qa.clawbrowser.ai\"",
+    ]
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -136,6 +151,8 @@ source_set("clawbrowser_proxy_auth") {
 # ---------------------------------------------------------------------------
 static_library("clawbrowser") {
   sources = [
+    "auth/auth_page.cc",
+    "auth/auth_page.h",
     "verify/verify_page.cc",
     "verify/verify_page.h",
   ]
@@ -163,6 +180,7 @@ test("clawbrowser_unittests") {
     "test/profile_manager_unittest.cc",
     "test/prng_unittest.cc",
     "test/proxy_config_unittest.cc",
+    "test/proxy_credentials_crypto_unittest.cc",
     "test/startup_unittest.cc",
   ]
 
@@ -182,6 +200,7 @@ test("clawbrowser_unittests") {
 # ---------------------------------------------------------------------------
 test("clawbrowser_browser_unittests") {
   sources = [
+    "test/auth_page_unittest.cc",
     "test/run_all_unittests.cc",
     "test/proxy_auth_login_delegate_unittest.cc",
     "test/verify_page_unittest.cc",

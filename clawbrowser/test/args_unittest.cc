@@ -8,20 +8,29 @@ namespace {
 
 TEST(ArgsTest, ParseFingerprintId) {
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
-  cmd.AppendSwitchASCII("fingerprint", "fp_abc123");
+  cmd.AppendSwitchASCII("fingerprint", "abc123_profile");
 
   ClawArgs args = ClawArgs::Parse(cmd);
   EXPECT_TRUE(args.has_fingerprint());
-  EXPECT_EQ(args.fingerprint_id(), "fp_abc123");
+  EXPECT_EQ(args.fingerprint_id(), "abc123_profile");
   EXPECT_FALSE(args.regenerate());
   EXPECT_FALSE(args.list());
   EXPECT_FALSE(args.verbose());
   EXPECT_FALSE(args.skip_verify());
 }
 
+TEST(ArgsTest, ParsePathLikeFingerprintId) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "group/profile");
+
+  ClawArgs args = ClawArgs::Parse(cmd);
+  EXPECT_TRUE(args.has_fingerprint());
+  EXPECT_EQ(args.fingerprint_id(), "group/profile");
+}
+
 TEST(ArgsTest, ParseRegenerate) {
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
-  cmd.AppendSwitchASCII("fingerprint", "fp_abc123");
+  cmd.AppendSwitchASCII("fingerprint", "abc123_profile");
   cmd.AppendSwitch("regenerate");
 
   ClawArgs args = ClawArgs::Parse(cmd);
@@ -110,14 +119,13 @@ TEST(ArgsTest, VanillaMode) {
   EXPECT_TRUE(args.is_vanilla());
 }
 
-TEST(ArgsTest, InvalidFingerprintId) {
+TEST(ArgsTest, EmptyFingerprintIdIsPreserved) {
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
   cmd.AppendSwitchASCII("fingerprint", "");
 
   ClawArgs args = ClawArgs::Parse(cmd);
   EXPECT_TRUE(args.has_fingerprint());
   EXPECT_TRUE(args.fingerprint_id().empty());
-  // Validation happens in profile_manager, not args
 }
 
 }  // namespace

@@ -9,7 +9,7 @@
 
 namespace clawbrowser {
 
-struct ChromiumProxyConfig {
+struct ClawbrowserProxyConfig {
   std::string proxy_server;  // <scheme>://host:port
   std::string username;
   std::string password;
@@ -17,7 +17,7 @@ struct ChromiumProxyConfig {
 
 // Build proxy config from fingerprint proxy data.
 // Returns nullopt if no proxy provided.
-std::optional<ChromiumProxyConfig> BuildChromiumProxyConfig(
+std::optional<ClawbrowserProxyConfig> BuildClawbrowserProxyConfig(
     const std::optional<RuntimeProxyConfig>& proxy);
 
 // Get command-line flags for proxy configuration.

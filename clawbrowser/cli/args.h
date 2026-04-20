@@ -9,7 +9,7 @@
 namespace clawbrowser {
 
 // Parsed clawbrowser-specific CLI flags.
-// Unknown flags pass through to Chromium unchanged.
+// Unknown flags pass through to the browser engine unchanged.
 class ClawArgs {
  public:
   ClawArgs();

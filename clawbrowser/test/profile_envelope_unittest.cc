@@ -18,6 +18,38 @@ base::FilePath GetFixturePath(const std::string& filename) {
       .AppendASCII(filename);
 }
 
+GenerateResponse MakeResponseWithProxy(const std::string& username,
+                                      const std::string& password) {
+  GenerateResponse response;
+  response.fingerprint.user_agent = "test-ua";
+  response.fingerprint.platform = "test-platform";
+  response.fingerprint.screen.width = 1920;
+  response.fingerprint.screen.height = 1080;
+  response.fingerprint.screen.avail_width = 1920;
+  response.fingerprint.screen.avail_height = 1040;
+  response.fingerprint.screen.color_depth = 24;
+  response.fingerprint.screen.pixel_ratio = 1.0;
+  response.fingerprint.hardware.concurrency = 8;
+  response.fingerprint.hardware.memory = 8;
+  response.fingerprint.webgl.vendor = "vendor";
+  response.fingerprint.webgl.renderer = "renderer";
+  response.fingerprint.canvas_seed = 1;
+  response.fingerprint.audio_seed = 2;
+  response.fingerprint.client_rects_seed = 3;
+  response.fingerprint.timezone = "UTC";
+  response.fingerprint.language = {"en-US"};
+  response.fingerprint.fonts = {"Arial"};
+  response.proxy.emplace();
+  response.proxy->scheme = "http";
+  response.proxy->host = "proxy.example.com";
+  response.proxy->port = 3128;
+  response.proxy->country = "US";
+  response.proxy->city = "New York";
+  response.proxy->username = username;
+  response.proxy->password = password;
+  return response;
+}
+
 TEST(ProfileEnvelopeTest, ParseValidEnvelope) {
   std::string json;
   ASSERT_TRUE(base::ReadFileToString(
@@ -34,7 +66,7 @@ TEST(ProfileEnvelopeTest, ParseValidEnvelope) {
   EXPECT_EQ(result->response.fingerprint.user_agent,
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36");
+            "Clawbrowser/120.0.0.0 Safari/537.36");
   EXPECT_EQ(result->response.fingerprint.timezone, "America/New_York");
   EXPECT_EQ(result->response.fingerprint.screen.width, 1920);
   EXPECT_EQ(result->response.proxy->host, "proxy.example.com");
@@ -77,7 +109,7 @@ TEST(ProfileEnvelopeTest, OutdatedSchemaVersionWarns) {
   std::string json = R"({
     "schema_version": 0,
     "created_at": "2026-01-01T00:00:00Z",
-    "request": {"platform": "macos", "browser": "chrome", "country": "US"},
+    "request": {"platform": "macos", "browser": "clawbrowser", "country": "US"},
     "response": {
       "fingerprint": {
         "user_agent": "test", "platform": "test",
@@ -134,6 +166,30 @@ TEST(ProfileEnvelopeTest, SerializeRoundTrip) {
             reparsed->response.fingerprint.user_agent);
   EXPECT_EQ(parsed->response.fingerprint.canvas_seed,
             reparsed->response.fingerprint.canvas_seed);
+}
+
+TEST(ProfileEnvelopeTest, SerializeEncryptsProxyCredentials) {
+  ProfileEnvelope envelope;
+  envelope.schema_version = ProfileEnvelope::kCurrentSchemaVersion;
+  envelope.created_at = "2026-04-09T12:00:00Z";
+  envelope.request.platform = "macos";
+  envelope.request.browser = "chrome";
+  envelope.request.country = "US";
+  envelope.response = MakeResponseWithProxy("user_abc", "pass_xyz");
+
+  std::string serialized = envelope.Serialize();
+  EXPECT_EQ(serialized.find("user_abc"), std::string::npos);
+  EXPECT_EQ(serialized.find("pass_xyz"), std::string::npos);
+  EXPECT_NE(serialized.find("encrypted_proxy_credentials"),
+            std::string::npos);
+
+  auto reparsed = ProfileEnvelope::Parse(serialized);
+  ASSERT_TRUE(reparsed.has_value()) << reparsed.error();
+  ASSERT_TRUE(reparsed->response.proxy.has_value());
+  EXPECT_EQ(reparsed->schema_version, ProfileEnvelope::kCurrentSchemaVersion);
+  EXPECT_EQ(reparsed->response.proxy->host.value_or(""), "proxy.example.com");
+  EXPECT_EQ(reparsed->response.proxy->username.value_or(""), "user_abc");
+  EXPECT_EQ(reparsed->response.proxy->password.value_or(""), "pass_xyz");
 }
 
 }  // namespace
