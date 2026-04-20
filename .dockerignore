@@ -1,0 +1,6 @@
+**
+!.dockerignore
+!Dockerfile
+!docker-entrypoint.sh
+!clawbrowser-dist/
+!clawbrowser-dist/**
