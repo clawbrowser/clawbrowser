@@ -1,0 +1,204 @@
+name: Publish Docker image
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish. Leave empty to use the latest release or tag.
+        required: false
+        type: string
+      publish_latest:
+        description: Also publish the latest tag
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-publish-${{ github.event.release.tag_name || inputs.tag || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.vars.outputs.image }}
+      tag: ${{ steps.vars.outputs.tag }}
+      publish_latest: ${{ steps.vars.outputs.publish_latest }}
+    steps:
+      - id: vars
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          INPUT_PUBLISH_LATEST: ${{ inputs.publish_latest }}
+          INPUT_TAG: ${{ inputs.tag }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+
+          owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          repo_name="${GITHUB_REPOSITORY#*/}"
+          repo_name="$(printf '%s' "${repo_name}" | tr '[:upper:]' '[:lower:]')"
+
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            tag="${INPUT_TAG}"
+            publish_latest="${INPUT_PUBLISH_LATEST}"
+
+            if [[ -z "${tag}" ]]; then
+              tag="$(gh release list \
+                --repo "${GITHUB_REPOSITORY}" \
+                --limit 1 \
+                --json tagName \
+                --jq '.[0].tagName' || true)"
+            fi
+
+            if [[ -z "${tag}" ]]; then
+              tag="$(gh api \
+                "repos/${GITHUB_REPOSITORY}/tags" \
+                --jq '.[0].name' || true)"
+            fi
+          else
+            tag="${RELEASE_TAG}"
+            if [[ "${RELEASE_PRERELEASE}" == "true" ]]; then
+              publish_latest="false"
+            else
+              publish_latest="true"
+            fi
+          fi
+
+          if [[ -z "${tag}" ]]; then
+            echo "::error::unable to resolve a release tag; specify tag manually or create a tag first"
+            exit 1
+          fi
+
+          echo "Resolved tag: ${tag}"
+
+          echo "image=ghcr.io/${owner}/${repo_name}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "publish_latest=${publish_latest}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download release artifact
+        env:
+          ASSET_NAME: clawbrowser-linux-x64.tar.gz
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/assets"
+          releases_json="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --paginate \
+            --slurp)"
+
+          asset_url="$(printf '%s' "${releases_json}" | jq -r \
+            --arg tag "${RELEASE_TAG}" \
+            --arg asset "${ASSET_NAME}" '
+              map(.[]?) |
+              map(select(.tag_name == $tag)) |
+              map(select(any((.assets // [])[]; .name == $asset))) |
+              sort_by(.draft) |
+              first? |
+              (.assets // [])[] |
+              select(.name == $asset) |
+              .url // empty
+            ')"
+
+          if [[ -z "${asset_url}" ]]; then
+            echo "::error::asset ${ASSET_NAME} was not found in any release for tag ${RELEASE_TAG}"
+            printf '%s' "${releases_json}" | jq -r \
+              --arg tag "${RELEASE_TAG}" '
+                map(.[]?) |
+                map(select(.tag_name == $tag)) |
+                .[] |
+                "- release=\(.name) draft=\(.draft) assets=\([(.assets // [])[].name] | join(", "))"
+              '
+            exit 1
+          fi
+
+          gh api "${asset_url}" \
+            -H "Accept: application/octet-stream" \
+            > "${RUNNER_TEMP}/assets/${ASSET_NAME}"
+
+      - name: Prepare build context
+        env:
+          ASSET_NAME: clawbrowser-linux-x64.tar.gz
+        run: |
+          set -euo pipefail
+
+          archive="${RUNNER_TEMP}/assets/${ASSET_NAME}"
+          extract_dir="${RUNNER_TEMP}/clawbrowser-dist-amd64"
+
+          rm -rf clawbrowser-dist "${extract_dir}"
+          mkdir -p clawbrowser-dist "${extract_dir}"
+
+          tar -xzf "${archive}" -C "${extract_dir}"
+
+          shopt -s dotglob nullglob
+          entries=("${extract_dir}"/*)
+          if [[ ${#entries[@]} -eq 1 && -d "${entries[0]}" ]]; then
+            src="${entries[0]}"
+          else
+            src="${extract_dir}"
+          fi
+
+          cp -a "${src}/." clawbrowser-dist/
+
+          if [[ ! -f clawbrowser-dist/clawbrowser.real ]]; then
+            echo "::error::expected clawbrowser-dist/clawbrowser.real in ${ASSET_NAME}"
+            exit 1
+          fi
+
+          chmod +x clawbrowser-dist/clawbrowser.real
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          flavor: |
+            latest=false
+          images: ${{ needs.prepare.outputs.image }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.prepare.outputs.tag }}
+            type=raw,value=latest,enable=${{ needs.prepare.outputs.publish_latest == 'true' }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          sbom: false
+
+      - name: Inspect published image
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect "${IMAGE}:${TAG}"
