@@ -18,7 +18,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: docker-publish-${{ github.event.release.tag_name || inputs.tag || github.run_id }}
@@ -43,7 +42,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           repo_name="${GITHUB_REPOSITORY#*/}"
           repo_name="$(printf '%s' "${repo_name}" | tr '[:upper:]' '[:lower:]')"
 
@@ -80,7 +78,7 @@ jobs:
 
           echo "Resolved tag: ${tag}"
 
-          echo "image=ghcr.io/${owner}/${repo_name}" >> "${GITHUB_OUTPUT}"
+          echo "image=docker.io/clawbrowser/${repo_name}" >> "${GITHUB_OUTPUT}"
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
           echo "publish_latest=${publish_latest}" >> "${GITHUB_OUTPUT}"
 
@@ -96,9 +94,9 @@ jobs:
 
       - uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.io
+          username: clawbrowser
+          password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
 
       - name: Download release artifact
         env:
@@ -180,6 +178,7 @@ jobs:
             latest=false
           images: ${{ needs.prepare.outputs.image }}
           tags: |
+            type=raw,value=${{ needs.prepare.outputs.tag }}
             type=semver,pattern={{version}},value=${{ needs.prepare.outputs.tag }}
             type=raw,value=latest,enable=${{ needs.prepare.outputs.publish_latest == 'true' }}
 

@@ -10,7 +10,7 @@ Docker:
 docker run --rm -it \
   -e CLAWBROWSER_API_KEY=... \
   -p 9222:9222 \
-  ghcr.io/clawbrowser/clawbrowser:latest \
+  docker.io/clawbrowser/clawbrowser:latest \
   --remote-debugging-address=0.0.0.0 \
   --remote-debugging-port=9222
 ```
