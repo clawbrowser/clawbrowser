@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v1.0.0] - 2026-04-17
+## [1.0.0] - 2026-04-17
 
 ### Highlights
 - Added a built-in verification page with support for normal and automation verification flags.

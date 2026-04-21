@@ -179,7 +179,6 @@ jobs:
           images: ${{ needs.prepare.outputs.image }}
           tags: |
             type=raw,value=${{ needs.prepare.outputs.tag }}
-            type=semver,pattern={{version}},value=${{ needs.prepare.outputs.tag }}
             type=raw,value=latest,enable=${{ needs.prepare.outputs.publish_latest == 'true' }}
 
       - name: Build and push image
