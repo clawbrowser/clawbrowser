@@ -1,0 +1,21 @@
+{
+  "name": "clawbrowser-marketplace",
+  "interface": {
+    "displayName": "Clawbrowser"
+  },
+  "plugins": [
+    {
+      "name": "clawbrowser",
+      "description": "Agent-only browser runtime with browser-managed config.json reuse, CDP sessions, rotation, and default browser routing.",
+      "source": {
+        "source": "local",
+        "path": "./plugins/clawbrowser"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

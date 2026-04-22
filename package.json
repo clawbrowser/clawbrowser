@@ -1,0 +1,11 @@
+{
+  "name": "clawbrowser",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bootstrapper for the Clawbrowser agent plugin bundle",
+  "bin": {
+    "clawbrowser": "./bin/clawbrowser-install.js"
+  },
+  "license": "MIT",
+  "type": "commonjs"
+}

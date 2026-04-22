@@ -1,0 +1,541 @@
+#!/usr/bin/env python3
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from urllib import error as urllib_error
+from urllib import parse as urllib_parse
+from urllib import request as urllib_request
+
+SERVER_NAME = "clawbrowser"
+SERVER_VERSION = "1.0.0"
+
+
+def log(message: str) -> None:
+    print(f"[clawbrowser-mcp] {message}", file=sys.stderr, flush=True)
+
+
+def die(message: str) -> None:
+    log(f"ERROR: {message}")
+    sys.exit(1)
+
+
+def launcher_path() -> str:
+    env = os.environ.get("CLAWBROWSER_BIN")
+    if env:
+        return env
+
+    which = shutil.which("clawbrowser")
+    if which:
+        return which
+
+    local = Path(__file__).resolve().with_name("clawbrowser")
+    if local.exists():
+        return str(local)
+
+    die("Could not find the clawbrowser launcher. Set CLAWBROWSER_BIN or install clawbrowser on PATH.")
+    raise SystemExit(1)
+
+
+def config_home_dir() -> Path:
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    if xdg:
+        return Path(xdg)
+    return Path.home() / ".config"
+
+
+def saved_config_path() -> Path:
+    return config_home_dir() / "clawbrowser" / "config.json"
+
+
+def saved_config_has_api_key() -> bool:
+    path = saved_config_path()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+
+    api_key = payload.get("api_key")
+    return isinstance(api_key, str) and bool(api_key.strip())
+
+
+def read_message():
+    headers = {}
+    while True:
+        line = sys.stdin.buffer.readline()
+        if not line:
+            return None
+        line = line.decode("utf-8", errors="replace").rstrip("\r\n")
+        if not line:
+            break
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        headers[key.strip().lower()] = value.strip()
+
+    length = int(headers.get("content-length", "0") or "0")
+    if length <= 0:
+        return None
+    body = sys.stdin.buffer.read(length)
+    if not body:
+        return None
+    return json.loads(body.decode("utf-8"))
+
+
+def write_message(message):
+    payload = json.dumps(message, separators=(",", ":")).encode("utf-8")
+    sys.stdout.buffer.write(f"Content-Length: {len(payload)}\r\n\r\n".encode("ascii"))
+    sys.stdout.buffer.write(payload)
+    sys.stdout.buffer.flush()
+
+
+def text_result(text: str):
+    return {"content": [{"type": "text", "text": text}]}
+
+
+def error_result(text: str):
+    return {"content": [{"type": "text", "text": text}], "isError": True}
+
+
+def normalize_endpoint(endpoint: str) -> str:
+    endpoint = endpoint.strip().rstrip("/")
+    parsed = urllib_parse.urlparse(endpoint)
+    if parsed.scheme in {"ws", "wss"}:
+        scheme = "http" if parsed.scheme == "ws" else "https"
+        return f"{scheme}://{parsed.netloc}"
+    return endpoint
+
+
+def get_session_endpoint(arguments):
+    code, stdout, stderr = run_launcher(["endpoint", "--session", normalize_session(arguments)])
+    if code != 0:
+        details = stderr or stdout or f"launcher exited with code {code}"
+        return None, details
+
+    endpoint = stdout.splitlines()[-1].strip() if stdout else ""
+    if not endpoint:
+        return None, "launcher did not return a CDP endpoint"
+
+    return endpoint, None
+
+
+def fetch_json(url: str):
+    with urllib_request.urlopen(url, timeout=2) as response:
+        return json.load(response)
+
+
+def session_http_endpoint(endpoint: str) -> str:
+    return normalize_endpoint(endpoint)
+
+
+def fetch_page_targets(endpoint: str):
+    payload = fetch_json(f"{session_http_endpoint(endpoint)}/json/list")
+    if not isinstance(payload, list):
+        raise ValueError("unexpected /json/list payload")
+
+    return [target for target in payload if target.get("type") == "page"]
+
+
+def close_page_target(endpoint: str, target_id: str):
+    url = (
+        f"{session_http_endpoint(endpoint)}/json/close/"
+        f"{urllib_parse.quote(str(target_id), safe='')}"
+    )
+    with urllib_request.urlopen(url, timeout=2) as response:
+        return response.read().decode("utf-8", errors="replace").strip()
+
+
+def run_launcher(args, api_key=None, image=None):
+    env = os.environ.copy()
+    if api_key:
+        env["CLAWBROWSER_API_KEY"] = api_key
+    if image:
+        env["CLAWBROWSER_IMAGE"] = image
+
+    proc = subprocess.run(
+        [launcher_path(), *args],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    stdout = proc.stdout.strip()
+    stderr = proc.stderr.strip()
+    return proc.returncode, stdout, stderr
+
+
+def normalize_session(arguments):
+    session = arguments.get("session") or arguments.get("session_name") or "default"
+    return str(session)
+
+
+def bootstrap_error():
+    path = saved_config_path()
+    return error_result(
+        f"Clawbrowser can reuse the saved browser config at {path}. "
+        "If the file is missing, set api_key or write "
+        '{"api_key":"..."} into that config file before calling the tool.'
+    )
+
+
+def start_session(arguments):
+    api_key = arguments.get("api_key") or os.environ.get("CLAWBROWSER_API_KEY")
+    if not api_key and not saved_config_has_api_key():
+        return bootstrap_error()
+
+    args = ["start", "--session", normalize_session(arguments)]
+
+    if port := arguments.get("port"):
+        args.extend(["--port", str(port)])
+    if image := arguments.get("image"):
+        args.extend(["--image", str(image)])
+    if arguments.get("verify_automation") or arguments.get("verify"):
+        args.append("--verify-automation")
+    if arguments.get("fingerprint"):
+        args.extend(["--fingerprint", str(arguments["fingerprint"])])
+    if arguments.get("regenerate"):
+        args.append("--regenerate")
+    if arguments.get("country"):
+        args.extend([f"--country={arguments['country']}"])
+    if arguments.get("city"):
+        args.extend([f"--city={arguments['city']}"])
+    if arguments.get("connection_type"):
+        args.extend([f"--connection-type={arguments['connection_type']}"])
+
+    code, stdout, stderr = run_launcher(args, api_key=api_key, image=arguments.get("image"))
+    if code != 0:
+        details = stderr or stdout or f"launcher exited with code {code}"
+        return error_result(details)
+
+    endpoint = stdout.splitlines()[-1] if stdout else ""
+    return text_result(endpoint or stdout)
+
+
+def rotate_session(arguments):
+    api_key = arguments.get("api_key") or os.environ.get("CLAWBROWSER_API_KEY")
+    if not api_key and not saved_config_has_api_key():
+        return bootstrap_error()
+
+    args = ["rotate", "--session", normalize_session(arguments)]
+    if image := arguments.get("image"):
+        args.extend(["--image", str(image)])
+
+    code, stdout, stderr = run_launcher(args, api_key=api_key, image=arguments.get("image"))
+    if code != 0:
+        details = stderr or stdout or f"launcher exited with code {code}"
+        return error_result(details)
+
+    endpoint = stdout.splitlines()[-1] if stdout else ""
+    return text_result(endpoint or stdout)
+
+
+def status_session(arguments):
+    code, stdout, stderr = run_launcher(["status", "--session", normalize_session(arguments)])
+    if code != 0:
+        details = stderr or stdout or f"launcher exited with code {code}"
+        return error_result(details)
+    return text_result(stdout)
+
+
+def endpoint_session(arguments):
+    endpoint, error = get_session_endpoint(arguments)
+    if error:
+        details = error
+        return error_result(details)
+    return text_result(endpoint)
+
+
+def list_tabs(arguments):
+    endpoint, error = get_session_endpoint(arguments)
+    if error:
+        return error_result(error)
+
+    try:
+        targets = fetch_page_targets(endpoint)
+    except Exception as exc:
+        return error_result(f"Could not read tabs from {normalize_endpoint(endpoint)}: {exc}")
+
+    return text_result(json.dumps(targets, indent=2, sort_keys=True))
+
+
+def close_tabs(arguments):
+    endpoint, error = get_session_endpoint(arguments)
+    if error:
+        return error_result(error)
+
+    try:
+        targets = fetch_page_targets(endpoint)
+    except Exception as exc:
+        return error_result(f"Could not read tabs from {normalize_endpoint(endpoint)}: {exc}")
+
+    requested_ids = [str(target_id) for target_id in (arguments.get("target_ids") or []) if str(target_id).strip()]
+    url_contains = arguments.get("url_contains")
+    title_contains = arguments.get("title_contains")
+    all_pages = bool(arguments.get("all_pages"))
+
+    if requested_ids:
+        selected = [target for target in targets if str(target.get("id")) in requested_ids]
+        missing_target_ids = [target_id for target_id in requested_ids if target_id not in {str(target.get("id")) for target in selected}]
+    elif url_contains or title_contains or all_pages:
+        selected = targets
+        missing_target_ids = []
+        if url_contains:
+            selected = [target for target in selected if url_contains in (target.get("url") or "")]
+        if title_contains:
+            selected = [target for target in selected if title_contains in (target.get("title") or "")]
+    else:
+        return error_result(
+            "Specify target_ids, url_contains/title_contains, or all_pages=true."
+        )
+
+    if not selected:
+        if requested_ids:
+            summary = {
+                "session": normalize_session(arguments),
+                "endpoint": normalize_endpoint(endpoint),
+                "closed": [],
+                "missing_target_ids": missing_target_ids,
+                "errors": [],
+            }
+            return error_result(json.dumps(summary, indent=2, sort_keys=True))
+        return error_result("No matching tabs found.")
+
+    closed = []
+    errors = []
+    for target in selected:
+        target_id = str(target.get("id") or "").strip()
+        if not target_id:
+            continue
+
+        try:
+            response_text = close_page_target(endpoint, target_id)
+            closed.append(
+                {
+                    "id": target_id,
+                    "title": target.get("title", ""),
+                    "url": target.get("url", ""),
+                    "response": response_text,
+                }
+            )
+        except urllib_error.HTTPError as exc:
+            if exc.code == 404:
+                errors.append({"id": target_id, "error": "Target not found"})
+            else:
+                errors.append({"id": target_id, "error": f"HTTP {exc.code}"})
+        except Exception as exc:
+            errors.append({"id": target_id, "error": str(exc)})
+
+    summary = {
+        "session": normalize_session(arguments),
+        "endpoint": normalize_endpoint(endpoint),
+        "closed": closed,
+        "missing_target_ids": missing_target_ids,
+        "errors": errors,
+    }
+
+    if errors and not closed:
+        return error_result(json.dumps(summary, indent=2, sort_keys=True))
+
+    return text_result(json.dumps(summary, indent=2, sort_keys=True))
+
+
+def stop_session(arguments):
+    code, stdout, stderr = run_launcher(["stop", "--session", normalize_session(arguments)])
+    if code != 0:
+        details = stderr or stdout or f"launcher exited with code {code}"
+        return error_result(details)
+    return text_result(stdout or "stopped")
+
+
+def list_profiles(arguments):
+    code, stdout, stderr = run_launcher(["list", "--session", normalize_session(arguments)])
+    if code != 0:
+        details = stderr or stdout or f"launcher exited with code {code}"
+        return error_result(details)
+    return text_result(stdout)
+
+
+TOOLS = [
+    {
+        "name": "start_session",
+        "description": "Start or reattach to a managed Clawbrowser session and return the local CDP endpoint. api_key is bootstrap-only when saved config.json reuse is unavailable.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session": {"type": "string"},
+                "api_key": {"type": "string", "description": "Optional bootstrap-only API key from https://app.clawbrowser.ai. Omit it when the browser can reuse a saved config.json; provide it only for first-time bootstrap."},
+                "image": {"type": "string"},
+                "port": {"type": "integer"},
+                "fingerprint": {"type": "string"},
+                "regenerate": {"type": "boolean"},
+                "country": {"type": "string"},
+                "city": {"type": "string"},
+                "connection_type": {"type": "string"},
+                "verify_automation": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "rotate_session",
+        "description": "Rotate the managed session with a fresh fingerprint/proxy-backed identity. api_key is bootstrap-only when saved config.json reuse is unavailable.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session": {"type": "string"},
+                "api_key": {"type": "string", "description": "Optional bootstrap-only API key from https://app.clawbrowser.ai. Omit it when the browser can reuse a saved config.json; provide it only for first-time bootstrap."},
+                "image": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "status_session",
+        "description": "Show whether a managed Clawbrowser session is running.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"session": {"type": "string"}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "endpoint_session",
+        "description": "Return the CDP endpoint for a managed session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"session": {"type": "string"}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "list_tabs",
+        "description": "List open page tabs in a managed Clawbrowser session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"session": {"type": "string"}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "close_tabs",
+        "description": "Close one or more page tabs in a managed Clawbrowser session by target id, URL/title filter, or all pages.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session": {"type": "string"},
+                "target_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Exact CDP target ids to close.",
+                },
+                "url_contains": {"type": "string"},
+                "title_contains": {"type": "string"},
+                "all_pages": {
+                    "type": "boolean",
+                    "description": "Close every page tab in the session.",
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "stop_session",
+        "description": "Stop a managed Clawbrowser session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"session": {"type": "string"}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "list_profiles",
+        "description": "List cached profiles in the managed session directory.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"session": {"type": "string"}},
+            "additionalProperties": False,
+        },
+    },
+]
+
+
+def handle_request(message):
+    method = message.get("method")
+    request_id = message.get("id")
+
+    if method == "initialize":
+        protocol = (
+            message.get("params", {})
+            .get("protocolVersion")
+            or "2025-03-26"
+        )
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "protocolVersion": protocol,
+                "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
+                "capabilities": {"tools": {"listChanged": False}},
+            },
+        }
+
+    if method == "tools/list":
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {"tools": TOOLS},
+        }
+
+    if method == "tools/call":
+        params = message.get("params", {})
+        tool_name = params.get("name")
+        arguments = params.get("arguments") or {}
+        handlers = {
+            "start_session": start_session,
+            "rotate_session": rotate_session,
+            "status_session": status_session,
+            "endpoint_session": endpoint_session,
+            "list_tabs": list_tabs,
+            "close_tabs": close_tabs,
+            "stop_session": stop_session,
+            "list_profiles": list_profiles,
+        }
+        handler = handlers.get(tool_name)
+        if not handler:
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"},
+            }
+
+        result = handler(arguments)
+        return {"jsonrpc": "2.0", "id": request_id, "result": result}
+
+    if request_id is None:
+        return None
+
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "error": {"code": -32601, "message": f"Unknown method: {method}"},
+    }
+
+
+def main():
+    while True:
+        message = read_message()
+        if message is None:
+            break
+
+        response = handle_request(message)
+        if response is not None:
+            write_message(response)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

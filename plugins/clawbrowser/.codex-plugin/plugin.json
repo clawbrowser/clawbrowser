@@ -1,0 +1,23 @@
+{
+  "name": "clawbrowser",
+  "version": "1.0.0",
+  "description": "Agent-only browser runtime with browser-managed config.json reuse, CDP sessions, rotation, and default browser routing.",
+  "author": {
+    "name": "Clawbrowser"
+  },
+  "homepage": "https://github.com/clawbrowser/clawbrowser",
+  "repository": "https://github.com/clawbrowser/clawbrowser",
+  "license": "MIT",
+  "keywords": [
+    "browser",
+    "automation",
+    "devtools",
+    "cdp",
+    "mcp",
+    "skills"
+  ],
+  "agents": [
+    "./agents/browser-user.md"
+  ],
+  "mcpServers": "./.mcp.json"
+}

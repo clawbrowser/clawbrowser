@@ -1,0 +1,615 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPOSITORY="clawbrowser/clawbrowser"
+INSTALL_ROOT="${CLAWBROWSER_INSTALL_ROOT:-${HOME}/.clawbrowser}"
+INSTALL_BIN="${CLAWBROWSER_INSTALL_BIN:-${HOME}/.local/bin}"
+CODEX_PLUGINS_ROOT="${CLAWBROWSER_CODEX_PLUGINS_ROOT:-${HOME}/.codex/plugins}"
+AGENTS_PLUGINS_ROOT="${CLAWBROWSER_AGENTS_PLUGINS_ROOT:-${HOME}/.agents/plugins}"
+IMAGE_TAG="${CLAWBROWSER_IMAGE_TAG:-clawbrowser:latest}"
+RUNTIME_IMAGE="${CLAWBROWSER_RUNTIME_IMAGE:-docker.io/clawbrowser/clawbrowser:latest}"
+BUILD_DOCKER="${CLAWBROWSER_BUILD_DOCKER:-0}"
+RELEASE_REF="${CLAWBROWSER_RELEASE_REF:-latest}"
+TARGET="${CLAWBROWSER_TARGET:-all}"
+SOURCE_ARCHIVE_URL="${CLAWBROWSER_SOURCE_ARCHIVE_URL:-}"
+RESOLVED_RELEASE_TAG=""
+
+log() {
+  printf '[clawbrowser-install] %s\n' "$*"
+}
+
+die() {
+  printf '[clawbrowser-install] ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+usage() {
+  cat <<'EOF'
+Usage:
+  bash scripts/install.sh [all|codex|claude|gemini]
+  bash scripts/install.sh --target <all|codex|claude|gemini>
+  curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- <target>
+
+Environment overrides:
+  CLAWBROWSER_INSTALL_ROOT   Bundle install root, default: ~/.clawbrowser
+  CLAWBROWSER_INSTALL_BIN    Command install directory, default: ~/.local/bin
+  CLAWBROWSER_IMAGE_TAG      Docker image tag to build locally, default: clawbrowser:latest
+  CLAWBROWSER_RUNTIME_IMAGE  Docker image used at runtime when no native app bundle exists, default: docker.io/clawbrowser/clawbrowser:latest
+  CLAWBROWSER_BUILD_DOCKER    Set to 1 to build a local Docker image from the release asset
+  CLAWBROWSER_RELEASE_REF    Release ref or tag, default: latest
+  CLAWBROWSER_APP_PATH       Optional macOS Clawbrowser.app path or executable
+  CLAWBROWSER_SOURCE_ARCHIVE_URL  Optional archive override; defaults to the tagged release archive for CLAWBROWSER_RELEASE_REF
+
+The browser-managed config.json is reused automatically once saved. If the
+saved config is missing, the launcher prompts once and writes the key into
+the browser-managed config. Use clawbrowser://auth only for manual browser
+setup or reauthentication. Do not put the API key in agent-side config files
+or shell startup scripts; let the browser manage its own config storage.
+EOF
+}
+
+is_source_root_ready() {
+  [[ -x "${SOURCE_ROOT}/clawbrowser" ]] &&
+    [[ -x "${SOURCE_ROOT}/clawbrowser-mcp" ]] &&
+    [[ -d "${SOURCE_ROOT}/plugins/clawbrowser" ]] &&
+    [[ -f "${SOURCE_ROOT}/scripts/install.sh" ]]
+}
+
+resolve_release_tag() {
+  if [[ -n "${RESOLVED_RELEASE_TAG}" ]]; then
+    printf '%s\n' "${RESOLVED_RELEASE_TAG}"
+    return 0
+  fi
+
+  if [[ "${RELEASE_REF}" == "latest" ]]; then
+    require_command python3
+    RESOLVED_RELEASE_TAG="$(
+      python3 - <<'PY'
+import json
+from urllib.request import Request, urlopen
+
+request = Request(
+    "https://api.github.com/repos/clawbrowser/clawbrowser/releases/latest",
+    headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "clawbrowser-install",
+    },
+)
+with urlopen(request, timeout=15) as response:
+    payload = json.load(response)
+
+tag_name = payload.get("tag_name")
+if not tag_name:
+    raise SystemExit("missing tag_name in GitHub releases/latest response")
+
+print(tag_name)
+PY
+    )"
+  else
+    RESOLVED_RELEASE_TAG="${RELEASE_REF}"
+  fi
+
+  printf '%s\n' "${RESOLVED_RELEASE_TAG}"
+}
+
+release_source_archive_url() {
+  if [[ -n "${SOURCE_ARCHIVE_URL}" ]]; then
+    printf '%s\n' "${SOURCE_ARCHIVE_URL}"
+    return 0
+  fi
+
+  printf 'https://codeload.github.com/%s/tar.gz/refs/tags/%s' \
+    "${REPOSITORY}" "$(resolve_release_tag)"
+}
+
+bootstrap_source_root() {
+  local tmp_dir extracted_root
+  local archive_url
+
+  require_command curl
+  require_command tar
+  require_command mktemp
+
+  tmp_dir="$(mktemp -d)"
+  archive_url="$(release_source_archive_url)"
+  log "Source checkout not found locally; downloading ${archive_url}"
+  curl -fsSL "${archive_url}" | tar -xzf - -C "${tmp_dir}"
+
+  extracted_root="$(find "${tmp_dir}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  if [[ -z "${extracted_root}" ]]; then
+    die "Unable to locate the extracted source archive"
+  fi
+
+  SOURCE_ROOT="${extracted_root}"
+}
+
+ensure_source_root() {
+  if ! is_source_root_ready; then
+    bootstrap_source_root
+  fi
+}
+
+normalize_target() {
+  case "${1}" in
+    all|codex|claude|claude-desktop|gemini)
+      case "${1}" in
+        claude-desktop) printf '%s\n' "claude" ;;
+        *) printf '%s\n' "${1}" ;;
+      esac
+      ;;
+    *)
+      die "Unknown target: ${1}"
+      ;;
+  esac
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "${1}" in
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      --target|-t)
+        [[ $# -ge 2 ]] || die "${1} requires a target name"
+        TARGET="$(normalize_target "${2}")"
+        shift 2
+        ;;
+      install)
+        shift
+        ;;
+      all|codex|claude|claude-desktop|gemini)
+        TARGET="$(normalize_target "${1}")"
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        die "Unknown argument: ${1}"
+        ;;
+    esac
+  done
+
+  if [[ $# -gt 0 ]]; then
+    die "Unexpected extra arguments: $*"
+  fi
+}
+
+require_command() {
+  local name="$1"
+  if ! command -v "${name}" >/dev/null 2>&1; then
+    die "Required command not found: ${name}"
+  fi
+}
+
+host_arch() {
+  case "$(uname -m)" in
+    arm64|aarch64) printf '%s\n' arm64 ;;
+    x86_64|amd64) printf '%s\n' x64 ;;
+    *)
+      die "Unsupported architecture: $(uname -m)"
+      ;;
+  esac
+}
+
+asset_name() {
+  case "$(host_arch)" in
+    arm64) printf '%s\n' clawbrowser-linux-arm64.tar.gz ;;
+    x64) printf '%s\n' clawbrowser-linux-x64.tar.gz ;;
+  esac
+}
+
+release_asset_base() {
+  if [[ "${RELEASE_REF}" == "latest" ]]; then
+    printf 'https://github.com/clawbrowser/clawbrowser/releases/latest/download'
+  else
+    printf 'https://github.com/clawbrowser/clawbrowser/releases/download/%s' "${RELEASE_REF}"
+  fi
+}
+
+is_macos() {
+  [[ "$(uname -s)" == "Darwin" ]]
+}
+
+resolve_app_binary() {
+  local candidate bundle
+
+  if [[ -n "${CLAWBROWSER_APP_PATH:-}" ]]; then
+    if [[ "${CLAWBROWSER_APP_PATH}" == *.app ]]; then
+      candidate="${CLAWBROWSER_APP_PATH}/Contents/MacOS/Clawbrowser"
+    else
+      candidate="${CLAWBROWSER_APP_PATH}"
+    fi
+    if [[ -x "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  fi
+
+  if ! is_macos; then
+    return 1
+  fi
+
+  for bundle in \
+    "${INSTALL_ROOT}/Clawbrowser.app" \
+    "${HOME}/.clawbrowser/Clawbrowser.app" \
+    "${HOME}/Desktop/Clawbrowser.app" \
+    "${HOME}/Downloads/Clawbrowser.app" \
+    "${HOME}/Applications/Clawbrowser.app" \
+    "/Applications/Clawbrowser.app"
+  do
+    candidate="${bundle}/Contents/MacOS/Clawbrowser"
+    if [[ -x "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+resolve_app_bundle() {
+  local candidate
+  if [[ -n "${CLAWBROWSER_APP_PATH:-}" ]]; then
+    if [[ "${CLAWBROWSER_APP_PATH}" == *.app ]]; then
+      candidate="${CLAWBROWSER_APP_PATH}"
+    else
+      candidate="$(dirname "${CLAWBROWSER_APP_PATH}")"
+    fi
+    if [[ -d "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  fi
+
+  if ! is_macos; then
+    return 1
+  fi
+
+  for candidate in \
+    "${INSTALL_ROOT}/Clawbrowser.app" \
+    "${HOME}/Desktop/Clawbrowser.app" \
+    "${HOME}/Downloads/Clawbrowser.app" \
+    "${HOME}/Applications/Clawbrowser.app" \
+    "/Applications/Clawbrowser.app"
+  do
+    if [[ -d "${candidate}" ]]; then
+      python3 - "$candidate" <<'PY'
+import os
+import sys
+
+print(os.path.realpath(sys.argv[1]))
+PY
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+native_app_asset_name() {
+  if ! is_macos; then
+    return 1
+  fi
+
+  case "$(host_arch)" in
+    arm64) printf '%s\n' clawbrowser-macos-arm64.tar.gz ;;
+    *) return 1 ;;
+  esac
+}
+
+download_release_asset() {
+  local asset_name="$1"
+  local destination="$2"
+
+  require_command curl
+  curl -fsSL \
+    "$(release_asset_base)/${asset_name}" \
+    -o "${destination}"
+}
+
+download_native_app_bundle() {
+  local asset_name tmp_dir archive_path bundle_path
+
+  asset_name="$(native_app_asset_name)" || return 1
+  require_command tar
+  require_command mktemp
+
+  tmp_dir="$(mktemp -d)"
+  archive_path="${tmp_dir}/${asset_name}"
+
+  log "Downloading native app bundle ${asset_name}"
+  if ! download_release_asset "${asset_name}" "${archive_path}"; then
+    rm -rf "${tmp_dir}"
+    return 1
+  fi
+
+  if ! tar -xzf "${archive_path}" -C "${tmp_dir}"; then
+    rm -rf "${tmp_dir}"
+    return 1
+  fi
+
+  bundle_path="$(find "${tmp_dir}" -mindepth 1 -maxdepth 3 -type d -name 'Clawbrowser.app' | head -n 1)"
+  if [[ -z "${bundle_path}" ]]; then
+    rm -rf "${tmp_dir}"
+    return 1
+  fi
+
+  rm -rf "${INSTALL_ROOT}/Clawbrowser.app"
+  cp -R "${bundle_path}" "${INSTALL_ROOT}/Clawbrowser.app"
+  rm -rf "${tmp_dir}"
+  return 0
+}
+
+install_codex_plugin() {
+  local source_dir="${INSTALL_ROOT}/plugins/clawbrowser"
+  local target_dir="${CODEX_PLUGINS_ROOT}/clawbrowser"
+
+  log "Installing Codex plugin into ${target_dir}"
+  mkdir -p "${CODEX_PLUGINS_ROOT}"
+  rm -rf "${target_dir}"
+  cp -R "${source_dir}" "${target_dir}"
+}
+
+write_codex_marketplace() {
+  local marketplace_file="${AGENTS_PLUGINS_ROOT}/marketplace.json"
+  local plugin_dir="${CODEX_PLUGINS_ROOT}/clawbrowser"
+
+  mkdir -p "${AGENTS_PLUGINS_ROOT}"
+  python3 - "${marketplace_file}" "${plugin_dir}" <<'PY'
+import json
+import os
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+plugin_dir = pathlib.Path(sys.argv[2])
+
+desired_plugin = {
+    "name": "clawbrowser",
+    "description": "Agent-only browser runtime with browser-managed config.json reuse, CDP sessions, rotation, and default browser routing.",
+    "source": {
+        "source": "local",
+        "path": os.path.relpath(plugin_dir, start=path.parent),
+    },
+    "policy": {
+        "installation": "INSTALLED_BY_DEFAULT",
+        "authentication": "ON_INSTALL",
+    },
+    "category": "Productivity",
+}
+
+payload = {}
+if path.exists():
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid JSON in {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise SystemExit(f"Expected {path} to contain a JSON object")
+
+plugins = payload.get("plugins")
+if plugins is None:
+    plugins = []
+elif not isinstance(plugins, list):
+    raise SystemExit(f"Expected {path} to contain a 'plugins' array")
+
+merged_plugins = []
+merged_clawbrowser = False
+
+for plugin in plugins:
+    if isinstance(plugin, dict) and plugin.get("name") == "clawbrowser":
+        if merged_clawbrowser:
+            continue
+
+        merged = dict(plugin)
+        merged.update(desired_plugin)
+
+        merged_source = dict(plugin.get("source") or {})
+        merged_source.update(desired_plugin["source"])
+        merged["source"] = merged_source
+
+        merged_policy = dict(plugin.get("policy") or {})
+        merged_policy.update(desired_plugin["policy"])
+        merged["policy"] = merged_policy
+
+        merged_plugins.append(merged)
+        merged_clawbrowser = True
+        continue
+
+    merged_plugins.append(plugin)
+
+if not merged_clawbrowser:
+    merged_plugins.append(desired_plugin)
+
+payload["plugins"] = merged_plugins
+payload.setdefault("name", "clawbrowser-marketplace")
+
+interface = payload.get("interface")
+if not isinstance(interface, dict):
+    interface = {}
+payload["interface"] = interface
+interface.setdefault("displayName", "Clawbrowser")
+
+tmp_path = path.with_suffix(path.suffix + ".tmp")
+tmp_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+tmp_path.replace(path)
+PY
+  log "Wrote Codex marketplace metadata: ${marketplace_file}"
+}
+
+copy_bundle() {
+  log "Installing shared bundle into ${INSTALL_ROOT}"
+  rm -rf "${INSTALL_ROOT}"
+  mkdir -p "${INSTALL_ROOT}"
+  cp -R "${SOURCE_ROOT}/." "${INSTALL_ROOT}/"
+
+  chmod +x \
+    "${INSTALL_ROOT}/clawbrowser" \
+    "${INSTALL_ROOT}/clawbrowser-mcp" \
+    "${INSTALL_ROOT}/plugins/clawbrowser/clawbrowser" \
+    "${INSTALL_ROOT}/plugins/clawbrowser/clawbrowser-mcp" \
+    "${INSTALL_ROOT}/bin/clawbrowser-install.js" \
+    "${INSTALL_ROOT}/scripts/install.sh" \
+    "${INSTALL_ROOT}/scripts/build_docker_image.sh" \
+    "${INSTALL_ROOT}/scripts/clawbrowser_launcher_test.sh" \
+    2>/dev/null || true
+}
+
+link_launchers() {
+  mkdir -p "${INSTALL_BIN}"
+  ln -sfn "${INSTALL_ROOT}/clawbrowser" "${INSTALL_BIN}/clawbrowser"
+  ln -sfn "${INSTALL_ROOT}/clawbrowser-mcp" "${INSTALL_BIN}/clawbrowser-mcp"
+}
+
+link_app_bundle() {
+  local source_bundle="$1"
+  local target_bundle="${INSTALL_ROOT}/Clawbrowser.app"
+
+  if [[ "${source_bundle}" == "${target_bundle}" ]]; then
+    return 0
+  fi
+
+  ln -sfn "${source_bundle}" "${target_bundle}"
+  printf '%s\n' "${source_bundle}" > "${INSTALL_ROOT}/app_bundle_path"
+}
+
+claude_desktop_config_path() {
+  if is_macos; then
+    printf '%s\n' "${HOME}/Library/Application Support/Claude/claude_desktop_config.json"
+  elif [[ -n "${APPDATA:-}" ]]; then
+    printf '%s\n' "${APPDATA}/Claude/claude_desktop_config.json"
+  else
+    printf '%s\n' "${HOME}/.config/Claude/claude_desktop_config.json"
+  fi
+}
+
+register_claude_desktop_mcp() {
+  local config_path mcp_command
+  config_path="$(claude_desktop_config_path)"
+  mcp_command="${INSTALL_BIN}/clawbrowser-mcp"
+
+  python3 - "${config_path}" "${mcp_command}" <<'PY'
+import json, os, sys
+
+config_path, mcp_command = sys.argv[1], sys.argv[2]
+
+config = {}
+if os.path.exists(config_path):
+    with open(config_path) as f:
+        try:
+            config = json.load(f)
+        except json.JSONDecodeError:
+            config = {}
+
+config.setdefault("mcpServers", {})["clawbrowser"] = {"command": mcp_command}
+
+os.makedirs(os.path.dirname(config_path), exist_ok=True)
+with open(config_path, "w") as f:
+    json.dump(config, f, indent=2)
+    f.write("\n")
+PY
+
+  log "Registered MCP server in Claude Desktop: ${config_path}"
+}
+
+register_gemini_extension() {
+  local gemini_extensions="${HOME}/.gemini/extensions"
+  mkdir -p "${gemini_extensions}"
+  ln -sfn "${INSTALL_ROOT}" "${gemini_extensions}/clawbrowser"
+  log "Registered Gemini CLI extension: ${gemini_extensions}/clawbrowser"
+}
+
+build_docker_fallback() {
+  local archive_path helper_path
+
+  require_command curl
+  require_command docker
+  require_command tar
+  require_command mktemp
+
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+
+  archive_path="${tmp_dir}/$(asset_name)"
+  helper_path="${SOURCE_ROOT}/scripts/build_docker_image.sh"
+
+  log "Downloading release asset $(asset_name)"
+  download_release_asset "$(asset_name)" "${archive_path}"
+
+  log "Building local Docker image ${IMAGE_TAG}"
+  bash "${helper_path}" --build-source "${archive_path}" --image-tag "${IMAGE_TAG}"
+
+  rm -rf "${tmp_dir}"
+}
+
+docker_image_available() {
+  local image="$1"
+  if ! command -v docker >/dev/null 2>&1; then
+    return 1
+  fi
+
+  docker image inspect "${image}" >/dev/null 2>&1 || docker manifest inspect "${image}" >/dev/null 2>&1
+}
+
+main() {
+  parse_args "$@"
+  require_command bash
+  require_command python3
+
+  native_bundle=""
+  if native_bundle="$(resolve_app_bundle 2>/dev/null)"; then
+    log "Found macOS app bundle: ${native_bundle}"
+  fi
+
+  ensure_source_root
+  copy_bundle
+  link_launchers
+
+  if [[ -n "${native_bundle}" ]]; then
+    link_app_bundle "${native_bundle}"
+  elif download_native_app_bundle; then
+    log "Installed native app bundle into ${INSTALL_ROOT}/Clawbrowser.app"
+  else
+    if [[ "${BUILD_DOCKER}" == "1" ]]; then
+      log "No macOS app bundle found, building local Docker image"
+      build_docker_fallback
+    else
+      if docker_image_available "${IMAGE_TAG}" || docker_image_available "${RUNTIME_IMAGE}"; then
+        log "No macOS app bundle found, using existing Docker image"
+      else
+        log "No macOS app bundle found, using Docker runtime image ${RUNTIME_IMAGE}"
+        log "Set CLAWBROWSER_BUILD_DOCKER=1 if you want a local image build from the release asset"
+      fi
+    fi
+  fi
+
+  if [[ "${TARGET}" == "all" || "${TARGET}" == "codex" ]]; then
+    install_codex_plugin
+    write_codex_marketplace
+  fi
+
+  if [[ "${TARGET}" == "all" || "${TARGET}" == "claude" ]]; then
+    register_claude_desktop_mcp
+  fi
+
+  if [[ "${TARGET}" == "all" || "${TARGET}" == "gemini" ]]; then
+    register_gemini_extension
+  fi
+
+  if [[ "${TARGET}" == "codex" ]]; then
+    log "Codex target selected: the shared bundle, Codex plugin copy, and marketplace metadata are installed."
+  fi
+
+  log "Installed commands:"
+  log "  ${INSTALL_BIN}/clawbrowser"
+  log "  ${INSTALL_BIN}/clawbrowser-mcp"
+  log "Install root:"
+  log "  ${INSTALL_ROOT}"
+  log "Next: the launcher prompts once if needed and writes the key into browser-managed config"
+}
+
+main "$@"

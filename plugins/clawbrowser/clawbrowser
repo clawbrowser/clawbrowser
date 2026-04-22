@@ -1,0 +1,1039 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+IMAGE="${CLAWBROWSER_IMAGE:-}"
+DOCKER_BIN="${CLAWBROWSER_DOCKER_BIN:-docker}"
+APP_PATH="${CLAWBROWSER_APP_PATH:-}"
+BACKEND="${CLAWBROWSER_BACKEND:-auto}"
+CACHE_HOME="${CLAWBROWSER_CACHE_HOME:-${XDG_CACHE_HOME:-${HOME}/.cache}}"
+STATE_HOME="${CLAWBROWSER_STATE_HOME:-${XDG_STATE_HOME:-${HOME}/.local/state}}"
+SESSION_ROOT="${CLAWBROWSER_SESSION_ROOT:-${CACHE_HOME}/clawbrowser/sessions}"
+STATE_ROOT="${CLAWBROWSER_STATE_ROOT:-${STATE_HOME}/clawbrowser}"
+DEFAULT_SESSION="${CLAWBROWSER_SESSION_NAME:-default}"
+CONTAINER_PREFIX="${CLAWBROWSER_CONTAINER_PREFIX:-clawbrowser}"
+REMOTE_DEBUG_PORT="${CLAWBROWSER_REMOTE_DEBUG_PORT:-9222}"
+READINESS_TIMEOUT_SECONDS="${CLAWBROWSER_READINESS_TIMEOUT_SECONDS:-60}"
+APP_READINESS_TIMEOUT_SECONDS="${CLAWBROWSER_APP_READINESS_TIMEOUT_SECONDS:-20}"
+
+log() {
+  printf '[clawbrowser] %s\n' "$*" >&2
+}
+
+die() {
+  printf '[clawbrowser] ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+usage() {
+  cat <<'EOF'
+Usage:
+  clawbrowser [command] [options] [-- browser-args...]
+
+Commands:
+  start      Start or reattach to a managed browser session
+  rotate     Restart the managed session with --regenerate
+  status     Show whether the session is running and where CDP lives
+  endpoint   Print the CDP endpoint URL for the managed session
+  stop       Stop the managed session
+  list       Print cached profiles from the managed session config dir
+  help       Show this help
+
+Options for start/rotate/status/endpoint/stop/list:
+  --session NAME            Session name. Default: default
+  --port PORT               Host CDP port. Default: auto-select a free port
+  --image IMAGE             Docker image tag. Default: local clawbrowser:latest if present, otherwise the published release image
+  --verify                  Keep the browser verify page enabled
+  --help                    Show this help
+
+Browser flags:
+  All remaining arguments are passed through to the browser image, so real
+  browser flags such as --fingerprint, --regenerate, --country, --city,
+  --connection-type, --skip-verify, --verify-automation, --list, and
+  --output=json keep working.
+
+Backend behavior:
+  In auto mode, the launcher prefers a native Clawbrowser.app on macOS and
+  automatically falls back to Docker if native CDP startup fails.
+  Native app readiness in auto mode uses a short timeout; override with
+  CLAWBROWSER_APP_READINESS_TIMEOUT_SECONDS when needed.
+
+Secrets:
+  This launcher does not write CLAWBROWSER_API_KEY to agent-side files or shell
+  startup scripts. If neither CLAWBROWSER_API_KEY nor a saved browser-managed
+  config.json exists, it prompts once and then writes the key into the
+  browser-managed config; the browser may manage its own config storage.
+
+Dashboard:
+  Get an API key at https://app.clawbrowser.ai
+EOF
+}
+
+require_command() {
+  local name="$1"
+  if ! command -v "${name}" >/dev/null 2>&1; then
+    die "Required command not found: ${name}"
+  fi
+}
+
+sanitize_name() {
+  local raw="$1"
+  local sanitized
+  sanitized="$(printf '%s' "${raw}" | tr -cs 'A-Za-z0-9._-' '-')"
+  sanitized="${sanitized#-}"
+  sanitized="${sanitized%-}"
+  if [[ -z "${sanitized}" ]]; then
+    sanitized="default"
+  fi
+  printf '%s\n' "${sanitized}"
+}
+
+session_name="${DEFAULT_SESSION}"
+host_port=""
+browser_mode="start"
+show_verify=0
+declare -a browser_args=()
+backend="auto"
+interrupted_start_session=""
+
+ensure_prompt_context() {
+  local config_path saved_key
+
+  if [[ -n "${CLAWBROWSER_API_KEY:-}" ]]; then
+    return 0
+  fi
+
+  config_path="$(config_file)"
+  if [[ -f "${config_path}" ]]; then
+    saved_key="$(read_api_key_from_config_file "${config_path}" 2>/dev/null || true)"
+    if [[ -n "${saved_key}" ]]; then
+      CLAWBROWSER_API_KEY="${saved_key}"
+      export CLAWBROWSER_API_KEY
+      return 0
+    fi
+  fi
+
+  log "No API key found. Get one at https://app.clawbrowser.ai"
+
+  if [[ -t 0 ]]; then
+    read -r -s -p "Paste your Clawbrowser API key: " CLAWBROWSER_API_KEY
+    printf '\n'
+  else
+    printf '%s\n' "Paste your Clawbrowser API key:"
+    IFS= read -r CLAWBROWSER_API_KEY || true
+  fi
+
+  if [[ -z "${CLAWBROWSER_API_KEY}" ]]; then
+    die "API key cannot be empty."
+  fi
+}
+
+config_dir() {
+  local base_dir="${XDG_CONFIG_HOME:-${HOME}/.config}"
+  printf '%s/clawbrowser' "${base_dir}"
+}
+
+config_file() {
+  printf '%s/config.json' "$(config_dir)"
+}
+
+read_api_key_from_config_file() {
+  local file="$1"
+  python3 - "$file" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+try:
+    payload = json.loads(path.read_text())
+except Exception:
+    raise SystemExit(1)
+
+api_key = payload.get("api_key")
+if not api_key:
+    raise SystemExit(1)
+
+print(api_key)
+PY
+}
+
+write_api_key_config_file() {
+  local file="$1"
+  local api_key="$2"
+  python3 - "$file" "$api_key" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(json.dumps({"api_key": sys.argv[2]}, separators=(",", ":")) + "\n")
+PY
+}
+
+seed_session_config() {
+  local config_path="$1"
+  local target_file="${config_path}/config.json"
+  local source_file
+  local persisted_key=""
+
+  source_file="$(config_file)"
+
+  if [[ -f "${target_file}" ]]; then
+    if [[ -z "${CLAWBROWSER_API_KEY:-}" ]]; then
+      persisted_key="$(read_api_key_from_config_file "${target_file}" 2>/dev/null || true)"
+      if [[ -n "${persisted_key}" ]]; then
+        CLAWBROWSER_API_KEY="${persisted_key}"
+        export CLAWBROWSER_API_KEY
+      fi
+    fi
+    if [[ -n "${CLAWBROWSER_API_KEY:-}" && ! -f "${source_file}" ]]; then
+      write_api_key_config_file "${source_file}" "${CLAWBROWSER_API_KEY}"
+      chmod 600 "${source_file}" 2>/dev/null || true
+    fi
+    return 0
+  fi
+
+  if [[ -f "${source_file}" ]]; then
+    cp "${source_file}" "${target_file}"
+    chmod 600 "${target_file}" 2>/dev/null || true
+    if [[ -z "${CLAWBROWSER_API_KEY:-}" ]]; then
+      persisted_key="$(read_api_key_from_config_file "${target_file}" 2>/dev/null || true)"
+      if [[ -n "${persisted_key}" ]]; then
+        CLAWBROWSER_API_KEY="${persisted_key}"
+        export CLAWBROWSER_API_KEY
+      fi
+    fi
+    return 0
+  fi
+
+  if [[ -n "${CLAWBROWSER_API_KEY:-}" ]]; then
+    write_api_key_config_file "${source_file}" "${CLAWBROWSER_API_KEY}"
+    chmod 600 "${source_file}" 2>/dev/null || true
+    write_api_key_config_file "${target_file}" "${CLAWBROWSER_API_KEY}"
+    chmod 600 "${target_file}" 2>/dev/null || true
+  fi
+}
+
+resolve_image() {
+  if [[ -n "${IMAGE}" ]]; then
+    return 0
+  fi
+
+  if "${DOCKER_BIN}" image inspect clawbrowser:latest >/dev/null 2>&1; then
+    IMAGE="clawbrowser:latest"
+  else
+    IMAGE="docker.io/clawbrowser/clawbrowser:latest"
+  fi
+}
+
+is_macos() {
+  [[ "$(uname -s)" == "Darwin" ]]
+}
+
+resolve_app_binary() {
+  local candidate bundle
+
+  if [[ -n "${APP_PATH}" ]]; then
+    if [[ "${APP_PATH}" == *.app ]]; then
+      candidate="${APP_PATH}/Contents/MacOS/Clawbrowser"
+    else
+      candidate="${APP_PATH}"
+    fi
+    if [[ -x "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  fi
+
+  if ! is_macos; then
+    return 1
+  fi
+
+  local saved_bundle_path="${HOME}/.clawbrowser/app_bundle_path"
+  if [[ -f "${saved_bundle_path}" ]]; then
+    local saved_bundle
+    saved_bundle="$(cat "${saved_bundle_path}" 2>/dev/null || true)"
+    if [[ -n "${saved_bundle}" ]]; then
+      candidate="${saved_bundle}/Contents/MacOS/Clawbrowser"
+      if [[ -x "${candidate}" ]]; then
+        printf '%s\n' "${candidate}"
+        return 0
+      fi
+    fi
+  fi
+
+  if command -v mdfind >/dev/null 2>&1; then
+    local spotlight_result
+    spotlight_result="$(mdfind "kMDItemFSName == 'Clawbrowser.app'" 2>/dev/null | head -1)"
+    if [[ -n "${spotlight_result}" ]]; then
+      candidate="${spotlight_result}/Contents/MacOS/Clawbrowser"
+      if [[ -x "${candidate}" ]]; then
+        printf '%s\n' "${candidate}"
+        return 0
+      fi
+    fi
+  fi
+
+  for bundle in \
+    "${HOME}/.clawbrowser/Clawbrowser.app" \
+    "${HOME}/Desktop/Clawbrowser.app" \
+    "${HOME}/Downloads/Clawbrowser.app" \
+    "${HOME}/Applications/Clawbrowser.app" \
+    "/Applications/Clawbrowser.app"
+  do
+    candidate="${bundle}/Contents/MacOS/Clawbrowser"
+    if [[ -x "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+resolve_app_bundle() {
+  local binary_path bundle_path
+
+  binary_path="$(resolve_app_binary)"
+  bundle_path="$(python3 - "${binary_path}" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1]).resolve()
+try:
+    print(path.parents[2])
+except IndexError:
+    raise SystemExit(1)
+PY
+)"
+
+  printf '%s\n' "${bundle_path}"
+}
+
+choose_backend() {
+  if [[ "${BACKEND}" == "app" ]]; then
+    if resolve_app_binary >/dev/null 2>&1; then
+      backend="app"
+      return 0
+    fi
+    die "CLAWBROWSER_BACKEND=app was requested, but no Clawbrowser.app bundle was found."
+  fi
+
+  if [[ "${BACKEND}" == "docker" ]]; then
+    backend="docker"
+    return 0
+  fi
+
+  if resolve_app_binary >/dev/null 2>&1; then
+    backend="app"
+    return 0
+  fi
+
+  backend="docker"
+}
+
+session_dir() {
+  printf '%s/%s' "${SESSION_ROOT}" "$1"
+}
+
+session_config_dir() {
+  printf '%s/config' "$(session_dir "$1")"
+}
+
+state_file() {
+  printf '%s/%s/state.env' "${STATE_ROOT}" "$1"
+}
+
+load_state() {
+  local name="$1"
+  local file
+  file="$(state_file "${name}")"
+  if [[ -f "${file}" ]]; then
+    # shellcheck disable=SC1090
+    source "${file}"
+  fi
+}
+
+save_state() {
+  local name="$1"
+  local container_name="$2"
+  local port="$3"
+  local current_backend="${4:-docker}"
+  local pid="${5:-}"
+  local file
+  file="$(state_file "${name}")"
+  mkdir -p "$(dirname "${file}")"
+  chmod 700 "$(dirname "${file}")" 2>/dev/null || true
+  cat >"${file}" <<EOF
+session_name=${name}
+container_name=${container_name}
+host_port=${port}
+image=${IMAGE}
+backend=${current_backend}
+pid=${pid}
+EOF
+}
+
+delete_state() {
+  local name="$1"
+  local file
+  file="$(state_file "${name}")"
+  rm -f "${file}"
+}
+
+allocate_port() {
+  python3 - <<'PY'
+import socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.bind(("127.0.0.1", 0))
+print(sock.getsockname()[1])
+sock.close()
+PY
+}
+
+wait_for_cdp() {
+  local port="$1"
+  local timeout_seconds="${2:-${READINESS_TIMEOUT_SECONDS}}"
+  local deadline
+  deadline="$(python3 - <<PY
+import time
+print(time.time() + ${timeout_seconds})
+PY
+)"
+
+  while :; do
+    if python3 - "$port" <<'PY'
+import json
+import sys
+import urllib.error
+import urllib.request
+
+port = sys.argv[1]
+try:
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1) as response:
+        payload = json.load(response)
+    sys.exit(0 if payload.get("webSocketDebuggerUrl") else 1)
+except Exception:
+    sys.exit(1)
+PY
+    then
+      return 0
+    fi
+
+    if python3 - "$deadline" <<'PY'
+import sys
+import time
+
+deadline = float(sys.argv[1])
+sys.exit(0 if time.time() > deadline else 1)
+PY
+    then
+      return 1
+    fi
+
+    sleep 0.25
+  done
+}
+
+read_cdp_endpoint() {
+  local port="$1"
+  python3 - "$port" <<'PY'
+import json
+import sys
+import urllib.request
+
+port = sys.argv[1]
+with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=2) as response:
+    payload = json.load(response)
+print(payload["webSocketDebuggerUrl"])
+PY
+}
+
+is_cdp_alive() {
+  local port="$1"
+  python3 - "$port" <<'PY'
+import json
+import sys
+import urllib.error
+import urllib.request
+
+port = sys.argv[1]
+try:
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1) as response:
+        payload = json.load(response)
+    sys.exit(0 if payload.get("webSocketDebuggerUrl") else 1)
+except Exception:
+    sys.exit(1)
+PY
+}
+
+find_live_native_cdp() {
+  local exec_path="$1"
+  local config_path="$2"
+  python3 - "${exec_path}" "${config_path}" <<'PY'
+import json
+import re
+import os
+import subprocess
+import sys
+import urllib.request
+
+exec_path = sys.argv[1]
+exec_realpath = os.path.realpath(exec_path)
+config_path = sys.argv[2]
+
+try:
+    output = subprocess.check_output(["ps", "-ax", "-o", "pid=,args="], text=True)
+except Exception:
+    raise SystemExit(1)
+
+for line in output.splitlines():
+    if "--type=" in line:
+        continue
+    if (exec_path not in line and exec_realpath not in line) or config_path not in line:
+        continue
+
+    match = re.search(r"--remote-debugging-port=(\d+)", line)
+    if not match:
+        continue
+
+    port = match.group(1)
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1) as response:
+            payload = json.load(response)
+        if payload.get("webSocketDebuggerUrl"):
+            print(line.strip().split(None, 1)[0], port)
+            raise SystemExit(0)
+    except Exception:
+        continue
+
+raise SystemExit(1)
+PY
+}
+
+container_exists() {
+  local name="$1"
+  "${DOCKER_BIN}" ps --all --quiet --filter "name=^/${name}$" 2>/dev/null | head -n 1
+}
+
+stop_session() {
+  local name="$1"
+  local container_name="clawbrowser-${name}"
+  local saved_backend="${backend:-docker}"
+  local saved_pid="${pid:-}"
+  local session_path
+  local running
+
+  load_state "${name}"
+  saved_backend="${backend:-docker}"
+  saved_pid="${pid:-}"
+  session_path="$(session_dir "$(sanitize_name "${name}")")"
+
+  if [[ "${saved_backend}" == "app" && -n "${saved_pid}" ]]; then
+    if kill -0 "${saved_pid}" >/dev/null 2>&1; then
+      kill "${saved_pid}" >/dev/null 2>&1 || true
+      sleep 1
+    fi
+    if kill -0 "${saved_pid}" >/dev/null 2>&1; then
+      kill -9 "${saved_pid}" >/dev/null 2>&1 || true
+    fi
+    delete_state "${name}"
+    return 0
+  fi
+
+  if [[ "${saved_backend}" == "app" ]]; then
+    if command -v pkill >/dev/null 2>&1; then
+      pkill -f -- "${session_path}/config" >/dev/null 2>&1 || true
+      pkill -f -- "remote-debugging-port=${host_port:-}" >/dev/null 2>&1 || true
+    fi
+    delete_state "${name}"
+    return 0
+  fi
+
+  running="$(container_exists "${container_name}" || true)"
+  if [[ -n "${running}" ]]; then
+    "${DOCKER_BIN}" stop "${container_name}" >/dev/null 2>&1 || true
+  fi
+  delete_state "${name}"
+}
+
+handle_start_interrupt() {
+  if [[ -n "${interrupted_start_session}" ]]; then
+    stop_session "${interrupted_start_session}" >/dev/null 2>&1 || true
+  fi
+  interrupted_start_session=""
+  trap - INT TERM
+  exit 130
+}
+
+launch_native_app() {
+  local exec_path="$1"
+  local host_port="$2"
+  local session_slug="$3"
+  local session_path="$4"
+  local config_path="$5"
+  local pid_file="${session_path}/pid"
+  local log_file="${session_path}/launcher.log"
+  local app_bundle
+  local child_pid
+  local -a launch_args=(
+    --remote-debugging-port="${host_port}"
+    --user-data-dir="${config_path}"
+    --no-first-run
+    --no-default-browser-check
+  )
+
+  mkdir -p "${session_path}"
+  chmod 700 "${session_path}" "${config_path}" 2>/dev/null || true
+
+  if [[ ${#browser_args[@]} -gt 0 ]]; then
+    launch_args+=("${browser_args[@]}")
+  fi
+
+  if is_macos && command -v open >/dev/null 2>&1; then
+    app_bundle="$(resolve_app_bundle)"
+    log "Launching native app bundle ${app_bundle} via LaunchServices"
+    env -u CLAWBROWSER_API_KEY -u CLAWBROWSER_CONFIG_DIR \
+      open -na "${app_bundle}" --args "${launch_args[@]}" >/dev/null 2>&1
+    child_pid="$(wait_for_native_pid "${exec_path}" "${host_port}" "${config_path}" || true)"
+    if [[ -z "${child_pid}" ]]; then
+      if command -v pkill >/dev/null 2>&1; then
+        pkill -f -- "${config_path}" >/dev/null 2>&1 || true
+      fi
+      return 1
+    fi
+    printf '%s\n' "${child_pid}" >"${pid_file}"
+    printf '%s\n' "${child_pid}"
+    return 0
+  fi
+
+  log "Launching native app binary ${exec_path}"
+  env -u CLAWBROWSER_API_KEY -u CLAWBROWSER_CONFIG_DIR \
+    nohup "${exec_path}" \
+    "${launch_args[@]}" \
+    >"${log_file}" 2>&1 &
+
+  child_pid="$!"
+  printf '%s\n' "${child_pid}" >"${pid_file}"
+  printf '%s\n' "${child_pid}"
+}
+
+wait_for_native_pid() {
+  local exec_path="$1"
+  local host_port="$2"
+  local config_path="$3"
+  local deadline
+
+  deadline="$(python3 - <<PY
+import time
+print(time.time() + ${READINESS_TIMEOUT_SECONDS})
+PY
+)"
+
+  while :; do
+    if python3 - "$exec_path" "$host_port" "$config_path" <<'PY'
+import os
+import subprocess
+import sys
+
+exec_path = sys.argv[1]
+exec_realpath = os.path.realpath(exec_path)
+host_port = sys.argv[2]
+config_path = sys.argv[3]
+
+try:
+    output = subprocess.check_output(["ps", "-ax", "-o", "pid=,args="], text=True)
+except Exception:
+    sys.exit(1)
+
+for line in output.splitlines():
+    if "--type=" in line:
+        continue
+    if (exec_path not in line and exec_realpath not in line) or config_path not in line:
+        continue
+
+    if f"--remote-debugging-port={host_port}" in line:
+        print(line.strip().split(None, 1)[0])
+        sys.exit(0)
+
+sys.exit(1)
+PY
+    then
+      return 0
+    fi
+
+    if python3 - "$deadline" <<'PY'
+import sys
+import time
+
+deadline = float(sys.argv[1])
+sys.exit(0 if time.time() > deadline else 1)
+PY
+    then
+      return 1
+    fi
+
+    sleep 0.25
+  done
+}
+
+build_browser_args() {
+  local skip_verify=1
+  local saw_list=0
+  local saw_startup_arg=0
+  local arg
+
+  if [[ ${#browser_args[@]} -gt 0 ]]; then
+    for arg in "${browser_args[@]}"; do
+      case "${arg}" in
+        --verify|--verify-automation)
+          skip_verify=0
+          ;;
+        --skip-verify)
+          skip_verify=1
+          ;;
+        --list)
+          saw_list=1
+          ;;
+        --remote-debugging-address=*|--remote-debugging-port=*)
+          ;;
+        *)
+          if [[ "${arg}" != -* ]]; then
+            saw_startup_arg=1
+          fi
+          ;;
+      esac
+    done
+  fi
+
+  if [[ "${show_verify}" -eq 1 || "${browser_mode}" == "list" ]]; then
+    skip_verify=0
+  fi
+
+  if [[ "${skip_verify}" -eq 1 && "${saw_list}" -eq 0 ]]; then
+    if [[ ${#browser_args[@]} -gt 0 ]]; then
+      browser_args=("--skip-verify" "${browser_args[@]}")
+    else
+      browser_args=("--skip-verify")
+    fi
+  fi
+
+  if [[ "${saw_startup_arg}" -eq 0 && "${saw_list}" -eq 0 ]]; then
+    browser_args+=("about:blank")
+  fi
+}
+
+launch_docker_session() {
+  local session_slug="$1"
+  local container_name="$2"
+  local host_port="$3"
+  local config_path="$4"
+  local cid
+
+  require_command "${DOCKER_BIN}"
+  log "Starting container session ${session_slug} on 127.0.0.1:${host_port}"
+
+  cid="$("${DOCKER_BIN}" run \
+    --detach \
+    --rm \
+    --name "${container_name}" \
+    --label "clawbrowser.session=${session_slug}" \
+    --publish "127.0.0.1:${host_port}:${REMOTE_DEBUG_PORT}" \
+    --env "CLAWBROWSER_API_KEY=${CLAWBROWSER_API_KEY}" \
+    --env "CLAWBROWSER_CONFIG_DIR=/home/clawbrowser/.config/clawbrowser" \
+    --volume "${config_path}:/home/clawbrowser/.config/clawbrowser" \
+    "${IMAGE}" \
+    --remote-debugging-address=0.0.0.0 \
+    --remote-debugging-port="${REMOTE_DEBUG_PORT}" \
+    "${browser_args[@]}")"
+
+  save_state "${session_slug}" "${container_name}" "${host_port}" "docker"
+  log "Container ${cid} launched"
+}
+
+parse_common_options() {
+  while (($# > 0)); do
+    case "$1" in
+      --session)
+        session_name="$2"
+        shift 2
+        ;;
+      --port)
+        host_port="$2"
+        shift 2
+        ;;
+      --image)
+        IMAGE="$2"
+        shift 2
+        ;;
+      --verify)
+        show_verify=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      --)
+        shift
+        browser_args+=("$@")
+        return 0
+        ;;
+      *)
+        browser_args+=("$1")
+        shift
+        ;;
+    esac
+  done
+}
+
+start_session() {
+  local session_slug container_name session_path config_path endpoint
+  local app_exec pid existing_pid existing_port
+  session_slug="$(sanitize_name "${session_name}")"
+  container_name="${CONTAINER_PREFIX}-${session_slug}"
+  session_path="$(session_dir "${session_slug}")"
+  config_path="${session_path}/config"
+  load_state "${session_slug}" || true
+  if [[ -z "${IMAGE}" ]]; then
+    if [[ -n "${image:-}" ]]; then
+      IMAGE="${image}"
+    else
+      resolve_image
+    fi
+  fi
+
+  mkdir -p "${config_path}"
+  chmod 700 "${session_path}" "${config_path}" 2>/dev/null || true
+
+  if [[ -z "${host_port}" ]]; then
+    host_port="$(allocate_port)"
+  fi
+
+  if is_cdp_alive "${host_port}" >/dev/null 2>&1; then
+    log "Session ${session_slug} already appears to be running on ${host_port}"
+    printf '%s\n' "http://127.0.0.1:${host_port}"
+    return 0
+  fi
+
+  choose_backend
+
+  if [[ "${backend}" == "app" ]]; then
+    rm -f "${config_path}/config.json" 2>/dev/null || true
+  fi
+
+  ensure_prompt_context "${session_slug}"
+  seed_session_config "${config_path}"
+  build_browser_args
+
+  if [[ "${backend}" == "app" ]]; then
+    app_exec="$(resolve_app_binary)"
+    log "Starting native session ${session_slug} on 127.0.0.1:${host_port}"
+    pid="$(launch_native_app "${app_exec}" "${host_port}" "${session_slug}" "${session_path}" "${config_path}")"
+    if [[ -z "${pid}" ]]; then
+      stop_session "${session_slug}"
+      if [[ "${BACKEND}" == "auto" ]]; then
+        log "Native app launch failed; retrying session ${session_slug} with docker backend"
+        backend="docker"
+        ensure_prompt_context "${session_slug}"
+        seed_session_config "${config_path}"
+      else
+        die "Failed to launch native browser session ${session_slug}"
+      fi
+    else
+      save_state "${session_slug}" "" "${host_port}" "app" "${pid}"
+      log "Native browser launched with pid ${pid}"
+    fi
+  fi
+
+  if [[ "${backend}" == "docker" ]]; then
+    seed_session_config "${config_path}"
+    launch_docker_session "${session_slug}" "${container_name}" "${host_port}" "${config_path}"
+  fi
+
+  interrupted_start_session="${session_slug}"
+  trap 'handle_start_interrupt' INT TERM
+
+  if [[ "${backend}" == "app" && "${BACKEND}" == "auto" ]]; then
+    if ! wait_for_cdp "${host_port}" "${APP_READINESS_TIMEOUT_SECONDS}"; then
+      if read -r existing_pid existing_port < <(find_live_native_cdp "${app_exec}" "${config_path}" 2>/dev/null); then
+        log "Native app reused an existing browser session; attaching to 127.0.0.1:${existing_port}"
+        host_port="${existing_port}"
+        save_state "${session_slug}" "" "${host_port}" "app" "${existing_pid}"
+      else
+        log "Native session ${session_slug} did not expose CDP; falling back to docker backend"
+        stop_session "${session_slug}"
+        backend="docker"
+        launch_docker_session "${session_slug}" "${container_name}" "${host_port}" "${config_path}"
+        if ! wait_for_cdp "${host_port}"; then
+          log "CDP endpoint failed to become ready after docker fallback, stopping session"
+          stop_session "${session_slug}"
+          die "Timed out waiting for CDP on port ${host_port}"
+        fi
+      fi
+    fi
+  else
+    if ! wait_for_cdp "${host_port}"; then
+      if [[ "${backend}" == "app" ]] && read -r existing_pid existing_port < <(find_live_native_cdp "${app_exec}" "${config_path}" 2>/dev/null); then
+        log "Native app reused an existing browser session; attaching to 127.0.0.1:${existing_port}"
+        host_port="${existing_port}"
+        save_state "${session_slug}" "" "${host_port}" "app" "${existing_pid}"
+      else
+        log "CDP endpoint failed to become ready, stopping session"
+        stop_session "${session_slug}"
+        die "Timed out waiting for CDP on port ${host_port}"
+      fi
+    fi
+  fi
+
+  interrupted_start_session=""
+  trap - INT TERM
+
+  local endpoint
+  endpoint="http://127.0.0.1:${host_port}"
+  printf '%s\n' "${endpoint}"
+}
+
+show_status() {
+  local session_slug container_name host_port state_endpoint
+  session_slug="$(sanitize_name "${session_name}")"
+  load_state "${session_slug}"
+
+  if [[ -z "${container_name:-}" || -z "${host_port:-}" ]]; then
+    if [[ -z "${pid:-}" ]]; then
+      if [[ "${backend:-}" == "app" && -n "${host_port:-}" ]] && is_cdp_alive "${host_port}" >/dev/null 2>&1; then
+        printf '%s\n' "session=${session_slug} status=running endpoint=http://127.0.0.1:${host_port} backend=app"
+        return 0
+      fi
+      printf '%s\n' "session=${session_slug} status=stopped"
+      return 0
+    fi
+    if ! kill -0 "${pid}" >/dev/null 2>&1; then
+      printf '%s\n' "session=${session_slug} status=stopped"
+      return 0
+    fi
+    printf '%s\n' "session=${session_slug} status=running endpoint=http://127.0.0.1:${host_port} backend=${backend:-app}"
+    return 0
+  fi
+
+  state_endpoint="http://127.0.0.1:${host_port}"
+  if is_cdp_alive "${host_port}" >/dev/null 2>&1; then
+    printf '%s\n' "session=${session_slug} status=running endpoint=${state_endpoint} container=${container_name}"
+  else
+    printf '%s\n' "session=${session_slug} status=stopped endpoint=${state_endpoint} container=${container_name}"
+  fi
+}
+
+print_endpoint() {
+  local session_slug host_port
+  session_slug="$(sanitize_name "${session_name}")"
+  load_state "${session_slug}"
+  if [[ -z "${host_port:-}" ]]; then
+    die "No saved endpoint for session ${session_slug}"
+  fi
+  if ! is_cdp_alive "${host_port}" >/dev/null 2>&1; then
+    die "Session ${session_slug} is not running"
+  fi
+  printf 'http://127.0.0.1:%s\n' "${host_port}"
+}
+
+list_profiles() {
+  local session_slug session_path config_path app_exec
+  session_slug="$(sanitize_name "${session_name}")"
+  session_path="$(session_dir "${session_slug}")"
+  config_path="${session_path}/config"
+  mkdir -p "${config_path}"
+  chmod 700 "${session_path}" "${config_path}" 2>/dev/null || true
+
+  choose_backend
+
+  if [[ "${backend}" == "app" ]]; then
+    app_exec="$(resolve_app_binary)"
+    "${app_exec}" \
+      --list \
+      --output=json \
+      --user-data-dir="${config_path}"
+  else
+    resolve_image
+    require_command "${DOCKER_BIN}"
+    local output
+    output="$("${DOCKER_BIN}" run \
+      --rm \
+      --volume "${config_path}:/home/clawbrowser/.config/clawbrowser" \
+      "${IMAGE}" \
+      --list \
+      --output=json)"
+    printf '%s\n' "${output}" | sed '/^\[clawbrowser-docker\]/d'
+  fi
+}
+
+rotate_session() {
+  local session_slug
+  local config_path
+  local existing_args=()
+  session_slug="$(sanitize_name "${session_name}")"
+  stop_session "${session_slug}"
+  config_path="$(session_config_dir "${session_slug}")"
+  rm -rf "${config_path}"
+  if [[ ${#browser_args[@]} -gt 0 ]]; then
+    existing_args=("${browser_args[@]}")
+  fi
+  browser_args=("--regenerate")
+  if [[ ${#existing_args[@]} -gt 0 ]]; then
+    browser_args+=("${existing_args[@]}")
+  fi
+  start_session
+}
+
+main() {
+  require_command python3
+
+  local command="${1:-start}"
+  if [[ $# -gt 0 ]]; then
+    shift
+  fi
+
+  case "${command}" in
+    start|setup)
+      browser_mode="start"
+      parse_common_options "$@"
+      start_session
+      ;;
+    rotate|restart)
+      browser_mode="start"
+      parse_common_options "$@"
+      rotate_session
+      ;;
+    status)
+      browser_mode="status"
+      parse_common_options "$@"
+      show_status
+      ;;
+    endpoint)
+      browser_mode="endpoint"
+      parse_common_options "$@"
+      print_endpoint
+      ;;
+    stop)
+      browser_mode="stop"
+      parse_common_options "$@"
+      stop_session "$(sanitize_name "${session_name}")"
+      ;;
+    list)
+      browser_mode="list"
+      parse_common_options "$@"
+      list_profiles
+      ;;
+    help|-h|--help)
+      usage
+      ;;
+    *)
+      browser_args=("${command}" "$@")
+      browser_mode="start"
+      start_session
+      ;;
+  esac
+}
+
+main "$@"

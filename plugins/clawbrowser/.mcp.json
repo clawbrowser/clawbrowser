@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "clawbrowser": {
+      "command": "./clawbrowser-mcp",
+      "cwd": "."
+    }
+  }
+}
