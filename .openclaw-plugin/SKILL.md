@@ -31,8 +31,3 @@ Apply flow:
 2. Update `.openclaw-plugin/init.sh`.
 3. Run installer.
 4. Run `scripts/validate_openclaw_plugin.sh --mock-cdp`.
-
-Missing user context prompts:
-- "What name should I use for you in OpenClaw context files?"
-- "What pronouns should I use?"
-- "What timezone should I use (IANA format, e.g. Europe/Prague)?"
