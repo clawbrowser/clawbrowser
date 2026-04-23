@@ -6,7 +6,7 @@ The agent never touches the human's personal browser profile.
 
 It works with any agent harness that can talk to a CDP endpoint or an
 MCP server. This repo ships ready-made integrations for OpenAI Codex,
-Gemini CLI, Hermes, Claude Desktop/Claude Code, and other
+Gemini CLI, Hermes, Claude Code, and other
 plugin-capable agents.
 
 ## How it works
@@ -22,12 +22,11 @@ Clawbrowser ships in a few surfaces depending on the agent:
   cleanup controls.
 - **Agent integrations** (plugins/extensions) that wire the runtime and
   MCP server into specific harnesses (OpenAI Codex, Gemini CLI, Hermes,
-  Claude Desktop, Claude Code, and more).
+  Claude Code, and more).
 
 The browser-managed `config.json` stores the long-lived API key. Some
-integrations expose an optional UI field to set that key once (for
-example the Claude Desktop extension), but the runtime always reuses the
-same `config.json` afterward.
+integrations expose an optional UI field to set that key once, but the
+runtime always reuses the same `config.json` afterward.
 
 ## Install
 
@@ -88,24 +87,6 @@ npx --yes github:clawbrowser/clawbrowser <target>
 See [INSTALL.md](./INSTALL.md) for verification commands and config
 paths per mode.
 
-### Claude Desktop extension (.mcpb)
-
-Claude Desktop supports installing `.mcpb` extensions. This packaging is
-specific to Claude Desktop; other harnesses should use the shell
-installer targets above. Download
-`clawbrowser-desktop-extension.mcpb` from the Releases page and install
-it in Claude Desktop by double-clicking the file or using
-Settings → Extensions → Install Extension.
-
-- Direct download: [clawbrowser-desktop-extension.mcpb](https://github.com/clawbrowser/clawbrowser/releases/latest/download/clawbrowser-desktop-extension.mcpb)
-- All releases: [github.com/clawbrowser/clawbrowser/releases](https://github.com/clawbrowser/clawbrowser/releases)
-
-From a local checkout you can build the bundle yourself:
-
-```bash
-python3 scripts/build_mcpb.py --output clawbrowser-desktop-extension.mcpb
-```
-
 ## Basic workflow
 
 ```bash
@@ -136,17 +117,12 @@ back to container automatically if native CDP startup fails.
 AGENTS.md                  Agent-level instructions (CLAUDE.md, GEMINI.md symlink here)
 SKILL.md                   Canonical skill — how to use the browser
 INSTALL.md                 Full install & verification commands
-claude-desktop-extension/   Claude Desktop extension source
-  manifest.json              MCPB manifest
-  icon.png                   Extension icon
-  server/index.js            Bundle entry point
 bin/clawbrowser            CLI entry point
 bin/clawbrowser-mcp        MCP server entry point
 .claude-plugin/plugin.json  Claude Code plugin manifest
 .codex-plugin/plugin.json   Codex plugin manifest
 .hermes-plugin/plugin.yaml  Hermes plugin manifest
 skills/clawbrowser/SKILL.md Skill alias used by plugin bundles
-scripts/build_mcpb.py       Claude Desktop bundle packer
 scripts/install.sh         The one-liner installer
 Dockerfile                 Container image definition
 ```
@@ -159,17 +135,14 @@ Each harness's install contract is defined by these manifests:
 | Gemini CLI    | `gemini-extension.json` (repo root)        |
 | Hermes        | `.hermes-plugin/plugin.yaml`               |
 | Claude Code   | `.claude-plugin/plugin.json`               |
-| Claude Desktop | `claude-desktop-extension/manifest.json`   |
 
 The skill is defined once at repo root (`SKILL.md`). Harness-specific
-bundles (for example the Claude Desktop `.mcpb` extension) are assembled
-from their surface directories plus the shared launcher scripts at build
-time.
+bundles are assembled from their surface directories plus the shared
+launcher scripts at build time.
 
 ## Dashboard + API key
 
 Get an API key at [app.clawbrowser.ai](https://app.clawbrowser.ai).
-Some integrations provide a UI field to paste it once (for example the
-Claude Desktop extension). The runtime writes it to `config.json` with
-`chmod 600` and reuses it forever after. Need to re-auth? Open
-`clawbrowser://auth` in the managed browser.
+Some integrations provide a UI field to paste it once. The runtime
+writes it to `config.json` with `chmod 600` and reuses it forever after.
+Need to re-auth? Open `clawbrowser://auth` in the managed browser.

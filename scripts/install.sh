@@ -28,8 +28,8 @@ die() {
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/install.sh [all|codex|claude|claude-desktop|claude-desktop-extension|mcpb|gemini|hermes]
-  bash scripts/install.sh --target <all|codex|claude|claude-desktop|claude-desktop-extension|mcpb|gemini|hermes>
+  bash scripts/install.sh [all|codex|claude|gemini|hermes]
+  bash scripts/install.sh --target <all|codex|claude|gemini|hermes>
   curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- <target>
 
 Environment overrides:
@@ -48,18 +48,12 @@ saved config is missing, the launcher prompts once and writes the key into
 the browser-managed config. Use clawbrowser://auth only for manual browser
 setup or reauthentication. Do not put the API key in agent-side config files
 or shell startup scripts; let the browser manage its own config storage.
-
-The Claude Desktop target now builds a .mcpb Desktop Extension bundle instead
-of editing claude_desktop_config.json directly.
 EOF
 }
 
 is_source_root_ready() {
   [[ -x "${SOURCE_ROOT}/bin/clawbrowser" ]] &&
     [[ -x "${SOURCE_ROOT}/bin/clawbrowser-mcp" ]] &&
-    [[ -f "${SOURCE_ROOT}/claude-desktop-extension/manifest.json" ]] &&
-    [[ -f "${SOURCE_ROOT}/claude-desktop-extension/icon.png" ]] &&
-    [[ -f "${SOURCE_ROOT}/claude-desktop-extension/server/index.js" ]] &&
     [[ -f "${SOURCE_ROOT}/.claude-plugin/plugin.json" ]] &&
     [[ -f "${SOURCE_ROOT}/.codex-plugin/plugin.json" ]] &&
     [[ -f "${SOURCE_ROOT}/.hermes-plugin/plugin.yaml" ]] &&
@@ -67,7 +61,6 @@ is_source_root_ready() {
     [[ -f "${SOURCE_ROOT}/gemini-extension.json" ]] &&
     [[ -f "${SOURCE_ROOT}/AGENTS.md" ]] &&
     [[ -f "${SOURCE_ROOT}/SKILL.md" ]] &&
-    [[ -f "${SOURCE_ROOT}/scripts/build_mcpb.py" ]] &&
     [[ -f "${SOURCE_ROOT}/scripts/install.sh" ]]
 }
 
@@ -147,12 +140,7 @@ ensure_source_root() {
 
 normalize_target() {
   case "${1}" in
-    all|codex|claude|claude-desktop|claude-desktop-extension|mcpb|gemini|hermes)
-      case "${1}" in
-        claude-desktop|claude-desktop-extension|mcpb) printf '%s\n' "claude" ;;
-        *) printf '%s\n' "${1}" ;;
-      esac
-      ;;
+    all|codex|claude|gemini|hermes) printf '%s\n' "${1}" ;;
     *)
       die "Unknown target: ${1}"
       ;;
@@ -174,7 +162,7 @@ parse_args() {
       install)
         shift
         ;;
-      all|codex|claude|claude-desktop|claude-desktop-extension|mcpb|gemini|hermes)
+      all|codex|claude|gemini|hermes)
         TARGET="$(normalize_target "${1}")"
         shift
         ;;
@@ -545,11 +533,9 @@ copy_bundle() {
     "${INSTALL_ROOT}/bin/clawbrowser-install.js" \
     "${INSTALL_ROOT}/bin/clawbrowser" \
     "${INSTALL_ROOT}/bin/clawbrowser-mcp" \
-    "${INSTALL_ROOT}/scripts/build_mcpb.py" \
     "${INSTALL_ROOT}/scripts/install.sh" \
     "${INSTALL_ROOT}/scripts/build_docker_image.sh" \
     "${INSTALL_ROOT}/scripts/clawbrowser_launcher_test.sh" \
-    "${INSTALL_ROOT}/claude-desktop-extension/server/index.js" \
     2>/dev/null || true
 }
 
@@ -611,15 +597,6 @@ link_app_bundle() {
 
   ln -sfn "${source_bundle}" "${target_bundle}"
   printf '%s\n' "${source_bundle}" > "${INSTALL_ROOT}/app_bundle_path"
-}
-
-build_claude_desktop_extension_bundle() {
-  local output_path="${INSTALL_ROOT}/clawbrowser-desktop-extension.mcpb"
-
-  require_command python3
-  log "Building Claude Desktop extension bundle: ${output_path}"
-  python3 "${SOURCE_ROOT}/scripts/build_mcpb.py" --output "${output_path}"
-  log "Claude Desktop extension bundle ready: ${output_path}"
 }
 
 register_gemini_extension() {
@@ -796,10 +773,6 @@ main() {
     write_codex_marketplace
   fi
 
-  if [[ "${TARGET}" == "all" || "${TARGET}" == "claude" ]]; then
-    build_claude_desktop_extension_bundle
-  fi
-
   if [[ "${TARGET}" == "all" || "${TARGET}" == "gemini" ]]; then
     register_gemini_extension
   fi
@@ -818,10 +791,6 @@ main() {
   log "  ${INSTALL_BIN}/clawbrowser-mcp"
   log "Install root:"
   log "  ${INSTALL_ROOT}"
-  if [[ -f "${INSTALL_ROOT}/clawbrowser-desktop-extension.mcpb" ]]; then
-    log "Claude Desktop extension bundle:"
-    log "  ${INSTALL_ROOT}/clawbrowser-desktop-extension.mcpb"
-  fi
   log "Next: the launcher prompts once if needed and writes the key into browser-managed config"
 }
 

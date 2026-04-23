@@ -1,5 +1,4 @@
 .idea
 .DS_Store
 *.tar.gz
-*.mcpb
 *.AppImage

@@ -31,29 +31,8 @@ Targets:
 | `codex`  | Codex plugin + `~/.agents/plugins/marketplace.json`       |
 | `gemini` | Gemini CLI extension                                      |
 | `hermes` | Hermes plugin + enables it in `~/.hermes/config.yaml`     |
-| `claude` | Claude Code plugin bundle + local Claude Desktop `.mcpb` build |
+| `claude` | Claude Code plugin bundle                                |
 | `all`    | Everything above (Cursor and other plugin-capable agents) |
-
-For historical reasons the installer also accepts `claude-desktop`,
-`claude-desktop-extension`, and `mcpb` as aliases for `claude`.
-
-### Claude Desktop extension (.mcpb)
-
-Claude Desktop supports installing `.mcpb` extensions. This packaging is
-specific to Claude Desktop; other harnesses should use the shell
-installer targets above. Download
-`clawbrowser-desktop-extension.mcpb` from Releases and install it in
-Claude Desktop by double-clicking the file or using
-Settings → Extensions → Install Extension.
-
-From a local checkout you can build the bundle yourself:
-
-```bash
-python3 scripts/build_mcpb.py --output clawbrowser-desktop-extension.mcpb
-```
-The Claude Desktop extension source lives in `claude-desktop-extension/`,
-and `scripts/build_mcpb.py` assembles the `.mcpb` bundle from the shared
-launcher files.
 
 ## Container mode (VPS / headless)
 
@@ -99,11 +78,6 @@ If either check passes, skip to [Verify](#verify).
 Get the key from [app.clawbrowser.ai](https://app.clawbrowser.ai).
 Ask the user exactly once. Never store it in shell rc files, env vars,
 or agent config.
-
-Claude Desktop extension users can paste the optional bootstrap API key
-in the extension settings UI. The manual file-write commands below are
-for headless/container setups and for install paths that don't expose a
-UI field.
 
 **Host:**
 
@@ -151,6 +125,3 @@ in the managed browser.
 - Agent instructions: `AGENTS.md` (CLAUDE.md + GEMINI.md symlink here)
 - Canonical plugin manifests: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.hermes-plugin/plugin.yaml`
 - Codex marketplace: `~/.agents/plugins/marketplace.json` (written by the installer)
-- Claude Desktop extension: `claude-desktop-extension/manifest.json`
-- Claude Desktop extension icon: `claude-desktop-extension/icon.png`
-- Claude Desktop packer: `scripts/build_mcpb.py`
