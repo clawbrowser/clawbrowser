@@ -28,6 +28,9 @@ The browser-managed `config.json` stores the long-lived API key. Some
 integrations expose an optional UI field to set that key once, but the
 runtime always reuses the same `config.json` afterward.
 
+This repo also ships an OpenClaw bootstrap plugin scaffold at
+`.openclaw-plugin`, including a small init hook and skill file.
+
 ## Install
 
 Pick the integration that matches your agent harness.
@@ -119,10 +122,13 @@ SKILL.md                   Canonical skill — how to use the browser
 INSTALL.md                 Full install & verification commands
 bin/clawbrowser            CLI entry point
 bin/clawbrowser-mcp        MCP server entry point
+bin/openclaw-plugin-init   OpenClaw plugin bootstrap launcher
 .claude-plugin/plugin.json  Claude Code plugin manifest
 .codex-plugin/plugin.json   Codex plugin manifest
 .hermes-plugin/plugin.yaml  Hermes plugin manifest
+.openclaw-plugin/           OpenClaw plugin scaffold (plugin.json, init.sh, SKILL.md)
 scripts/install.sh         The one-liner installer
+scripts/validate_openclaw_plugin.sh  Minimal validation checks for plugin layout and launchers
 Dockerfile                 Container image definition
 ```
 

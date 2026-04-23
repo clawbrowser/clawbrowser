@@ -34,6 +34,11 @@ Targets:
 | `claude` | Claude Code plugin bundle                                |
 | `all`    | Everything above (Cursor and other plugin-capable agents) |
 
+The installer also materializes `.openclaw-plugin` into
+`${CLAWBROWSER_INSTALL_ROOT:-~/.clawbrowser}/.openclaw-plugin`,
+runs its idempotent `init.sh` bootstrap hook, and creates
+`${CLAWBROWSER_INSTALL_BIN:-~/.local/bin}/openclaw-plugin-init`.
+
 ## Container mode (VPS / headless)
 
 Any OCI runtime works (Docker, Podman, nerdctl, containerd). Example
@@ -117,10 +122,24 @@ session unless asked.
 For identity checks (fingerprint, proxy, geo), open `clawbrowser://verify`
 in the managed browser.
 
+## Validate plugin wiring
+
+```bash
+bash scripts/validate_openclaw_plugin.sh --mock-cdp
+```
+
+Optional live CDP endpoint check:
+
+```bash
+bash scripts/validate_openclaw_plugin.sh --run-cdp --session openclaw-plugin-validation
+```
+
 ## Quick reference
 
 - CLI: `bin/clawbrowser`
 - MCP server: `bin/clawbrowser-mcp`
+- OpenClaw bootstrap launcher: `bin/openclaw-plugin-init`
+- OpenClaw plugin scaffold: `.openclaw-plugin/`
 - Skill: `SKILL.md` (canonical root skill)
 - Agent instructions: `AGENTS.md` (CLAUDE.md + GEMINI.md symlink here)
 - Canonical plugin manifests: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.hermes-plugin/plugin.yaml`

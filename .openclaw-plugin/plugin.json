@@ -1,0 +1,45 @@
+{
+  "name": "openclaw-plugin",
+  "description": "Custom OpenClaw plugin for Clawbrowser integration",
+  "version": "0.1.0",
+  "author": "Clawbrowser",
+  "source": {
+    "type": "local",
+    "path": ".openclaw-plugin"
+  },
+  "entry": {
+    "type": "script",
+    "path": "init.sh"
+  },
+  "skill": "./SKILL.md",
+  "scripts": ".",
+  "trigger": "manual",
+  "permissions": [
+    "read_config",
+    "write_config",
+    "network"
+  ],
+  "interfaces": [
+    "clawbrowser-plugin-api/v1",
+    "openclaw-plugin-api/v1"
+  ],
+  "defaults": {
+    "gatewayUrl": "ws://127.0.0.1:18789",
+    "sessionName": "main",
+    "clawbrowserSession": "openclaw-main",
+    "verifyIdentityOnStart": false
+  },
+  "overrides": {
+    "configFile": "${OPENCLAW_PLUGIN_CONFIG_FILE}",
+    "gatewayUrl": "${OPENCLAW_PLUGIN_GATEWAY_URL}",
+    "sessionName": "${OPENCLAW_PLUGIN_SESSION_NAME}",
+    "clawbrowserSession": "${OPENCLAW_PLUGIN_CLAWBROWSER_SESSION}",
+    "verifyIdentityOnStart": "${OPENCLAW_PLUGIN_VERIFY_IDENTITY}"
+  },
+  "requires": {
+    "bash": ">=5.0"
+  },
+  "security": {
+    "apiKeyPolicy": "Store browser API keys only in browser-managed config.json. Do not put secrets in plugin config, shell rc files, or manifests."
+  }
+}

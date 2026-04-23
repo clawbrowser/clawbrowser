@@ -429,6 +429,7 @@ install_codex_plugin() {
 write_codex_marketplace() {
   local marketplace_file="${AGENTS_PLUGINS_ROOT}/marketplace.json"
   local plugin_dir="${CODEX_PLUGINS_ROOT}/clawbrowser"
+  local openclaw_plugin_dir="${INSTALL_ROOT}/.openclaw-plugin"
 
   if [[ ! -d "${plugin_dir}" ]]; then
     log "INFO: Codex plugin directory missing at ${plugin_dir}; skipping marketplace metadata update."
@@ -440,7 +441,7 @@ write_codex_marketplace() {
     return 0
   fi
 
-  python3 - "${marketplace_file}" "${plugin_dir}" <<'PY'
+  python3 - "${marketplace_file}" "${plugin_dir}" "${openclaw_plugin_dir}" <<'PY'
 import json
 import os
 import pathlib
@@ -448,20 +449,40 @@ import sys
 
 path = pathlib.Path(sys.argv[1])
 plugin_dir = pathlib.Path(sys.argv[2])
+openclaw_plugin_dir = pathlib.Path(sys.argv[3])
 
-desired_plugin = {
-    "name": "clawbrowser",
-    "description": "Agent-only browser runtime with browser-managed config.json reuse, CDP sessions, rotation, and default browser routing.",
-    "source": {
-        "source": "local",
-        "path": os.path.relpath(plugin_dir, start=path.parent),
+desired_plugins = [
+    {
+        "name": "clawbrowser",
+        "description": "Agent-only browser runtime with browser-managed config.json reuse, CDP sessions, rotation, and default browser routing.",
+        "source": {
+            "source": "local",
+            "path": os.path.relpath(plugin_dir, start=path.parent),
+        },
+        "policy": {
+            "installation": "INSTALLED_BY_DEFAULT",
+            "authentication": "ON_INSTALL",
+        },
+        "category": "Productivity",
     },
-    "policy": {
-        "installation": "INSTALLED_BY_DEFAULT",
-        "authentication": "ON_INSTALL",
-    },
-    "category": "Productivity",
-}
+]
+
+if openclaw_plugin_dir.exists():
+    desired_plugins.append(
+        {
+            "name": "openclaw-plugin",
+            "description": "OpenClaw bootstrap/plugin bridge for Clawbrowser session and config wiring.",
+            "source": {
+                "source": "local",
+                "path": os.path.relpath(openclaw_plugin_dir, start=path.parent),
+            },
+            "policy": {
+                "installation": "INSTALLED_BY_DEFAULT",
+                "authentication": "ON_INSTALL",
+            },
+            "category": "Productivity",
+        }
+    )
 
 payload = {}
 if path.exists():
@@ -479,11 +500,14 @@ elif not isinstance(plugins, list):
     raise SystemExit(f"Expected {path} to contain a 'plugins' array")
 
 merged_plugins = []
-merged_clawbrowser = False
+desired_by_name = {plugin["name"]: plugin for plugin in desired_plugins}
+merged_names = set()
 
 for plugin in plugins:
-    if isinstance(plugin, dict) and plugin.get("name") == "clawbrowser":
-        if merged_clawbrowser:
+    plugin_name = plugin.get("name") if isinstance(plugin, dict) else None
+    desired_plugin = desired_by_name.get(plugin_name or "")
+    if desired_plugin:
+        if plugin_name in merged_names:
             continue
 
         merged = dict(plugin)
@@ -498,13 +522,14 @@ for plugin in plugins:
         merged["policy"] = merged_policy
 
         merged_plugins.append(merged)
-        merged_clawbrowser = True
+        merged_names.add(plugin_name)
         continue
 
     merged_plugins.append(plugin)
 
-if not merged_clawbrowser:
-    merged_plugins.append(desired_plugin)
+for desired_plugin in desired_plugins:
+    if desired_plugin["name"] not in merged_names:
+        merged_plugins.append(desired_plugin)
 
 payload["plugins"] = merged_plugins
 payload.setdefault("name", "clawbrowser-marketplace")
@@ -532,7 +557,10 @@ copy_bundle() {
     "${INSTALL_ROOT}/bin/clawbrowser-install.js" \
     "${INSTALL_ROOT}/bin/clawbrowser" \
     "${INSTALL_ROOT}/bin/clawbrowser-mcp" \
+    "${INSTALL_ROOT}/bin/openclaw-plugin-init" \
+    "${INSTALL_ROOT}/.openclaw-plugin/init.sh" \
     "${INSTALL_ROOT}/scripts/install.sh" \
+    "${INSTALL_ROOT}/scripts/validate_openclaw_plugin.sh" \
     "${INSTALL_ROOT}/scripts/build_docker_image.sh" \
     "${INSTALL_ROOT}/scripts/clawbrowser_launcher_test.sh" \
     2>/dev/null || true
@@ -579,10 +607,56 @@ materialize_compat_bundle() {
   return 0
 }
 
+materialize_openclaw_plugin_bundle() {
+  local source_dir="${SOURCE_ROOT}/.openclaw-plugin"
+  local target_dir="${INSTALL_ROOT}/.openclaw-plugin"
+
+  if [[ ! -d "${source_dir}" ]]; then
+    log "INFO: OpenClaw plugin source not found at ${source_dir}; skipping"
+    return 0
+  fi
+
+  if ! mkdir -p "${INSTALL_ROOT}/plugins" 2>/dev/null; then
+    plugin_install_notice "Unable to create plugin directory at ${INSTALL_ROOT}/plugins"
+    return 0
+  fi
+
+  if [[ -e "${target_dir}" ]] && ! rm -rf "${target_dir}"; then
+    plugin_install_notice "Unable to replace existing OpenClaw plugin at ${target_dir}"
+    return 0
+  fi
+
+  if ! cp -RL "${source_dir}" "${target_dir}" 2>/dev/null; then
+    plugin_install_notice "Failed to copy OpenClaw plugin from ${source_dir} to ${target_dir}"
+    return 0
+  fi
+
+  chmod +x "${target_dir}/init.sh" 2>/dev/null || true
+  log "Installed OpenClaw plugin into ${target_dir}"
+}
+
+initialize_openclaw_plugin() {
+  local init_script="${INSTALL_ROOT}/.openclaw-plugin/init.sh"
+
+  if [[ ! -x "${init_script}" ]]; then
+    log "INFO: OpenClaw plugin init script not found at ${init_script}; skipping bootstrap"
+    return 0
+  fi
+
+  if OPENCLAW_PLUGIN_MODE=install "${init_script}" >/dev/null 2>&1; then
+    log "Initialized OpenClaw plugin bootstrap config"
+    return 0
+  fi
+
+  plugin_install_notice "OpenClaw plugin init script failed: ${init_script}"
+  return 0
+}
+
 link_launchers() {
   mkdir -p "${INSTALL_BIN}"
   ln -sfn "${INSTALL_ROOT}/bin/clawbrowser" "${INSTALL_BIN}/clawbrowser"
   ln -sfn "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${INSTALL_BIN}/clawbrowser-mcp"
+  ln -sfn "${INSTALL_ROOT}/bin/openclaw-plugin-init" "${INSTALL_BIN}/openclaw-plugin-init"
 }
 
 link_app_bundle() {
@@ -746,6 +820,8 @@ main() {
   if ! materialize_compat_bundle; then
     log "INFO: Proceeding without a complete compatibility plugin bundle; Codex/Hermes plugin steps may be skipped."
   fi
+  materialize_openclaw_plugin_bundle
+  initialize_openclaw_plugin
   link_launchers
 
   if [[ -n "${native_bundle}" ]]; then
@@ -787,6 +863,7 @@ main() {
   log "Installed commands:"
   log "  ${INSTALL_BIN}/clawbrowser"
   log "  ${INSTALL_BIN}/clawbrowser-mcp"
+  log "  ${INSTALL_BIN}/openclaw-plugin-init"
   log "Install root:"
   log "  ${INSTALL_ROOT}"
   log "Next: the launcher prompts once if needed and writes the key into browser-managed config"
