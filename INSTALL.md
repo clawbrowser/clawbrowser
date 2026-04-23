@@ -50,6 +50,20 @@ codex mcp add clawbrowser -- ~/.clawbrowser/clawbrowser-mcp
 curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- gemini
 ```
 
+### Hermes Agent (`hermes`)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- hermes
+```
+
+The installer copies the Hermes plugin into `~/.hermes/plugins/clawbrowser`
+and enables it in `~/.hermes/config.yaml`. The plugin provides five tools,
+lifecycle hooks, and a bundled skill. Check it with:
+
+```bash
+hermes plugins list
+```
+
 ### Cursor, other agents, multi-target (`all`)
 
 ```bash
