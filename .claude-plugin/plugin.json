@@ -20,7 +20,7 @@
     "./AGENTS.md"
   ],
   "skills": [
-    "./skills/clawbrowser/SKILL.md"
+    "./SKILL.md"
   ],
   "mcpServers": {
     "clawbrowser": {

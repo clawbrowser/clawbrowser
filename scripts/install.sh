@@ -57,7 +57,6 @@ is_source_root_ready() {
     [[ -f "${SOURCE_ROOT}/.claude-plugin/plugin.json" ]] &&
     [[ -f "${SOURCE_ROOT}/.codex-plugin/plugin.json" ]] &&
     [[ -f "${SOURCE_ROOT}/.hermes-plugin/plugin.yaml" ]] &&
-    [[ -f "${SOURCE_ROOT}/skills/clawbrowser/SKILL.md" ]] &&
     [[ -f "${SOURCE_ROOT}/gemini-extension.json" ]] &&
     [[ -f "${SOURCE_ROOT}/AGENTS.md" ]] &&
     [[ -f "${SOURCE_ROOT}/SKILL.md" ]] &&
@@ -570,7 +569,6 @@ materialize_compat_bundle() {
   ln -sfn ../../bin/clawbrowser "${bundle_dir}/clawbrowser"
   ln -sfn ../../bin/clawbrowser-mcp "${bundle_dir}/clawbrowser-mcp"
   ln -sfn ../../gemini-extension.json "${bundle_dir}/gemini-extension.json"
-  ln -sfn ../../skills "${bundle_dir}/skills"
 
   if [[ ! -e "${bundle_dir}/.codex-plugin/plugin.json" ]]; then
     touch "${bundle_dir}/.stub" 2>/dev/null || true

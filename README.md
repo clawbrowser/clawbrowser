@@ -122,7 +122,6 @@ bin/clawbrowser-mcp        MCP server entry point
 .claude-plugin/plugin.json  Claude Code plugin manifest
 .codex-plugin/plugin.json   Codex plugin manifest
 .hermes-plugin/plugin.yaml  Hermes plugin manifest
-skills/clawbrowser/SKILL.md Skill alias used by plugin bundles
 scripts/install.sh         The one-liner installer
 Dockerfile                 Container image definition
 ```

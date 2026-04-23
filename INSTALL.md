@@ -121,7 +121,7 @@ in the managed browser.
 
 - CLI: `bin/clawbrowser`
 - MCP server: `bin/clawbrowser-mcp`
-- Skill: `SKILL.md` (symlinked into each plugin subtree)
+- Skill: `SKILL.md` (canonical root skill)
 - Agent instructions: `AGENTS.md` (CLAUDE.md + GEMINI.md symlink here)
 - Canonical plugin manifests: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.hermes-plugin/plugin.yaml`
 - Codex marketplace: `~/.agents/plugins/marketplace.json` (written by the installer)
