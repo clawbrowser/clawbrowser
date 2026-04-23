@@ -28,8 +28,8 @@ die() {
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/install.sh [all|codex|claude|gemini|hermes]
-  bash scripts/install.sh --target <all|codex|claude|gemini|hermes>
+  bash scripts/install.sh [all|codex|claude|claude-desktop|claude-desktop-extension|mcpb|gemini|hermes]
+  bash scripts/install.sh --target <all|codex|claude|claude-desktop|claude-desktop-extension|mcpb|gemini|hermes>
   curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- <target>
 
 Environment overrides:
@@ -48,13 +48,26 @@ saved config is missing, the launcher prompts once and writes the key into
 the browser-managed config. Use clawbrowser://auth only for manual browser
 setup or reauthentication. Do not put the API key in agent-side config files
 or shell startup scripts; let the browser manage its own config storage.
+
+The Claude Desktop target now builds a .mcpb Desktop Extension bundle instead
+of editing claude_desktop_config.json directly.
 EOF
 }
 
 is_source_root_ready() {
-  [[ -x "${SOURCE_ROOT}/clawbrowser" ]] &&
-    [[ -x "${SOURCE_ROOT}/clawbrowser-mcp" ]] &&
-    [[ -d "${SOURCE_ROOT}/plugins/clawbrowser" ]] &&
+  [[ -x "${SOURCE_ROOT}/bin/clawbrowser" ]] &&
+    [[ -x "${SOURCE_ROOT}/bin/clawbrowser-mcp" ]] &&
+    [[ -f "${SOURCE_ROOT}/claude-desktop-extension/manifest.json" ]] &&
+    [[ -f "${SOURCE_ROOT}/claude-desktop-extension/icon.png" ]] &&
+    [[ -f "${SOURCE_ROOT}/claude-desktop-extension/server/index.js" ]] &&
+    [[ -f "${SOURCE_ROOT}/.claude-plugin/plugin.json" ]] &&
+    [[ -f "${SOURCE_ROOT}/.codex-plugin/plugin.json" ]] &&
+    [[ -f "${SOURCE_ROOT}/.hermes-plugin/plugin.yaml" ]] &&
+    [[ -f "${SOURCE_ROOT}/skills/clawbrowser/SKILL.md" ]] &&
+    [[ -f "${SOURCE_ROOT}/gemini-extension.json" ]] &&
+    [[ -f "${SOURCE_ROOT}/AGENTS.md" ]] &&
+    [[ -f "${SOURCE_ROOT}/SKILL.md" ]] &&
+    [[ -f "${SOURCE_ROOT}/scripts/build_mcpb.py" ]] &&
     [[ -f "${SOURCE_ROOT}/scripts/install.sh" ]]
 }
 
@@ -134,9 +147,9 @@ ensure_source_root() {
 
 normalize_target() {
   case "${1}" in
-    all|codex|claude|claude-desktop|gemini|hermes)
+    all|codex|claude|claude-desktop|claude-desktop-extension|mcpb|gemini|hermes)
       case "${1}" in
-        claude-desktop) printf '%s\n' "claude" ;;
+        claude-desktop|claude-desktop-extension|mcpb) printf '%s\n' "claude" ;;
         *) printf '%s\n' "${1}" ;;
       esac
       ;;
@@ -161,7 +174,7 @@ parse_args() {
       install)
         shift
         ;;
-      all|codex|claude|claude-desktop|gemini)
+      all|codex|claude|claude-desktop|claude-desktop-extension|mcpb|gemini|hermes)
         TARGET="$(normalize_target "${1}")"
         shift
         ;;
@@ -346,21 +359,100 @@ download_native_app_bundle() {
   return 0
 }
 
+plugin_install_notice() {
+  local message="$1"
+  log "WARNING: ${message}"
+  log "INFO: Continuing without this plugin step."
+  log "INFO: Fallback: use clawbrowser in headless/container mode, then rerun with a full release bundle if plugin assets are required."
+}
+
+ensure_plugin_bundle_dir() {
+  local bundle_dir="$1"
+  if [[ -d "${bundle_dir}" ]]; then
+    return 0
+  fi
+
+  if mkdir -p "${bundle_dir}" 2>/dev/null; then
+    return 0
+  fi
+
+  plugin_install_notice "Unable to create plugin directory at ${bundle_dir}"
+  return 1
+}
+
+find_plugin_source_dir() {
+  local candidate
+
+  for candidate in \
+    "${SOURCE_ROOT}/plugins/clawbrowser" \
+    "${SOURCE_ROOT}/clawbrowser/plugins/clawbrowser" \
+    "${SOURCE_ROOT}/bundle/plugins/clawbrowser"
+  do
+    if [[ -d "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+
+  candidate="$(find "${SOURCE_ROOT}" -mindepth 2 -maxdepth 5 -type d -path '*/plugins/clawbrowser' 2>/dev/null | head -n 1 || true)"
+  if [[ -n "${candidate}" ]]; then
+    printf '%s\n' "${candidate}"
+    return 0
+  fi
+
+  return 1
+}
+
 install_codex_plugin() {
   local source_dir="${INSTALL_ROOT}/plugins/clawbrowser"
   local target_dir="${CODEX_PLUGINS_ROOT}/clawbrowser"
+  local plugin_manifest="${source_dir}/.codex-plugin/plugin.json"
+
+  if [[ ! -d "${source_dir}" ]]; then
+    log "INFO: Codex plugin source missing at ${source_dir}; skipping plugin copy for this run."
+    log "INFO: Fallback plan: rerun with a release asset that includes plugin files, or continue with launcher-only install."
+    return 0
+  fi
+
+  if [[ ! -f "${plugin_manifest}" ]]; then
+    log "INFO: Codex plugin manifest missing at ${plugin_manifest}; skipping plugin copy for this run."
+    log "INFO: Fallback plan: rerun with a release asset that includes plugin files, or continue with launcher-only install."
+    return 0
+  fi
 
   log "Installing Codex plugin into ${target_dir}"
-  mkdir -p "${CODEX_PLUGINS_ROOT}"
-  rm -rf "${target_dir}"
-  cp -R "${source_dir}" "${target_dir}"
+  if ! mkdir -p "${CODEX_PLUGINS_ROOT}" 2>/dev/null; then
+    plugin_install_notice "Unable to create Codex plugins root at ${CODEX_PLUGINS_ROOT}"
+    return 0
+  fi
+
+  if [[ -e "${target_dir}" ]] && ! rm -rf "${target_dir}"; then
+    plugin_install_notice "Unable to replace existing Codex plugin path at ${target_dir}"
+    return 0
+  fi
+
+  # -L dereferences symlinks so the destination has real file content
+  # (e.g. SKILL.md which is a symlink to the repo-root canonical copy).
+  if ! cp -RL "${source_dir}" "${target_dir}" 2>/dev/null; then
+    plugin_install_notice "Failed to copy Codex plugin from ${source_dir} to ${target_dir}"
+    return 0
+  fi
 }
 
 write_codex_marketplace() {
   local marketplace_file="${AGENTS_PLUGINS_ROOT}/marketplace.json"
   local plugin_dir="${CODEX_PLUGINS_ROOT}/clawbrowser"
 
-  mkdir -p "${AGENTS_PLUGINS_ROOT}"
+  if [[ ! -d "${plugin_dir}" ]]; then
+    log "INFO: Codex plugin directory missing at ${plugin_dir}; skipping marketplace metadata update."
+    return 0
+  fi
+
+  if ! mkdir -p "${AGENTS_PLUGINS_ROOT}" 2>/dev/null; then
+    plugin_install_notice "Unable to create Codex marketplace directory at ${AGENTS_PLUGINS_ROOT}"
+    return 0
+  fi
+
   python3 - "${marketplace_file}" "${plugin_dir}" <<'PY'
 import json
 import os
@@ -450,21 +542,63 @@ copy_bundle() {
   cp -R "${SOURCE_ROOT}/." "${INSTALL_ROOT}/"
 
   chmod +x \
-    "${INSTALL_ROOT}/clawbrowser" \
-    "${INSTALL_ROOT}/clawbrowser-mcp" \
-    "${INSTALL_ROOT}/plugins/clawbrowser/clawbrowser" \
-    "${INSTALL_ROOT}/plugins/clawbrowser/clawbrowser-mcp" \
     "${INSTALL_ROOT}/bin/clawbrowser-install.js" \
+    "${INSTALL_ROOT}/bin/clawbrowser" \
+    "${INSTALL_ROOT}/bin/clawbrowser-mcp" \
+    "${INSTALL_ROOT}/scripts/build_mcpb.py" \
     "${INSTALL_ROOT}/scripts/install.sh" \
     "${INSTALL_ROOT}/scripts/build_docker_image.sh" \
     "${INSTALL_ROOT}/scripts/clawbrowser_launcher_test.sh" \
+    "${INSTALL_ROOT}/claude-desktop-extension/server/index.js" \
     2>/dev/null || true
+}
+
+materialize_compat_bundle() {
+  local bundle_dir="${INSTALL_ROOT}/plugins/clawbrowser"
+  local fallback_source=""
+
+  if ! ensure_plugin_bundle_dir "${bundle_dir}"; then
+    return 1
+  fi
+
+  if [[ ! -e "${bundle_dir}/.codex-plugin/plugin.json" ]]; then
+    fallback_source="$(find_plugin_source_dir || true)"
+    if [[ -n "${fallback_source}" ]] && [[ "${fallback_source}" != "${bundle_dir}" ]]; then
+      log "Using fallback plugin source at ${fallback_source}"
+      if ! cp -RL "${fallback_source}/." "${bundle_dir}/" 2>/dev/null; then
+        log "WARNING: Failed to copy fallback plugin source from ${fallback_source}; continuing with compatibility links."
+      fi
+    else
+      log "INFO: plugins/clawbrowser was not found in source; creating compatibility plugin layout."
+    fi
+  fi
+
+  ln -sfn ../../.claude-plugin "${bundle_dir}/.claude-plugin"
+  ln -sfn ../../.codex-plugin "${bundle_dir}/.codex-plugin"
+  ln -sfn ../../.hermes-plugin "${bundle_dir}/.hermes-plugin"
+  ln -sfn ../../.mcp.json "${bundle_dir}/.mcp.json"
+  ln -sfn ../../AGENTS.md "${bundle_dir}/AGENTS.md"
+  ln -sfn ../../AGENTS.md "${bundle_dir}/CLAUDE.md"
+  ln -sfn ../../AGENTS.md "${bundle_dir}/GEMINI.md"
+  ln -sfn ../../SKILL.md "${bundle_dir}/SKILL.md"
+  ln -sfn ../../bin/clawbrowser "${bundle_dir}/clawbrowser"
+  ln -sfn ../../bin/clawbrowser-mcp "${bundle_dir}/clawbrowser-mcp"
+  ln -sfn ../../gemini-extension.json "${bundle_dir}/gemini-extension.json"
+  ln -sfn ../../skills "${bundle_dir}/skills"
+
+  if [[ ! -e "${bundle_dir}/.codex-plugin/plugin.json" ]]; then
+    touch "${bundle_dir}/.stub" 2>/dev/null || true
+    plugin_install_notice "Compatibility plugin metadata still missing under ${bundle_dir}"
+    return 1
+  fi
+
+  return 0
 }
 
 link_launchers() {
   mkdir -p "${INSTALL_BIN}"
-  ln -sfn "${INSTALL_ROOT}/clawbrowser" "${INSTALL_BIN}/clawbrowser"
-  ln -sfn "${INSTALL_ROOT}/clawbrowser-mcp" "${INSTALL_BIN}/clawbrowser-mcp"
+  ln -sfn "${INSTALL_ROOT}/bin/clawbrowser" "${INSTALL_BIN}/clawbrowser"
+  ln -sfn "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${INSTALL_BIN}/clawbrowser-mcp"
 }
 
 link_app_bundle() {
@@ -479,43 +613,13 @@ link_app_bundle() {
   printf '%s\n' "${source_bundle}" > "${INSTALL_ROOT}/app_bundle_path"
 }
 
-claude_desktop_config_path() {
-  if is_macos; then
-    printf '%s\n' "${HOME}/Library/Application Support/Claude/claude_desktop_config.json"
-  elif [[ -n "${APPDATA:-}" ]]; then
-    printf '%s\n' "${APPDATA}/Claude/claude_desktop_config.json"
-  else
-    printf '%s\n' "${HOME}/.config/Claude/claude_desktop_config.json"
-  fi
-}
+build_claude_desktop_extension_bundle() {
+  local output_path="${INSTALL_ROOT}/clawbrowser-desktop-extension.mcpb"
 
-register_claude_desktop_mcp() {
-  local config_path mcp_command
-  config_path="$(claude_desktop_config_path)"
-  mcp_command="${INSTALL_BIN}/clawbrowser-mcp"
-
-  python3 - "${config_path}" "${mcp_command}" <<'PY'
-import json, os, sys
-
-config_path, mcp_command = sys.argv[1], sys.argv[2]
-
-config = {}
-if os.path.exists(config_path):
-    with open(config_path) as f:
-        try:
-            config = json.load(f)
-        except json.JSONDecodeError:
-            config = {}
-
-config.setdefault("mcpServers", {})["clawbrowser"] = {"command": mcp_command}
-
-os.makedirs(os.path.dirname(config_path), exist_ok=True)
-with open(config_path, "w") as f:
-    json.dump(config, f, indent=2)
-    f.write("\n")
-PY
-
-  log "Registered MCP server in Claude Desktop: ${config_path}"
+  require_command python3
+  log "Building Claude Desktop extension bundle: ${output_path}"
+  python3 "${SOURCE_ROOT}/scripts/build_mcpb.py" --output "${output_path}"
+  log "Claude Desktop extension bundle ready: ${output_path}"
 }
 
 register_gemini_extension() {
@@ -535,14 +639,27 @@ install_hermes_plugin() {
   fi
 
   log "Installing Hermes plugin into ${target_dir}"
-  mkdir -p "${HERMES_PLUGINS_ROOT}"
-  rm -rf "${target_dir}"
-  cp -R "${source_dir}" "${target_dir}"
+  if ! mkdir -p "${HERMES_PLUGINS_ROOT}" 2>/dev/null; then
+    plugin_install_notice "Unable to create Hermes plugins root at ${HERMES_PLUGINS_ROOT}"
+    return 0
+  fi
+
+  if [[ -e "${target_dir}" ]] && ! rm -rf "${target_dir}"; then
+    plugin_install_notice "Unable to replace existing Hermes plugin path at ${target_dir}"
+    return 0
+  fi
+
+  # -L dereferences symlinks so the destination has real file content
+  # (e.g. SKILL.md which is a symlink to the repo-root canonical copy).
+  if ! cp -RL "${source_dir}" "${target_dir}" 2>/dev/null; then
+    plugin_install_notice "Failed to copy Hermes plugin from ${source_dir} to ${target_dir}"
+    return 0
+  fi
 
   # Copy the clawbrowser and clawbrowser-mcp binaries into the plugin
   # so the tools can locate them even without PATH setup.
-  cp "${INSTALL_ROOT}/clawbrowser" "${target_dir}/clawbrowser" 2>/dev/null || true
-  cp "${INSTALL_ROOT}/clawbrowser-mcp" "${target_dir}/clawbrowser-mcp" 2>/dev/null || true
+  cp "${INSTALL_ROOT}/bin/clawbrowser" "${target_dir}/clawbrowser" 2>/dev/null || true
+  cp "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${target_dir}/clawbrowser-mcp" 2>/dev/null || true
   chmod +x "${target_dir}/clawbrowser" "${target_dir}/clawbrowser-mcp" 2>/dev/null || true
 
   log "Hermes plugin installed: ${target_dir}"
@@ -651,6 +768,9 @@ main() {
 
   ensure_source_root
   copy_bundle
+  if ! materialize_compat_bundle; then
+    log "INFO: Proceeding without a complete compatibility plugin bundle; Codex/Hermes plugin steps may be skipped."
+  fi
   link_launchers
 
   if [[ -n "${native_bundle}" ]]; then
@@ -677,7 +797,7 @@ main() {
   fi
 
   if [[ "${TARGET}" == "all" || "${TARGET}" == "claude" ]]; then
-    register_claude_desktop_mcp
+    build_claude_desktop_extension_bundle
   fi
 
   if [[ "${TARGET}" == "all" || "${TARGET}" == "gemini" ]]; then
@@ -698,6 +818,10 @@ main() {
   log "  ${INSTALL_BIN}/clawbrowser-mcp"
   log "Install root:"
   log "  ${INSTALL_ROOT}"
+  if [[ -f "${INSTALL_ROOT}/clawbrowser-desktop-extension.mcpb" ]]; then
+    log "Claude Desktop extension bundle:"
+    log "  ${INSTALL_ROOT}/clawbrowser-desktop-extension.mcpb"
+  fi
   log "Next: the launcher prompts once if needed and writes the key into browser-managed config"
 }
 

@@ -1,0 +1,37 @@
+name: Publish Claude Desktop extension
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mcpb-publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Build Claude Desktop extension
+        run: python3 scripts/build_mcpb.py --output clawbrowser-desktop-extension.mcpb
+
+      - name: Upload extension to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload "${{ github.event.release.tag_name }}" \
+            clawbrowser-desktop-extension.mcpb \
+            --clobber

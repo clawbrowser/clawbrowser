@@ -1,97 +1,64 @@
-# Clawbrowser Agent Bootstrap
+# Clawbrowser — Install & Verify
 
-Install Clawbrowser and make it the default managed browser for the
-current agent.
+Quick install is in [README.md](./README.md). This doc has the exact
+commands for verifying the install, saving the API key, and launching
+in container mode.
 
-## Pick the mode
+## Install commands
 
-- **Host mode** — desktop/macOS or any Linux with a display.
-  Config lives at `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`.
-  The launcher uses `Clawbrowser.app` when present.
-- **Container mode** — VPS, server, SSH-only, or headless/no-display.
-  Uses the OCI image `docker.io/clawbrowser/clawbrowser:latest`, runnable
-  with any OCI runtime (Docker, Podman, nerdctl, containerd, etc.).
-  Config lives in the container at
-  `/home/clawbrowser/.config/clawbrowser/config.json`, persisted in the
-  `clawbrowser-config` named volume.
+Clawbrowser ships as a CLI + MCP server, plus optional harness-specific
+plugins/extensions. Choose the install path that matches your agent
+harness.
 
-Default to host mode on macOS/desktop. Default to container mode when
-there is no display (`$DISPLAY` unset on Linux, remote shell, CI, etc.).
-In `auto` mode the launcher falls back native→container if native CDP
-startup fails.
+### Shell installer (plugins + CLI)
 
-## Install the agent integration
-
-Detect the current agent and run the one-liner for the matching target
-(`claude`, `codex`, `gemini`, or `all`).
-
-### Claude Code / Claude Desktop (`claude`)
+One-liner:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- claude
+curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- <target>
 ```
 
-### Codex (`codex`)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- codex
-```
-
-After installing with the `codex` target, register the MCP server if your
-Codex CLI session needs it:
-
-```bash
-codex mcp add clawbrowser -- ~/.clawbrowser/clawbrowser-mcp
-```
-
-### Gemini CLI (`gemini`)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- gemini
-```
-
-### Hermes Agent (`hermes`)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- hermes
-```
-
-The installer copies the Hermes plugin into `~/.hermes/plugins/clawbrowser`
-and enables it in `~/.hermes/config.yaml`. The plugin provides five tools,
-lifecycle hooks, and a bundled skill. Check it with:
-
-```bash
-hermes plugins list
-```
-
-### Cursor, other agents, multi-target (`all`)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- all
-```
-
-### From a local checkout
-
-If you already cloned the repo, run the same installer locally with your
-chosen target (`claude`, `codex`, `gemini`, or `all`):
+From a local checkout:
 
 ```bash
 bash scripts/install.sh <target>
 ```
 
-## Start the browser runtime
+Targets:
 
-### Host mode — desktop / macOS
+| Target   | Wires up                                                  |
+|----------|-----------------------------------------------------------|
+| `codex`  | Codex plugin + `~/.agents/plugins/marketplace.json`       |
+| `gemini` | Gemini CLI extension                                      |
+| `hermes` | Hermes plugin + enables it in `~/.hermes/config.yaml`     |
+| `claude` | Claude Code plugin bundle + local Claude Desktop `.mcpb` build |
+| `all`    | Everything above (Cursor and other plugin-capable agents) |
 
-The launcher uses `Clawbrowser.app` automatically when it is present in the
-install root (`~/.clawbrowser/Clawbrowser.app`, `/Applications/Clawbrowser.app`,
-`~/Applications/Clawbrowser.app`). No separate command needed — the first
-`clawbrowser start --session <name>` starts it.
+For historical reasons the installer also accepts `claude-desktop`,
+`claude-desktop-extension`, and `mcpb` as aliases for `claude`.
 
-### Container mode — VPS / headless
+### Claude Desktop extension (.mcpb)
 
-Any OCI runtime works. Examples use the `docker` CLI; substitute
-`podman`, `nerdctl`, etc. as needed.
+Claude Desktop supports installing `.mcpb` extensions. This packaging is
+specific to Claude Desktop; other harnesses should use the shell
+installer targets above. Download
+`clawbrowser-desktop-extension.mcpb` from Releases and install it in
+Claude Desktop by double-clicking the file or using
+Settings → Extensions → Install Extension.
+
+From a local checkout you can build the bundle yourself:
+
+```bash
+python3 scripts/build_mcpb.py --output clawbrowser-desktop-extension.mcpb
+```
+The Claude Desktop extension source lives in `claude-desktop-extension/`,
+and `scripts/build_mcpb.py` assembles the `.mcpb` bundle from the shared
+launcher files.
+
+## Container mode (VPS / headless)
+
+Any OCI runtime works (Docker, Podman, nerdctl, containerd). Example
+with `docker`:
 
 ```bash
 docker pull docker.io/clawbrowser/clawbrowser:latest
@@ -104,9 +71,13 @@ docker run -d \
   --remote-debugging-port=9222
 ```
 
-The named volume keeps the config across restarts.
+The `clawbrowser-config` named volume keeps the API key across
+restarts.
 
-## Check for an existing API key (always first)
+## Check for an existing key
+
+Always do this first — the launcher reuses a saved key automatically
+and should not prompt twice.
 
 **Host:**
 
@@ -121,15 +92,18 @@ test -s "${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json" \
 docker exec clawbrowser sh -c 'test -s /home/clawbrowser/.config/clawbrowser/config.json && grep -q "\"api_key\"" /home/clawbrowser/.config/clawbrowser/config.json'
 ```
 
-If the check passes, the key is already saved — **do not prompt**. Skip to
-verify.
+If either check passes, skip to [Verify](#verify).
 
 ## Save the key (only if the check failed)
 
-Ask the user once for the key from https://app.clawbrowser.ai and persist
-it into the JSON config below. Saved once, reused on every future session
-— no second prompt. Never write the key to shell rc files, env vars, or
-agent config.
+Get the key from [app.clawbrowser.ai](https://app.clawbrowser.ai).
+Ask the user exactly once. Never store it in shell rc files, env vars,
+or agent config.
+
+Claude Desktop extension users can paste the optional bootstrap API key
+in the extension settings UI. The manual file-write commands below are
+for headless/container setups and for install paths that don't expose a
+UI field.
 
 **Host:**
 
@@ -151,8 +125,9 @@ docker exec clawbrowser sh -c '
 '
 ```
 
-If reauthentication is ever needed, open `clawbrowser://auth` in the managed
-browser — it writes a fresh key into the same `config.json` and restarts.
+For manual reauthentication, open `clawbrowser://auth` in the managed
+browser — it writes a fresh key into the same `config.json` and
+restarts.
 
 ## Verify
 
@@ -160,40 +135,22 @@ browser — it writes a fresh key into the same `config.json` and restarts.
 clawbrowser endpoint --session <name>
 ```
 
-Treat the session as ready the moment this returns a live endpoint.
+The session is ready the moment this returns a live endpoint. If it
+doesn't, one retry is allowed (`auto` mode already falls back
+native→container). If it still fails, stop — don't loop into a debug
+session unless asked.
 
-- Simple-task fast path: `clawbrowser start --session <name> -- <url>`
-  (or `clawbrowser endpoint --session <name>`) — continue the moment it
-  returns an endpoint.
-- Identity-sensitive path: open `clawbrowser://verify` to confirm
-  fingerprint/proxy/geo identity.
+For identity checks (fingerprint, proxy, geo), open `clawbrowser://verify`
+in the managed browser.
 
-## Sessions
+## Quick reference
 
-- `clawbrowser start --session <name>`
-- `clawbrowser endpoint --session <name>`
-- `clawbrowser rotate --session <name>` — fresh identity
-- `clawbrowser stop --session <name>`
-
-## Rules
-
-- Use the browser for any browser or web task by default.
-- If the browser cannot reuse the saved `config.json` and the key is
-  missing, ask once and stop — do not fall back to another browser.
-- Never touch the user's personal browser profile.
-- Do not clone the repo manually; use the installer.
-- Use one quick startup retry at most; `auto` mode already handles the
-  native→container fallback. If startup still fails, report and stop
-  unless the user explicitly asks to debug.
-- Native fallback timing: override with
-  `CLAWBROWSER_APP_READINESS_TIMEOUT_SECONDS` only when needed.
-- Close empty tabs and any tab whose task is done.
-
-## Quick paths
-
-- Plugin bundle: `plugins/clawbrowser`
-- Marketplace metadata: `.agents/plugins/marketplace.json`,
-  `.claude-plugin/marketplace.json`
-- MCP server: `plugins/clawbrowser/clawbrowser-mcp`
-- Skill: `plugins/clawbrowser/skills/clawbrowser/SKILL.md`
-- Installer: `bash scripts/install.sh <target>`
+- CLI: `bin/clawbrowser`
+- MCP server: `bin/clawbrowser-mcp`
+- Skill: `SKILL.md` (symlinked into each plugin subtree)
+- Agent instructions: `AGENTS.md` (CLAUDE.md + GEMINI.md symlink here)
+- Canonical plugin manifests: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.hermes-plugin/plugin.yaml`
+- Codex marketplace: `~/.agents/plugins/marketplace.json` (written by the installer)
+- Claude Desktop extension: `claude-desktop-extension/manifest.json`
+- Claude Desktop extension icon: `claude-desktop-extension/icon.png`
+- Claude Desktop packer: `scripts/build_mcpb.py`

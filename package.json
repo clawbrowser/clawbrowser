@@ -2,9 +2,12 @@
   "name": "clawbrowser",
   "version": "1.0.0",
   "private": true,
-  "description": "Bootstrapper for the Clawbrowser agent plugin bundle",
+  "description": "Bootstrapper for the Clawbrowser agent plugin bundle and Claude Desktop extension",
   "bin": {
     "clawbrowser": "./bin/clawbrowser-install.js"
+  },
+  "scripts": {
+    "build:mcpb": "python3 scripts/build_mcpb.py"
   },
   "license": "MIT",
   "type": "commonjs"
