@@ -1,0 +1,21 @@
+name: clawbrowser
+version: 1.0.0
+description: >-
+  Agent-only browser runtime with fingerprints, proxies, and rotating
+  identities. Manages CDP sessions without touching the user's personal
+  browser profile.
+author: Clawbrowser
+provides_tools:
+  - clawbrowser_start
+  - clawbrowser_endpoint
+  - clawbrowser_rotate
+  - clawbrowser_stop
+  - clawbrowser_status
+provides_hooks:
+  - pre_llm_call
+  - post_tool_call
+requires_env:
+  - name: CLAWBROWSER_API_KEY
+    description: "API key for Clawbrowser (only needed if no saved config exists)"
+    url: "https://app.clawbrowser.ai"
+    secret: true

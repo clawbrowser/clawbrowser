@@ -10,6 +10,7 @@ Supported surfaces:
 - Cursor
 - Codex app and plugin-capable Codex surfaces
 - Gemini CLI
+- Hermes Agent
 - Other agents
 
 ### npx install
@@ -25,6 +26,7 @@ Targets:
 - `claude` for Claude Code and Claude Desktop (`claude-desktop` is an alias)
 - `codex` for Codex
 - `gemini` for Gemini CLI
+- `hermes` for Hermes Agent
 - `all` for other agents or multi-target installs
 
 ### Claude Code and Claude Desktop
@@ -56,6 +58,18 @@ Codex copies the plugin into `~/.codex/plugins/clawbrowser` and marks it
 ```bash
 curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- gemini
 ```
+
+### Hermes Agent
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- hermes
+```
+
+The installer copies the plugin into `~/.hermes/plugins/clawbrowser` and
+enables it in `~/.hermes/config.yaml`. The plugin registers five tools
+(`clawbrowser_start`, `clawbrowser_endpoint`, `clawbrowser_rotate`,
+`clawbrowser_stop`, `clawbrowser_status`), lifecycle hooks, and a bundled
+skill.
 
 ### Other agents
 

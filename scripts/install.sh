@@ -7,6 +7,7 @@ INSTALL_ROOT="${CLAWBROWSER_INSTALL_ROOT:-${HOME}/.clawbrowser}"
 INSTALL_BIN="${CLAWBROWSER_INSTALL_BIN:-${HOME}/.local/bin}"
 CODEX_PLUGINS_ROOT="${CLAWBROWSER_CODEX_PLUGINS_ROOT:-${HOME}/.codex/plugins}"
 AGENTS_PLUGINS_ROOT="${CLAWBROWSER_AGENTS_PLUGINS_ROOT:-${HOME}/.agents/plugins}"
+HERMES_PLUGINS_ROOT="${CLAWBROWSER_HERMES_PLUGINS_ROOT:-${HOME}/.hermes/plugins}"
 IMAGE_TAG="${CLAWBROWSER_IMAGE_TAG:-clawbrowser:latest}"
 RUNTIME_IMAGE="${CLAWBROWSER_RUNTIME_IMAGE:-docker.io/clawbrowser/clawbrowser:latest}"
 BUILD_DOCKER="${CLAWBROWSER_BUILD_DOCKER:-0}"
@@ -27,13 +28,14 @@ die() {
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/install.sh [all|codex|claude|gemini]
-  bash scripts/install.sh --target <all|codex|claude|gemini>
+  bash scripts/install.sh [all|codex|claude|gemini|hermes]
+  bash scripts/install.sh --target <all|codex|claude|gemini|hermes>
   curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- <target>
 
 Environment overrides:
   CLAWBROWSER_INSTALL_ROOT   Bundle install root, default: ~/.clawbrowser
   CLAWBROWSER_INSTALL_BIN    Command install directory, default: ~/.local/bin
+  CLAWBROWSER_HERMES_PLUGINS_ROOT  Hermes plugin directory, default: ~/.hermes/plugins
   CLAWBROWSER_IMAGE_TAG      Docker image tag to build locally, default: clawbrowser:latest
   CLAWBROWSER_RUNTIME_IMAGE  Docker image used at runtime when no native app bundle exists, default: docker.io/clawbrowser/clawbrowser:latest
   CLAWBROWSER_BUILD_DOCKER    Set to 1 to build a local Docker image from the release asset
@@ -132,7 +134,7 @@ ensure_source_root() {
 
 normalize_target() {
   case "${1}" in
-    all|codex|claude|claude-desktop|gemini)
+    all|codex|claude|claude-desktop|gemini|hermes)
       case "${1}" in
         claude-desktop) printf '%s\n' "claude" ;;
         *) printf '%s\n' "${1}" ;;
@@ -523,6 +525,88 @@ register_gemini_extension() {
   log "Registered Gemini CLI extension: ${gemini_extensions}/clawbrowser"
 }
 
+install_hermes_plugin() {
+  local source_dir="${INSTALL_ROOT}/plugins/clawbrowser/.hermes-plugin"
+  local target_dir="${HERMES_PLUGINS_ROOT}/clawbrowser"
+
+  if [[ ! -d "${source_dir}" ]]; then
+    log "Hermes plugin source not found at ${source_dir}; skipping"
+    return 0
+  fi
+
+  log "Installing Hermes plugin into ${target_dir}"
+  mkdir -p "${HERMES_PLUGINS_ROOT}"
+  rm -rf "${target_dir}"
+  cp -R "${source_dir}" "${target_dir}"
+
+  # Copy the clawbrowser and clawbrowser-mcp binaries into the plugin
+  # so the tools can locate them even without PATH setup.
+  cp "${INSTALL_ROOT}/clawbrowser" "${target_dir}/clawbrowser" 2>/dev/null || true
+  cp "${INSTALL_ROOT}/clawbrowser-mcp" "${target_dir}/clawbrowser-mcp" 2>/dev/null || true
+  chmod +x "${target_dir}/clawbrowser" "${target_dir}/clawbrowser-mcp" 2>/dev/null || true
+
+  log "Hermes plugin installed: ${target_dir}"
+}
+
+enable_hermes_plugin() {
+  local hermes_config="${HOME}/.hermes/config.yaml"
+
+  if [[ ! -f "${hermes_config}" ]]; then
+    mkdir -p "$(dirname "${hermes_config}")"
+    printf 'plugins:\n  enabled:\n    - clawbrowser\n' > "${hermes_config}"
+    log "Created Hermes config with clawbrowser enabled: ${hermes_config}"
+    return 0
+  fi
+
+  python3 - "${hermes_config}" <<'PY'
+import sys
+
+config_path = sys.argv[1]
+
+with open(config_path, "r") as f:
+    content = f.read()
+
+if "clawbrowser" in content:
+    sys.exit(0)
+
+lines = content.rstrip("\n").split("\n")
+output_lines = []
+in_enabled = False
+inserted = False
+
+for line in lines:
+    output_lines.append(line)
+    stripped = line.strip()
+    if stripped == "enabled:":
+        in_enabled = True
+        continue
+    if in_enabled and stripped.startswith("- "):
+        continue
+    if in_enabled and not stripped.startswith("- "):
+        output_lines.insert(len(output_lines) - 1, "    - clawbrowser")
+        in_enabled = False
+        inserted = True
+
+if in_enabled and not inserted:
+    output_lines.append("    - clawbrowser")
+    inserted = True
+
+if not inserted:
+    if "plugins:" not in content:
+        output_lines.append("plugins:")
+        output_lines.append("  enabled:")
+        output_lines.append("    - clawbrowser")
+    else:
+        output_lines.append("  enabled:")
+        output_lines.append("    - clawbrowser")
+
+with open(config_path, "w") as f:
+    f.write("\n".join(output_lines) + "\n")
+PY
+
+  log "Enabled clawbrowser in Hermes config: ${hermes_config}"
+}
+
 build_docker_fallback() {
   local archive_path helper_path
 
@@ -598,6 +682,11 @@ main() {
 
   if [[ "${TARGET}" == "all" || "${TARGET}" == "gemini" ]]; then
     register_gemini_extension
+  fi
+
+  if [[ "${TARGET}" == "all" || "${TARGET}" == "hermes" ]]; then
+    install_hermes_plugin
+    enable_hermes_plugin
   fi
 
   if [[ "${TARGET}" == "codex" ]]; then
