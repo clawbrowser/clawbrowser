@@ -11,9 +11,11 @@ commands live in [INSTALL.md](./INSTALL.md).
 
 - **Host** — desktop/macOS or Linux with a display. Config:
   `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`.
-- **Container** — VPS, SSH-only, headless. OCI image
+- **Container** — VPS, SSH-only, or no physical display. OCI image
   `docker.io/clawbrowser/clawbrowser:latest` with Docker or a
   Docker-compatible OCI CLI configured through `CLAWBROWSER_DOCKER_BIN`.
+  This runs full Clawbrowser with a virtual Linux display and exposes CDP;
+  it is not Chrome headless mode.
   Config: `/home/clawbrowser/.config/clawbrowser/config.json` in the
   `clawbrowser-config` named volume.
 
@@ -29,10 +31,11 @@ back native→container on its own.
    files, env vars, or agent config. Use `clawbrowser://auth` only for
    manual browser reauthentication — it writes the key into the same
    `config.json`.
-3. **Verify** with `clawbrowser start --session <name> -- about:blank`,
+3. **Verify** with `clawbrowser start --session <name> -- clawbrowser://verify`,
    then `clawbrowser endpoint --session <name>` if the endpoint is needed
-   again. The session is ready the moment either returns a live CDP
-   endpoint.
+   again. This proves the managed browser opened the verify page and CDP is
+   live. Do not claim deeper fingerprint/proxy quality unless the browser
+   returns a clear verification result.
 
 See [INSTALL.md](./INSTALL.md) for exact commands.
 

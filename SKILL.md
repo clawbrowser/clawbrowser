@@ -9,10 +9,12 @@ description: Install and operate Clawbrowser as an agent-only browser runtime wi
 
 - **Host mode** — desktop/macOS or Linux with a display.
   Config: `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`.
-- **Container mode** — VPS, server, SSH-only, headless.
+- **Container mode** — VPS, server, SSH-only, or no physical display.
   OCI image `docker.io/clawbrowser/clawbrowser:latest` (Docker or a
   Docker-compatible OCI CLI; set `CLAWBROWSER_DOCKER_BIN` for non-Docker
   launchers).
+  This runs full Clawbrowser with a virtual Linux display and exposes CDP;
+  it is not Chrome headless mode.
   Config in the container at
   `/home/clawbrowser/.config/clawbrowser/config.json`, persisted in the
   `clawbrowser-config` named volume.
@@ -23,7 +25,8 @@ falls back native→container on startup failure.
 ## Install
 
 - Prefer the repo-local marketplace or the `scripts/install.sh` bootstrap.
-- Pick a target based on the agent: `claude`, `codex`, `gemini`, or `all`.
+- Pick a target based on the agent: `auto`, `hermes`, `claude`, `codex`,
+  `gemini`, or explicit `all` for multi-target installs.
 - In container mode, also pull and run the container image — see the
   "Container launch" block below.
 
@@ -94,12 +97,13 @@ docker run -d \
 ## Verify
 
 ```bash
-clawbrowser start --session <name> -- about:blank
+clawbrowser start --session <name> -- clawbrowser://verify
 clawbrowser endpoint --session <name>
 ```
 
-Treat the session as ready the moment either command returns a live
-endpoint.
+Install verification means the managed browser opened the verify page and
+returned a live endpoint. Do not claim deeper fingerprint/proxy quality
+unless the browser itself returns a clear verification result.
 
 ## Use
 

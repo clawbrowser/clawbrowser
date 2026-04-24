@@ -114,10 +114,30 @@ def _truthy(value) -> bool:
     return str(value).strip().lower() not in {"", "0", "false", "no", "off"}
 
 
+def _bad_fingerprint_value(value) -> bool:
+    if value is None or isinstance(value, bool):
+        return False
+    return str(value).strip().lower() in {
+        "0",
+        "false",
+        "no",
+        "none",
+        "off",
+        "disabled",
+        "disable",
+        "no-fingerprint",
+    }
+
+
 def _append_browser_args(cmd: list[str], args: dict) -> None:
     browser_args = []
 
     fingerprint = args.get("fingerprint")
+    if _bad_fingerprint_value(fingerprint):
+        raise ValueError(
+            "Invalid fingerprint override. Omit fingerprint for the launcher default, "
+            "or pass true/a valid profile value."
+        )
     if _truthy(fingerprint):
         browser_args.append("--fingerprint")
         if not isinstance(fingerprint, bool) and str(fingerprint).strip().lower() not in {"1", "true", "yes", "on"}:
@@ -215,7 +235,10 @@ def clawbrowser_start(args: dict, **kwargs) -> str:
         cmd.extend(["--image", str(args["image"])])
     if args.get("verify"):
         cmd.append("--verify")
-    _append_browser_args(cmd, args)
+    try:
+        _append_browser_args(cmd, args)
+    except ValueError as exc:
+        return json.dumps({"status": "error", "error": str(exc)})
 
     result = _run(cmd, timeout=90, api_key=api_key, image=args.get("image"))
     return json.dumps(result)
@@ -246,7 +269,10 @@ def clawbrowser_rotate(args: dict, **kwargs) -> str:
         cmd.extend(["--image", str(args["image"])])
     if args.get("verify"):
         cmd.append("--verify")
-    _append_browser_args(cmd, args)
+    try:
+        _append_browser_args(cmd, args)
+    except ValueError as exc:
+        return json.dumps({"status": "error", "error": str(exc)})
 
     result = _run(cmd, timeout=90, api_key=api_key, image=args.get("image"))
     return json.dumps(result)

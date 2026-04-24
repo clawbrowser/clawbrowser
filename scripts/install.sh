@@ -12,7 +12,7 @@ HERMES_PLUGINS_ROOT="${CLAWBROWSER_HERMES_PLUGINS_ROOT:-${HOME}/.hermes/plugins}
 GEMINI_EXTENSIONS_ROOT="${CLAWBROWSER_GEMINI_EXTENSIONS_ROOT:-${HOME}/.gemini/extensions}"
 RUNTIME_IMAGE="${CLAWBROWSER_RUNTIME_IMAGE:-docker.io/clawbrowser/clawbrowser:latest}"
 RELEASE_REF="${CLAWBROWSER_RELEASE_REF:-latest}"
-TARGET="${CLAWBROWSER_TARGET:-all}"
+TARGET="${CLAWBROWSER_TARGET:-auto}"
 SOURCE_ARCHIVE_URL="${CLAWBROWSER_SOURCE_ARCHIVE_URL:-}"
 RESOLVED_RELEASE_TAG=""
 
@@ -28,11 +28,12 @@ die() {
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/install.sh [all|codex|claude|gemini|hermes]
-  bash scripts/install.sh --target <all|codex|claude|gemini|hermes>
+  bash scripts/install.sh [auto|all|codex|claude|gemini|hermes]
+  bash scripts/install.sh --target <auto|all|codex|claude|gemini|hermes>
   curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- <target>
 
 Environment overrides:
+  CLAWBROWSER_TARGET         Install target, default: auto
   CLAWBROWSER_INSTALL_ROOT   Bundle install root, default: ~/.clawbrowser
   CLAWBROWSER_INSTALL_BIN    Command install directory, default: ~/.local/bin
   CLAWBROWSER_CLAUDE_PLUGINS_ROOT  Claude plugin directory, default: ~/.claude/plugins
@@ -139,11 +140,82 @@ ensure_source_root() {
 
 normalize_target() {
   case "${1}" in
-    all|codex|claude|gemini|hermes) printf '%s\n' "${1}" ;;
+    auto|all|codex|claude|gemini|hermes) printf '%s\n' "${1}" ;;
     *)
       die "Unknown target: ${1}"
       ;;
   esac
+}
+
+ancestor_process_matches() {
+  local pattern="$1"
+  local pid="${PPID:-}"
+  local command parent
+
+  while [[ -n "${pid}" && "${pid}" != "0" ]]; do
+    command="$(ps -p "${pid}" -o comm= 2>/dev/null || true)"
+    if [[ "${command}" == *"${pattern}"* ]]; then
+      return 0
+    fi
+    parent="$(ps -p "${pid}" -o ppid= 2>/dev/null | tr -d ' ' || true)"
+    if [[ -z "${parent}" || "${parent}" == "${pid}" ]]; then
+      break
+    fi
+    pid="${parent}"
+  done
+
+  return 1
+}
+
+detect_target() {
+  if [[ -n "${HERMES_SESSION_ID:-}" || -n "${HERMES_HOME:-}" ]] || ancestor_process_matches "hermes"; then
+    printf '%s\n' hermes
+    return 0
+  fi
+
+  if [[ -n "${CODEX_SANDBOX:-}" || -n "${CODEX_HOME:-}" ]] || ancestor_process_matches "codex"; then
+    printf '%s\n' codex
+    return 0
+  fi
+
+  if [[ -n "${CLAUDECODE:-}" || -n "${CLAUDE_CODE_ENTRYPOINT:-}" ]] || ancestor_process_matches "claude"; then
+    printf '%s\n' claude
+    return 0
+  fi
+
+  if [[ -n "${GEMINI_CLI:-}" ]] || ancestor_process_matches "gemini"; then
+    printf '%s\n' gemini
+    return 0
+  fi
+
+  if command -v hermes >/dev/null 2>&1; then
+    printf '%s\n' hermes
+    return 0
+  fi
+
+  if command -v codex >/dev/null 2>&1; then
+    printf '%s\n' codex
+    return 0
+  fi
+
+  if command -v claude >/dev/null 2>&1; then
+    printf '%s\n' claude
+    return 0
+  fi
+
+  if command -v gemini >/dev/null 2>&1; then
+    printf '%s\n' gemini
+    return 0
+  fi
+
+  printf '%s\n' hermes
+}
+
+resolve_target() {
+  if [[ "${TARGET}" == "auto" ]]; then
+    TARGET="$(detect_target)"
+    log "Auto-detected install target: ${TARGET}"
+  fi
 }
 
 parse_args() {
@@ -161,7 +233,7 @@ parse_args() {
       install)
         shift
         ;;
-      all|codex|claude|gemini|hermes)
+      auto|all|codex|claude|gemini|hermes)
         TARGET="$(normalize_target "${1}")"
         shift
         ;;
@@ -350,7 +422,7 @@ plugin_install_notice() {
   local message="$1"
   log "WARNING: ${message}"
   log "INFO: Continuing without this plugin step."
-  log "INFO: Fallback: use clawbrowser in headless/container mode, then rerun with a full release bundle if plugin assets are required."
+  log "INFO: Fallback: use clawbrowser in container mode for servers/no physical display, then rerun with a full release bundle if plugin assets are required."
 }
 
 ensure_plugin_bundle_dir() {
@@ -581,6 +653,7 @@ copy_bundle() {
   local preserved_app_dir=""
   local preserved_app_path_file=""
   local preserve_tmp=""
+  local path
 
   if [[ -e "${INSTALL_ROOT}/Clawbrowser.app" || -f "${INSTALL_ROOT}/app_bundle_path" ]]; then
     preserve_tmp="$(mktemp -d)"
@@ -597,7 +670,39 @@ copy_bundle() {
   log "Installing shared bundle into ${INSTALL_ROOT}"
   rm -rf "${INSTALL_ROOT}"
   mkdir -p "${INSTALL_ROOT}"
-  cp -R "${SOURCE_ROOT}/." "${INSTALL_ROOT}/"
+
+  mkdir -p "${INSTALL_ROOT}/bin" "${INSTALL_ROOT}/scripts"
+  cp -R "${SOURCE_ROOT}/bin/." "${INSTALL_ROOT}/bin/"
+
+  for path in \
+    ".claude-plugin" \
+    ".codex-plugin" \
+    ".hermes-plugin" \
+    ".openclaw-plugin"
+  do
+    if [[ -e "${SOURCE_ROOT}/${path}" ]]; then
+      cp -RL "${SOURCE_ROOT}/${path}" "${INSTALL_ROOT}/${path}"
+    fi
+  done
+
+  for path in \
+    "AGENTS.md" \
+    "SKILL.md" \
+    "INSTALL.md" \
+    "README.md" \
+    ".mcp.json" \
+    "gemini-extension.json" \
+    "package.json" \
+    "scripts/install.sh" \
+    "scripts/clawbrowser_launcher_test.sh"
+  do
+    if [[ -f "${SOURCE_ROOT}/${path}" ]]; then
+      mkdir -p "${INSTALL_ROOT}/$(dirname "${path}")"
+      cp -L "${SOURCE_ROOT}/${path}" "${INSTALL_ROOT}/${path}"
+    fi
+  done
+
+  find "${INSTALL_ROOT}" -type d -name "__pycache__" -prune -exec rm -rf {} + 2>/dev/null || true
 
   if [[ -n "${preserved_app_dir}" && -e "${preserved_app_dir}" ]]; then
     rm -rf "${INSTALL_ROOT}/Clawbrowser.app"
@@ -761,6 +866,7 @@ install_hermes_plugin() {
     plugin_install_notice "Failed to copy Hermes plugin from ${source_dir} to ${target_dir}"
     return 0
   fi
+  find "${target_dir}" -type d -name "__pycache__" -prune -exec rm -rf {} + 2>/dev/null || true
 
   # Copy the clawbrowser and clawbrowser-mcp binaries into the plugin
   # so the tools can locate them even without PATH setup.
@@ -773,18 +879,40 @@ install_hermes_plugin() {
 
 enable_hermes_plugin() {
   local hermes_config="${HOME}/.hermes/config.yaml"
+  local mcp_command="${INSTALL_BIN}/clawbrowser-mcp"
+
+  if [[ ! -x "${mcp_command}" ]]; then
+    mcp_command="$(command -v clawbrowser-mcp 2>/dev/null || printf '%s\n' "clawbrowser-mcp")"
+  fi
 
   if [[ ! -f "${hermes_config}" ]]; then
     mkdir -p "$(dirname "${hermes_config}")"
-    printf 'plugins:\n  enabled:\n    - clawbrowser\n' > "${hermes_config}"
+    python3 - "${hermes_config}" "${mcp_command}" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+mcp_command = sys.argv[2]
+path.write_text(
+    "plugins:\n"
+    "  enabled:\n"
+    "    - clawbrowser\n"
+    "\n"
+    "mcp_servers:\n"
+    "  clawbrowser:\n"
+    f"    command: {mcp_command!r}\n",
+    encoding="utf-8",
+)
+PY
     log "Created Hermes config with clawbrowser enabled: ${hermes_config}"
     return 0
   fi
 
-  python3 - "${hermes_config}" <<'PY'
+  python3 - "${hermes_config}" "${mcp_command}" <<'PY'
 import sys
 
 config_path = sys.argv[1]
+mcp_command = sys.argv[2]
 
 with open(config_path, "r") as f:
     content = f.read()
@@ -803,6 +931,23 @@ def is_blank_or_comment(line):
 
 def is_key(line, key, indent):
     return indentation(line) == indent and line.strip().split("#", 1)[0].strip() == f"{key}:"
+
+
+def top_level_block(key):
+    start = None
+    for index, line in enumerate(lines):
+        if is_key(line, key, 0):
+            start = index
+            break
+    if start is None:
+        return None, None
+
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        if not is_blank_or_comment(lines[index]) and indentation(lines[index]) == 0:
+            end = index
+            break
+    return start, end
 
 
 plugins_index = None
@@ -845,11 +990,51 @@ else:
         if "clawbrowser" not in enabled_items:
             lines.insert(enabled_block_end, "    - clawbrowser")
 
+mcp_index, mcp_end = top_level_block("mcp_servers")
+if mcp_index is None:
+    if lines and lines[-1].strip():
+        lines.append("")
+    lines.extend([
+        "mcp_servers:",
+        "  clawbrowser:",
+        f"    command: {mcp_command!r}",
+    ])
+else:
+    claw_index = None
+    for index in range(mcp_index + 1, mcp_end):
+        if is_key(lines[index], "clawbrowser", 2):
+            claw_index = index
+            break
+
+    if claw_index is None:
+        lines[mcp_end:mcp_end] = [
+            "  clawbrowser:",
+            f"    command: {mcp_command!r}",
+        ]
+    else:
+        claw_end = mcp_end
+        for index in range(claw_index + 1, mcp_end):
+            if not is_blank_or_comment(lines[index]) and indentation(lines[index]) <= 2:
+                claw_end = index
+                break
+
+        command_index = None
+        for index in range(claw_index + 1, claw_end):
+            if indentation(lines[index]) == 4 and lines[index].strip().split("#", 1)[0].strip().startswith("command:"):
+                command_index = index
+                break
+
+        command_line = f"    command: {mcp_command!r}"
+        if command_index is None:
+            lines.insert(claw_index + 1, command_line)
+        else:
+            lines[command_index] = command_line
+
 with open(config_path, "w") as f:
     f.write("\n".join(lines) + "\n")
 PY
 
-  log "Enabled clawbrowser in Hermes config: ${hermes_config}"
+  log "Enabled clawbrowser and MCP server in Hermes config: ${hermes_config}"
 }
 
 docker_image_available() {
@@ -863,6 +1048,7 @@ docker_image_available() {
 
 main() {
   parse_args "$@"
+  resolve_target
   require_command bash
   require_command mktemp
   require_command python3
@@ -917,6 +1103,10 @@ main() {
 
   if [[ "${TARGET}" == "claude" ]]; then
     log "Claude target selected: the shared bundle and Claude plugin copy are installed."
+  fi
+
+  if [[ "${TARGET}" == "hermes" ]]; then
+    log "Hermes target selected: the shared bundle, Hermes plugin, and MCP config are installed."
   fi
 
   log "Installed commands:"

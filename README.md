@@ -25,7 +25,7 @@ Clawbrowser ships in a few surfaces depending on the agent:
 
 ## Install
 
-Pick the integration that matches your agent harness.
+Use the default `auto` target unless you already know the agent harness.
 
 ### Shell installer (plugins + CLI)
 
@@ -34,6 +34,15 @@ curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/script
 ```
 
 Targets:
+
+- Auto-detect current agent (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- auto
+```
+
+`auto` chooses `hermes`, `codex`, `claude`, or `gemini`; it does not install
+every integration unless you explicitly choose `all`.
 
 - OpenAI Codex (CLI + plugin-capable surfaces)
 
@@ -57,7 +66,8 @@ curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/script
 ```
 
 Installs the Hermes plugin into `~/.hermes/plugins/clawbrowser` and
-enables it in `~/.hermes/config.yaml`. Eight tools land immediately:
+enables it in `~/.hermes/config.yaml`. It also configures the portable
+`clawbrowser-mcp` MCP server. Eight native tools land immediately:
 `clawbrowser_start`, `clawbrowser_endpoint`, `clawbrowser_rotate`,
 `clawbrowser_open_url`, `clawbrowser_list_tabs`,
 `clawbrowser_close_tabs`, `clawbrowser_stop`, `clawbrowser_status`.
@@ -102,9 +112,11 @@ tabs, but should not stop sessions automatically.
 
 - **Host mode** — macOS or Linux with a display. Uses
   `Clawbrowser.app` when present.
-- **Container mode** — VPS, server, SSH-only, headless. Uses
+- **Container mode** — VPS, server, SSH, or no physical display. Uses
   `docker.io/clawbrowser/clawbrowser:latest` via Docker or a
   Docker-compatible OCI CLI configured through `CLAWBROWSER_DOCKER_BIN`.
+  This runs full Clawbrowser with a virtual Linux display and exposes CDP;
+  it is not Chrome headless mode.
 
 In `auto` mode the launcher prefers the native app on macOS and falls
 back to container automatically if native CDP startup fails.

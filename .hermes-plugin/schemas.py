@@ -48,7 +48,7 @@ CLAWBROWSER_START = {
             },
             "fingerprint": {
                 "type": ["boolean", "string"],
-                "description": "Optional fingerprint mode override. Omit for launcher default; true passes --fingerprint.",
+                "description": "Optional fingerprint mode override. Omit for launcher default; true passes --fingerprint. Values like none/off/disabled are rejected.",
             },
             "regenerate": {
                 "type": "boolean",
@@ -132,7 +132,7 @@ CLAWBROWSER_ROTATE = {
             },
             "fingerprint": {
                 "type": ["boolean", "string"],
-                "description": "Optional fingerprint mode override. Omit for launcher default; true passes --fingerprint.",
+                "description": "Optional fingerprint mode override. Omit for launcher default; true passes --fingerprint. Values like none/off/disabled are rejected.",
             },
             "regenerate": {
                 "type": "boolean",

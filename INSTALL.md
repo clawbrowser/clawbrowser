@@ -7,7 +7,7 @@ in container mode.
 ## Install commands
 
 Clawbrowser ships as a CLI + MCP server, plus optional harness-specific
-plugins/extensions. Choose the install path that matches your agent
+plugins/extensions. Use `auto` unless you already know the exact agent
 harness.
 
 ### Shell installer (plugins + CLI)
@@ -28,22 +28,24 @@ Targets:
 
 | Target   | Wires up                                                  |
 |----------|-----------------------------------------------------------|
+| `auto`   | Detects the current agent and installs one matching target |
+| `hermes` | Hermes plugin + MCP config in `~/.hermes/config.yaml`     |
 | `codex`  | Codex plugin + `~/.agents/plugins/marketplace.json`       |
 | `gemini` | Gemini CLI extension                                      |
-| `hermes` | Hermes plugin + enables it in `~/.hermes/config.yaml`     |
 | `claude` | Claude Code plugin bundle                                |
-| `all`    | Everything above (Cursor and other plugin-capable agents) |
+| `all`    | Everything above; use only for intentional multi-target installs |
 
 The installer also materializes the OpenClaw bootstrap scaffold into
 `${CLAWBROWSER_INSTALL_ROOT:-~/.clawbrowser}/.openclaw-plugin`,
 runs its idempotent `init.sh` bootstrap hook, and creates
 `${CLAWBROWSER_INSTALL_BIN:-~/.local/bin}/openclaw-plugin-init`.
 
-## Container mode (VPS / headless)
+## Container mode (VPS / no physical display)
 
-Docker or a Docker-compatible OCI CLI can run the published image. The
-example uses `docker`; for the launcher set `CLAWBROWSER_DOCKER_BIN` when
-using a compatible non-Docker CLI:
+Docker or a Docker-compatible OCI CLI can run the published image. This is
+not Chrome headless mode: it runs full Clawbrowser with a virtual Linux
+display and exposes CDP. The example uses `docker`; for the launcher set
+`CLAWBROWSER_DOCKER_BIN` when using a compatible non-Docker CLI:
 
 ```bash
 docker pull docker.io/clawbrowser/clawbrowser:latest
@@ -120,21 +122,13 @@ restarts.
 ## Verify
 
 ```bash
-clawbrowser start --session <name> -- about:blank
+clawbrowser start --session <name> -- clawbrowser://verify
 clawbrowser endpoint --session <name>
 ```
 
-The session is ready the moment either command returns a live endpoint. If
-startup doesn't, one retry is allowed (`auto` mode already falls back
-native→container). If it still fails, stop — don't loop into a debug
-session unless asked.
-
-For identity checks (fingerprint, proxy, geo), open `clawbrowser://verify`
-in the managed browser:
-
-```bash
-clawbrowser start --session <name> -- clawbrowser://verify
-```
+Install verification means the managed browser opened the verify page and
+returned a live CDP endpoint. Do not claim deeper fingerprint/proxy quality
+unless the browser itself returns a clear verification result.
 
 ## Quick reference
 
@@ -146,3 +140,5 @@ clawbrowser start --session <name> -- clawbrowser://verify
 - Agent instructions: `AGENTS.md` (CLAUDE.md + GEMINI.md symlink here)
 - Canonical plugin manifests: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.hermes-plugin/plugin.yaml`
 - Codex marketplace: `~/.agents/plugins/marketplace.json` (written by the installer)
+- Hermes MCP config: public docs use `command: "clawbrowser-mcp"`; the
+  installer may write the resolved user-local command path.

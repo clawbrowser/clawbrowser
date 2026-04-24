@@ -9,16 +9,13 @@ from . import schemas, tools
 logger = logging.getLogger(__name__)
 
 _BROWSER_CONTEXT = """\
-Clawbrowser is available as the default managed browser. Use it for any \
-browser or web task instead of the user's personal browser.
-- start/open: clawbrowser_start with session and optional url
-- endpoint: clawbrowser_endpoint returns the live CDP endpoint
-- rotate: clawbrowser_rotate refreshes identity/fingerprint
-- verify/auth: clawbrowser_open_url with clawbrowser://verify or clawbrowser://auth
-- tabs: clawbrowser_list_tabs then clawbrowser_close_tabs for about:blank or finished tabs
-- stop: clawbrowser_stop only when the user asks to close the session
-- Never fall back to the system browser if Clawbrowser is available
-- Close blank/unneeded tabs, but do not stop sessions automatically\
+Clawbrowser is the default managed browser for web tasks. Use clawbrowser_* \
+tools or Clawbrowser MCP tools instead of generic browser tools. Do not use \
+the user's personal/system browser or fall back while Clawbrowser is available.
+- Start/open: clawbrowser_start with a session and optional url.
+- Verify/auth: open clawbrowser://verify or clawbrowser://auth in Clawbrowser.
+- Endpoint: clawbrowser_endpoint returns the live CDP endpoint.
+- Tabs: close blank or finished tabs; stop only when the user asks.\
 """
 
 _session_log: list[dict] = []
