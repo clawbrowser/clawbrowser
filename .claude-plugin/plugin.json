@@ -24,7 +24,7 @@
   ],
   "mcpServers": {
     "clawbrowser": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/clawbrowser-mcp"
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/clawbrowser-mcp"
     }
   }
 }

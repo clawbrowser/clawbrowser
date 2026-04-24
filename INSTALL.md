@@ -34,15 +34,16 @@ Targets:
 | `claude` | Claude Code plugin bundle                                |
 | `all`    | Everything above (Cursor and other plugin-capable agents) |
 
-The installer also materializes `.openclaw-plugin` into
+The installer also materializes the OpenClaw bootstrap scaffold into
 `${CLAWBROWSER_INSTALL_ROOT:-~/.clawbrowser}/.openclaw-plugin`,
 runs its idempotent `init.sh` bootstrap hook, and creates
 `${CLAWBROWSER_INSTALL_BIN:-~/.local/bin}/openclaw-plugin-init`.
 
 ## Container mode (VPS / headless)
 
-Any OCI runtime works (Docker, Podman, nerdctl, containerd). Example
-with `docker`:
+Docker or a Docker-compatible OCI CLI can run the published image. The
+example uses `docker`; for the launcher set `CLAWBROWSER_DOCKER_BIN` when
+using a compatible non-Docker CLI:
 
 ```bash
 docker pull docker.io/clawbrowser/clawbrowser:latest
@@ -66,14 +67,22 @@ and should not prompt twice.
 **Host:**
 
 ```bash
-test -s "${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json" \
-  && grep -q '"api_key"' "${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json"
+python3 - "${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text())
+api_key = payload.get("api_key")
+raise SystemExit(0 if isinstance(api_key, str) and api_key.strip() else 1)
+PY
 ```
 
 **Container:**
 
 ```bash
-docker exec clawbrowser sh -c 'test -s /home/clawbrowser/.config/clawbrowser/config.json && grep -q "\"api_key\"" /home/clawbrowser/.config/clawbrowser/config.json'
+docker exec clawbrowser sh -c 'test -s /home/clawbrowser/.config/clawbrowser/config.json && grep -qE "\"api_key\"[[:space:]]*:[[:space:]]*\"[^\"]+\"" /home/clawbrowser/.config/clawbrowser/config.json'
 ```
 
 If either check passes, skip to [Verify](#verify).
@@ -111,27 +120,20 @@ restarts.
 ## Verify
 
 ```bash
+clawbrowser start --session <name> -- about:blank
 clawbrowser endpoint --session <name>
 ```
 
-The session is ready the moment this returns a live endpoint. If it
-doesn't, one retry is allowed (`auto` mode already falls back
+The session is ready the moment either command returns a live endpoint. If
+startup doesn't, one retry is allowed (`auto` mode already falls back
 native→container). If it still fails, stop — don't loop into a debug
 session unless asked.
 
 For identity checks (fingerprint, proxy, geo), open `clawbrowser://verify`
-in the managed browser.
-
-## Validate plugin wiring
+in the managed browser:
 
 ```bash
-bash scripts/validate_openclaw_plugin.sh --mock-cdp
-```
-
-Optional live CDP endpoint check:
-
-```bash
-bash scripts/validate_openclaw_plugin.sh --run-cdp --session openclaw-plugin-validation
+clawbrowser start --session <name> -- clawbrowser://verify
 ```
 
 ## Quick reference
@@ -139,7 +141,7 @@ bash scripts/validate_openclaw_plugin.sh --run-cdp --session openclaw-plugin-val
 - CLI: `bin/clawbrowser`
 - MCP server: `bin/clawbrowser-mcp`
 - OpenClaw bootstrap launcher: `bin/openclaw-plugin-init`
-- OpenClaw plugin scaffold: `.openclaw-plugin/`
+- OpenClaw bootstrap scaffold: `.openclaw-plugin/`
 - Skill: `SKILL.md` (canonical root skill)
 - Agent instructions: `AGENTS.md` (CLAUDE.md + GEMINI.md symlink here)
 - Canonical plugin manifests: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.hermes-plugin/plugin.yaml`

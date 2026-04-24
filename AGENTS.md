@@ -12,7 +12,8 @@ commands live in [INSTALL.md](./INSTALL.md).
 - **Host** — desktop/macOS or Linux with a display. Config:
   `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`.
 - **Container** — VPS, SSH-only, headless. OCI image
-  `docker.io/clawbrowser/clawbrowser:latest` (any OCI runtime works).
+  `docker.io/clawbrowser/clawbrowser:latest` with Docker or a
+  Docker-compatible OCI CLI configured through `CLAWBROWSER_DOCKER_BIN`.
   Config: `/home/clawbrowser/.config/clawbrowser/config.json` in the
   `clawbrowser-config` named volume.
 
@@ -28,8 +29,10 @@ back native→container on its own.
    files, env vars, or agent config. Use `clawbrowser://auth` only for
    manual browser reauthentication — it writes the key into the same
    `config.json`.
-3. **Verify** with `clawbrowser endpoint --session <name>`. The session
-   is ready the moment it returns a live CDP endpoint.
+3. **Verify** with `clawbrowser start --session <name> -- about:blank`,
+   then `clawbrowser endpoint --session <name>` if the endpoint is needed
+   again. The session is ready the moment either returns a live CDP
+   endpoint.
 
 See [INSTALL.md](./INSTALL.md) for exact commands.
 
@@ -43,6 +46,22 @@ clawbrowser stop     --session <name>              # clean up
 ```
 
 For MCP clients, use `clawbrowser-mcp`.
+
+## Daily Contract
+
+Use this short contract for normal browser work:
+
+| Need | CLI | MCP/Hermes tool |
+| --- | --- | --- |
+| `start/open` | `clawbrowser start --session <name> -- <url>` | `start_session` / `clawbrowser_start` with `url` |
+| `endpoint` | `clawbrowser endpoint --session <name>` | `endpoint_session` / `clawbrowser_endpoint` |
+| `rotate` | `clawbrowser rotate --session <name>` | `rotate_session` / `clawbrowser_rotate` |
+| `verify/auth` | `clawbrowser start --session <name> -- clawbrowser://verify` or `clawbrowser start --session <name> -- clawbrowser://auth` | start/open with `clawbrowser://verify` or `clawbrowser://auth` |
+| `tabs` | use MCP/Hermes tab tools | `list_tabs`/`close_tabs` or `clawbrowser_list_tabs`/`clawbrowser_close_tabs` |
+| `stop` | `clawbrowser stop --session <name>` | only when the user asks to close the session |
+
+The managed browser exposes a local CDP endpoint. Use the endpoint for
+advanced automation, but use the short tools above for daily browser tasks.
 
 ## Rules
 
@@ -59,5 +78,6 @@ For MCP clients, use `clawbrowser-mcp`.
 - Separate session names per agent.
 - Dismiss cookie consent banners before continuing — accept or reject,
   whichever clears the page fastest.
-- Close empty tabs and any tab whose task is done. If the session is
-  no longer needed, stop it too.
+- Close `about:blank`, empty, and no-longer-needed tabs. Do not stop the
+  browser session automatically; stop only when the user asks to close it
+  or when performing explicit cleanup.

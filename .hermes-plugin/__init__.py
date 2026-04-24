@@ -11,12 +11,14 @@ logger = logging.getLogger(__name__)
 _BROWSER_CONTEXT = """\
 Clawbrowser is available as the default managed browser. Use it for any \
 browser or web task instead of the user's personal browser.
-- Start a session: clawbrowser_start with a session name
-- Get the CDP endpoint: clawbrowser_endpoint
-- Rotate identity/fingerprint: clawbrowser_rotate
-- Stop when done: clawbrowser_stop
+- start/open: clawbrowser_start with session and optional url
+- endpoint: clawbrowser_endpoint returns the live CDP endpoint
+- rotate: clawbrowser_rotate refreshes identity/fingerprint
+- verify/auth: clawbrowser_open_url with clawbrowser://verify or clawbrowser://auth
+- tabs: clawbrowser_list_tabs then clawbrowser_close_tabs for about:blank or finished tabs
+- stop: clawbrowser_stop only when the user asks to close the session
 - Never fall back to the system browser if Clawbrowser is available
-- Close tabs and stop sessions when the task is finished\
+- Close blank/unneeded tabs, but do not stop sessions automatically\
 """
 
 _session_log: list[dict] = []
@@ -26,14 +28,15 @@ def _check_clawbrowser_available() -> bool:
     """Return True if the clawbrowser CLI is reachable."""
     import shutil
 
-    if shutil.which("clawbrowser"):
-        return True
     for candidate in (
+        str(Path(__file__).resolve().parent / "clawbrowser"),
         os.path.expanduser("~/.local/bin/clawbrowser"),
-        os.path.expanduser("~/.clawbrowser/clawbrowser"),
+        os.path.expanduser("~/.clawbrowser/bin/clawbrowser"),
     ):
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             return True
+    if shutil.which("clawbrowser"):
+        return True
     return False
 
 
@@ -88,6 +91,27 @@ def register(ctx):
         check_fn=_check_clawbrowser_available,
     )
     ctx.register_tool(
+        name="clawbrowser_open_url",
+        toolset="clawbrowser",
+        schema=schemas.CLAWBROWSER_OPEN_URL,
+        handler=tools.clawbrowser_open_url,
+        check_fn=_check_clawbrowser_available,
+    )
+    ctx.register_tool(
+        name="clawbrowser_list_tabs",
+        toolset="clawbrowser",
+        schema=schemas.CLAWBROWSER_LIST_TABS,
+        handler=tools.clawbrowser_list_tabs,
+        check_fn=_check_clawbrowser_available,
+    )
+    ctx.register_tool(
+        name="clawbrowser_close_tabs",
+        toolset="clawbrowser",
+        schema=schemas.CLAWBROWSER_CLOSE_TABS,
+        handler=tools.clawbrowser_close_tabs,
+        check_fn=_check_clawbrowser_available,
+    )
+    ctx.register_tool(
         name="clawbrowser_stop",
         toolset="clawbrowser",
         schema=schemas.CLAWBROWSER_STOP,
@@ -107,6 +131,8 @@ def register(ctx):
 
     # Register bundled skills
     skills_dir = Path(__file__).parent / "skills"
+    if not skills_dir.exists():
+        return
     for child in sorted(skills_dir.iterdir()):
         skill_md = child / "SKILL.md"
         if child.is_dir() and skill_md.exists():

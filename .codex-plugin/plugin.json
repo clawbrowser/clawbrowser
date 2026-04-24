@@ -16,8 +16,6 @@
     "mcp",
     "skills"
   ],
-  "agents": [
-    "./AGENTS.md"
-  ],
+  "skills": "./SKILL.md",
   "mcpServers": "./.mcp.json"
 }

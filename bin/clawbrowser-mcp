@@ -27,13 +27,13 @@ def launcher_path() -> str:
     if env:
         return env
 
-    which = shutil.which("clawbrowser")
-    if which:
-        return which
-
     local = Path(__file__).resolve().with_name("clawbrowser")
     if local.exists():
         return str(local)
+
+    which = shutil.which("clawbrowser")
+    if which:
+        return which
 
     die("Could not find the clawbrowser launcher. Set CLAWBROWSER_BIN or install clawbrowser on PATH.")
     raise SystemExit(1)
@@ -147,20 +147,26 @@ def close_page_target(endpoint: str, target_id: str):
         return response.read().decode("utf-8", errors="replace").strip()
 
 
-def run_launcher(args, api_key=None, image=None):
+def run_launcher(args, api_key=None, image=None, timeout=90):
     env = os.environ.copy()
     if api_key:
         env["CLAWBROWSER_API_KEY"] = api_key
     if image:
         env["CLAWBROWSER_IMAGE"] = image
 
-    proc = subprocess.run(
-        [launcher_path(), *args],
-        capture_output=True,
-        text=True,
-        env=env,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            [launcher_path(), *args],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+            stdin=subprocess.DEVNULL,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return 124, "", f"clawbrowser launcher timed out after {timeout}s"
+
     stdout = proc.stdout.strip()
     stderr = proc.stderr.strip()
     return proc.returncode, stdout, stderr
@@ -171,12 +177,51 @@ def normalize_session(arguments):
     return str(session)
 
 
+def truthy(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() not in {"", "0", "false", "no", "off"}
+
+
+def append_browser_args(args: list[str], arguments: dict) -> None:
+    browser_args = []
+
+    fingerprint = arguments.get("fingerprint")
+    if truthy(fingerprint):
+        browser_args.append("--fingerprint")
+        if not isinstance(fingerprint, bool) and str(fingerprint).strip().lower() not in {"1", "true", "yes", "on"}:
+            browser_args.append(str(fingerprint))
+
+    if arguments.get("regenerate"):
+        browser_args.append("--regenerate")
+    if arguments.get("verify_automation"):
+        browser_args.append("--verify-automation")
+    if arguments.get("country"):
+        browser_args.append(f"--country={arguments['country']}")
+    if arguments.get("city"):
+        browser_args.append(f"--city={arguments['city']}")
+    if arguments.get("connection_type"):
+        browser_args.append(f"--connection-type={arguments['connection_type']}")
+
+    url = str(arguments.get("url") or "").strip()
+    if browser_args or url:
+        args.append("--")
+        args.extend(browser_args)
+        if url:
+            args.append(url)
+
+
 def bootstrap_error():
     path = saved_config_path()
     return error_result(
         f"Clawbrowser can reuse the saved browser config at {path}. "
-        "If it is missing, provide the optional API key in the Claude Desktop "
-        "extension settings or open clawbrowser://auth after launching Clawbrowser once."
+        "If it is missing, ask the user once for the real API key from "
+        "https://app.clawbrowser.ai, pass it as a bootstrap-only api_key "
+        "tool argument, and let the launcher write the browser-managed "
+        "config.json with mode 600. For reauth, open clawbrowser://auth in "
+        "Clawbrowser."
     )
 
 
@@ -191,18 +236,9 @@ def start_session(arguments):
         args.extend(["--port", str(port)])
     if image := arguments.get("image"):
         args.extend(["--image", str(image)])
-    if arguments.get("verify_automation") or arguments.get("verify"):
-        args.append("--verify-automation")
-    if arguments.get("fingerprint"):
-        args.extend(["--fingerprint", str(arguments["fingerprint"])])
-    if arguments.get("regenerate"):
-        args.append("--regenerate")
-    if arguments.get("country"):
-        args.extend([f"--country={arguments['country']}"])
-    if arguments.get("city"):
-        args.extend([f"--city={arguments['city']}"])
-    if arguments.get("connection_type"):
-        args.extend([f"--connection-type={arguments['connection_type']}"])
+    if arguments.get("verify"):
+        args.append("--verify")
+    append_browser_args(args, arguments)
 
     code, stdout, stderr = run_launcher(args, api_key=api_key, image=arguments.get("image"))
     if code != 0:
@@ -221,6 +257,9 @@ def rotate_session(arguments):
     args = ["rotate", "--session", normalize_session(arguments)]
     if image := arguments.get("image"):
         args.extend(["--image", str(image)])
+    if arguments.get("verify"):
+        args.append("--verify")
+    append_browser_args(args, arguments)
 
     code, stdout, stderr = run_launcher(args, api_key=api_key, image=arguments.get("image"))
     if code != 0:
@@ -368,11 +407,13 @@ TOOLS = [
                 "api_key": {"type": "string", "description": "Optional bootstrap-only API key from https://app.clawbrowser.ai. Omit it when the browser can reuse a saved config.json; provide it only for first-time bootstrap."},
                 "image": {"type": "string"},
                 "port": {"type": "integer"},
-                "fingerprint": {"type": "string"},
+                "url": {"type": "string", "description": "Optional URL to open in the managed session, including clawbrowser://auth or clawbrowser://verify."},
+                "fingerprint": {"type": ["boolean", "string"], "description": "Optional fingerprint mode override. Omit for the launcher default; true passes --fingerprint."},
                 "regenerate": {"type": "boolean"},
                 "country": {"type": "string"},
                 "city": {"type": "string"},
                 "connection_type": {"type": "string"},
+                "verify": {"type": "boolean"},
                 "verify_automation": {"type": "boolean"},
             },
             "additionalProperties": False,
@@ -387,6 +428,14 @@ TOOLS = [
                 "session": {"type": "string"},
                 "api_key": {"type": "string", "description": "Optional bootstrap-only API key from https://app.clawbrowser.ai. Omit it when the browser can reuse a saved config.json; provide it only for first-time bootstrap."},
                 "image": {"type": "string"},
+                "url": {"type": "string", "description": "Optional URL to open after rotation, including clawbrowser://verify."},
+                "fingerprint": {"type": ["boolean", "string"], "description": "Optional fingerprint mode override. Omit for the launcher default; true passes --fingerprint."},
+                "verify": {"type": "boolean"},
+                "verify_automation": {"type": "boolean"},
+                "country": {"type": "string"},
+                "city": {"type": "string"},
+                "connection_type": {"type": "string"},
+                "regenerate": {"type": "boolean"},
             },
             "additionalProperties": False,
         },

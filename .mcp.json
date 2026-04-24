@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "clawbrowser": {
-      "command": "./clawbrowser-mcp",
+      "command": "./bin/clawbrowser-mcp",
       "cwd": "."
     }
   }

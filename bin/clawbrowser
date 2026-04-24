@@ -46,7 +46,7 @@ Options for start/rotate/status/endpoint/stop/list:
   --session NAME            Session name. Default: default
   --port PORT               Host CDP port. Default: auto-select a free port
   --image IMAGE             Docker image tag. Default: local clawbrowser:latest if present, otherwise the published release image
-  --verify                  Keep the browser verify page enabled
+  --verify                  Open clawbrowser://verify when no URL is supplied
   --help                    Show this help
 
 Browser flags:
@@ -769,8 +769,10 @@ PY
 build_browser_args() {
   local skip_verify=1
   local saw_list=0
+  local saw_fingerprint=0
   local saw_startup_arg=0
   local arg
+  local previous_arg=""
 
   if [[ ${#browser_args[@]} -gt 0 ]]; then
     for arg in "${browser_args[@]}"; do
@@ -781,22 +783,34 @@ build_browser_args() {
         --skip-verify)
           skip_verify=1
           ;;
+        --fingerprint|--fingerprint=*)
+          saw_fingerprint=1
+          ;;
         --list)
           saw_list=1
           ;;
         --remote-debugging-address=*|--remote-debugging-port=*)
           ;;
         *)
-          if [[ "${arg}" != -* ]]; then
+          if [[ "${arg}" != -* && "${previous_arg}" != "--fingerprint" ]]; then
             saw_startup_arg=1
           fi
           ;;
       esac
+      previous_arg="${arg}"
     done
   fi
 
   if [[ "${show_verify}" -eq 1 || "${browser_mode}" == "list" ]]; then
     skip_verify=0
+  fi
+
+  if [[ "${saw_fingerprint}" -eq 0 && "${saw_list}" -eq 0 ]]; then
+    if [[ ${#browser_args[@]} -gt 0 ]]; then
+      browser_args=("--fingerprint" "${browser_args[@]}")
+    else
+      browser_args=("--fingerprint")
+    fi
   fi
 
   if [[ "${skip_verify}" -eq 1 && "${saw_list}" -eq 0 ]]; then
@@ -808,8 +822,57 @@ build_browser_args() {
   fi
 
   if [[ "${saw_startup_arg}" -eq 0 && "${saw_list}" -eq 0 ]]; then
-    browser_args+=("about:blank")
+    if [[ "${show_verify}" -eq 1 ]]; then
+      browser_args+=("clawbrowser://verify")
+    else
+      browser_args+=("about:blank")
+    fi
   fi
+}
+
+requested_startup_url() {
+  local arg
+  local previous_arg=""
+
+  for arg in "${browser_args[@]}"; do
+    if [[ "${arg}" != -* && "${previous_arg}" != "--fingerprint" ]]; then
+      printf '%s\n' "${arg}"
+      return 0
+    fi
+    previous_arg="${arg}"
+  done
+
+  if [[ "${show_verify}" -eq 1 ]]; then
+    printf '%s\n' "clawbrowser://verify"
+    return 0
+  fi
+
+  return 1
+}
+
+open_cdp_url() {
+  local host_port="$1"
+  local url="$2"
+
+  python3 - "${host_port}" "${url}" <<'PY'
+import json
+import sys
+from urllib import error, parse, request
+
+host_port = sys.argv[1]
+target = sys.argv[2]
+endpoint = f"http://127.0.0.1:{host_port}/json/new?{parse.quote(target, safe='')}"
+
+req = request.Request(endpoint, method="PUT")
+try:
+    with request.urlopen(req, timeout=2) as response:
+        response.read()
+except error.HTTPError as exc:
+    if exc.code != 405:
+        raise
+    with request.urlopen(endpoint, timeout=2) as response:
+        response.read()
+PY
 }
 
 launch_docker_session() {
@@ -878,7 +941,7 @@ parse_common_options() {
 
 start_session() {
   local session_slug container_name session_path config_path endpoint
-  local app_exec pid existing_pid existing_port
+  local app_exec pid existing_pid existing_port startup_url
   session_slug="$(sanitize_name "${session_name}")"
   container_name="${CONTAINER_PREFIX}-${session_slug}"
   session_path="$(session_dir "${session_slug}")"
@@ -901,6 +964,9 @@ start_session() {
 
   if is_cdp_alive "${host_port}" >/dev/null 2>&1; then
     log "Session ${session_slug} already appears to be running on ${host_port}"
+    if startup_url="$(requested_startup_url 2>/dev/null)"; then
+      open_cdp_url "${host_port}" "${startup_url}"
+    fi
     printf '%s\n' "http://127.0.0.1:${host_port}"
     return 0
   fi

@@ -6,11 +6,11 @@ REPOSITORY="clawbrowser/clawbrowser"
 INSTALL_ROOT="${CLAWBROWSER_INSTALL_ROOT:-${HOME}/.clawbrowser}"
 INSTALL_BIN="${CLAWBROWSER_INSTALL_BIN:-${HOME}/.local/bin}"
 CODEX_PLUGINS_ROOT="${CLAWBROWSER_CODEX_PLUGINS_ROOT:-${HOME}/.codex/plugins}"
+CLAUDE_PLUGINS_ROOT="${CLAWBROWSER_CLAUDE_PLUGINS_ROOT:-${HOME}/.claude/plugins}"
 AGENTS_PLUGINS_ROOT="${CLAWBROWSER_AGENTS_PLUGINS_ROOT:-${HOME}/.agents/plugins}"
 HERMES_PLUGINS_ROOT="${CLAWBROWSER_HERMES_PLUGINS_ROOT:-${HOME}/.hermes/plugins}"
-IMAGE_TAG="${CLAWBROWSER_IMAGE_TAG:-clawbrowser:latest}"
+GEMINI_EXTENSIONS_ROOT="${CLAWBROWSER_GEMINI_EXTENSIONS_ROOT:-${HOME}/.gemini/extensions}"
 RUNTIME_IMAGE="${CLAWBROWSER_RUNTIME_IMAGE:-docker.io/clawbrowser/clawbrowser:latest}"
-BUILD_DOCKER="${CLAWBROWSER_BUILD_DOCKER:-0}"
 RELEASE_REF="${CLAWBROWSER_RELEASE_REF:-latest}"
 TARGET="${CLAWBROWSER_TARGET:-all}"
 SOURCE_ARCHIVE_URL="${CLAWBROWSER_SOURCE_ARCHIVE_URL:-}"
@@ -35,10 +35,10 @@ Usage:
 Environment overrides:
   CLAWBROWSER_INSTALL_ROOT   Bundle install root, default: ~/.clawbrowser
   CLAWBROWSER_INSTALL_BIN    Command install directory, default: ~/.local/bin
+  CLAWBROWSER_CLAUDE_PLUGINS_ROOT  Claude plugin directory, default: ~/.claude/plugins
+  CLAWBROWSER_GEMINI_EXTENSIONS_ROOT  Gemini extension directory, default: ~/.gemini/extensions
   CLAWBROWSER_HERMES_PLUGINS_ROOT  Hermes plugin directory, default: ~/.hermes/plugins
-  CLAWBROWSER_IMAGE_TAG      Docker image tag to build locally, default: clawbrowser:latest
   CLAWBROWSER_RUNTIME_IMAGE  Docker image used at runtime when no native app bundle exists, default: docker.io/clawbrowser/clawbrowser:latest
-  CLAWBROWSER_BUILD_DOCKER    Set to 1 to build a local Docker image from the release asset
   CLAWBROWSER_RELEASE_REF    Release ref or tag, default: latest
   CLAWBROWSER_APP_PATH       Optional macOS Clawbrowser.app path or executable
   CLAWBROWSER_SOURCE_ARCHIVE_URL  Optional archive override; defaults to the tagged release archive for CLAWBROWSER_RELEASE_REF
@@ -426,10 +426,58 @@ install_codex_plugin() {
   fi
 }
 
+install_claude_plugin() {
+  local source_dir="${INSTALL_ROOT}/plugins/clawbrowser"
+  local target_dir="${CLAUDE_PLUGINS_ROOT}/clawbrowser"
+  local plugin_manifest="${source_dir}/.claude-plugin/plugin.json"
+
+  if [[ ! -f "${plugin_manifest}" ]]; then
+    log "INFO: Claude plugin manifest missing at ${plugin_manifest}; skipping plugin copy for this run."
+    log "INFO: Fallback plan: rerun with a release asset that includes plugin files, or continue with launcher-only install."
+    return 0
+  fi
+
+  log "Installing Claude plugin into ${target_dir}"
+  if ! mkdir -p "${CLAUDE_PLUGINS_ROOT}" 2>/dev/null; then
+    plugin_install_notice "Unable to create Claude plugins root at ${CLAUDE_PLUGINS_ROOT}"
+    return 0
+  fi
+
+  if [[ -e "${target_dir}" ]] && ! rm -rf "${target_dir}"; then
+    plugin_install_notice "Unable to replace existing Claude plugin path at ${target_dir}"
+    return 0
+  fi
+
+  if ! mkdir -p "${target_dir}" 2>/dev/null; then
+    plugin_install_notice "Unable to create Claude plugin path at ${target_dir}"
+    return 0
+  fi
+
+  if ! cp -RL "${source_dir}/.claude-plugin/." "${target_dir}/" 2>/dev/null; then
+    plugin_install_notice "Failed to copy Claude plugin manifest from ${source_dir}/.claude-plugin to ${target_dir}"
+    return 0
+  fi
+
+  mkdir -p "${target_dir}/bin" 2>/dev/null || true
+  cp -L "${INSTALL_ROOT}/AGENTS.md" "${target_dir}/AGENTS.md" 2>/dev/null || true
+  cp -L "${INSTALL_ROOT}/SKILL.md" "${target_dir}/SKILL.md" 2>/dev/null || true
+  cp "${INSTALL_ROOT}/bin/clawbrowser" "${target_dir}/clawbrowser" 2>/dev/null || true
+  cp "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${target_dir}/clawbrowser-mcp" 2>/dev/null || true
+  cp "${INSTALL_ROOT}/bin/clawbrowser" "${target_dir}/bin/clawbrowser" 2>/dev/null || true
+  cp "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${target_dir}/bin/clawbrowser-mcp" 2>/dev/null || true
+  chmod +x \
+    "${target_dir}/clawbrowser" \
+    "${target_dir}/clawbrowser-mcp" \
+    "${target_dir}/bin/clawbrowser" \
+    "${target_dir}/bin/clawbrowser-mcp" \
+    2>/dev/null || true
+
+  log "Claude plugin installed: ${target_dir}"
+}
+
 write_codex_marketplace() {
   local marketplace_file="${AGENTS_PLUGINS_ROOT}/marketplace.json"
   local plugin_dir="${CODEX_PLUGINS_ROOT}/clawbrowser"
-  local openclaw_plugin_dir="${INSTALL_ROOT}/.openclaw-plugin"
 
   if [[ ! -d "${plugin_dir}" ]]; then
     log "INFO: Codex plugin directory missing at ${plugin_dir}; skipping marketplace metadata update."
@@ -441,7 +489,7 @@ write_codex_marketplace() {
     return 0
   fi
 
-  python3 - "${marketplace_file}" "${plugin_dir}" "${openclaw_plugin_dir}" <<'PY'
+  python3 - "${marketplace_file}" "${plugin_dir}" <<'PY'
 import json
 import os
 import pathlib
@@ -449,7 +497,6 @@ import sys
 
 path = pathlib.Path(sys.argv[1])
 plugin_dir = pathlib.Path(sys.argv[2])
-openclaw_plugin_dir = pathlib.Path(sys.argv[3])
 
 desired_plugins = [
     {
@@ -461,28 +508,11 @@ desired_plugins = [
         },
         "policy": {
             "installation": "INSTALLED_BY_DEFAULT",
-            "authentication": "ON_INSTALL",
+            "authentication": "NONE",
         },
         "category": "Productivity",
     },
 ]
-
-if openclaw_plugin_dir.exists():
-    desired_plugins.append(
-        {
-            "name": "openclaw-plugin",
-            "description": "OpenClaw bootstrap/plugin bridge for Clawbrowser session and config wiring.",
-            "source": {
-                "source": "local",
-                "path": os.path.relpath(openclaw_plugin_dir, start=path.parent),
-            },
-            "policy": {
-                "installation": "INSTALLED_BY_DEFAULT",
-                "authentication": "ON_INSTALL",
-            },
-            "category": "Productivity",
-        }
-    )
 
 payload = {}
 if path.exists():
@@ -548,10 +578,37 @@ PY
 }
 
 copy_bundle() {
+  local preserved_app_dir=""
+  local preserved_app_path_file=""
+  local preserve_tmp=""
+
+  if [[ -e "${INSTALL_ROOT}/Clawbrowser.app" || -f "${INSTALL_ROOT}/app_bundle_path" ]]; then
+    preserve_tmp="$(mktemp -d)"
+    if [[ -e "${INSTALL_ROOT}/Clawbrowser.app" ]]; then
+      cp -R "${INSTALL_ROOT}/Clawbrowser.app" "${preserve_tmp}/Clawbrowser.app" 2>/dev/null || true
+      preserved_app_dir="${preserve_tmp}/Clawbrowser.app"
+    fi
+    if [[ -f "${INSTALL_ROOT}/app_bundle_path" ]]; then
+      cp "${INSTALL_ROOT}/app_bundle_path" "${preserve_tmp}/app_bundle_path" 2>/dev/null || true
+      preserved_app_path_file="${preserve_tmp}/app_bundle_path"
+    fi
+  fi
+
   log "Installing shared bundle into ${INSTALL_ROOT}"
   rm -rf "${INSTALL_ROOT}"
   mkdir -p "${INSTALL_ROOT}"
   cp -R "${SOURCE_ROOT}/." "${INSTALL_ROOT}/"
+
+  if [[ -n "${preserved_app_dir}" && -e "${preserved_app_dir}" ]]; then
+    rm -rf "${INSTALL_ROOT}/Clawbrowser.app"
+    cp -R "${preserved_app_dir}" "${INSTALL_ROOT}/Clawbrowser.app"
+  fi
+  if [[ -n "${preserved_app_path_file}" && -f "${preserved_app_path_file}" ]]; then
+    cp "${preserved_app_path_file}" "${INSTALL_ROOT}/app_bundle_path"
+  fi
+  if [[ -n "${preserve_tmp}" ]]; then
+    rm -rf "${preserve_tmp}"
+  fi
 
   chmod +x \
     "${INSTALL_ROOT}/bin/clawbrowser-install.js" \
@@ -560,8 +617,6 @@ copy_bundle() {
     "${INSTALL_ROOT}/bin/openclaw-plugin-init" \
     "${INSTALL_ROOT}/.openclaw-plugin/init.sh" \
     "${INSTALL_ROOT}/scripts/install.sh" \
-    "${INSTALL_ROOT}/scripts/validate_openclaw_plugin.sh" \
-    "${INSTALL_ROOT}/scripts/build_docker_image.sh" \
     "${INSTALL_ROOT}/scripts/clawbrowser_launcher_test.sh" \
     2>/dev/null || true
 }
@@ -596,6 +651,9 @@ materialize_compat_bundle() {
   ln -sfn ../../SKILL.md "${bundle_dir}/SKILL.md"
   ln -sfn ../../bin/clawbrowser "${bundle_dir}/clawbrowser"
   ln -sfn ../../bin/clawbrowser-mcp "${bundle_dir}/clawbrowser-mcp"
+  mkdir -p "${bundle_dir}/bin"
+  ln -sfn ../../../bin/clawbrowser "${bundle_dir}/bin/clawbrowser"
+  ln -sfn ../../../bin/clawbrowser-mcp "${bundle_dir}/bin/clawbrowser-mcp"
   ln -sfn ../../gemini-extension.json "${bundle_dir}/gemini-extension.json"
 
   if [[ ! -e "${bundle_dir}/.codex-plugin/plugin.json" ]]; then
@@ -612,7 +670,7 @@ materialize_openclaw_plugin_bundle() {
   local target_dir="${INSTALL_ROOT}/.openclaw-plugin"
 
   if [[ ! -d "${source_dir}" ]]; then
-    log "INFO: OpenClaw plugin source not found at ${source_dir}; skipping"
+    log "INFO: OpenClaw scaffold source not found at ${source_dir}; skipping"
     return 0
   fi
 
@@ -622,24 +680,24 @@ materialize_openclaw_plugin_bundle() {
   fi
 
   if [[ -e "${target_dir}" ]] && ! rm -rf "${target_dir}"; then
-    plugin_install_notice "Unable to replace existing OpenClaw plugin at ${target_dir}"
+    plugin_install_notice "Unable to replace existing OpenClaw scaffold at ${target_dir}"
     return 0
   fi
 
   if ! cp -RL "${source_dir}" "${target_dir}" 2>/dev/null; then
-    plugin_install_notice "Failed to copy OpenClaw plugin from ${source_dir} to ${target_dir}"
+    plugin_install_notice "Failed to copy OpenClaw scaffold from ${source_dir} to ${target_dir}"
     return 0
   fi
 
   chmod +x "${target_dir}/init.sh" 2>/dev/null || true
-  log "Installed OpenClaw plugin into ${target_dir}"
+  log "Installed OpenClaw scaffold into ${target_dir}"
 }
 
 initialize_openclaw_plugin() {
   local init_script="${INSTALL_ROOT}/.openclaw-plugin/init.sh"
 
   if [[ ! -x "${init_script}" ]]; then
-    log "INFO: OpenClaw plugin init script not found at ${init_script}; skipping bootstrap"
+    log "INFO: OpenClaw scaffold init script not found at ${init_script}; skipping bootstrap"
     return 0
   fi
 
@@ -648,7 +706,7 @@ initialize_openclaw_plugin() {
     return 0
   fi
 
-  plugin_install_notice "OpenClaw plugin init script failed: ${init_script}"
+  plugin_install_notice "OpenClaw scaffold init script failed: ${init_script}"
   return 0
 }
 
@@ -672,10 +730,9 @@ link_app_bundle() {
 }
 
 register_gemini_extension() {
-  local gemini_extensions="${HOME}/.gemini/extensions"
-  mkdir -p "${gemini_extensions}"
-  ln -sfn "${INSTALL_ROOT}" "${gemini_extensions}/clawbrowser"
-  log "Registered Gemini CLI extension: ${gemini_extensions}/clawbrowser"
+  mkdir -p "${GEMINI_EXTENSIONS_ROOT}"
+  ln -sfn "${INSTALL_ROOT}" "${GEMINI_EXTENSIONS_ROOT}/clawbrowser"
+  log "Registered Gemini CLI extension: ${GEMINI_EXTENSIONS_ROOT}/clawbrowser"
 }
 
 install_hermes_plugin() {
@@ -732,68 +789,67 @@ config_path = sys.argv[1]
 with open(config_path, "r") as f:
     content = f.read()
 
-if "clawbrowser" in content:
-    sys.exit(0)
+lines = content.rstrip("\n").split("\n") if content else []
 
-lines = content.rstrip("\n").split("\n")
-output_lines = []
-in_enabled = False
-inserted = False
 
-for line in lines:
-    output_lines.append(line)
+def indentation(line):
+    return len(line) - len(line.lstrip(" "))
+
+
+def is_blank_or_comment(line):
     stripped = line.strip()
-    if stripped == "enabled:":
-        in_enabled = True
-        continue
-    if in_enabled and stripped.startswith("- "):
-        continue
-    if in_enabled and not stripped.startswith("- "):
-        output_lines.insert(len(output_lines) - 1, "    - clawbrowser")
-        in_enabled = False
-        inserted = True
+    return not stripped or stripped.startswith("#")
 
-if in_enabled and not inserted:
-    output_lines.append("    - clawbrowser")
-    inserted = True
 
-if not inserted:
-    if "plugins:" not in content:
-        output_lines.append("plugins:")
-        output_lines.append("  enabled:")
-        output_lines.append("    - clawbrowser")
+def is_key(line, key, indent):
+    return indentation(line) == indent and line.strip().split("#", 1)[0].strip() == f"{key}:"
+
+
+plugins_index = None
+for index, line in enumerate(lines):
+    if is_key(line, "plugins", 0):
+        plugins_index = index
+        break
+
+if plugins_index is None:
+    if lines:
+        lines.append("")
+    lines.extend(["plugins:", "  enabled:", "    - clawbrowser"])
+else:
+    block_end = len(lines)
+    for index in range(plugins_index + 1, len(lines)):
+        if not is_blank_or_comment(lines[index]) and indentation(lines[index]) == 0:
+            block_end = index
+            break
+
+    enabled_index = None
+    for index in range(plugins_index + 1, block_end):
+        if is_key(lines[index], "enabled", 2):
+            enabled_index = index
+            break
+
+    if enabled_index is None:
+        lines[plugins_index + 1:plugins_index + 1] = ["  enabled:", "    - clawbrowser"]
     else:
-        output_lines.append("  enabled:")
-        output_lines.append("    - clawbrowser")
+        enabled_block_end = block_end
+        for index in range(enabled_index + 1, block_end):
+            if not is_blank_or_comment(lines[index]) and indentation(lines[index]) <= 2:
+                enabled_block_end = index
+                break
+
+        enabled_items = {
+            line.strip()[2:].strip()
+            for line in lines[enabled_index + 1:enabled_block_end]
+            if indentation(line) >= 4 and line.strip().startswith("- ")
+        }
+        if "clawbrowser" not in enabled_items:
+            lines.insert(enabled_block_end, "    - clawbrowser")
 
 with open(config_path, "w") as f:
-    f.write("\n".join(output_lines) + "\n")
+    f.write("\n".join(lines) + "\n")
 PY
 
   log "Enabled clawbrowser in Hermes config: ${hermes_config}"
-}
-
-build_docker_fallback() {
-  local archive_path helper_path
-
-  require_command curl
-  require_command docker
-  require_command tar
-  require_command mktemp
-
-  local tmp_dir
-  tmp_dir="$(mktemp -d)"
-
-  archive_path="${tmp_dir}/$(asset_name)"
-  helper_path="${SOURCE_ROOT}/scripts/build_docker_image.sh"
-
-  log "Downloading release asset $(asset_name)"
-  download_release_asset "$(asset_name)" "${archive_path}"
-
-  log "Building local Docker image ${IMAGE_TAG}"
-  bash "${helper_path}" --build-source "${archive_path}" --image-tag "${IMAGE_TAG}"
-
-  rm -rf "${tmp_dir}"
 }
 
 docker_image_available() {
@@ -808,12 +864,8 @@ docker_image_available() {
 main() {
   parse_args "$@"
   require_command bash
+  require_command mktemp
   require_command python3
-
-  native_bundle=""
-  if native_bundle="$(resolve_app_bundle 2>/dev/null)"; then
-    log "Found macOS app bundle: ${native_bundle}"
-  fi
 
   ensure_source_root
   copy_bundle
@@ -824,21 +876,20 @@ main() {
   initialize_openclaw_plugin
   link_launchers
 
+  native_bundle=""
+  if native_bundle="$(resolve_app_bundle 2>/dev/null)"; then
+    log "Found macOS app bundle: ${native_bundle}"
+  fi
+
   if [[ -n "${native_bundle}" ]]; then
     link_app_bundle "${native_bundle}"
   elif download_native_app_bundle; then
     log "Installed native app bundle into ${INSTALL_ROOT}/Clawbrowser.app"
   else
-    if [[ "${BUILD_DOCKER}" == "1" ]]; then
-      log "No macOS app bundle found, building local Docker image"
-      build_docker_fallback
+    if docker_image_available "${RUNTIME_IMAGE}"; then
+      log "No macOS app bundle found, using existing Docker image"
     else
-      if docker_image_available "${IMAGE_TAG}" || docker_image_available "${RUNTIME_IMAGE}"; then
-        log "No macOS app bundle found, using existing Docker image"
-      else
-        log "No macOS app bundle found, using Docker runtime image ${RUNTIME_IMAGE}"
-        log "Set CLAWBROWSER_BUILD_DOCKER=1 if you want a local image build from the release asset"
-      fi
+      log "No macOS app bundle found, using Docker runtime image ${RUNTIME_IMAGE}"
     fi
   fi
 
@@ -851,6 +902,10 @@ main() {
     register_gemini_extension
   fi
 
+  if [[ "${TARGET}" == "all" || "${TARGET}" == "claude" ]]; then
+    install_claude_plugin
+  fi
+
   if [[ "${TARGET}" == "all" || "${TARGET}" == "hermes" ]]; then
     install_hermes_plugin
     enable_hermes_plugin
@@ -858,6 +913,10 @@ main() {
 
   if [[ "${TARGET}" == "codex" ]]; then
     log "Codex target selected: the shared bundle, Codex plugin copy, and marketplace metadata are installed."
+  fi
+
+  if [[ "${TARGET}" == "claude" ]]; then
+    log "Claude target selected: the shared bundle and Claude plugin copy are installed."
   fi
 
   log "Installed commands:"

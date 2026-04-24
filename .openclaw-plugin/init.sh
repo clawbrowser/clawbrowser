@@ -14,11 +14,13 @@ if [[ ! -f "${CONFIG_FILE}" ]]; then
 {
   "gatewayUrl": "ws://127.0.0.1:18789",
   "sessionName": "main",
-  "clawbrowser": {
-    "session": "openclaw-main",
-    "fingerprint": true,
-    "verifyOnStart": false
-  },
+  "clawbrowserSession": "openclaw-main",
+  "startCommand": "clawbrowser start --session openclaw-main --",
+  "startUrlPlaceholder": "${url}",
+  "endpointCommand": "clawbrowser endpoint --session openclaw-main",
+  "rotateCommand": "clawbrowser rotate --session openclaw-main",
+  "verifyCommand": "clawbrowser start --session openclaw-main -- clawbrowser://verify",
+  "closeBlankTabs": true,
   "notes": [
     "No secrets in this file.",
     "Browser API keys must stay in browser-managed config.json."

@@ -10,8 +10,9 @@ description: Install and operate Clawbrowser as an agent-only browser runtime wi
 - **Host mode** — desktop/macOS or Linux with a display.
   Config: `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`.
 - **Container mode** — VPS, server, SSH-only, headless.
-  OCI image `docker.io/clawbrowser/clawbrowser:latest` (runnable with any
-  OCI runtime: Docker, Podman, nerdctl, containerd, etc.).
+  OCI image `docker.io/clawbrowser/clawbrowser:latest` (Docker or a
+  Docker-compatible OCI CLI; set `CLAWBROWSER_DOCKER_BIN` for non-Docker
+  launchers).
   Config in the container at
   `/home/clawbrowser/.config/clawbrowser/config.json`, persisted in the
   `clawbrowser-config` named volume.
@@ -76,8 +77,9 @@ browser; it writes a fresh key into the same `config.json` and restarts.
 
 ## Container launch
 
-Any OCI runtime works. Example uses the `docker` CLI; substitute
-`podman`, `nerdctl`, etc. as needed:
+Docker or a Docker-compatible OCI CLI can run the published image. The
+example uses Docker syntax; for the launcher set `CLAWBROWSER_DOCKER_BIN`
+when using a compatible non-Docker CLI:
 
 ```bash
 docker run -d \
@@ -92,19 +94,38 @@ docker run -d \
 ## Verify
 
 ```bash
+clawbrowser start --session <name> -- about:blank
 clawbrowser endpoint --session <name>
 ```
 
-Treat the session as ready the moment this returns a live endpoint.
+Treat the session as ready the moment either command returns a live
+endpoint.
 
 ## Use
 
 - `clawbrowser start --session <name>`
+- `clawbrowser start --session <name> -- <url>`
 - `clawbrowser endpoint --session <name>`
 - `clawbrowser status --session <name>`
 - `clawbrowser rotate --session <name>`
 - `clawbrowser stop --session <name>`
 - `clawbrowser list --session <name>`
+
+## Daily contract
+
+Use this short contract for normal browser work:
+
+| Need | CLI | MCP/Hermes tool |
+| --- | --- | --- |
+| `start/open` | `clawbrowser start --session <name> -- <url>` | `start_session` / `clawbrowser_start` with `url` |
+| `endpoint` | `clawbrowser endpoint --session <name>` | `endpoint_session` / `clawbrowser_endpoint` |
+| `rotate` | `clawbrowser rotate --session <name>` | `rotate_session` / `clawbrowser_rotate` |
+| `verify/auth` | `clawbrowser start --session <name> -- clawbrowser://verify` or `clawbrowser start --session <name> -- clawbrowser://auth` | start/open with `clawbrowser://verify` or `clawbrowser://auth` |
+| `tabs` | use MCP/Hermes tab tools | `list_tabs`/`close_tabs` or `clawbrowser_list_tabs`/`clawbrowser_close_tabs` |
+| `stop` | `clawbrowser stop --session <name>` | only when the user asks to close the session |
+
+The returned endpoint is the local CDP endpoint. Use CDP for advanced
+automation, but prefer the short tools above for daily browser tasks.
 
 Quick path for trivial tasks:
 
@@ -128,19 +149,18 @@ Quick path for trivial tasks:
 - For simple browser tasks, treat the session as usable once
   `clawbrowser start` or `clawbrowser endpoint` returns a live CDP
   endpoint.
-- Open `clawbrowser://verify` when fingerprint/proxy/geo identity matters
-  or when debugging browser-quality issues.
-- Always run Clawbrowser in fingerprint mode by passing `--fingerprint` flag
-  when starting sessions. Verify with `clawbrowser://verify` that fingerprint
-  mode is active.
+- Open `clawbrowser://verify` inside Clawbrowser when fingerprint/proxy/geo
+  identity matters or when debugging browser-quality issues.
+- Start and rotate commands use fingerprint mode by default. Do not invent
+  extra shell flags unless the user asks for a specific geo/profile option.
 - Do not run long flag-by-flag verify/fingerprint debug loops for trivial
   tasks the user did not ask to debug.
 - Use one quick startup retry at most; `auto` mode already handles the
   native→container fallback. If startup still fails, report and stop
   unless the user asks to debug.
-- MANDATORY: close every tab that is no longer needed before you finish
-  the task. If the browser session is no longer needed after cleanup,
-  stop it too.
+- MANDATORY: close `about:blank`, empty, and no-longer-needed tabs before
+  you finish the task. Do not stop the browser session automatically; stop
+  only when the user asks to close it or when performing explicit cleanup.
 - Use the MCP `list_tabs` tool to find target IDs, then `close_tabs` with
   `target_ids` for specific tabs or `all_pages=true` for batch cleanup.
 - If a native session looks stopped right after startup, re-check the CDP
