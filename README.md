@@ -23,13 +23,6 @@ Clawbrowser ships in a few surfaces depending on the agent:
   MCP server into specific harnesses (OpenAI Codex, Gemini CLI, Hermes,
   Claude Code, and more).
 
-The browser-managed `config.json` stores the long-lived API key. Some
-integrations expose an optional UI field to set that key once, but the
-runtime always reuses the same `config.json` afterward.
-
-This repo also ships an OpenClaw bootstrap scaffold at
-`.openclaw-plugin`, including a small init hook and skill file.
-
 ## Install
 
 Pick the integration that matches your agent harness.
@@ -90,12 +83,6 @@ npx --yes github:clawbrowser/clawbrowser <target>
 See [INSTALL.md](./INSTALL.md) for verification commands and config
 paths per mode.
 
-### OpenClaw bootstrap scaffold
-
-Every installer target also materializes the OpenClaw bootstrap scaffold
-at `~/.clawbrowser/.openclaw-plugin` and links the launcher at
-`~/.local/bin/openclaw-plugin-init`.
-
 ## Basic workflow
 
 ```bash
@@ -121,41 +108,3 @@ tabs, but should not stop sessions automatically.
 
 In `auto` mode the launcher prefers the native app on macOS and falls
 back to container automatically if native CDP startup fails.
-
-## What's inside
-
-```
-AGENTS.md                  Agent-level instructions (CLAUDE.md, GEMINI.md symlink here)
-SKILL.md                   Canonical skill — how to use the browser
-INSTALL.md                 Full install & verification commands
-bin/clawbrowser            CLI entry point
-bin/clawbrowser-mcp        MCP server entry point
-bin/openclaw-plugin-init   OpenClaw plugin bootstrap launcher
-.claude-plugin/plugin.json  Claude Code plugin manifest
-.codex-plugin/plugin.json   Codex plugin manifest
-.hermes-plugin/plugin.yaml  Hermes plugin manifest
-.openclaw-plugin/           OpenClaw bootstrap scaffold (plugin.json, init.sh, SKILL.md)
-scripts/install.sh         The one-liner installer
-Dockerfile                 Container image definition
-```
-
-Each harness's install contract is defined by these manifests:
-
-| Harness       | Manifest                                   |
-|---------------|--------------------------------------------|
-| OpenAI Codex  | `.codex-plugin/plugin.json`                |
-| Gemini CLI    | `gemini-extension.json` (repo root)        |
-| Hermes        | `.hermes-plugin/plugin.yaml`               |
-| Claude Code   | `.claude-plugin/plugin.json`               |
-| OpenClaw scaffold | `.openclaw-plugin/plugin.json`        |
-
-The skill is defined once at repo root (`SKILL.md`). Harness-specific
-bundles are assembled from their surface directories plus the shared
-launcher scripts at build time.
-
-## Dashboard + API key
-
-Get an API key at [app.clawbrowser.ai](https://app.clawbrowser.ai).
-Some integrations provide a UI field to paste it once. The runtime
-writes it to `config.json` with `chmod 600` and reuses it forever after.
-Need to re-auth? Open `clawbrowser://auth` in the managed browser.
