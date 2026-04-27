@@ -1,16 +1,20 @@
 # Clawbrowser — Install & Verify
 
-Quick install is in [README.md](./README.md). This doc has the exact
-commands for verifying the install, saving the API key, and launching
-in container mode.
+Quick install is in [README.md](./README.md). Full contract: [AGENTS.md](./AGENTS.md). This guide covers the exact install commands, saved-key locations, and verify flow.
 
-## Install commands
+## Install Commands
 
-Clawbrowser ships as a CLI + MCP server, plus optional harness-specific
-plugins/extensions. Use `auto` unless you already know the exact agent
-harness.
+Clawbrowser ships as a CLI + MCP server. Use the installer `auto` target if you want it to pick the right target for you. If you already know which target you want, pass it explicitly.
 
-### Shell installer (plugins + CLI)
+Recommended:
+
+```bash
+bash scripts/install.sh auto
+```
+
+Each install run wires up one target plus the shared runtime binaries.
+
+### Shell Installer
 
 One-liner:
 
@@ -26,26 +30,20 @@ bash scripts/install.sh <target>
 
 Targets:
 
-| Target   | Wires up                                                  |
-|----------|-----------------------------------------------------------|
-| `auto`   | Detects the current agent and installs one matching target |
-| `hermes` | Hermes plugin + MCP config in `~/.hermes/config.yaml`     |
-| `codex`  | Codex plugin + `~/.agents/plugins/marketplace.json`       |
-| `gemini` | Gemini CLI extension                                      |
-| `claude` | Claude Code plugin bundle                                |
-| `all`    | Everything above; use only for intentional multi-target installs |
+| Target | Wires up |
+| --- | --- |
+| `auto` | Picks the matching target automatically |
+| `hermes` | Hermes plugin + MCP config in `~/.hermes/config.yaml` |
+| `codex` | Codex plugin + `~/.agents/plugins/marketplace.json` |
+| `gemini` | Gemini CLI extension |
+| `claude` | Claude Code plugin bundle |
+| `openclaw` | Legacy bootstrap compatibility scaffold |
 
-The installer also materializes the OpenClaw bootstrap scaffold into
-`${CLAWBROWSER_INSTALL_ROOT:-~/.clawbrowser}/.openclaw-plugin`,
-runs its idempotent `init.sh` bootstrap hook, and creates
-`${CLAWBROWSER_INSTALL_BIN:-~/.local/bin}/openclaw-plugin-init`.
+Legacy compatibility: `openclaw` is still recognized for historical bootstrap paths, but it is not part of the normal agent contract or quick references.
 
-## Container mode (VPS / no physical display)
+## Container Mode
 
-Docker or a Docker-compatible OCI CLI can run the published image. This is
-not Chrome headless mode: it runs full Clawbrowser with a virtual Linux
-display and exposes CDP. The example uses `docker`; for the launcher set
-`CLAWBROWSER_DOCKER_BIN` when using a compatible non-Docker CLI:
+Docker or a Docker-compatible OCI CLI can run the published image. This is not Chrome headless mode: it runs full Clawbrowser with a virtual Linux display and exposes CDP. The example uses `docker`; for the launcher set `CLAWBROWSER_DOCKER_BIN` when using a compatible non-Docker CLI:
 
 ```bash
 docker pull docker.io/clawbrowser/clawbrowser:latest
@@ -58,13 +56,11 @@ docker run -d \
   --remote-debugging-port=9222
 ```
 
-The `clawbrowser-config` named volume keeps the API key across
-restarts.
+The `clawbrowser-config` named volume keeps the API key across restarts.
 
-## Check for an existing key
+## Check For An Existing Key
 
-Always do this first — the launcher reuses a saved key automatically
-and should not prompt twice.
+Always do this first. The launcher reuses a saved key automatically and should not prompt twice.
 
 **Host:**
 
@@ -87,13 +83,11 @@ PY
 docker exec clawbrowser sh -c 'test -s /home/clawbrowser/.config/clawbrowser/config.json && grep -qE "\"api_key\"[[:space:]]*:[[:space:]]*\"[^\"]+\"" /home/clawbrowser/.config/clawbrowser/config.json'
 ```
 
-If either check passes, skip to [Verify](#verify).
+If either check passes, skip to [Verify](#verify-and-common-flow).
 
-## Save the key (only if the check failed)
+## Save The Key
 
-Get the key from [app.clawbrowser.ai](https://app.clawbrowser.ai).
-Ask the user exactly once. Never store it in shell rc files, env vars,
-or agent config.
+Get the key from [app.clawbrowser.ai](https://app.clawbrowser.ai). Ask the user exactly once. Never store it in shell rc files, env vars, or agent config.
 
 **Host:**
 
@@ -115,30 +109,27 @@ docker exec clawbrowser sh -c '
 '
 ```
 
-For manual reauthentication, open `clawbrowser://auth` in the managed
-browser — it writes a fresh key into the same `config.json` and
-restarts.
+For manual reauthentication, open `clawbrowser://auth` in the managed browser. It writes a fresh key into the same `config.json` and restarts.
 
-## Verify
+## Verify And Common Flow
+
+`clawbrowser://verify` is the explicit verify page and the source of truth for fingerprint, proxy, and geo status. Use it when identity or proxy proof matters, after rotate/regenerate tests, or when debugging browser-quality issues. If verify reports fingerprint mode inactive, the session was not launched correctly.
 
 ```bash
-clawbrowser start --session <name> -- clawbrowser://verify
+clawbrowser start --session <name> -- https://example.com
 clawbrowser endpoint --session <name>
+clawbrowser rotate --session <name>
+clawbrowser rotate --session <name> -- clawbrowser://verify
 ```
 
-Install verification means the managed browser opened the verify page and
-returned a live CDP endpoint. Do not claim deeper fingerprint/proxy quality
-unless the browser itself returns a clear verification result.
+Some values may remain the same after rotate because of geo constraints or backend generation. Do not require every field to change.
 
-## Quick reference
+## Quick Reference
 
 - CLI: `bin/clawbrowser`
 - MCP server: `bin/clawbrowser-mcp`
-- OpenClaw bootstrap launcher: `bin/openclaw-plugin-init`
-- OpenClaw bootstrap scaffold: `.openclaw-plugin/`
 - Skill: `SKILL.md` (canonical root skill)
-- Agent instructions: `AGENTS.md` (CLAUDE.md + GEMINI.md symlink here)
+- Agent instructions / full contract: `AGENTS.md`
 - Canonical plugin manifests: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.hermes-plugin/plugin.yaml`
 - Codex marketplace: `~/.agents/plugins/marketplace.json` (written by the installer)
-- Hermes MCP config: public docs use `command: "clawbrowser-mcp"`; the
-  installer may write the resolved user-local command path.
+- Hermes MCP config: public docs use `command: "clawbrowser-mcp"`; the installer may write the resolved user-local command path

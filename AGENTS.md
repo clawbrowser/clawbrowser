@@ -1,86 +1,126 @@
 # Clawbrowser Agent Instructions
 
-Clawbrowser is the default managed browser for any browser or web task.
-Use it instead of the user's personal browser. Do not fall back to the
-system or default browser unless the user explicitly asks.
+Clawbrowser is the default managed browser for web tasks. Use the CLI/MCP to create managed sessions, then use CDP for page automation. Do not bypass the managed launcher for agent tasks. On macOS, the launcher may use Clawbrowser.app as the native runtime.
 
-Full usage guidance lives in [SKILL.md](./SKILL.md). Full install
-commands live in [INSTALL.md](./INSTALL.md).
+## Layer Model
 
-## Mode
+- CLI/MCP are the lifecycle and identity layer.
+- CDP is the page automation layer.
+- Use `clawbrowser start` or MCP `start_session` to create or reattach managed sessions.
+- Use `clawbrowser endpoint` or MCP `endpoint_session` to get the CDP endpoint.
+- Use CDP for navigation, clicking, typing, scraping, screenshots, DOM inspection, and JS evaluation.
+- Do not create unmanaged browser processes.
 
-- **Host** — desktop/macOS or Linux with a display. Config:
-  `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`.
-- **Container** — VPS, SSH-only, or no physical display. OCI image
-  `docker.io/clawbrowser/clawbrowser:latest` with Docker or a
-  Docker-compatible OCI CLI configured through `CLAWBROWSER_DOCKER_BIN`.
-  This runs full Clawbrowser with a virtual Linux display and exposes CDP;
-  it is not Chrome headless mode.
-  Config: `/home/clawbrowser/.config/clawbrowser/config.json` in the
-  `clawbrowser-config` named volume.
+## Session Model
 
-Default to container mode when there is no display. `auto` mode falls
-back native→container on its own.
+- `--session <name>` is the handle for a managed browser profile or identity.
+- Reusing the same session name reattaches to the same managed session unless rotation or regeneration is requested.
+- A new session name creates a separate managed browser instance or profile.
+- Keep a session-to-endpoint mapping when you work with multiple profiles.
 
-## Flow
+## Fingerprint Mode
 
-1. **Check** the config for an existing `api_key`. If present, skip to
-   step 3.
-2. **Save** the key once from https://app.clawbrowser.ai into the
-   mode's `config.json` with `chmod 600`. Never store it in shell rc
-   files, env vars, or agent config. Use `clawbrowser://auth` only for
-   manual browser reauthentication — it writes the key into the same
-   `config.json`.
-3. **Verify** with `clawbrowser start --session <name> -- clawbrowser://verify`,
-   then `clawbrowser endpoint --session <name>` if the endpoint is needed
-   again. This proves the managed browser opened the verify page and CDP is
-   live. Do not claim deeper fingerprint/proxy quality unless the browser
-   returns a clear verification result.
+- Managed sessions for agent tasks are expected to run in fingerprint/proxy mode.
+- Use `clawbrowser rotate --session <name>` for a fresh identity. `--regenerate` is the launcher flag behind that path.
+- Check `clawbrowser://verify` after launch, after rotate/regenerate, or when fingerprint/proxy/geo correctness matters.
+- If verify shows fingerprint mode inactive, treat the session as misconfigured or launched incorrectly.
+- Do not report identity or proxy success when fingerprint mode is inactive.
 
-See [INSTALL.md](./INSTALL.md) for exact commands.
+## Verify / Auth
 
-## Sessions
+- `clawbrowser://verify` is the source of truth for fingerprint, proxy, and geo status.
+- It is not required for trivial browsing tasks.
+- It is required when proving identity or proxy correctness, after rotate/regenerate tests, or while debugging browser-quality issues.
+- Look for: no fingerprint-mode warning, fingerprint mode active, proxy check passes when expected, navigator/user-agent/language/timezone/screen checks pass where applicable, and WebGL/canvas checks pass where applicable.
+- Some values may remain the same after rotate because of geo constraints or backend generation. Do not require every field to change.
+- Use `clawbrowser://auth` for manual reauthentication.
+- The launcher also accepts `--verify` as a convenience when no URL is supplied, but prefer the explicit `clawbrowser://verify` target in agent-facing examples.
 
+## API Key / Auth
+
+- The browser-managed `config.json` is the source of truth for saved auth.
+- If it is missing, ask the user once for the real API key from https://app.clawbrowser.ai.
+- Do not use dummy keys.
+- Do not store the key in shell rc files, agent config, or random env files.
+- Host config: `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`
+- Container config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
+
+## Common Workflows
+
+A. Start one managed browser and automate through CDP:
+
+```bash
+clawbrowser start --session work -- https://example.com
+clawbrowser endpoint --session work
 ```
-clawbrowser start    --session <name> [-- <url>]   # start or reattach
-clawbrowser endpoint --session <name>              # live CDP URL
-clawbrowser rotate   --session <name>              # fresh identity
-clawbrowser stop     --session <name>              # clean up
+
+B. Start at the verify page:
+
+```bash
+clawbrowser start --session work -- clawbrowser://verify
+clawbrowser endpoint --session work
 ```
 
-For MCP clients, use `clawbrowser-mcp`.
+C. Reuse a previous session or profile:
 
-## Daily Contract
+```bash
+clawbrowser start --session work -- https://example.com
+```
 
-Use this short contract for normal browser work:
+D. Fresh identity for an existing session:
 
-| Need | CLI | MCP/Hermes tool |
-| --- | --- | --- |
-| `start/open` | `clawbrowser start --session <name> -- <url>` | `start_session` / `clawbrowser_start` with `url` |
-| `endpoint` | `clawbrowser endpoint --session <name>` | `endpoint_session` / `clawbrowser_endpoint` |
-| `rotate` | `clawbrowser rotate --session <name>` | `rotate_session` / `clawbrowser_rotate` |
-| `verify/auth` | `clawbrowser start --session <name> -- clawbrowser://verify` or `clawbrowser start --session <name> -- clawbrowser://auth` | start/open with `clawbrowser://verify` or `clawbrowser://auth` |
-| `tabs` | use MCP/Hermes tab tools | `list_tabs`/`close_tabs` or `clawbrowser_list_tabs`/`clawbrowser_close_tabs` |
-| `stop` | `clawbrowser stop --session <name>` | only when the user asks to close the session |
+```bash
+clawbrowser rotate --session work
+```
 
-The managed browser exposes a local CDP endpoint. Use the endpoint for
-advanced automation, but use the short tools above for daily browser tasks.
+E. Fresh identity at a chosen URL:
 
-## Rules
+```bash
+clawbrowser rotate --session work -- clawbrowser://verify
+```
 
-- If the browser cannot reuse the saved `config.json` and the key is
-  missing, ask the user once and stop. Do not fall back.
-- Quick path: `clawbrowser start --session <name> -- <url>` — continue
-  the moment it returns an endpoint. Do not pre-scan repo docs first.
-- Open `clawbrowser://verify` only when fingerprint/proxy/geo identity
-  matters, or when debugging browser-quality issues.
-- One quick startup retry at most. `auto` mode already handles the
-  native→container fallback. If it still fails, report and stop unless
-  asked to debug.
-- Never touch the user's personal browser profile.
-- Separate session names per agent.
-- Dismiss cookie consent banners before continuing — accept or reject,
-  whichever clears the page fastest.
-- Close `about:blank`, empty, and no-longer-needed tabs. Do not stop the
-  browser session automatically; stop only when the user asks to close it
-  or when performing explicit cleanup.
+Equivalent low-level launcher form:
+
+```bash
+clawbrowser start --session work -- --regenerate clawbrowser://verify
+```
+
+F. Two independent browser instances:
+
+```bash
+clawbrowser start --session profile-a -- clawbrowser://verify
+clawbrowser start --session profile-b -- clawbrowser://verify
+clawbrowser endpoint --session profile-a
+clawbrowser endpoint --session profile-b
+```
+
+G. Geo or profile constraints:
+
+```bash
+clawbrowser start --session work -- --country=US --city=Prague --connection-type=wifi https://example.com
+```
+
+These are pass-through browser arguments after `--`; they are not separate launcher options.
+
+H. Missing API key:
+
+- Host mode uses `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`.
+- Container mode uses `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
+- Use `clawbrowser://auth` for manual reauthentication.
+
+I. Cleanup:
+
+```bash
+clawbrowser status --session work
+clawbrowser list --session work
+clawbrowser stop --session work
+```
+
+`clawbrowser list` shows cached profiles in the session directory.
+
+## Runtime Modes
+
+- **Host** - desktop/macOS or Linux with a display. Config: `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`.
+- **Container** - VPS, SSH-only, or no physical display. OCI image `docker.io/clawbrowser/clawbrowser:latest` with Docker or a Docker-compatible OCI CLI configured through `CLAWBROWSER_DOCKER_BIN`. This runs full Clawbrowser with a virtual Linux display and exposes CDP; it is not Chrome headless mode. Config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
+
+Default to container mode when there is no display. Launcher `auto` mode falls back native->container on its own.

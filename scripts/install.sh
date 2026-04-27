@@ -28,8 +28,8 @@ die() {
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/install.sh [auto|all|codex|claude|gemini|hermes]
-  bash scripts/install.sh --target <auto|all|codex|claude|gemini|hermes>
+  bash scripts/install.sh [auto|codex|claude|gemini|hermes]
+  bash scripts/install.sh --target <auto|codex|claude|gemini|hermes>
   curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- <target>
 
 Environment overrides:
@@ -140,7 +140,7 @@ ensure_source_root() {
 
 normalize_target() {
   case "${1}" in
-    auto|all|codex|claude|gemini|hermes) printf '%s\n' "${1}" ;;
+    auto|codex|claude|gemini|hermes|openclaw) printf '%s\n' "${1}" ;;
     *)
       die "Unknown target: ${1}"
       ;;
@@ -233,7 +233,7 @@ parse_args() {
       install)
         shift
         ;;
-      auto|all|codex|claude|gemini|hermes)
+      auto|codex|claude|gemini|hermes|openclaw)
         TARGET="$(normalize_target "${1}")"
         shift
         ;;
@@ -425,57 +425,29 @@ plugin_install_notice() {
   log "INFO: Fallback: use clawbrowser in container mode for servers/no physical display, then rerun with a full release bundle if plugin assets are required."
 }
 
-ensure_plugin_bundle_dir() {
-  local bundle_dir="$1"
-  if [[ -d "${bundle_dir}" ]]; then
-    return 0
-  fi
+stage_plugin_binaries() {
+  local target_dir="$1"
 
-  if mkdir -p "${bundle_dir}" 2>/dev/null; then
-    return 0
-  fi
-
-  plugin_install_notice "Unable to create plugin directory at ${bundle_dir}"
-  return 1
-}
-
-find_plugin_source_dir() {
-  local candidate
-
-  for candidate in \
-    "${SOURCE_ROOT}/plugins/clawbrowser" \
-    "${SOURCE_ROOT}/clawbrowser/plugins/clawbrowser" \
-    "${SOURCE_ROOT}/bundle/plugins/clawbrowser"
-  do
-    if [[ -d "${candidate}" ]]; then
-      printf '%s\n' "${candidate}"
-      return 0
-    fi
-  done
-
-  candidate="$(find "${SOURCE_ROOT}" -mindepth 2 -maxdepth 5 -type d -path '*/plugins/clawbrowser' 2>/dev/null | head -n 1 || true)"
-  if [[ -n "${candidate}" ]]; then
-    printf '%s\n' "${candidate}"
-    return 0
-  fi
-
-  return 1
+  mkdir -p "${target_dir}/bin"
+  cp -L "${INSTALL_ROOT}/bin/clawbrowser" "${target_dir}/clawbrowser" 2>/dev/null || true
+  cp -L "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${target_dir}/clawbrowser-mcp" 2>/dev/null || true
+  cp -L "${INSTALL_ROOT}/bin/clawbrowser" "${target_dir}/bin/clawbrowser" 2>/dev/null || true
+  cp -L "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${target_dir}/bin/clawbrowser-mcp" 2>/dev/null || true
+  chmod +x \
+    "${target_dir}/clawbrowser" \
+    "${target_dir}/clawbrowser-mcp" \
+    "${target_dir}/bin/clawbrowser" \
+    "${target_dir}/bin/clawbrowser-mcp" \
+    2>/dev/null || true
 }
 
 install_codex_plugin() {
-  local source_dir="${INSTALL_ROOT}/plugins/clawbrowser"
+  local source_dir="${SOURCE_ROOT}"
   local target_dir="${CODEX_PLUGINS_ROOT}/clawbrowser"
   local plugin_manifest="${source_dir}/.codex-plugin/plugin.json"
 
-  if [[ ! -d "${source_dir}" ]]; then
-    log "INFO: Codex plugin source missing at ${source_dir}; skipping plugin copy for this run."
-    log "INFO: Fallback plan: rerun with a release asset that includes plugin files, or continue with launcher-only install."
-    return 0
-  fi
-
   if [[ ! -f "${plugin_manifest}" ]]; then
     log "INFO: Codex plugin manifest missing at ${plugin_manifest}; skipping plugin copy for this run."
-    log "INFO: Fallback plan: rerun with a release asset that includes plugin files, or continue with launcher-only install."
     return 0
   fi
 
@@ -490,22 +462,28 @@ install_codex_plugin() {
     return 0
   fi
 
-  # -L dereferences symlinks so the destination has real file content
-  # (e.g. SKILL.md which is a symlink to the repo-root canonical copy).
-  if ! cp -RL "${source_dir}" "${target_dir}" 2>/dev/null; then
-    plugin_install_notice "Failed to copy Codex plugin from ${source_dir} to ${target_dir}"
+  if ! mkdir -p "${target_dir}/.codex-plugin" 2>/dev/null; then
+    plugin_install_notice "Unable to create Codex plugin path at ${target_dir}"
     return 0
   fi
+
+  if ! cp -RL "${source_dir}/.codex-plugin/." "${target_dir}/.codex-plugin/" 2>/dev/null; then
+    plugin_install_notice "Failed to copy Codex plugin manifest from ${source_dir}/.codex-plugin to ${target_dir}/.codex-plugin"
+    return 0
+  fi
+
+  cp -L "${source_dir}/.mcp.json" "${target_dir}/.mcp.json" 2>/dev/null || true
+  cp -L "${source_dir}/SKILL.md" "${target_dir}/SKILL.md" 2>/dev/null || true
+  stage_plugin_binaries "${target_dir}"
 }
 
 install_claude_plugin() {
-  local source_dir="${INSTALL_ROOT}/plugins/clawbrowser"
+  local source_dir="${SOURCE_ROOT}"
   local target_dir="${CLAUDE_PLUGINS_ROOT}/clawbrowser"
   local plugin_manifest="${source_dir}/.claude-plugin/plugin.json"
 
   if [[ ! -f "${plugin_manifest}" ]]; then
     log "INFO: Claude plugin manifest missing at ${plugin_manifest}; skipping plugin copy for this run."
-    log "INFO: Fallback plan: rerun with a release asset that includes plugin files, or continue with launcher-only install."
     return 0
   fi
 
@@ -530,19 +508,9 @@ install_claude_plugin() {
     return 0
   fi
 
-  mkdir -p "${target_dir}/bin" 2>/dev/null || true
-  cp -L "${INSTALL_ROOT}/AGENTS.md" "${target_dir}/AGENTS.md" 2>/dev/null || true
-  cp -L "${INSTALL_ROOT}/SKILL.md" "${target_dir}/SKILL.md" 2>/dev/null || true
-  cp "${INSTALL_ROOT}/bin/clawbrowser" "${target_dir}/clawbrowser" 2>/dev/null || true
-  cp "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${target_dir}/clawbrowser-mcp" 2>/dev/null || true
-  cp "${INSTALL_ROOT}/bin/clawbrowser" "${target_dir}/bin/clawbrowser" 2>/dev/null || true
-  cp "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${target_dir}/bin/clawbrowser-mcp" 2>/dev/null || true
-  chmod +x \
-    "${target_dir}/clawbrowser" \
-    "${target_dir}/clawbrowser-mcp" \
-    "${target_dir}/bin/clawbrowser" \
-    "${target_dir}/bin/clawbrowser-mcp" \
-    2>/dev/null || true
+  cp -L "${source_dir}/AGENTS.md" "${target_dir}/AGENTS.md" 2>/dev/null || true
+  cp -L "${source_dir}/SKILL.md" "${target_dir}/SKILL.md" 2>/dev/null || true
+  stage_plugin_binaries "${target_dir}"
 
   log "Claude plugin installed: ${target_dir}"
 }
@@ -573,7 +541,7 @@ plugin_dir = pathlib.Path(sys.argv[2])
 desired_plugins = [
     {
         "name": "clawbrowser",
-        "description": "Agent-only browser runtime with browser-managed config.json reuse, CDP sessions, rotation, and default browser routing.",
+        "description": "Managed Clawbrowser runtime for agent tasks: lifecycle and identity via CLI/MCP, page automation via CDP, fingerprint/proxy-backed sessions, and browser-managed config.json reuse.",
         "source": {
             "source": "local",
             "path": os.path.relpath(plugin_dir, start=path.parent),
@@ -649,7 +617,7 @@ PY
   log "Wrote Codex marketplace metadata: ${marketplace_file}"
 }
 
-copy_bundle() {
+prepare_runtime_root() {
   local preserved_app_dir=""
   local preserved_app_path_file=""
   local preserve_tmp=""
@@ -667,7 +635,7 @@ copy_bundle() {
     fi
   fi
 
-  log "Installing shared bundle into ${INSTALL_ROOT}"
+  log "Installing runtime files into ${INSTALL_ROOT}"
   rm -rf "${INSTALL_ROOT}"
   mkdir -p "${INSTALL_ROOT}"
 
@@ -675,26 +643,13 @@ copy_bundle() {
   cp -R "${SOURCE_ROOT}/bin/." "${INSTALL_ROOT}/bin/"
 
   for path in \
-    ".claude-plugin" \
-    ".codex-plugin" \
-    ".hermes-plugin" \
-    ".openclaw-plugin"
-  do
-    if [[ -e "${SOURCE_ROOT}/${path}" ]]; then
-      cp -RL "${SOURCE_ROOT}/${path}" "${INSTALL_ROOT}/${path}"
-    fi
-  done
-
-  for path in \
     "AGENTS.md" \
     "SKILL.md" \
     "INSTALL.md" \
     "README.md" \
     ".mcp.json" \
-    "gemini-extension.json" \
     "package.json" \
-    "scripts/install.sh" \
-    "scripts/clawbrowser_launcher_test.sh"
+    "scripts/install.sh"
   do
     if [[ -f "${SOURCE_ROOT}/${path}" ]]; then
       mkdir -p "${INSTALL_ROOT}/$(dirname "${path}")"
@@ -719,107 +674,14 @@ copy_bundle() {
     "${INSTALL_ROOT}/bin/clawbrowser-install.js" \
     "${INSTALL_ROOT}/bin/clawbrowser" \
     "${INSTALL_ROOT}/bin/clawbrowser-mcp" \
-    "${INSTALL_ROOT}/bin/openclaw-plugin-init" \
-    "${INSTALL_ROOT}/.openclaw-plugin/init.sh" \
     "${INSTALL_ROOT}/scripts/install.sh" \
-    "${INSTALL_ROOT}/scripts/clawbrowser_launcher_test.sh" \
     2>/dev/null || true
-}
-
-materialize_compat_bundle() {
-  local bundle_dir="${INSTALL_ROOT}/plugins/clawbrowser"
-  local fallback_source=""
-
-  if ! ensure_plugin_bundle_dir "${bundle_dir}"; then
-    return 1
-  fi
-
-  if [[ ! -e "${bundle_dir}/.codex-plugin/plugin.json" ]]; then
-    fallback_source="$(find_plugin_source_dir || true)"
-    if [[ -n "${fallback_source}" ]] && [[ "${fallback_source}" != "${bundle_dir}" ]]; then
-      log "Using fallback plugin source at ${fallback_source}"
-      if ! cp -RL "${fallback_source}/." "${bundle_dir}/" 2>/dev/null; then
-        log "WARNING: Failed to copy fallback plugin source from ${fallback_source}; continuing with compatibility links."
-      fi
-    else
-      log "INFO: plugins/clawbrowser was not found in source; creating compatibility plugin layout."
-    fi
-  fi
-
-  ln -sfn ../../.claude-plugin "${bundle_dir}/.claude-plugin"
-  ln -sfn ../../.codex-plugin "${bundle_dir}/.codex-plugin"
-  ln -sfn ../../.hermes-plugin "${bundle_dir}/.hermes-plugin"
-  ln -sfn ../../.mcp.json "${bundle_dir}/.mcp.json"
-  ln -sfn ../../AGENTS.md "${bundle_dir}/AGENTS.md"
-  ln -sfn ../../AGENTS.md "${bundle_dir}/CLAUDE.md"
-  ln -sfn ../../AGENTS.md "${bundle_dir}/GEMINI.md"
-  ln -sfn ../../SKILL.md "${bundle_dir}/SKILL.md"
-  ln -sfn ../../bin/clawbrowser "${bundle_dir}/clawbrowser"
-  ln -sfn ../../bin/clawbrowser-mcp "${bundle_dir}/clawbrowser-mcp"
-  mkdir -p "${bundle_dir}/bin"
-  ln -sfn ../../../bin/clawbrowser "${bundle_dir}/bin/clawbrowser"
-  ln -sfn ../../../bin/clawbrowser-mcp "${bundle_dir}/bin/clawbrowser-mcp"
-  ln -sfn ../../gemini-extension.json "${bundle_dir}/gemini-extension.json"
-
-  if [[ ! -e "${bundle_dir}/.codex-plugin/plugin.json" ]]; then
-    touch "${bundle_dir}/.stub" 2>/dev/null || true
-    plugin_install_notice "Compatibility plugin metadata still missing under ${bundle_dir}"
-    return 1
-  fi
-
-  return 0
-}
-
-materialize_openclaw_plugin_bundle() {
-  local source_dir="${SOURCE_ROOT}/.openclaw-plugin"
-  local target_dir="${INSTALL_ROOT}/.openclaw-plugin"
-
-  if [[ ! -d "${source_dir}" ]]; then
-    log "INFO: OpenClaw scaffold source not found at ${source_dir}; skipping"
-    return 0
-  fi
-
-  if ! mkdir -p "${INSTALL_ROOT}/plugins" 2>/dev/null; then
-    plugin_install_notice "Unable to create plugin directory at ${INSTALL_ROOT}/plugins"
-    return 0
-  fi
-
-  if [[ -e "${target_dir}" ]] && ! rm -rf "${target_dir}"; then
-    plugin_install_notice "Unable to replace existing OpenClaw scaffold at ${target_dir}"
-    return 0
-  fi
-
-  if ! cp -RL "${source_dir}" "${target_dir}" 2>/dev/null; then
-    plugin_install_notice "Failed to copy OpenClaw scaffold from ${source_dir} to ${target_dir}"
-    return 0
-  fi
-
-  chmod +x "${target_dir}/init.sh" 2>/dev/null || true
-  log "Installed OpenClaw scaffold into ${target_dir}"
-}
-
-initialize_openclaw_plugin() {
-  local init_script="${INSTALL_ROOT}/.openclaw-plugin/init.sh"
-
-  if [[ ! -x "${init_script}" ]]; then
-    log "INFO: OpenClaw scaffold init script not found at ${init_script}; skipping bootstrap"
-    return 0
-  fi
-
-  if OPENCLAW_PLUGIN_MODE=install "${init_script}" >/dev/null 2>&1; then
-    log "Initialized OpenClaw plugin bootstrap config"
-    return 0
-  fi
-
-  plugin_install_notice "OpenClaw scaffold init script failed: ${init_script}"
-  return 0
 }
 
 link_launchers() {
   mkdir -p "${INSTALL_BIN}"
   ln -sfn "${INSTALL_ROOT}/bin/clawbrowser" "${INSTALL_BIN}/clawbrowser"
   ln -sfn "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${INSTALL_BIN}/clawbrowser-mcp"
-  ln -sfn "${INSTALL_ROOT}/bin/openclaw-plugin-init" "${INSTALL_BIN}/openclaw-plugin-init"
 }
 
 link_app_bundle() {
@@ -835,13 +697,15 @@ link_app_bundle() {
 }
 
 register_gemini_extension() {
+  cp -L "${SOURCE_ROOT}/GEMINI.md" "${INSTALL_ROOT}/GEMINI.md" 2>/dev/null || true
+  cp -L "${SOURCE_ROOT}/gemini-extension.json" "${INSTALL_ROOT}/gemini-extension.json" 2>/dev/null || true
   mkdir -p "${GEMINI_EXTENSIONS_ROOT}"
   ln -sfn "${INSTALL_ROOT}" "${GEMINI_EXTENSIONS_ROOT}/clawbrowser"
   log "Registered Gemini CLI extension: ${GEMINI_EXTENSIONS_ROOT}/clawbrowser"
 }
 
 install_hermes_plugin() {
-  local source_dir="${INSTALL_ROOT}/plugins/clawbrowser/.hermes-plugin"
+  local source_dir="${SOURCE_ROOT}/.hermes-plugin"
   local target_dir="${HERMES_PLUGINS_ROOT}/clawbrowser"
 
   if [[ ! -d "${source_dir}" ]]; then
@@ -868,13 +732,39 @@ install_hermes_plugin() {
   fi
   find "${target_dir}" -type d -name "__pycache__" -prune -exec rm -rf {} + 2>/dev/null || true
 
-  # Copy the clawbrowser and clawbrowser-mcp binaries into the plugin
-  # so the tools can locate them even without PATH setup.
-  cp "${INSTALL_ROOT}/bin/clawbrowser" "${target_dir}/clawbrowser" 2>/dev/null || true
-  cp "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${target_dir}/clawbrowser-mcp" 2>/dev/null || true
-  chmod +x "${target_dir}/clawbrowser" "${target_dir}/clawbrowser-mcp" 2>/dev/null || true
+  stage_plugin_binaries "${target_dir}"
 
   log "Hermes plugin installed: ${target_dir}"
+}
+
+install_openclaw_plugin() {
+  local source_dir="${SOURCE_ROOT}/.openclaw-plugin"
+  local target_dir="${INSTALL_ROOT}/.openclaw-plugin"
+
+  if [[ ! -d "${source_dir}" ]]; then
+    log "Legacy OpenClaw compatibility scaffold source not found at ${source_dir}; skipping"
+    return 0
+  fi
+
+  log "Installing legacy OpenClaw compatibility scaffold into ${target_dir}"
+  if [[ -e "${target_dir}" ]] && ! rm -rf "${target_dir}"; then
+    plugin_install_notice "Unable to replace existing legacy OpenClaw compatibility scaffold at ${target_dir}"
+    return 0
+  fi
+
+  if ! cp -RL "${source_dir}" "${target_dir}" 2>/dev/null; then
+    plugin_install_notice "Failed to copy legacy OpenClaw compatibility scaffold from ${source_dir} to ${target_dir}"
+    return 0
+  fi
+  chmod +x "${target_dir}/init.sh" 2>/dev/null || true
+
+  if OPENCLAW_PLUGIN_MODE=install "${target_dir}/init.sh" >/dev/null 2>&1; then
+    log "Initialized legacy OpenClaw compatibility bootstrap config"
+  else
+    plugin_install_notice "Legacy OpenClaw compatibility scaffold init script failed: ${target_dir}/init.sh"
+  fi
+
+  log "Legacy OpenClaw compatibility scaffold installed: ${target_dir}"
 }
 
 enable_hermes_plugin() {
@@ -1054,12 +944,7 @@ main() {
   require_command python3
 
   ensure_source_root
-  copy_bundle
-  if ! materialize_compat_bundle; then
-    log "INFO: Proceeding without a complete compatibility plugin bundle; Codex/Hermes plugin steps may be skipped."
-  fi
-  materialize_openclaw_plugin_bundle
-  initialize_openclaw_plugin
+  prepare_runtime_root
   link_launchers
 
   native_bundle=""
@@ -1079,43 +964,64 @@ main() {
     fi
   fi
 
-  if [[ "${TARGET}" == "all" || "${TARGET}" == "codex" ]]; then
+  if [[ "${TARGET}" == "codex" ]]; then
     install_codex_plugin
     write_codex_marketplace
   fi
 
-  if [[ "${TARGET}" == "all" || "${TARGET}" == "gemini" ]]; then
+  if [[ "${TARGET}" == "gemini" ]]; then
     register_gemini_extension
   fi
 
-  if [[ "${TARGET}" == "all" || "${TARGET}" == "claude" ]]; then
+  if [[ "${TARGET}" == "claude" ]]; then
     install_claude_plugin
   fi
 
-  if [[ "${TARGET}" == "all" || "${TARGET}" == "hermes" ]]; then
+  if [[ "${TARGET}" == "hermes" ]]; then
     install_hermes_plugin
     enable_hermes_plugin
   fi
 
+  if [[ "${TARGET}" == "openclaw" ]]; then
+    install_openclaw_plugin
+  fi
+
   if [[ "${TARGET}" == "codex" ]]; then
-    log "Codex target selected: the shared bundle, Codex plugin copy, and marketplace metadata are installed."
+    log "Codex target selected: the runtime files, Codex plugin copy, and marketplace metadata are installed."
   fi
 
   if [[ "${TARGET}" == "claude" ]]; then
-    log "Claude target selected: the shared bundle and Claude plugin copy are installed."
+    log "Claude target selected: the runtime files and Claude plugin copy are installed."
   fi
 
   if [[ "${TARGET}" == "hermes" ]]; then
-    log "Hermes target selected: the shared bundle, Hermes plugin, and MCP config are installed."
+    log "Hermes target selected: the runtime files, Hermes plugin, and MCP config are installed."
   fi
 
-  log "Installed commands:"
-  log "  ${INSTALL_BIN}/clawbrowser"
-  log "  ${INSTALL_BIN}/clawbrowser-mcp"
-  log "  ${INSTALL_BIN}/openclaw-plugin-init"
-  log "Install root:"
-  log "  ${INSTALL_ROOT}"
-  log "Next: the launcher prompts once if needed and writes the key into browser-managed config"
+  if [[ "${TARGET}" == "openclaw" ]]; then
+    log "Legacy OpenClaw compatibility target selected: the runtime files and compatibility scaffold are installed."
+  fi
+
+  log "Clawbrowser installed."
+  log "Commands:"
+  log "  clawbrowser"
+  log "  clawbrowser-mcp"
+  log ""
+  log "Next steps for agents:"
+  log "  1. Start managed sessions with:"
+  log "     clawbrowser start --session work -- https://example.com"
+  log "  2. Get CDP with:"
+  log "     clawbrowser endpoint --session work"
+  log "  3. Use CDP for page automation."
+  log "  4. Use clawbrowser://verify only for fingerprint/proxy/geo checks."
+  log "  5. Use clawbrowser rotate --session work for a fresh identity."
+  log "  6. Do not launch browser binaries directly for agent tasks."
+  log "     On macOS, Clawbrowser.app may be the native runtime used under the hood."
+  log ""
+  log "If API key is missing:"
+  log "  Get it from https://app.clawbrowser.ai."
+  log "  The launcher/browser stores it in the browser-managed config.json."
+  log "  Do not store it in agent config or shell startup files."
 }
 
 main "$@"

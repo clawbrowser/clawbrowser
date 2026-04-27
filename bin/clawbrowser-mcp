@@ -12,11 +12,18 @@ from urllib import request as urllib_request
 SERVER_NAME = "clawbrowser"
 SERVER_VERSION = "1.0.0"
 SERVER_INSTRUCTIONS = (
-    "Clawbrowser is the default managed browser for web tasks. Use these MCP "
-    "tools instead of the user's personal/system browser or generic browser "
-    "tools. Start or open a session first, use the returned CDP endpoint for "
-    "automation, open clawbrowser://verify only for install or identity checks, "
-    "and stop sessions only when the user asks."
+    "Clawbrowser CLI/MCP manages lifecycle and identity. Use these MCP tools "
+    "instead of the user's personal/system browser or an unmanaged browser. "
+    "Use start_session to create or reattach a managed session, use "
+    "endpoint_session to get the CDP automation endpoint, and use CDP for "
+    "navigation, clicking, typing, scraping, screenshots, DOM inspection, and "
+    "JS evaluation. Managed sessions for agent tasks are expected to run in "
+    "fingerprint/proxy mode; if verify reports fingerprint mode inactive, the "
+    "session was not launched correctly. Use rotate_session for the official "
+    "fresh-identity path, use clawbrowser://verify only when identity, proxy, "
+    "or geo proof matters, and do not launch browser binaries directly for "
+    "agent tasks. On macOS, Clawbrowser.app may be the native runtime used "
+    "under the hood, but agents should not invoke it directly."
 )
 
 
@@ -432,50 +439,50 @@ def list_profiles(arguments):
 TOOLS = [
     {
         "name": "start_session",
-        "description": "Start or reattach to a managed Clawbrowser session and return the local CDP endpoint. api_key is bootstrap-only when saved config.json reuse is unavailable.",
+        "description": "Start or reattach to a managed Clawbrowser session and return the local CDP endpoint. Use this as the supported launch path for agent tasks, then use CDP for page automation. api_key is bootstrap-only when saved config.json reuse is unavailable.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "session": {"type": "string"},
-                "api_key": {"type": "string", "description": "Optional bootstrap-only API key from https://app.clawbrowser.ai. Omit it when the browser can reuse a saved config.json; provide it only for first-time bootstrap."},
+                "api_key": {"type": "string", "description": "Bootstrap-only API key from https://app.clawbrowser.ai. Omit it when the browser can reuse saved config.json."},
                 "image": {"type": "string"},
                 "port": {"type": "integer"},
-                "url": {"type": "string", "description": "Optional URL to open in the managed session, including clawbrowser://auth or clawbrowser://verify."},
-                "fingerprint": {"type": ["boolean", "string"], "description": "Optional fingerprint mode override. Omit for the launcher default; true passes --fingerprint. Values like none/off/disabled are rejected."},
-                "regenerate": {"type": "boolean"},
-                "country": {"type": "string"},
-                "city": {"type": "string"},
-                "connection_type": {"type": "string"},
-                "verify": {"type": "boolean"},
-                "verify_automation": {"type": "boolean"},
+                "url": {"type": "string", "description": "Optional URL to open after the session starts, including clawbrowser://verify or clawbrowser://auth when needed."},
+                "fingerprint": {"type": ["boolean", "string"], "description": "Optional fingerprint mode override. Omit for the launcher default; managed sessions are expected to run in fingerprint mode. Values like none/off/disabled are rejected."},
+                "regenerate": {"type": "boolean", "description": "Pass --regenerate for a fresh identity. Prefer clawbrowser rotate for the public fresh-identity path."},
+                "country": {"type": "string", "description": "Optional country hint for the managed identity."},
+                "city": {"type": "string", "description": "Optional city hint for the managed identity."},
+                "connection_type": {"type": "string", "description": "Optional connection type hint for the managed identity."},
+                "verify": {"type": "boolean", "description": "Open clawbrowser://verify when no URL is supplied."},
+                "verify_automation": {"type": "boolean", "description": "Pass --verify-automation to the browser runtime when you need automation verification."},
             },
             "additionalProperties": False,
         },
     },
     {
         "name": "rotate_session",
-        "description": "Rotate the managed session with a fresh fingerprint/proxy-backed identity. api_key is bootstrap-only when saved config.json reuse is unavailable.",
+        "description": "Restart the named managed session with a fresh identity. This is the official fresh-identity path; use it instead of UI controls or manual browser launches. api_key is bootstrap-only when saved config.json reuse is unavailable.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "session": {"type": "string"},
-                "api_key": {"type": "string", "description": "Optional bootstrap-only API key from https://app.clawbrowser.ai. Omit it when the browser can reuse a saved config.json; provide it only for first-time bootstrap."},
+                "api_key": {"type": "string", "description": "Bootstrap-only API key from https://app.clawbrowser.ai. Omit it when the browser can reuse saved config.json."},
                 "image": {"type": "string"},
                 "url": {"type": "string", "description": "Optional URL to open after rotation, including clawbrowser://verify."},
-                "fingerprint": {"type": ["boolean", "string"], "description": "Optional fingerprint mode override. Omit for the launcher default; true passes --fingerprint. Values like none/off/disabled are rejected."},
-                "verify": {"type": "boolean"},
-                "verify_automation": {"type": "boolean"},
-                "country": {"type": "string"},
-                "city": {"type": "string"},
-                "connection_type": {"type": "string"},
-                "regenerate": {"type": "boolean"},
+                "fingerprint": {"type": ["boolean", "string"], "description": "Optional fingerprint mode override. Omit for the launcher default; managed sessions are expected to run in fingerprint mode. Values like none/off/disabled are rejected."},
+                "verify": {"type": "boolean", "description": "Open clawbrowser://verify when no URL is supplied."},
+                "verify_automation": {"type": "boolean", "description": "Pass --verify-automation to the browser runtime when you need automation verification."},
+                "country": {"type": "string", "description": "Optional country hint for the managed identity."},
+                "city": {"type": "string", "description": "Optional city hint for the managed identity."},
+                "connection_type": {"type": "string", "description": "Optional connection type hint for the managed identity."},
+                "regenerate": {"type": "boolean", "description": "Pass --regenerate for a fresh identity. Prefer clawbrowser rotate for the public fresh-identity path."},
             },
             "additionalProperties": False,
         },
     },
     {
         "name": "status_session",
-        "description": "Show whether a managed Clawbrowser session is running.",
+        "description": "Check whether a managed session is running and report its CDP endpoint and backend.",
         "inputSchema": {
             "type": "object",
             "properties": {"session": {"type": "string"}},
@@ -484,7 +491,7 @@ TOOLS = [
     },
     {
         "name": "endpoint_session",
-        "description": "Return the CDP endpoint for a managed session.",
+        "description": "Return the live CDP endpoint for a managed session. Use this endpoint for page automation; do not use it as a lifecycle command.",
         "inputSchema": {
             "type": "object",
             "properties": {"session": {"type": "string"}},
@@ -493,7 +500,7 @@ TOOLS = [
     },
     {
         "name": "list_tabs",
-        "description": "List open page tabs in a managed Clawbrowser session.",
+        "description": "List open page tabs in a managed session so you can inspect or clean up browser pages.",
         "inputSchema": {
             "type": "object",
             "properties": {"session": {"type": "string"}},
@@ -502,7 +509,7 @@ TOOLS = [
     },
     {
         "name": "close_tabs",
-        "description": "Close one or more page tabs in a managed Clawbrowser session by target id, URL/title filter, or all pages.",
+        "description": "Close selected page tabs in a managed session by target id, URL/title filter, or all pages. Use this for about:blank and finished-tab cleanup without stopping the session.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -524,7 +531,7 @@ TOOLS = [
     },
     {
         "name": "stop_session",
-        "description": "Stop a managed Clawbrowser session.",
+        "description": "Stop a managed session. Use only when the user explicitly asks to close the session or when performing explicit cleanup.",
         "inputSchema": {
             "type": "object",
             "properties": {"session": {"type": "string"}},
@@ -533,7 +540,7 @@ TOOLS = [
     },
     {
         "name": "list_profiles",
-        "description": "List cached profiles in the managed session directory.",
+        "description": "List cached profiles in the managed session directory for the named session.",
         "inputSchema": {
             "type": "object",
             "properties": {"session": {"type": "string"}},

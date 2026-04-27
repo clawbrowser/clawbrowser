@@ -2,7 +2,8 @@
   "mcpServers": {
     "clawbrowser": {
       "command": "./bin/clawbrowser-mcp",
-      "cwd": "."
+      "cwd": ".",
+      "description": "Managed Clawbrowser lifecycle and identity; use the returned CDP endpoint for page automation."
     }
   }
 }

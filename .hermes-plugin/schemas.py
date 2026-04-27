@@ -3,12 +3,11 @@
 CLAWBROWSER_START = {
     "name": "clawbrowser_start",
     "description": (
-        "Start a Clawbrowser browser session with an isolated identity. "
-        "Returns a live CDP (Chrome DevTools Protocol) endpoint URL. "
-        "Optionally opens a URL in the new session. Use this to begin any "
-        "browser or web task without touching the user's personal browser. "
-        "In auto mode, falls back from native app to Docker container if "
-        "native startup fails."
+        "Start or reattach a managed Clawbrowser session and return the "
+        "local CDP endpoint. Use this as the supported launch path for "
+        "agent tasks, then use CDP for navigation, clicking, typing, "
+        "scraping, screenshots, DOM inspection, and JS evaluation. "
+        "api_key is bootstrap-only when saved config.json reuse is unavailable."
     ),
     "parameters": {
         "type": "object",
@@ -16,22 +15,22 @@ CLAWBROWSER_START = {
             "session": {
                 "type": "string",
                 "description": (
-                    "Session name to create or reattach to. Use distinct "
-                    "names for separate tasks (e.g., 'research', 'scrape')."
+                    "Managed session name. Use distinct names for separate "
+                    "identities or simultaneous profiles."
                 ),
             },
             "url": {
                 "type": "string",
                 "description": (
-                    "Optional URL to open immediately after the session "
-                    "starts. Omit to start with a blank page."
+                    "Optional URL to open after the session starts, including "
+                    "clawbrowser://verify or clawbrowser://auth when needed."
                 ),
             },
             "api_key": {
                 "type": "string",
                 "description": (
-                    "Optional bootstrap-only API key from https://app.clawbrowser.ai. "
-                    "Omit when Clawbrowser can reuse saved config.json."
+                    "Bootstrap-only API key from https://app.clawbrowser.ai. "
+                    "Omit it when the browser can reuse saved config.json."
                 ),
             },
             "image": {
@@ -48,15 +47,15 @@ CLAWBROWSER_START = {
             },
             "fingerprint": {
                 "type": ["boolean", "string"],
-                "description": "Optional fingerprint mode override. Omit for launcher default; true passes --fingerprint. Values like none/off/disabled are rejected.",
+                "description": "Optional fingerprint mode override. Omit for the launcher default; managed sessions are expected to run in fingerprint mode. Values like none/off/disabled are rejected.",
             },
             "regenerate": {
                 "type": "boolean",
-                "description": "Pass --regenerate for a fresh profile.",
+                "description": "Pass --regenerate for a fresh identity. Prefer clawbrowser rotate for the public fresh-identity path.",
             },
             "verify_automation": {
                 "type": "boolean",
-                "description": "Pass --verify-automation to the browser runtime.",
+                "description": "Pass --verify-automation to the browser runtime when you need automation verification.",
             },
             "country": {
                 "type": "string",
@@ -78,10 +77,8 @@ CLAWBROWSER_START = {
 CLAWBROWSER_ENDPOINT = {
     "name": "clawbrowser_endpoint",
     "description": (
-        "Get the live CDP endpoint URL for an existing Clawbrowser session. "
-        "Use this to retrieve the WebSocket debugger URL for connecting "
-        "browser automation tools (Playwright, Puppeteer, etc.) to the "
-        "running session."
+        "Return the live CDP endpoint for a managed session. Use this "
+        "endpoint for page automation; do not use it as a lifecycle command."
     ),
     "parameters": {
         "type": "object",
@@ -98,11 +95,9 @@ CLAWBROWSER_ENDPOINT = {
 CLAWBROWSER_ROTATE = {
     "name": "clawbrowser_rotate",
     "description": (
-        "Rotate the browser identity for an existing Clawbrowser session. "
-        "Generates a fresh fingerprint, proxy assignment, and browser "
-        "profile. Use this when you need a new identity without stopping "
-        "and restarting the session, such as when switching between "
-        "accounts or avoiding rate limits."
+        "Restart the named managed session with a fresh identity. This is "
+        "the official fresh-identity path; use it instead of UI controls or "
+        "manual browser launches."
     ),
     "parameters": {
         "type": "object",
@@ -113,13 +108,13 @@ CLAWBROWSER_ROTATE = {
             },
             "url": {
                 "type": "string",
-                "description": "Optional URL to open after rotation, such as clawbrowser://verify.",
+                "description": "Optional URL to open after rotation, including clawbrowser://verify.",
             },
             "api_key": {
                 "type": "string",
                 "description": (
-                    "Optional bootstrap-only API key from https://app.clawbrowser.ai. "
-                    "Omit when Clawbrowser can reuse saved config.json."
+                    "Bootstrap-only API key from https://app.clawbrowser.ai. "
+                    "Omit it when the browser can reuse saved config.json."
                 ),
             },
             "image": {
@@ -132,15 +127,15 @@ CLAWBROWSER_ROTATE = {
             },
             "fingerprint": {
                 "type": ["boolean", "string"],
-                "description": "Optional fingerprint mode override. Omit for launcher default; true passes --fingerprint. Values like none/off/disabled are rejected.",
+                "description": "Optional fingerprint mode override. Omit for the launcher default; managed sessions are expected to run in fingerprint mode. Values like none/off/disabled are rejected.",
             },
             "regenerate": {
                 "type": "boolean",
-                "description": "Pass --regenerate for a fresh profile.",
+                "description": "Pass --regenerate for a fresh identity. Prefer clawbrowser rotate for the public fresh-identity path.",
             },
             "verify_automation": {
                 "type": "boolean",
-                "description": "Pass --verify-automation to the browser runtime.",
+                "description": "Pass --verify-automation to the browser runtime when you need automation verification.",
             },
             "country": {
                 "type": "string",
@@ -162,9 +157,8 @@ CLAWBROWSER_ROTATE = {
 CLAWBROWSER_OPEN_URL = {
     "name": "clawbrowser_open_url",
     "description": (
-        "Open a URL in an existing managed Clawbrowser session using the "
-        "session's CDP endpoint. Use this for normal URLs and "
-        "clawbrowser://auth or clawbrowser://verify."
+        "Open a URL in a running managed session through the CDP endpoint. "
+        "Use this after obtaining the endpoint from clawbrowser_endpoint."
     ),
     "parameters": {
         "type": "object",
@@ -184,7 +178,7 @@ CLAWBROWSER_OPEN_URL = {
 
 CLAWBROWSER_LIST_TABS = {
     "name": "clawbrowser_list_tabs",
-    "description": "List open page tabs in a managed Clawbrowser session.",
+    "description": "List open page tabs in a managed session so you can inspect or clean up browser pages.",
     "parameters": {
         "type": "object",
         "properties": {
@@ -200,9 +194,9 @@ CLAWBROWSER_LIST_TABS = {
 CLAWBROWSER_CLOSE_TABS = {
     "name": "clawbrowser_close_tabs",
     "description": (
-        "Close tabs in a managed Clawbrowser session by target id, URL/title "
-        "filter, or all_pages. Use this to close about:blank and finished "
-        "task tabs without stopping the session."
+        "Close selected page tabs in a managed session by target id, URL/title "
+        "filter, or all_pages. Use this for about:blank and finished-tab cleanup "
+        "without stopping the session."
     ),
     "parameters": {
         "type": "object",
@@ -236,10 +230,8 @@ CLAWBROWSER_CLOSE_TABS = {
 CLAWBROWSER_STOP = {
     "name": "clawbrowser_stop",
     "description": (
-        "Stop a Clawbrowser browser session and clean up its resources. "
-        "Use this only when the user explicitly asks to close the session "
-        "or when performing explicit cleanup. For normal task cleanup, close "
-        "blank or no-longer-needed tabs instead."
+        "Stop a managed session. Use only when the user explicitly asks to "
+        "close the session or when performing explicit cleanup."
     ),
     "parameters": {
         "type": "object",
@@ -256,9 +248,8 @@ CLAWBROWSER_STOP = {
 CLAWBROWSER_STATUS = {
     "name": "clawbrowser_status",
     "description": (
-        "Check the status of a Clawbrowser browser session. Returns "
-        "whether the session is running, its CDP endpoint, backend type "
-        "(native or container), and other session metadata."
+        "Check whether a managed session is running and report its CDP "
+        "endpoint and backend."
     ),
     "parameters": {
         "type": "object",

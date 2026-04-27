@@ -9,12 +9,16 @@ from . import schemas, tools
 logger = logging.getLogger(__name__)
 
 _BROWSER_CONTEXT = """\
-Clawbrowser is the default managed browser for web tasks. Use clawbrowser_* \
-tools or Clawbrowser MCP tools instead of generic browser tools. Do not use \
-the user's personal/system browser or fall back while Clawbrowser is available.
-- Start/open: clawbrowser_start with a session and optional url.
-- Verify/auth: open clawbrowser://verify or clawbrowser://auth in Clawbrowser.
-- Endpoint: clawbrowser_endpoint returns the live CDP endpoint.
+Clawbrowser is the managed browser for web tasks. Use clawbrowser_* tools or
+Clawbrowser MCP tools for lifecycle and identity, then use the returned CDP
+endpoint for page automation. Do not launch Chrome, Chromium, the system
+browser directly for agent tasks. On macOS, Clawbrowser.app may be the
+native runtime used under the hood, but agents should not invoke it
+directly.
+- Managed sessions for agent tasks are expected to run in fingerprint/proxy mode.
+- Start/reuse: clawbrowser_start with a session and optional url.
+- Fresh identity: clawbrowser_rotate, then continue through the endpoint.
+- Verify/auth: use clawbrowser://verify only when fingerprint/proxy/geo proof matters.
 - Tabs: close blank or finished tabs; stop only when the user asks.\
 """
 
