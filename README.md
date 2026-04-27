@@ -9,11 +9,11 @@ Full contract: [AGENTS.md](./AGENTS.md)
 - `clawbrowser` CLI creates or reattaches managed sessions and exposes a local CDP endpoint.
 - `clawbrowser-mcp` provides the same lifecycle and identity controls through MCP.
 - CDP is the page automation layer for navigation, clicking, typing, scraping, screenshots, DOM inspection, and JS evaluation.
-- Skills and plugins wire the same contract into agent tools such as OpenAI Codex, Gemini CLI, Hermes, and Claude Code.
+- Skills and plugins wire the same contract into agent tools such as OpenAI Codex, Claude Code, Gemini CLI, Hermes, and OpenClaw.
 
 ## Install
 
-Use the installer `auto` target if you want it to pick the right target for you.
+Use the installer `auto` target if you want it to pick a supported target for you.
 
 ### Shell Installer
 
@@ -39,6 +39,12 @@ curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/script
 
 Drops the plugin into `~/.codex/plugins/clawbrowser` and marks it `INSTALLED_BY_DEFAULT` in `~/.agents/plugins/marketplace.json`.
 
+- Claude Code
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- claude
+```
+
 - Gemini CLI
 
 ```bash
@@ -53,19 +59,13 @@ curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/script
 
 Installs the Hermes plugin into `~/.hermes/plugins/clawbrowser` and enables it in `~/.hermes/config.yaml`. It also configures the portable `clawbrowser-mcp` MCP server. Native tools land immediately: `clawbrowser_start`, `clawbrowser_endpoint`, `clawbrowser_rotate`, `clawbrowser_open_url`, `clawbrowser_list_tabs`, `clawbrowser_close_tabs`, `clawbrowser_stop`, `clawbrowser_status`.
 
-- Claude Code
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- claude
-```
-
-- OpenClaw compatibility bootstrap
+- OpenClaw integration
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- openclaw
 ```
 
-Installs the legacy OpenClaw compatibility scaffold for historical bootstrap paths. Normal agent workflows still use `clawbrowser` and `clawbrowser-mcp`.
+Installs the OpenClaw plugin/config integration for Clawbrowser-managed sessions and CDP wiring.
 
 - Install another target
 

@@ -1,13 +1,13 @@
 ---
 name: openclaw-clawbrowser-bridge
-description: Use Clawbrowser as the managed browser from OpenClaw workflows and maintain the bootstrap scaffold that wires sessions, CDP, and cleanup commands.
+description: Use Clawbrowser as the managed browser from OpenClaw workflows and maintain the integration that wires sessions, CDP, and cleanup commands.
 ---
 
 # Skill: OpenClaw Clawbrowser Bridge
 
 Purpose:
 - Use the Clawbrowser managed browser from OpenClaw workflows and maintain
-  the small bootstrap scaffold that wires the two together.
+  the integration that wires the two together.
 
 Daily browser contract:
 - `start/open`: `clawbrowser start --session <name> -- <url>`
@@ -28,10 +28,10 @@ Rules:
 - Keep browser API keys in browser-managed `config.json`, never in plugin
   config, manifests, shell rc files, or agent config.
 
-Scaffold capabilities:
+Integration capabilities:
 - Generate and update `plugin.json` and `init.sh`.
 - Validate plugin layout and required fields.
-- Apply installer hooks for scaffold materialization and launcher symlinks.
+- Apply installer hooks for integration materialization and launcher symlinks.
 
 Required files:
 - `.openclaw-plugin/plugin.json`
@@ -42,7 +42,7 @@ Validation checklist:
 1. Plugin directory exists at `.openclaw-plugin`.
 2. `plugin.json` parses as valid JSON.
 3. `init.sh` is executable.
-4. Installer places the scaffold in `INSTALL_ROOT/.openclaw-plugin`.
+4. Installer places the integration in `INSTALL_ROOT/.openclaw-plugin`.
 5. Launcher symlink exists: `openclaw-plugin-init`.
 
 Apply flow:

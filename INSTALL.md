@@ -4,7 +4,7 @@ Quick install is in [README.md](./README.md). Full contract: [AGENTS.md](./AGENT
 
 ## Install Commands
 
-Clawbrowser ships as a CLI + MCP server. Use the installer `auto` target if you want it to pick the right target for you. If you already know which target you want, pass it explicitly.
+Clawbrowser ships as a CLI + MCP server. Use the installer `auto` target if you want it to pick a supported target for you. If you already know which target you want, pass it explicitly.
 
 Recommended:
 
@@ -33,13 +33,13 @@ Targets:
 | Target | Wires up |
 | --- | --- |
 | `auto` | Picks the matching target automatically |
-| `hermes` | Hermes plugin + MCP config in `~/.hermes/config.yaml` |
 | `codex` | Codex plugin + `~/.agents/plugins/marketplace.json` |
-| `gemini` | Gemini CLI extension |
 | `claude` | Claude Code plugin bundle |
-| `openclaw` | Legacy bootstrap compatibility scaffold |
+| `gemini` | Gemini CLI extension |
+| `hermes` | Hermes plugin + MCP config in `~/.hermes/config.yaml` |
+| `openclaw` | OpenClaw plugin/config integration |
 
-Legacy compatibility: `openclaw` is still recognized for historical bootstrap paths, but it is not part of the normal agent contract or quick references.
+If you need more than one target, rerun the installer once per target.
 
 ## Container Mode
 

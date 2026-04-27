@@ -1,6 +1,6 @@
 {
   "name": "openclaw-plugin",
-  "description": "OpenClaw bootstrap scaffold for Clawbrowser session and CDP wiring",
+  "description": "OpenClaw plugin/config integration for Clawbrowser session and CDP wiring",
   "version": "0.1.0",
   "author": "Clawbrowser",
   "source": {

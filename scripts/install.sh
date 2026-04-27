@@ -28,8 +28,8 @@ die() {
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/install.sh [auto|codex|claude|gemini|hermes]
-  bash scripts/install.sh --target <auto|codex|claude|gemini|hermes>
+  bash scripts/install.sh [auto|codex|claude|gemini|hermes|openclaw]
+  bash scripts/install.sh --target <auto|codex|claude|gemini|hermes|openclaw>
   curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- <target>
 
 Environment overrides:
@@ -57,6 +57,7 @@ is_source_root_ready() {
     [[ -x "${SOURCE_ROOT}/bin/clawbrowser-mcp" ]] &&
     [[ -f "${SOURCE_ROOT}/.claude-plugin/plugin.json" ]] &&
     [[ -f "${SOURCE_ROOT}/.codex-plugin/plugin.json" ]] &&
+    [[ -f "${SOURCE_ROOT}/.openclaw-plugin/plugin.json" ]] &&
     [[ -f "${SOURCE_ROOT}/.hermes-plugin/plugin.yaml" ]] &&
     [[ -f "${SOURCE_ROOT}/gemini-extension.json" ]] &&
     [[ -f "${SOURCE_ROOT}/AGENTS.md" ]] &&
@@ -742,29 +743,29 @@ install_openclaw_plugin() {
   local target_dir="${INSTALL_ROOT}/.openclaw-plugin"
 
   if [[ ! -d "${source_dir}" ]]; then
-    log "Legacy OpenClaw compatibility scaffold source not found at ${source_dir}; skipping"
+    log "OpenClaw plugin source not found at ${source_dir}; skipping"
     return 0
   fi
 
-  log "Installing legacy OpenClaw compatibility scaffold into ${target_dir}"
+  log "Installing OpenClaw plugin into ${target_dir}"
   if [[ -e "${target_dir}" ]] && ! rm -rf "${target_dir}"; then
-    plugin_install_notice "Unable to replace existing legacy OpenClaw compatibility scaffold at ${target_dir}"
+    plugin_install_notice "Unable to replace existing OpenClaw plugin path at ${target_dir}"
     return 0
   fi
 
   if ! cp -RL "${source_dir}" "${target_dir}" 2>/dev/null; then
-    plugin_install_notice "Failed to copy legacy OpenClaw compatibility scaffold from ${source_dir} to ${target_dir}"
+    plugin_install_notice "Failed to copy OpenClaw plugin from ${source_dir} to ${target_dir}"
     return 0
   fi
   chmod +x "${target_dir}/init.sh" 2>/dev/null || true
 
   if OPENCLAW_PLUGIN_MODE=install "${target_dir}/init.sh" >/dev/null 2>&1; then
-    log "Initialized legacy OpenClaw compatibility bootstrap config"
+    log "Initialized OpenClaw plugin config"
   else
-    plugin_install_notice "Legacy OpenClaw compatibility scaffold init script failed: ${target_dir}/init.sh"
+    plugin_install_notice "OpenClaw plugin init script failed: ${target_dir}/init.sh"
   fi
 
-  log "Legacy OpenClaw compatibility scaffold installed: ${target_dir}"
+  log "OpenClaw plugin installed: ${target_dir}"
 }
 
 enable_hermes_plugin() {
@@ -999,7 +1000,7 @@ main() {
   fi
 
   if [[ "${TARGET}" == "openclaw" ]]; then
-    log "Legacy OpenClaw compatibility target selected: the runtime files and compatibility scaffold are installed."
+    log "OpenClaw target selected: the runtime files and OpenClaw plugin are installed."
   fi
 
   log "Clawbrowser installed."

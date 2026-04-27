@@ -16,8 +16,6 @@ Full contract: [AGENTS.md](./AGENTS.md)
 - Browser-managed `config.json` is the source of truth for saved auth. If it is missing, ask once for the real API key from https://app.clawbrowser.ai and use `clawbrowser://auth` for manual reauth.
 - Cleanup and inspection live in the CLI/MCP layer too: `clawbrowser status`, `clawbrowser list`, and `clawbrowser stop`.
 
-Legacy compatibility note: `openclaw` exists only for historical bootstrap support in the installer. Do not use it in agent workflows or quick references.
-
 ## Normal Flow
 
 ```bash
@@ -39,5 +37,5 @@ Default to container mode when there is no display. `auto` mode also falls back 
 ## Install
 
 - Prefer the repo-local marketplace or the `scripts/install.sh` bootstrap.
-- If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude`, `codex`, `gemini`, or legacy `openclaw`.
+- If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude`, `codex`, `gemini`, or `openclaw`.
 - In container mode, also pull and run the container image. See `INSTALL.md` for the exact commands and config paths.
