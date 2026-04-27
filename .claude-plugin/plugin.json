@@ -1,7 +1,7 @@
 {
   "name": "clawbrowser",
   "version": "1.0.0",
-  "description": "Managed Clawbrowser runtime for agent tasks: lifecycle and identity via CLI/MCP, page automation via CDP, fingerprint/proxy-backed sessions, and browser-managed config.json reuse.",
+  "description": "Managed Clawbrowser runtime for agent tasks: lifecycle and identity via CLI/MCP, page automation via CDP, temporary CDP endpoints, and clawbrowser://verify/ for fingerprint/proxy proof.",
   "author": {
     "name": "Clawbrowser"
   },

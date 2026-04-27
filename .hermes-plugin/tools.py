@@ -57,8 +57,11 @@ def _bootstrap_error() -> dict:
             "If it is missing, ask the user once for the real API key from "
             "https://app.clawbrowser.ai, pass it as a bootstrap-only api_key "
             "tool argument, and let the launcher write the browser-managed "
-            "config.json with mode 600. For reauth, open clawbrowser://auth in "
-            "Clawbrowser."
+            "config.json with mode 600. If you need to write it manually, "
+            "resolve the absolute path first and do not pass unresolved shell-"
+            "expression paths to file/write tools. They may create literal "
+            "workspace paths instead of the real config file. For reauth, open "
+            "clawbrowser://auth in Clawbrowser."
         ),
     }
 
@@ -219,7 +222,11 @@ def _close_page_target(endpoint: str, target_id: str) -> str:
 
 
 def clawbrowser_start(args: dict, **kwargs) -> str:
-    """Start a browser session, optionally opening a URL."""
+    """Start a browser session, optionally opening a URL.
+
+    After start, reattach, restart, or rotate, fetch the current endpoint
+    again instead of reusing a saved ws://127.0.0.1/... handle.
+    """
     session = args.get("session", "").strip()
     if not session:
         return json.dumps({"error": "session name is required"})
@@ -245,7 +252,11 @@ def clawbrowser_start(args: dict, **kwargs) -> str:
 
 
 def clawbrowser_endpoint(args: dict, **kwargs) -> str:
-    """Get the CDP endpoint for a running session."""
+    """Get the current temporary CDP endpoint for a running session.
+
+    Do not persist the value; call this again after start, reattach,
+    restart, or rotate.
+    """
     session = args.get("session", "").strip()
     if not session:
         return json.dumps({"error": "session name is required"})
@@ -255,7 +266,11 @@ def clawbrowser_endpoint(args: dict, **kwargs) -> str:
 
 
 def clawbrowser_rotate(args: dict, **kwargs) -> str:
-    """Rotate identity for a running session."""
+    """Rotate identity for a running session.
+
+    After rotation, fetch the current endpoint again before further
+    automation and use clawbrowser://verify/ for proof when needed.
+    """
     session = args.get("session", "").strip()
     if not session:
         return json.dumps({"error": "session name is required"})
@@ -279,7 +294,7 @@ def clawbrowser_rotate(args: dict, **kwargs) -> str:
 
 
 def clawbrowser_open_url(args: dict, **kwargs) -> str:
-    """Open a URL in a running session via the CDP HTTP endpoint."""
+    """Open a URL in a running session via the current CDP HTTP endpoint."""
     session = args.get("session", "").strip()
     url = args.get("url", "").strip()
     if not session:

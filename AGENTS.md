@@ -11,6 +11,24 @@ Clawbrowser is the default managed browser for web tasks. Use the CLI/MCP to cre
 - Use CDP for navigation, clicking, typing, scraping, screenshots, DOM inspection, and JS evaluation.
 - Do not create unmanaged browser processes.
 
+## CDP Endpoint Handling
+
+- CDP endpoints returned by Clawbrowser are temporary runtime handles.
+- Always obtain the current endpoint with `clawbrowser endpoint --session <name>`.
+- Do this after start, reattach, restart, or rotate.
+- Do not hard-code, cache, or persist CDP endpoints.
+- Do not write CDP endpoints to agent config, plugin config, shell config, project files, or user settings.
+- Do not reuse previously observed `ws://127.0.0.1/...` endpoints after restart or rotate.
+- If an endpoint stops working, call `clawbrowser endpoint --session <name>`.
+
+## MCP Security
+
+- `clawbrowser-mcp` is local stdio only, not a network daemon.
+- It exposes lifecycle/session tools and returns the local CDP endpoint; treat that endpoint as sensitive.
+- Do not expose CDP on the network or publish the Docker port externally unless you explicitly understand the risk.
+- Do not put API keys into MCP config, agent config, shell rc files, or logs.
+- Use the official `clawbrowser/clawbrowser` GitHub repository and install command only.
+
 ## Session Model
 
 - `--session <name>` is the handle for a managed browser profile or identity.
@@ -22,27 +40,36 @@ Clawbrowser is the default managed browser for web tasks. Use the CLI/MCP to cre
 
 - Managed sessions for agent tasks are expected to run in fingerprint/proxy mode.
 - Use `clawbrowser rotate --session <name>` for a fresh identity. `--regenerate` is the launcher flag behind that path.
-- Check `clawbrowser://verify` after launch, after rotate/regenerate, or when fingerprint/proxy/geo correctness matters.
+- Check `clawbrowser://verify/` after launch, after rotate/regenerate, or when fingerprint/proxy/geo correctness matters.
 - If verify shows fingerprint mode inactive, treat the session as misconfigured or launched incorrectly.
 - Do not report identity or proxy success when fingerprint mode is inactive.
 
 ## Verify / Auth
 
-- `clawbrowser://verify` is the source of truth for fingerprint, proxy, and geo status.
+- `clawbrowser://verify/` is the source of truth for fingerprint, proxy, and geo status.
 - It is not required for trivial browsing tasks.
 - It is required when proving identity or proxy correctness, after rotate/regenerate tests, or while debugging browser-quality issues.
 - Look for: no fingerprint-mode warning, fingerprint mode active, proxy check passes when expected, navigator/user-agent/language/timezone/screen checks pass where applicable, and WebGL/canvas checks pass where applicable.
 - Some values may remain the same after rotate because of geo constraints or backend generation. Do not require every field to change.
 - Use `clawbrowser://auth` for manual reauthentication.
-- The launcher also accepts `--verify` as a convenience when no URL is supplied, but prefer the explicit `clawbrowser://verify` target in agent-facing examples.
+- The launcher also accepts `--verify` as a convenience when no URL is supplied, but prefer the explicit `clawbrowser://verify/` target in agent-facing examples.
+
+## Fingerprint / Proxy Inspection
+
+- When the user asks to check, inspect, compare, verify, or report fingerprints, proxy, geo, WebGL, canvas, timezone, user agent, or browser identity state, open `clawbrowser://verify/` inside the managed Clawbrowser session and inspect it through CDP.
+- Use `clawbrowser://verify/` as the default proof source for Clawbrowser fingerprint/proxy state.
+- Do not use random external fingerprint-checking sites unless the user explicitly asks.
+- Do not infer fingerprint/proxy status from the launch command alone.
+- Do not report fingerprint/proxy success until `clawbrowser://verify/` has been inspected through CDP.
 
 ## API Key / Auth
 
 - The browser-managed `config.json` is the source of truth for saved auth.
 - If it is missing, ask the user once for the real API key from https://app.clawbrowser.ai.
 - Do not use dummy keys.
-- Do not store the key in shell rc files, agent config, or random env files.
-- Host config: `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`
+- Do not store the key in shell rc files, MCP config, agent config, random env files, or logs.
+- Resolve config paths before writing. Do not pass `${XDG_CONFIG_HOME:-$HOME/.config}/...`, `$HOME/.config/...`, or `~/.config/...` directly to file/write tools; they may create literal workspace paths instead of the real config file.
+- Host config: use the resolved absolute path under the current user's config directory; if you need to write it manually, use a shell command or an already-resolved path.
 - Container config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
 
 ## Common Workflows
@@ -57,7 +84,7 @@ clawbrowser endpoint --session work
 B. Start at the verify page:
 
 ```bash
-clawbrowser start --session work -- clawbrowser://verify
+clawbrowser start --session work -- clawbrowser://verify/
 clawbrowser endpoint --session work
 ```
 
@@ -76,20 +103,20 @@ clawbrowser rotate --session work
 E. Fresh identity at a chosen URL:
 
 ```bash
-clawbrowser rotate --session work -- clawbrowser://verify
+clawbrowser rotate --session work -- clawbrowser://verify/
 ```
 
 Equivalent low-level launcher form:
 
 ```bash
-clawbrowser start --session work -- --regenerate clawbrowser://verify
+clawbrowser start --session work -- --regenerate clawbrowser://verify/
 ```
 
 F. Two independent browser instances:
 
 ```bash
-clawbrowser start --session profile-a -- clawbrowser://verify
-clawbrowser start --session profile-b -- clawbrowser://verify
+clawbrowser start --session profile-a -- clawbrowser://verify/
+clawbrowser start --session profile-b -- clawbrowser://verify/
 clawbrowser endpoint --session profile-a
 clawbrowser endpoint --session profile-b
 ```
@@ -104,7 +131,7 @@ These are pass-through browser arguments after `--`; they are not separate launc
 
 H. Missing API key:
 
-- Host mode uses `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`.
+- Host mode uses the resolved absolute path under the current user's config directory; resolve it before writing.
 - Container mode uses `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
 - Use `clawbrowser://auth` for manual reauthentication.
 
@@ -120,7 +147,7 @@ clawbrowser stop --session work
 
 ## Runtime Modes
 
-- **Host** - desktop/macOS or Linux with a display. Config: `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`.
+- **Host** - desktop/macOS or Linux with a display. Config lives under the current user's config directory; resolve the absolute path before writing.
 - **Container** - VPS, SSH-only, or no physical display. OCI image `docker.io/clawbrowser/clawbrowser:latest` with Docker or a Docker-compatible OCI CLI configured through `CLAWBROWSER_DOCKER_BIN`. This runs full Clawbrowser with a virtual Linux display and exposes CDP; it is not Chrome headless mode. Config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
 
 Default to container mode when there is no display. Launcher `auto` mode falls back native->container on its own.

@@ -10,18 +10,54 @@ Full contract: [AGENTS.md](./AGENTS.md)
 ## Short Contract
 
 - Lifecycle and identity live in the CLI/MCP layer: `clawbrowser start` or MCP `start_session` create or reattach managed sessions; `clawbrowser endpoint` or MCP `endpoint_session` returns the CDP handle.
-- Managed sessions for agent tasks are expected to run in fingerprint/proxy mode. If `clawbrowser://verify` reports fingerprint mode inactive, the session was not launched correctly.
+- Managed sessions for agent tasks are expected to run in fingerprint/proxy mode. If `clawbrowser://verify/` reports fingerprint mode inactive, the session was not launched correctly.
 - `--session <name>` is the handle for a managed profile or identity. Reuse the same name to reattach; use a new name for a separate browser instance. Keep a session-to-endpoint mapping when you work with more than one profile.
-- `clawbrowser rotate --session <name>` is the public fresh-identity path. Use `clawbrowser://verify` only when identity, proxy, or geo proof matters, after rotate/regenerate, or when debugging browser-quality issues.
-- Browser-managed `config.json` is the source of truth for saved auth. If it is missing, ask once for the real API key from https://app.clawbrowser.ai and use `clawbrowser://auth` for manual reauth.
+- `clawbrowser rotate --session <name>` is the public fresh-identity path. Use `clawbrowser://verify/` only when identity, proxy, or geo proof matters, after rotate/regenerate, or when debugging browser-quality issues.
+- Browser-managed `config.json` is the source of truth for saved auth. If it is missing, ask once for the real API key from https://app.clawbrowser.ai, resolve config paths before writing, and use `clawbrowser://auth` for manual reauth.
 - Cleanup and inspection live in the CLI/MCP layer too: `clawbrowser status`, `clawbrowser list`, and `clawbrowser stop`.
+
+## CDP Endpoint Handling
+
+- CDP endpoints returned by Clawbrowser are temporary runtime handles.
+- Always obtain the current endpoint with `clawbrowser endpoint --session <name>`.
+- Do this after start, reattach, restart, or rotate.
+- Do not hard-code, cache, or persist CDP endpoints.
+- Do not write CDP endpoints to agent config, plugin config, shell config, project files, or user settings.
+- Do not reuse previously observed `ws://127.0.0.1/...` endpoints after restart or rotate.
+- If an endpoint stops working, call `clawbrowser endpoint --session <name>`.
+
+## Fingerprint / Proxy Inspection
+
+- When the user asks to check, inspect, compare, verify, or report fingerprints, proxy, geo, WebGL, canvas, timezone, user agent, or browser identity state, open `clawbrowser://verify/` inside the managed Clawbrowser session and inspect it through CDP.
+- Use `clawbrowser://verify/` as the default proof source for Clawbrowser fingerprint/proxy state.
+- Do not use random external fingerprint-checking sites unless the user explicitly asks.
+- Do not infer fingerprint/proxy status from the launch command alone.
+- Do not report fingerprint/proxy success until `clawbrowser://verify/` has been inspected through CDP.
+
+## MCP Security
+
+- `clawbrowser-mcp` is local stdio only, not a network daemon.
+- It exposes lifecycle/session tools and returns the local CDP endpoint; treat that endpoint as sensitive.
+- Do not expose CDP on the network or publish the Docker port externally unless you explicitly understand the risk.
+- Do not put API keys into MCP config, agent config, shell rc files, or logs.
+- Use the official `clawbrowser/clawbrowser` GitHub repository and install command only.
+
+## API Key / Auth
+
+- The browser-managed `config.json` is the source of truth for saved auth.
+- If it is missing, ask the user once for the real API key from https://app.clawbrowser.ai.
+- Do not use dummy keys.
+- Do not store the key in shell rc files, MCP config, agent config, random env files, or logs.
+- Resolve config paths before writing. Do not pass `${XDG_CONFIG_HOME:-$HOME/.config}/...`, `$HOME/.config/...`, or `~/.config/...` directly to file/write tools; they may create literal workspace paths instead of the real config file.
+- Host config: use the resolved absolute path under the current user's config directory; if you need to write it manually, use a shell command or an already-resolved path.
+- Container config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
 
 ## Normal Flow
 
 ```bash
 clawbrowser start --session work -- https://example.com
 clawbrowser endpoint --session work
-clawbrowser rotate --session work -- clawbrowser://verify
+clawbrowser rotate --session work -- clawbrowser://verify/
 clawbrowser status --session work
 clawbrowser list --session work
 clawbrowser stop --session work
@@ -29,7 +65,7 @@ clawbrowser stop --session work
 
 ## Runtime Modes
 
-- **Host mode** — desktop/macOS or Linux with a display. Config: `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`.
+- **Host mode** — desktop/macOS or Linux with a display. Config lives under the current user's config directory; resolve the absolute path before writing.
 - **Container mode** — VPS, server, SSH-only, or no physical display. OCI image `docker.io/clawbrowser/clawbrowser:latest` (Docker or a Docker-compatible OCI CLI; set `CLAWBROWSER_DOCKER_BIN` for non-Docker launchers). This runs full Clawbrowser with a virtual Linux display and exposes CDP; it is not Chrome headless mode. Config in the container at `/home/clawbrowser/.config/clawbrowser/config.json`, persisted in the `clawbrowser-config` named volume.
 
 Default to container mode when there is no display. `auto` mode also falls back native→container on startup failure.
@@ -38,4 +74,5 @@ Default to container mode when there is no display. `auto` mode also falls back 
 
 - Prefer the repo-local marketplace or the `scripts/install.sh` bootstrap.
 - If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude`, `codex`, `gemini`, or `openclaw`.
+- Use the official `clawbrowser/clawbrowser` GitHub repository and install command only.
 - In container mode, also pull and run the container image. See `INSTALL.md` for the exact commands and config paths.

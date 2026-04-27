@@ -2,9 +2,9 @@ name: clawbrowser
 version: 1.0.0
 description: >-
   Managed Clawbrowser runtime for agent tasks. Lifecycle and identity
-  come from CLI/MCP, page automation comes from CDP, and managed sessions
-  are expected to run in fingerprint/proxy mode with browser-managed
-  config.json reuse.
+  come from CLI/MCP, page automation comes from CDP, CDP endpoints are
+  temporary runtime handles, and clawbrowser://verify/ is the proof
+  source for fingerprint/proxy state.
 author: Clawbrowser
 provides_tools:
   - clawbrowser_start

@@ -1,6 +1,6 @@
 {
   "name": "openclaw-plugin",
-  "description": "OpenClaw plugin/config integration for Clawbrowser session and CDP wiring",
+  "description": "OpenClaw plugin/config integration for Clawbrowser session handling, temporary CDP endpoints, and CDP wiring",
   "version": "0.1.0",
   "author": "Clawbrowser",
   "source": {
@@ -31,7 +31,7 @@
     "startUrlPlaceholder": "${url}",
     "endpointCommand": "clawbrowser endpoint --session openclaw-main",
     "rotateCommand": "clawbrowser rotate --session openclaw-main",
-    "verifyCommand": "clawbrowser start --session openclaw-main -- clawbrowser://verify",
+    "verifyCommand": "clawbrowser start --session openclaw-main -- clawbrowser://verify/",
     "closeBlankTabs": true
   },
   "overrides": {
@@ -45,6 +45,6 @@
     "bash": ">=5.0"
   },
   "security": {
-    "apiKeyPolicy": "Store browser API keys only in browser-managed config.json. Do not put secrets in plugin config, shell rc files, or manifests."
+    "apiKeyPolicy": "Store browser API keys only in browser-managed config.json. Resolve config paths before writing; do not pass unresolved shell-expression paths to file-write tools. They may create literal workspace paths instead of the real config file. Do not put secrets in plugin config, shell rc files, or manifests."
   }
 }

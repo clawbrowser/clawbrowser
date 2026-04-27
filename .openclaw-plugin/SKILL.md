@@ -11,10 +11,11 @@ Purpose:
 
 Daily browser contract:
 - `start/open`: `clawbrowser start --session <name> -- <url>`
-- `endpoint`: `clawbrowser endpoint --session <name>`
+- `endpoint`: `clawbrowser endpoint --session <name>`; CDP endpoints are temporary runtime handles, so re-fetch after start, reattach, restart, or rotate and do not persist them
 - `rotate`: `clawbrowser rotate --session <name>`
-- `verify/auth`: open `clawbrowser://verify` or `clawbrowser://auth` with
-  `clawbrowser start --session <name> -- <url>`
+- `verify/auth`: open `clawbrowser://verify/` or `clawbrowser://auth` with
+  `clawbrowser start --session <name> -- <url>`; use `clawbrowser://verify/`
+  as the proof source for fingerprint/proxy/identity state
 - `tabs`: use `clawbrowser-mcp` `list_tabs` and `close_tabs` to close
   `about:blank`, empty, and no-longer-needed tabs
 - `stop`: `clawbrowser stop --session <name>` only when the user asks to
@@ -22,11 +23,16 @@ Daily browser contract:
 
 Rules:
 - Use Clawbrowser instead of a generic or personal browser for browser work.
-- Treat the returned endpoint as the live CDP endpoint for advanced automation.
+- Treat the returned endpoint as the current temporary CDP endpoint for advanced automation.
+- Do not hard-code, cache, or reuse stale `ws://127.0.0.1/...` endpoints after restart or rotate.
+- Do not write CDP endpoints into plugin config, shell config, project files, or user settings.
 - Reuse existing sessions with `endpoint` or `start`; do not repeatedly
   stop/start a healthy session.
 - Keep browser API keys in browser-managed `config.json`, never in plugin
-  config, manifests, shell rc files, or agent config.
+  config, manifests, shell rc files, or agent config. Resolve config paths
+  before writing; do not pass unresolved shell-expression paths directly to
+  file-write tools. They may create literal workspace paths instead of the
+  real config file.
 
 Integration capabilities:
 - Generate and update `plugin.json` and `init.sh`.

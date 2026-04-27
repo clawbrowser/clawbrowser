@@ -6,8 +6,16 @@ CLAWBROWSER_START = {
         "Start or reattach a managed Clawbrowser session and return the "
         "local CDP endpoint. Use this as the supported launch path for "
         "agent tasks, then use CDP for navigation, clicking, typing, "
-        "scraping, screenshots, DOM inspection, and JS evaluation. "
-        "api_key is bootstrap-only when saved config.json reuse is unavailable."
+        "scraping, screenshots, DOM inspection, and JS evaluation. After "
+        "start, reattach, restart, or rotate, call clawbrowser_endpoint to "
+        "get the current temporary endpoint. For fingerprint/proxy/identity "
+        "proof, open clawbrowser://verify/ inside the managed session and "
+        "inspect it through CDP. api_key is bootstrap-only when saved "
+        "config.json reuse is unavailable. If you need to create "
+        "config.json manually, resolve the absolute path first and do not "
+        "pass unresolved shell-expression paths to file/write tools. They "
+        "may create literal workspace paths instead of the real config "
+        "file."
     ),
     "parameters": {
         "type": "object",
@@ -23,14 +31,18 @@ CLAWBROWSER_START = {
                 "type": "string",
                 "description": (
                     "Optional URL to open after the session starts, including "
-                    "clawbrowser://verify or clawbrowser://auth when needed."
+                    "clawbrowser://verify/ or clawbrowser://auth when needed."
                 ),
             },
             "api_key": {
                 "type": "string",
                 "description": (
                     "Bootstrap-only API key from https://app.clawbrowser.ai. "
-                    "Omit it when the browser can reuse saved config.json."
+                    "Omit it when the browser can reuse saved config.json. If "
+                    "you need to create config.json manually, resolve the "
+                    "absolute path first and do not pass unresolved shell-"
+                    "expression paths to file/write tools. They may create "
+                    "literal workspace paths instead of the real config file."
                 ),
             },
             "image": {
@@ -43,7 +55,7 @@ CLAWBROWSER_START = {
             },
             "verify": {
                 "type": "boolean",
-                "description": "Open clawbrowser://verify when no URL is supplied.",
+                "description": "Open clawbrowser://verify/ when no URL is supplied.",
             },
             "fingerprint": {
                 "type": ["boolean", "string"],
@@ -77,8 +89,10 @@ CLAWBROWSER_START = {
 CLAWBROWSER_ENDPOINT = {
     "name": "clawbrowser_endpoint",
     "description": (
-        "Return the live CDP endpoint for a managed session. Use this "
-        "endpoint for page automation; do not use it as a lifecycle command."
+        "Return the current temporary CDP endpoint for a managed session. "
+        "Do not persist it; call clawbrowser_endpoint again after start, "
+        "reattach, restart, or rotate. Use this endpoint for page automation; "
+        "do not use it as a lifecycle command."
     ),
     "parameters": {
         "type": "object",
@@ -97,7 +111,9 @@ CLAWBROWSER_ROTATE = {
     "description": (
         "Restart the named managed session with a fresh identity. This is "
         "the official fresh-identity path; use it instead of UI controls or "
-        "manual browser launches."
+        "manual browser launches. After rotation, call clawbrowser_endpoint "
+        "again to refresh the current temporary endpoint, and use "
+        "clawbrowser://verify/ for fingerprint/proxy proof."
     ),
     "parameters": {
         "type": "object",
@@ -108,13 +124,17 @@ CLAWBROWSER_ROTATE = {
             },
             "url": {
                 "type": "string",
-                "description": "Optional URL to open after rotation, including clawbrowser://verify.",
+                "description": "Optional URL to open after rotation, including clawbrowser://verify/.",
             },
             "api_key": {
                 "type": "string",
                 "description": (
                     "Bootstrap-only API key from https://app.clawbrowser.ai. "
-                    "Omit it when the browser can reuse saved config.json."
+                    "Omit it when the browser can reuse saved config.json. If "
+                    "you need to create config.json manually, resolve the "
+                    "absolute path first and do not pass unresolved shell-"
+                    "expression paths to file/write tools. They may create "
+                    "literal workspace paths instead of the real config file."
                 ),
             },
             "image": {
@@ -123,7 +143,7 @@ CLAWBROWSER_ROTATE = {
             },
             "verify": {
                 "type": "boolean",
-                "description": "Open clawbrowser://verify when no URL is supplied.",
+                "description": "Open clawbrowser://verify/ when no URL is supplied.",
             },
             "fingerprint": {
                 "type": ["boolean", "string"],
@@ -157,8 +177,9 @@ CLAWBROWSER_ROTATE = {
 CLAWBROWSER_OPEN_URL = {
     "name": "clawbrowser_open_url",
     "description": (
-        "Open a URL in a running managed session through the CDP endpoint. "
-        "Use this after obtaining the endpoint from clawbrowser_endpoint."
+        "Open a URL in a running managed session through the current CDP "
+        "endpoint. Use this after obtaining the endpoint from "
+        "clawbrowser_endpoint."
     ),
     "parameters": {
         "type": "object",

@@ -11,6 +11,14 @@ Full contract: [AGENTS.md](./AGENTS.md)
 - CDP is the page automation layer for navigation, clicking, typing, scraping, screenshots, DOM inspection, and JS evaluation.
 - Skills and plugins wire the same contract into agent tools such as OpenAI Codex, Claude Code, Gemini CLI, Hermes, and OpenClaw.
 
+## MCP Security
+
+- `clawbrowser-mcp` is local stdio only, not a network daemon.
+- It exposes lifecycle/session tools and returns the local CDP endpoint; treat that endpoint as sensitive.
+- Do not expose CDP on the network or publish the Docker port externally unless you explicitly understand the risk.
+- Do not put API keys into MCP config, agent config, shell rc files, or logs.
+- Use the official `clawbrowser/clawbrowser` GitHub repository and install command only.
+
 ## Install
 
 Use the installer `auto` target if you want it to pick a supported target for you.

@@ -46,9 +46,12 @@ Environment overrides:
 
 The browser-managed config.json is reused automatically once saved. If the
 saved config is missing, the launcher prompts once and writes the key into
-the browser-managed config. Use clawbrowser://auth only for manual browser
-setup or reauthentication. Do not put the API key in agent-side config files
-or shell startup scripts; let the browser manage its own config storage.
+the browser-managed config. Resolve config paths before writing; do not pass
+`${XDG_CONFIG_HOME:-$HOME/.config}/...` directly to file/write tools; they
+may create literal workspace paths instead of the real config file. Use
+clawbrowser://auth only for manual browser setup or reauthentication. Do not
+put the API key in MCP config, agent-side config files, shell startup scripts,
+or logs; let the browser manage its own config storage.
 EOF
 }
 
@@ -260,6 +263,16 @@ require_command() {
   fi
 }
 
+absolute_path() {
+  python3 - "$1" <<'PY'
+import os
+import pathlib
+import sys
+
+print(pathlib.Path(os.path.expanduser(sys.argv[1])).resolve())
+PY
+}
+
 host_arch() {
   case "$(uname -m)" in
     arm64|aarch64) printf '%s\n' arm64 ;;
@@ -446,6 +459,7 @@ install_codex_plugin() {
   local source_dir="${SOURCE_ROOT}"
   local target_dir="${CODEX_PLUGINS_ROOT}/clawbrowser"
   local plugin_manifest="${source_dir}/.codex-plugin/plugin.json"
+  local resolved_target_dir
 
   if [[ ! -f "${plugin_manifest}" ]]; then
     log "INFO: Codex plugin manifest missing at ${plugin_manifest}; skipping plugin copy for this run."
@@ -476,6 +490,31 @@ install_codex_plugin() {
   cp -L "${source_dir}/.mcp.json" "${target_dir}/.mcp.json" 2>/dev/null || true
   cp -L "${source_dir}/SKILL.md" "${target_dir}/SKILL.md" 2>/dev/null || true
   stage_plugin_binaries "${target_dir}"
+
+  resolved_target_dir="$(absolute_path "${target_dir}")"
+  python3 - "${target_dir}/.mcp.json" "${resolved_target_dir}/bin/clawbrowser-mcp" "${resolved_target_dir}" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+command = sys.argv[2]
+cwd = sys.argv[3]
+
+payload = json.loads(path.read_text(encoding="utf-8"))
+mcp_servers = payload.get("mcpServers")
+if not isinstance(mcp_servers, dict):
+    raise SystemExit(f"Expected {path} to contain an 'mcpServers' object")
+
+clawbrowser = mcp_servers.get("clawbrowser")
+if not isinstance(clawbrowser, dict):
+    raise SystemExit(f"Expected {path} to contain a 'clawbrowser' server entry")
+
+clawbrowser["command"] = command
+clawbrowser["cwd"] = cwd
+mcp_servers["clawbrowser"] = clawbrowser
+path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
 }
 
 install_claude_plugin() {
@@ -770,10 +809,18 @@ install_openclaw_plugin() {
 
 enable_hermes_plugin() {
   local hermes_config="${HOME}/.hermes/config.yaml"
-  local mcp_command="${INSTALL_BIN}/clawbrowser-mcp"
+  local resolved_install_bin
+  local mcp_command
+
+  resolved_install_bin="$(absolute_path "${INSTALL_BIN}")"
+  mcp_command="${resolved_install_bin}/clawbrowser-mcp"
 
   if [[ ! -x "${mcp_command}" ]]; then
     mcp_command="$(command -v clawbrowser-mcp 2>/dev/null || printf '%s\n' "clawbrowser-mcp")"
+  fi
+
+  if [[ "${mcp_command}" != /* && "${mcp_command}" == */* ]]; then
+    mcp_command="$(absolute_path "${mcp_command}")"
   fi
 
   if [[ ! -f "${hermes_config}" ]]; then
@@ -1022,7 +1069,8 @@ main() {
   log "If API key is missing:"
   log "  Get it from https://app.clawbrowser.ai."
   log "  The launcher/browser stores it in the browser-managed config.json."
-  log "  Do not store it in agent config or shell startup files."
+  log "  Resolve config paths before writing; do not use unresolved shell-expression paths with file/write tools; they may create literal workspace paths instead of the real config file."
+  log "  Do not store it in MCP config, agent config, shell startup files, or logs."
 }
 
 main "$@"

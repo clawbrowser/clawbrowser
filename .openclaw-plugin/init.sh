@@ -19,11 +19,12 @@ if [[ ! -f "${CONFIG_FILE}" ]]; then
   "startUrlPlaceholder": "${url}",
   "endpointCommand": "clawbrowser endpoint --session openclaw-main",
   "rotateCommand": "clawbrowser rotate --session openclaw-main",
-  "verifyCommand": "clawbrowser start --session openclaw-main -- clawbrowser://verify",
+  "verifyCommand": "clawbrowser start --session openclaw-main -- clawbrowser://verify/",
   "closeBlankTabs": true,
   "notes": [
     "No secrets in this file.",
-    "Browser API keys must stay in browser-managed config.json."
+    "Browser API keys must stay in browser-managed config.json.",
+    "Resolve config paths before writing; do not pass unresolved shell-expression paths to file-write tools. They may create literal workspace paths instead of the real config file."
   ]
 }
 JSON

@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
+import re
 from pathlib import Path
 from urllib import error as urllib_error
 from urllib import parse as urllib_parse
@@ -19,11 +20,40 @@ SERVER_INSTRUCTIONS = (
     "navigation, clicking, typing, scraping, screenshots, DOM inspection, and "
     "JS evaluation. Managed sessions for agent tasks are expected to run in "
     "fingerprint/proxy mode; if verify reports fingerprint mode inactive, the "
-    "session was not launched correctly. Use rotate_session for the official "
-    "fresh-identity path, use clawbrowser://verify only when identity, proxy, "
+    "session was not launched correctly. Use clawbrowser://verify/ for "
+    "fingerprint/proxy inspection. Use rotate_session for the official "
+    "fresh-identity path, use clawbrowser://verify/ only when identity, proxy, "
     "or geo proof matters, and do not launch browser binaries directly for "
     "agent tasks. On macOS, Clawbrowser.app may be the native runtime used "
-    "under the hood, but agents should not invoke it directly."
+    "under the hood, but agents should not invoke it directly. This server is "
+    "local stdio only, not a network daemon. Treat the returned CDP endpoint "
+    "as a temporary runtime handle, call endpoint_session again after start, "
+    "reattach, restart, or rotate, and do not persist endpoint values into "
+    "any config or project file. For fingerprint/proxy/identity inspection, "
+    "open clawbrowser://verify/ inside the managed session and inspect it "
+    "through CDP. If you need to write browser-managed config manually, "
+    "resolve the absolute path first and do not pass unresolved shell-expression "
+    "paths to file/write tools; they may create literal workspace paths instead "
+    "of the real config file. Never expose CDP on the network, and never put "
+    "API keys in MCP config, agent config, shell rc files, or logs."
+)
+
+ALLOWED_SESSION_URLS = {
+    "about:blank",
+    "clawbrowser://verify",
+    "clawbrowser://verify/",
+    "clawbrowser://auth",
+}
+ALLOWED_SESSION_SCHEMES = {"http", "https"}
+SENSITIVE_KEYWORDS = (
+    "api_key",
+    "access_token",
+    "refresh_token",
+    "authorization",
+    "cookie",
+    "cookies",
+    "token",
+    "password",
 )
 
 
@@ -113,6 +143,81 @@ def error_result(text: str):
     return {"content": [{"type": "text", "text": text}], "isError": True}
 
 
+def redact_sensitive_text(text: str, api_key=None) -> str:
+    if not text:
+        return ""
+
+    redacted = str(text)
+    if api_key:
+        redacted = redacted.replace(api_key, "<redacted>")
+
+    redacted = re.sub(
+        r"(?i)\b(CLAWBROWSER_API_KEY|api[_-]?key|access[_-]?token|refresh[_-]?token|token|cookie|cookies|authorization|password)\b(\s*[:=]\s*)([^\s,;\"']+)",
+        r"\1\2<redacted>",
+        redacted,
+    )
+    redacted = re.sub(
+        r'(?i)("(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|cookie|cookies|authorization|password)"\s*:\s*")[^"]*(")',
+        r"\1<redacted>\2",
+        redacted,
+    )
+
+    safe_lines = []
+    for line in redacted.splitlines():
+        lower = line.lower()
+        if any(keyword in lower for keyword in SENSITIVE_KEYWORDS):
+            continue
+        if "{" in line or "}" in line or "[" in line or "]" in line:
+            continue
+        safe_lines.append(line)
+
+    redacted = "\n".join(safe_lines).strip()
+    if len(redacted) > 500:
+        redacted = redacted[:500].rstrip() + "…"
+    return redacted
+
+
+def launcher_failure(operation: str, session: str, code: int, stdout: str = "", stderr: str = "", api_key=None):
+    detail = redact_sensitive_text(stderr or stdout, api_key=api_key)
+    if detail:
+        return error_result(f"{operation} failed for session {session}: {detail}")
+    return error_result(f"{operation} failed for session {session}: launcher exited with code {code}")
+
+
+def validate_session_url(url):
+    if url is None:
+        return None
+
+    raw_url = str(url).strip()
+    if not raw_url:
+        return None
+
+    if raw_url in ALLOWED_SESSION_URLS:
+        return raw_url
+
+    parsed = urllib_parse.urlsplit(raw_url)
+    scheme = (parsed.scheme or "").lower()
+
+    if scheme in ALLOWED_SESSION_SCHEMES:
+        if not parsed.netloc:
+            raise ValueError(
+                "Rejected url: http and https URLs must include a host. Allowed values are "
+                "http://, https://, clawbrowser://verify/, clawbrowser://auth, and about:blank."
+            )
+        return raw_url
+
+    if scheme:
+        raise ValueError(
+            f"Rejected url scheme '{scheme}'. Allowed values are http://, https://, "
+            "clawbrowser://verify/, clawbrowser://auth, and about:blank."
+        )
+
+    raise ValueError(
+        "Rejected url value. Allowed values are http://, https://, "
+        "clawbrowser://verify/, clawbrowser://auth, and about:blank."
+    )
+
+
 def normalize_endpoint(endpoint: str) -> str:
     endpoint = endpoint.strip().rstrip("/")
     parsed = urllib_parse.urlparse(endpoint)
@@ -125,8 +230,11 @@ def normalize_endpoint(endpoint: str) -> str:
 def get_session_endpoint(arguments):
     code, stdout, stderr = run_launcher(["endpoint", "--session", normalize_session(arguments)])
     if code != 0:
-        details = stderr or stdout or f"launcher exited with code {code}"
-        return None, details
+        session = normalize_session(arguments)
+        details = redact_sensitive_text(stderr or stdout)
+        if details:
+            return None, f"Could not get CDP endpoint for session {session}: {details}"
+        return None, f"Could not get CDP endpoint for session {session}: launcher exited with code {code}"
 
     endpoint = stdout.splitlines()[-1].strip() if stdout else ""
     if not endpoint:
@@ -165,6 +273,8 @@ def run_launcher(args, api_key=None, image=None, timeout=90):
     env = os.environ.copy()
     if api_key:
         env["CLAWBROWSER_API_KEY"] = api_key
+    else:
+        env.pop("CLAWBROWSER_API_KEY", None)
     if image:
         env["CLAWBROWSER_IMAGE"] = image
 
@@ -239,7 +349,7 @@ def append_browser_args(args: list[str], arguments: dict) -> None:
     if arguments.get("connection_type"):
         browser_args.append(f"--connection-type={arguments['connection_type']}")
 
-    url = str(arguments.get("url") or "").strip()
+    url = validate_session_url(arguments.get("url"))
     if browser_args or url:
         args.append("--")
         args.extend(browser_args)
@@ -252,16 +362,28 @@ def bootstrap_error():
     return error_result(
         f"Clawbrowser can reuse the saved browser config at {path}. "
         "If it is missing, ask the user once for the real API key from "
-        "https://app.clawbrowser.ai, pass it as a bootstrap-only api_key "
-        "tool argument, and let the launcher write the browser-managed "
-        "config.json with mode 600. For reauth, open clawbrowser://auth in "
-        "Clawbrowser."
+        "https://app.clawbrowser.ai, pass it only as a high-risk "
+        "bootstrap-only api_key tool argument when absolutely necessary, "
+        "and let the launcher write the browser-managed config.json with mode 600. "
+        "Never store the key in MCP config, agent config, shell rc files, or logs. "
+        "For reauth, open clawbrowser://auth in Clawbrowser."
     )
 
 
 def start_session(arguments):
-    api_key = arguments.get("api_key") or os.environ.get("CLAWBROWSER_API_KEY")
-    if not api_key and not saved_config_has_api_key():
+    browser_has_key = saved_config_has_api_key()
+    api_key = None if browser_has_key else next(
+        (
+            candidate
+            for candidate in (
+                os.environ.get("CLAWBROWSER_API_KEY"),
+                arguments.get("api_key"),
+            )
+            if isinstance(candidate, str) and candidate.strip()
+        ),
+        None,
+    )
+    if not api_key and not browser_has_key:
         return bootstrap_error()
 
     args = ["start", "--session", normalize_session(arguments)]
@@ -279,16 +401,30 @@ def start_session(arguments):
 
     code, stdout, stderr = run_launcher(args, api_key=api_key, image=arguments.get("image"))
     if code != 0:
-        details = stderr or stdout or f"launcher exited with code {code}"
-        return error_result(details)
+        return launcher_failure("start_session", normalize_session(arguments), code, stdout, stderr, api_key=api_key)
 
-    endpoint = stdout.splitlines()[-1] if stdout else ""
-    return text_result(endpoint or stdout)
+    endpoint = stdout.splitlines()[-1].strip() if stdout else ""
+    if not endpoint:
+        return error_result(
+            f"start_session failed for session {normalize_session(arguments)}: launcher did not return a CDP endpoint"
+        )
+    return text_result(endpoint)
 
 
 def rotate_session(arguments):
-    api_key = arguments.get("api_key") or os.environ.get("CLAWBROWSER_API_KEY")
-    if not api_key and not saved_config_has_api_key():
+    browser_has_key = saved_config_has_api_key()
+    api_key = None if browser_has_key else next(
+        (
+            candidate
+            for candidate in (
+                os.environ.get("CLAWBROWSER_API_KEY"),
+                arguments.get("api_key"),
+            )
+            if isinstance(candidate, str) and candidate.strip()
+        ),
+        None,
+    )
+    if not api_key and not browser_has_key:
         return bootstrap_error()
 
     args = ["rotate", "--session", normalize_session(arguments)]
@@ -303,18 +439,20 @@ def rotate_session(arguments):
 
     code, stdout, stderr = run_launcher(args, api_key=api_key, image=arguments.get("image"))
     if code != 0:
-        details = stderr or stdout or f"launcher exited with code {code}"
-        return error_result(details)
+        return launcher_failure("rotate_session", normalize_session(arguments), code, stdout, stderr, api_key=api_key)
 
-    endpoint = stdout.splitlines()[-1] if stdout else ""
-    return text_result(endpoint or stdout)
+    endpoint = stdout.splitlines()[-1].strip() if stdout else ""
+    if not endpoint:
+        return error_result(
+            f"rotate_session failed for session {normalize_session(arguments)}: launcher did not return a CDP endpoint"
+        )
+    return text_result(endpoint)
 
 
 def status_session(arguments):
     code, stdout, stderr = run_launcher(["status", "--session", normalize_session(arguments)])
     if code != 0:
-        details = stderr or stdout or f"launcher exited with code {code}"
-        return error_result(details)
+        return launcher_failure("status_session", normalize_session(arguments), code, stdout, stderr)
     return text_result(stdout)
 
 
@@ -423,37 +561,35 @@ def close_tabs(arguments):
 def stop_session(arguments):
     code, stdout, stderr = run_launcher(["stop", "--session", normalize_session(arguments)])
     if code != 0:
-        details = stderr or stdout or f"launcher exited with code {code}"
-        return error_result(details)
+        return launcher_failure("stop_session", normalize_session(arguments), code, stdout, stderr)
     return text_result(stdout or "stopped")
 
 
 def list_profiles(arguments):
     code, stdout, stderr = run_launcher(["list", "--session", normalize_session(arguments)])
     if code != 0:
-        details = stderr or stdout or f"launcher exited with code {code}"
-        return error_result(details)
+        return launcher_failure("list_profiles", normalize_session(arguments), code, stdout, stderr)
     return text_result(stdout)
 
 
 TOOLS = [
     {
         "name": "start_session",
-        "description": "Start or reattach to a managed Clawbrowser session and return the local CDP endpoint. Use this as the supported launch path for agent tasks, then use CDP for page automation. api_key is bootstrap-only when saved config.json reuse is unavailable.",
+        "description": "Start or reattach to a managed Clawbrowser session and return the local CDP endpoint. Use this as the supported launch path for agent tasks, then use CDP for page automation and clawbrowser://verify/ for fingerprint/proxy inspection. api_key is high-risk/bootstrap-only and only used when browser-managed config.json reuse is unavailable.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "session": {"type": "string"},
-                "api_key": {"type": "string", "description": "Bootstrap-only API key from https://app.clawbrowser.ai. Omit it when the browser can reuse saved config.json."},
+                "api_key": {"type": "string", "description": "High-risk bootstrap-only API key from https://app.clawbrowser.ai. Omit it when the browser can reuse saved config.json. If you need to create browser-managed config.json manually, resolve the absolute path first and do not pass unresolved shell-expression paths to file/write tools; they may create literal workspace paths instead of the real config file. Never store it in MCP config, agent config, shell rc files, or logs."},
                 "image": {"type": "string"},
                 "port": {"type": "integer"},
-                "url": {"type": "string", "description": "Optional URL to open after the session starts, including clawbrowser://verify or clawbrowser://auth when needed."},
+                "url": {"type": "string", "description": "Optional URL to open after the session starts. Allowed values: http://, https://, clawbrowser://verify/, clawbrowser://auth, and about:blank. Use clawbrowser://verify/ for fingerprint/proxy inspection."},
                 "fingerprint": {"type": ["boolean", "string"], "description": "Optional fingerprint mode override. Omit for the launcher default; managed sessions are expected to run in fingerprint mode. Values like none/off/disabled are rejected."},
                 "regenerate": {"type": "boolean", "description": "Pass --regenerate for a fresh identity. Prefer clawbrowser rotate for the public fresh-identity path."},
                 "country": {"type": "string", "description": "Optional country hint for the managed identity."},
                 "city": {"type": "string", "description": "Optional city hint for the managed identity."},
                 "connection_type": {"type": "string", "description": "Optional connection type hint for the managed identity."},
-                "verify": {"type": "boolean", "description": "Open clawbrowser://verify when no URL is supplied."},
+                "verify": {"type": "boolean", "description": "Open clawbrowser://verify/ when no URL is supplied."},
                 "verify_automation": {"type": "boolean", "description": "Pass --verify-automation to the browser runtime when you need automation verification."},
             },
             "additionalProperties": False,
@@ -461,16 +597,16 @@ TOOLS = [
     },
     {
         "name": "rotate_session",
-        "description": "Restart the named managed session with a fresh identity. This is the official fresh-identity path; use it instead of UI controls or manual browser launches. api_key is bootstrap-only when saved config.json reuse is unavailable.",
+        "description": "Restart the named managed session with a fresh identity. This is the official fresh-identity path; use it instead of UI controls or manual browser launches. After rotation, call endpoint_session again to refresh the temporary runtime endpoint, and use clawbrowser://verify/ for fingerprint/proxy proof. api_key is high-risk/bootstrap-only and only used when browser-managed config.json reuse is unavailable.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "session": {"type": "string"},
-                "api_key": {"type": "string", "description": "Bootstrap-only API key from https://app.clawbrowser.ai. Omit it when the browser can reuse saved config.json."},
+                "api_key": {"type": "string", "description": "High-risk bootstrap-only API key from https://app.clawbrowser.ai. Omit it when the browser can reuse saved config.json. If you need to create browser-managed config.json manually, resolve the absolute path first and do not pass unresolved shell-expression paths to file/write tools; they may create literal workspace paths instead of the real config file. Never store it in MCP config, agent config, shell rc files, or logs."},
                 "image": {"type": "string"},
-                "url": {"type": "string", "description": "Optional URL to open after rotation, including clawbrowser://verify."},
+                "url": {"type": "string", "description": "Optional URL to open after rotation. Allowed values: http://, https://, clawbrowser://verify/, clawbrowser://auth, and about:blank. Use clawbrowser://verify/ for fingerprint/proxy inspection."},
                 "fingerprint": {"type": ["boolean", "string"], "description": "Optional fingerprint mode override. Omit for the launcher default; managed sessions are expected to run in fingerprint mode. Values like none/off/disabled are rejected."},
-                "verify": {"type": "boolean", "description": "Open clawbrowser://verify when no URL is supplied."},
+                "verify": {"type": "boolean", "description": "Open clawbrowser://verify/ when no URL is supplied."},
                 "verify_automation": {"type": "boolean", "description": "Pass --verify-automation to the browser runtime when you need automation verification."},
                 "country": {"type": "string", "description": "Optional country hint for the managed identity."},
                 "city": {"type": "string", "description": "Optional city hint for the managed identity."},
@@ -491,7 +627,7 @@ TOOLS = [
     },
     {
         "name": "endpoint_session",
-        "description": "Return the live CDP endpoint for a managed session. Use this endpoint for page automation; do not use it as a lifecycle command.",
+        "description": "Return the current temporary runtime CDP endpoint for a managed session. Do not persist it into config or project files. Call endpoint_session again after start, reattach, restart, or rotate; use this endpoint for page automation, not as a lifecycle command.",
         "inputSchema": {
             "type": "object",
             "properties": {"session": {"type": "string"}},

@@ -10,16 +10,25 @@ logger = logging.getLogger(__name__)
 
 _BROWSER_CONTEXT = """\
 Clawbrowser is the managed browser for web tasks. Use clawbrowser_* tools or
-Clawbrowser MCP tools for lifecycle and identity, then use the returned CDP
+Clawbrowser MCP tools for lifecycle and identity, then use the current CDP
 endpoint for page automation. Do not launch Chrome, Chromium, the system
 browser directly for agent tasks. On macOS, Clawbrowser.app may be the
 native runtime used under the hood, but agents should not invoke it
 directly.
 - Managed sessions for agent tasks are expected to run in fingerprint/proxy mode.
-- Start/reuse: clawbrowser_start with a session and optional url.
-- Fresh identity: clawbrowser_rotate, then continue through the endpoint.
-- Verify/auth: use clawbrowser://verify only when fingerprint/proxy/geo proof matters.
+- Start/reuse: clawbrowser_start with a session and optional url. After start,
+  reattach, restart, or rotate, call clawbrowser_endpoint again and do not
+  persist old ws://127.0.0.1/... endpoints.
+- Fresh identity: clawbrowser_rotate, then call clawbrowser_endpoint again
+  before further automation.
+- Verify/auth: use clawbrowser://verify/ inside the managed session when
+  fingerprint/proxy/geo proof matters; do not rely on external fingerprint
+  checking sites unless the user explicitly asks.
 - Tabs: close blank or finished tabs; stop only when the user asks.\
+- Browser API keys belong in browser-managed config.json. Resolve config
+  paths before writing; do not pass unresolved shell-expression paths to
+  file-write tools. They may create literal workspace paths instead of the
+  real config file.\
 """
 
 _session_log: list[dict] = []

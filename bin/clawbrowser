@@ -103,11 +103,14 @@ interrupted_start_session=""
 ensure_prompt_context() {
   local config_path saved_key
 
+  config_path="$(config_file)"
+  mkdir -p "$(dirname "${config_path}")"
+  chmod 700 "$(dirname "${config_path}")" 2>/dev/null || true
+
   if [[ -n "${CLAWBROWSER_API_KEY:-}" ]]; then
     return 0
   fi
 
-  config_path="$(config_file)"
   if [[ -f "${config_path}" ]]; then
     saved_key="$(read_api_key_from_config_file "${config_path}" 2>/dev/null || true)"
     if [[ -n "${saved_key}" ]]; then
@@ -167,12 +170,15 @@ write_api_key_config_file() {
   local api_key="$2"
   python3 - "$file" "$api_key" <<'PY'
 import json
+import os
 import pathlib
 import sys
 
 path = pathlib.Path(sys.argv[1])
 path.parent.mkdir(parents=True, exist_ok=True)
+os.chmod(path.parent, 0o700)
 path.write_text(json.dumps({"api_key": sys.argv[2]}, separators=(",", ":")) + "\n")
+os.chmod(path, 0o600)
 PY
 }
 
@@ -666,6 +672,7 @@ launch_native_app() {
   local app_bundle
   local child_pid
   local -a launch_args=(
+    --remote-debugging-address=127.0.0.1
     --remote-debugging-port="${host_port}"
     --user-data-dir="${config_path}"
     --no-first-run
@@ -895,7 +902,7 @@ launch_docker_session() {
     --env "CLAWBROWSER_CONFIG_DIR=/home/clawbrowser/.config/clawbrowser" \
     --volume "${config_path}:/home/clawbrowser/.config/clawbrowser" \
     "${IMAGE}" \
-    --remote-debugging-address=0.0.0.0 \
+    --remote-debugging-address=127.0.0.1 \
     --remote-debugging-port="${REMOTE_DEBUG_PORT}" \
     "${browser_args[@]}")"
 

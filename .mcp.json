@@ -3,7 +3,7 @@
     "clawbrowser": {
       "command": "./bin/clawbrowser-mcp",
       "cwd": ".",
-      "description": "Managed Clawbrowser lifecycle and identity; use the returned CDP endpoint for page automation."
+      "description": "Managed Clawbrowser lifecycle and identity; CDP endpoints are temporary runtime handles, and clawbrowser://verify/ is the proof source for fingerprint/proxy checks."
     }
   }
 }
