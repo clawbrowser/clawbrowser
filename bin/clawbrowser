@@ -51,7 +51,7 @@ Options for start/rotate/status/endpoint/stop/list:
 
 Browser flags:
   All remaining arguments are passed through to the browser image, so real
-  browser flags such as --fingerprint, --regenerate, --country, --city,
+  browser flags such as --fingerprint, --regenerate, --country,
   --connection-type, --skip-verify, --verify-automation, --list, and
   --output=json keep working.
 

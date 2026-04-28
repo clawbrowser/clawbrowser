@@ -5,7 +5,8 @@
   "contextFileName": "GEMINI.md",
   "mcpServers": {
     "clawbrowser": {
-      "command": "${extensionPath}${/}bin${/}clawbrowser-mcp",
+      "command": "${extensionPath}${/}bin${/}clawctl",
+      "args": ["mcp"],
       "cwd": "${extensionPath}"
     }
   }

@@ -344,8 +344,6 @@ def append_browser_args(args: list[str], arguments: dict) -> None:
         browser_args.append("--verify-automation")
     if arguments.get("country"):
         browser_args.append(f"--country={arguments['country']}")
-    if arguments.get("city"):
-        browser_args.append(f"--city={arguments['city']}")
     if arguments.get("connection_type"):
         browser_args.append(f"--connection-type={arguments['connection_type']}")
 
@@ -587,7 +585,6 @@ TOOLS = [
                 "fingerprint": {"type": ["boolean", "string"], "description": "Optional fingerprint mode override. Omit for the launcher default; managed sessions are expected to run in fingerprint mode. Values like none/off/disabled are rejected."},
                 "regenerate": {"type": "boolean", "description": "Pass --regenerate for a fresh identity. Prefer clawbrowser rotate for the public fresh-identity path."},
                 "country": {"type": "string", "description": "Optional country hint for the managed identity."},
-                "city": {"type": "string", "description": "Optional city hint for the managed identity."},
                 "connection_type": {"type": "string", "description": "Optional connection type hint for the managed identity."},
                 "verify": {"type": "boolean", "description": "Open clawbrowser://verify/ when no URL is supplied."},
                 "verify_automation": {"type": "boolean", "description": "Pass --verify-automation to the browser runtime when you need automation verification."},
@@ -609,7 +606,6 @@ TOOLS = [
                 "verify": {"type": "boolean", "description": "Open clawbrowser://verify/ when no URL is supplied."},
                 "verify_automation": {"type": "boolean", "description": "Pass --verify-automation to the browser runtime when you need automation verification."},
                 "country": {"type": "string", "description": "Optional country hint for the managed identity."},
-                "city": {"type": "string", "description": "Optional city hint for the managed identity."},
                 "connection_type": {"type": "string", "description": "Optional connection type hint for the managed identity."},
                 "regenerate": {"type": "boolean", "description": "Pass --regenerate for a fresh identity. Prefer clawbrowser rotate for the public fresh-identity path."},
             },

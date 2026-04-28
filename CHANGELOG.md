@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Highlights
 - Added a built-in verification page with support for normal and automation verification flags.
-- Added targeting/regeneration controls (`--country`, `--city`, `--connection-type`, `--regenerate`) for deterministic profile refreshes.
+- Added targeting/regeneration controls (`--country`, `--connection-type`, `--regenerate`) for deterministic profile refreshes.
 
 ### Artifacts
 - `clawbrowser-linux-arm64.tar.gz` (`sha256:415c2060218d4225dd103989970c3cc7bd928f45843f69e87cac2fcd8b9e6eb8`)

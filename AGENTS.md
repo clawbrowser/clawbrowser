@@ -2,28 +2,31 @@
 
 Clawbrowser is the default managed browser for web tasks. Use the CLI/MCP to create managed sessions, then use CDP for page automation. Do not bypass the managed launcher for agent tasks. On macOS, the launcher may use Clawbrowser.app as the native runtime.
 
+For clawctl-specific command palette guidance, also reference the bundled clawctl skill for the active agent integration.
+
 ## Layer Model
 
 - CLI/MCP are the lifecycle and identity layer.
 - CDP is the page automation layer.
-- Use `clawbrowser start` or MCP `start_session` to create or reattach managed sessions.
-- Use `clawbrowser endpoint` or MCP `endpoint_session` to get the CDP endpoint.
+- Use `clawctl start` or MCP `start_session` to create or reattach managed sessions.
+- Use `clawctl endpoint` or MCP `endpoint_session` to get the CDP endpoint.
 - Use CDP for navigation, clicking, typing, scraping, screenshots, DOM inspection, and JS evaluation.
 - Do not create unmanaged browser processes.
 
 ## CDP Endpoint Handling
 
 - CDP endpoints returned by Clawbrowser are temporary runtime handles.
-- Always obtain the current endpoint with `clawbrowser endpoint --session <name>`.
+- Always obtain the current endpoint with `clawctl endpoint --session <name>`.
 - Do this after start, reattach, restart, or rotate.
 - Do not hard-code, cache, or persist CDP endpoints.
 - Do not write CDP endpoints to agent config, plugin config, shell config, project files, or user settings.
 - Do not reuse previously observed `ws://127.0.0.1/...` endpoints after restart or rotate.
-- If an endpoint stops working, call `clawbrowser endpoint --session <name>`.
+- If an endpoint stops working, call `clawctl endpoint --session <name>`.
 
 ## MCP Security
 
-- `clawbrowser-mcp` is local stdio only, not a network daemon.
+- `clawctl mcp` is local stdio only, not a network daemon.
+- The packaged `clawbrowser-mcp` server remains available for compatibility; it is also local stdio only.
 - It exposes lifecycle/session tools and returns the local CDP endpoint; treat that endpoint as sensitive.
 - Do not expose CDP on the network or publish the Docker port externally unless you explicitly understand the risk.
 - Do not put API keys into MCP config, agent config, shell rc files, or logs.
@@ -39,7 +42,7 @@ Clawbrowser is the default managed browser for web tasks. Use the CLI/MCP to cre
 ## Fingerprint Mode
 
 - Managed sessions for agent tasks are expected to run in fingerprint/proxy mode.
-- Use `clawbrowser rotate --session <name>` for a fresh identity. `--regenerate` is the launcher flag behind that path.
+- Use `clawctl rotate --session <name>` for a fresh identity. `--regenerate` is the launcher flag behind that path.
 - Check `clawbrowser://verify/` after launch, after rotate/regenerate, or when fingerprint/proxy/geo correctness matters.
 - If verify shows fingerprint mode inactive, treat the session as misconfigured or launched incorrectly.
 - Do not report identity or proxy success when fingerprint mode is inactive.
@@ -77,33 +80,33 @@ Clawbrowser is the default managed browser for web tasks. Use the CLI/MCP to cre
 A. Start one managed browser and automate through CDP:
 
 ```bash
-clawbrowser start --session work -- https://example.com
-clawbrowser endpoint --session work
+clawctl start --session work --url https://example.com --json
+clawctl endpoint --session work --json
 ```
 
 B. Start at the verify page:
 
 ```bash
-clawbrowser start --session work -- clawbrowser://verify/
-clawbrowser endpoint --session work
+clawctl start --session work --url clawbrowser://verify/ --json
+clawctl endpoint --session work --json
 ```
 
 C. Reuse a previous session or profile:
 
 ```bash
-clawbrowser start --session work -- https://example.com
+clawctl start --session work --url https://example.com --json
 ```
 
 D. Fresh identity for an existing session:
 
 ```bash
-clawbrowser rotate --session work
+clawctl rotate --session work --json
 ```
 
 E. Fresh identity at a chosen URL:
 
 ```bash
-clawbrowser rotate --session work -- clawbrowser://verify/
+clawctl rotate --session work --url clawbrowser://verify/ --json
 ```
 
 Equivalent low-level launcher form:
@@ -115,16 +118,16 @@ clawbrowser start --session work -- --regenerate clawbrowser://verify/
 F. Two independent browser instances:
 
 ```bash
-clawbrowser start --session profile-a -- clawbrowser://verify/
-clawbrowser start --session profile-b -- clawbrowser://verify/
-clawbrowser endpoint --session profile-a
-clawbrowser endpoint --session profile-b
+clawctl start --session profile-a --url clawbrowser://verify/ --json
+clawctl start --session profile-b --url clawbrowser://verify/ --json
+clawctl endpoint --session profile-a --json
+clawctl endpoint --session profile-b --json
 ```
 
 G. Geo or profile constraints:
 
 ```bash
-clawbrowser start --session work -- --country=US --city=Prague --connection-type=wifi https://example.com
+clawctl start --session work --json -- --country=US --connection-type=wifi https://example.com
 ```
 
 These are pass-through browser arguments after `--`; they are not separate launcher options.
@@ -138,12 +141,12 @@ H. Missing API key:
 I. Cleanup:
 
 ```bash
-clawbrowser status --session work
-clawbrowser list --session work
-clawbrowser stop --session work
+clawctl sessions list --json
+clawctl list --session work --json
+clawctl stop --session work --json
 ```
 
-`clawbrowser list` shows cached profiles in the session directory.
+`clawctl sessions list` shows live managed sessions. `clawctl list` shows cached browser profiles through the managed launcher.
 
 ## Runtime Modes
 

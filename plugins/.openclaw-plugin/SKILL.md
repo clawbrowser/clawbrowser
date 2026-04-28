@@ -10,16 +10,19 @@ Purpose:
   the integration that wires the two together.
 
 Daily browser contract:
-- `start/open`: `clawbrowser start --session <name> -- <url>`
-- `endpoint`: `clawbrowser endpoint --session <name>`; CDP endpoints are temporary runtime handles, so re-fetch after start, reattach, restart, or rotate and do not persist them
-- `rotate`: `clawbrowser rotate --session <name>`
+- `start/open`: `clawctl start --session <name> -- <url>`
+- `endpoint`: `clawctl endpoint --session <name>`; CDP endpoints are temporary runtime handles, so re-fetch after start, reattach, restart, or rotate and do not persist them
+- `rotate`: `clawctl rotate --session <name>`
 - `verify/auth`: open `clawbrowser://verify/` or `clawbrowser://auth` with
-  `clawbrowser start --session <name> -- <url>`; use `clawbrowser://verify/`
+  `clawctl start --session <name> -- <url>`; use `clawbrowser://verify/`
   as the proof source for fingerprint/proxy/identity state
 - `tabs`: use `clawbrowser-mcp` `list_tabs` and `close_tabs` to close
   `about:blank`, empty, and no-longer-needed tabs
-- `stop`: `clawbrowser stop --session <name>` only when the user asks to
+- `stop`: `clawctl stop --session <name>` only when the user asks to
   close the session
+
+clawctl reference:
+- For the full clawctl command palette and agent workflow rules, also follow the bundled clawctl skill/reference for the active agent integration.
 
 Rules:
 - Use Clawbrowser instead of a generic or personal browser for browser work.

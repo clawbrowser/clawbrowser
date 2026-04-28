@@ -151,8 +151,6 @@ def _append_browser_args(cmd: list[str], args: dict) -> None:
         browser_args.append("--verify-automation")
     if args.get("country"):
         browser_args.append(f"--country={args['country']}")
-    if args.get("city"):
-        browser_args.append(f"--city={args['city']}")
     if args.get("connection_type"):
         browser_args.append(f"--connection-type={args['connection_type']}")
 

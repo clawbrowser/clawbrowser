@@ -13,8 +13,6 @@ GEMINI_EXTENSIONS_ROOT="${CLAWBROWSER_GEMINI_EXTENSIONS_ROOT:-${HOME}/.gemini/ex
 RUNTIME_IMAGE="${CLAWBROWSER_RUNTIME_IMAGE:-docker.io/clawbrowser/clawbrowser:latest}"
 RELEASE_REF="${CLAWBROWSER_RELEASE_REF:-latest}"
 TARGET="${CLAWBROWSER_TARGET:-auto}"
-SOURCE_ARCHIVE_URL="${CLAWBROWSER_SOURCE_ARCHIVE_URL:-}"
-RESOLVED_RELEASE_TAG=""
 
 log() {
   printf '[clawbrowser-install] %s\n' "$*"
@@ -30,7 +28,6 @@ usage() {
 Usage:
   bash scripts/install.sh [auto|codex|claude|gemini|hermes|openclaw]
   bash scripts/install.sh --target <auto|codex|claude|gemini|hermes|openclaw>
-  curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- <target>
 
 Environment overrides:
   CLAWBROWSER_TARGET         Install target, default: auto
@@ -42,7 +39,11 @@ Environment overrides:
   CLAWBROWSER_RUNTIME_IMAGE  Docker image used at runtime when no native app bundle exists, default: docker.io/clawbrowser/clawbrowser:latest
   CLAWBROWSER_RELEASE_REF    Release ref or tag, default: latest
   CLAWBROWSER_APP_PATH       Optional macOS Clawbrowser.app path or executable
-  CLAWBROWSER_SOURCE_ARCHIVE_URL  Optional archive override; defaults to the tagged release archive for CLAWBROWSER_RELEASE_REF
+
+This script expects an assembled release bundle that already contains
+bin/clawctl, bin/clawbrowser, and bin/clawbrowser-mcp. In normal installs,
+clawctl invokes this script after the release bundle is unpacked. Do not run
+this script from a raw source checkout.
 
 The browser-managed config.json is reused automatically once saved. If the
 saved config is missing, the launcher prompts once and writes the key into
@@ -56,89 +57,23 @@ EOF
 }
 
 is_source_root_ready() {
-  [[ -x "${SOURCE_ROOT}/bin/clawbrowser" ]] &&
+  [[ -x "${SOURCE_ROOT}/bin/clawctl" ]] &&
+    [[ -x "${SOURCE_ROOT}/bin/clawbrowser" ]] &&
     [[ -x "${SOURCE_ROOT}/bin/clawbrowser-mcp" ]] &&
     [[ -f "${SOURCE_ROOT}/plugins/.claude-plugin/plugin.json" ]] &&
     [[ -f "${SOURCE_ROOT}/plugins/.codex-plugin/plugin.json" ]] &&
     [[ -f "${SOURCE_ROOT}/plugins/.openclaw-plugin/plugin.json" ]] &&
     [[ -f "${SOURCE_ROOT}/plugins/.hermes-plugin/plugin.yaml" ]] &&
     [[ -f "${SOURCE_ROOT}/gemini-extension.json" ]] &&
+    [[ -f "${SOURCE_ROOT}/GEMINI.md" ]] &&
     [[ -f "${SOURCE_ROOT}/AGENTS.md" ]] &&
     [[ -f "${SOURCE_ROOT}/SKILL.md" ]] &&
     [[ -f "${SOURCE_ROOT}/scripts/install.sh" ]]
 }
 
-resolve_release_tag() {
-  if [[ -n "${RESOLVED_RELEASE_TAG}" ]]; then
-    printf '%s\n' "${RESOLVED_RELEASE_TAG}"
-    return 0
-  fi
-
-  if [[ "${RELEASE_REF}" == "latest" ]]; then
-    require_command python3
-    RESOLVED_RELEASE_TAG="$(
-      python3 - <<'PY'
-import json
-from urllib.request import Request, urlopen
-
-request = Request(
-    "https://api.github.com/repos/clawbrowser/clawbrowser/releases/latest",
-    headers={
-        "Accept": "application/vnd.github+json",
-        "User-Agent": "clawbrowser-install",
-    },
-)
-with urlopen(request, timeout=15) as response:
-    payload = json.load(response)
-
-tag_name = payload.get("tag_name")
-if not tag_name:
-    raise SystemExit("missing tag_name in GitHub releases/latest response")
-
-print(tag_name)
-PY
-    )"
-  else
-    RESOLVED_RELEASE_TAG="${RELEASE_REF}"
-  fi
-
-  printf '%s\n' "${RESOLVED_RELEASE_TAG}"
-}
-
-release_source_archive_url() {
-  if [[ -n "${SOURCE_ARCHIVE_URL}" ]]; then
-    printf '%s\n' "${SOURCE_ARCHIVE_URL}"
-    return 0
-  fi
-
-  printf 'https://codeload.github.com/%s/tar.gz/refs/tags/%s' \
-    "${REPOSITORY}" "$(resolve_release_tag)"
-}
-
-bootstrap_source_root() {
-  local tmp_dir extracted_root
-  local archive_url
-
-  require_command curl
-  require_command tar
-  require_command mktemp
-
-  tmp_dir="$(mktemp -d)"
-  archive_url="$(release_source_archive_url)"
-  log "Source checkout not found locally; downloading ${archive_url}"
-  curl -fsSL "${archive_url}" | tar -xzf - -C "${tmp_dir}"
-
-  extracted_root="$(find "${tmp_dir}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-  if [[ -z "${extracted_root}" ]]; then
-    die "Unable to locate the extracted source archive"
-  fi
-
-  SOURCE_ROOT="${extracted_root}"
-}
-
 ensure_source_root() {
   if ! is_source_root_ready; then
-    bootstrap_source_root
+    die "This installer must run from an assembled release bundle containing bin/clawctl, bin/clawbrowser, bin/clawbrowser-mcp, plugin manifests, AGENTS.md, GEMINI.md, SKILL.md, and scripts/install.sh. Raw source checkouts do not include generated bin/clawctl; run clawctl install from the unpacked release artifact instead."
   fi
 }
 
@@ -280,13 +215,6 @@ host_arch() {
     *)
       die "Unsupported architecture: $(uname -m)"
       ;;
-  esac
-}
-
-asset_name() {
-  case "$(host_arch)" in
-    arm64) printf '%s\n' clawbrowser-linux-arm64.tar.gz ;;
-    x64) printf '%s\n' clawbrowser-linux-x64.tar.gz ;;
   esac
 }
 
@@ -443,13 +371,17 @@ stage_plugin_binaries() {
   local target_dir="$1"
 
   mkdir -p "${target_dir}/bin"
+  cp -L "${INSTALL_ROOT}/bin/clawctl" "${target_dir}/clawctl" 2>/dev/null || true
   cp -L "${INSTALL_ROOT}/bin/clawbrowser" "${target_dir}/clawbrowser" 2>/dev/null || true
   cp -L "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${target_dir}/clawbrowser-mcp" 2>/dev/null || true
+  cp -L "${INSTALL_ROOT}/bin/clawctl" "${target_dir}/bin/clawctl" 2>/dev/null || true
   cp -L "${INSTALL_ROOT}/bin/clawbrowser" "${target_dir}/bin/clawbrowser" 2>/dev/null || true
   cp -L "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${target_dir}/bin/clawbrowser-mcp" 2>/dev/null || true
   chmod +x \
+    "${target_dir}/clawctl" \
     "${target_dir}/clawbrowser" \
     "${target_dir}/clawbrowser-mcp" \
+    "${target_dir}/bin/clawctl" \
     "${target_dir}/bin/clawbrowser" \
     "${target_dir}/bin/clawbrowser-mcp" \
     2>/dev/null || true
@@ -492,7 +424,7 @@ install_codex_plugin() {
   stage_plugin_binaries "${target_dir}"
 
   resolved_target_dir="$(absolute_path "${target_dir}")"
-  python3 - "${target_dir}/.mcp.json" "${resolved_target_dir}/bin/clawbrowser-mcp" "${resolved_target_dir}" <<'PY'
+  python3 - "${target_dir}/.mcp.json" "${resolved_target_dir}/bin/clawctl" "${resolved_target_dir}" <<'PY'
 import json
 import pathlib
 import sys
@@ -511,6 +443,7 @@ if not isinstance(clawbrowser, dict):
     raise SystemExit(f"Expected {path} to contain a 'clawbrowser' server entry")
 
 clawbrowser["command"] = command
+clawbrowser["args"] = ["mcp"]
 clawbrowser["cwd"] = cwd
 mcp_servers["clawbrowser"] = clawbrowser
 path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -712,6 +645,7 @@ prepare_runtime_root() {
 
   chmod +x \
     "${INSTALL_ROOT}/bin/clawbrowser-install.js" \
+    "${INSTALL_ROOT}/bin/clawctl" \
     "${INSTALL_ROOT}/bin/clawbrowser" \
     "${INSTALL_ROOT}/bin/clawbrowser-mcp" \
     "${INSTALL_ROOT}/scripts/install.sh" \
@@ -720,6 +654,7 @@ prepare_runtime_root() {
 
 link_launchers() {
   mkdir -p "${INSTALL_BIN}"
+  ln -sfn "${INSTALL_ROOT}/bin/clawctl" "${INSTALL_BIN}/clawctl"
   ln -sfn "${INSTALL_ROOT}/bin/clawbrowser" "${INSTALL_BIN}/clawbrowser"
   ln -sfn "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${INSTALL_BIN}/clawbrowser-mcp"
 }
@@ -813,10 +748,10 @@ enable_hermes_plugin() {
   local mcp_command
 
   resolved_install_bin="$(absolute_path "${INSTALL_BIN}")"
-  mcp_command="${resolved_install_bin}/clawbrowser-mcp"
+  mcp_command="${resolved_install_bin}/clawctl"
 
   if [[ ! -x "${mcp_command}" ]]; then
-    mcp_command="$(command -v clawbrowser-mcp 2>/dev/null || printf '%s\n' "clawbrowser-mcp")"
+    mcp_command="$(command -v clawctl 2>/dev/null || printf '%s\n' "clawctl")"
   fi
 
   if [[ "${mcp_command}" != /* && "${mcp_command}" == */* ]]; then
@@ -838,7 +773,8 @@ path.write_text(
     "\n"
     "mcp_servers:\n"
     "  clawbrowser:\n"
-    f"    command: {mcp_command!r}\n",
+    f"    command: {mcp_command!r}\n"
+    "    args: ['mcp']\n",
     encoding="utf-8",
 )
 PY
@@ -936,6 +872,7 @@ if mcp_index is None:
         "mcp_servers:",
         "  clawbrowser:",
         f"    command: {mcp_command!r}",
+        "    args: ['mcp']",
     ])
 else:
     claw_index = None
@@ -948,6 +885,7 @@ else:
         lines[mcp_end:mcp_end] = [
             "  clawbrowser:",
             f"    command: {mcp_command!r}",
+            "    args: ['mcp']",
         ]
     else:
         claw_end = mcp_end
@@ -957,16 +895,26 @@ else:
                 break
 
         command_index = None
+        args_index = None
         for index in range(claw_index + 1, claw_end):
             if indentation(lines[index]) == 4 and lines[index].strip().split("#", 1)[0].strip().startswith("command:"):
                 command_index = index
-                break
+            if indentation(lines[index]) == 4 and lines[index].strip().split("#", 1)[0].strip().startswith("args:"):
+                args_index = index
 
         command_line = f"    command: {mcp_command!r}"
+        args_line = "    args: ['mcp']"
         if command_index is None:
             lines.insert(claw_index + 1, command_line)
+            command_index = claw_index + 1
+            if args_index is not None and args_index >= command_index:
+                args_index += 1
         else:
             lines[command_index] = command_line
+        if args_index is None:
+            lines.insert(command_index + 1, args_line)
+        else:
+            lines[args_index] = args_line
 
 with open(config_path, "w") as f:
     f.write("\n".join(lines) + "\n")
@@ -1052,17 +1000,18 @@ main() {
 
   log "Clawbrowser installed."
   log "Commands:"
+  log "  clawctl"
   log "  clawbrowser"
   log "  clawbrowser-mcp"
   log ""
   log "Next steps for agents:"
   log "  1. Start managed sessions with:"
-  log "     clawbrowser start --session work -- https://example.com"
+  log "     clawctl start --session work --url https://example.com --json"
   log "  2. Get CDP with:"
-  log "     clawbrowser endpoint --session work"
+  log "     clawctl endpoint --session work --json"
   log "  3. Use CDP for page automation."
   log "  4. Use clawbrowser://verify only for fingerprint/proxy/geo checks."
-  log "  5. Use clawbrowser rotate --session work for a fresh identity."
+  log "  5. Use clawctl rotate --session work --json for a fresh identity."
   log "  6. Do not launch browser binaries directly for agent tasks."
   log "     On macOS, Clawbrowser.app may be the native runtime used under the hood."
   log ""

@@ -1,7 +1,8 @@
 {
   "mcpServers": {
     "clawbrowser": {
-      "command": "./bin/clawbrowser-mcp",
+      "command": "./bin/clawctl",
+      "args": ["mcp"],
       "cwd": ".",
       "description": "Managed Clawbrowser lifecycle and identity; CDP endpoints are temporary runtime handles, and clawbrowser://verify/ is the proof source for fingerprint/proxy checks."
     }

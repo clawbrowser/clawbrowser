@@ -73,10 +73,6 @@ CLAWBROWSER_START = {
                 "type": "string",
                 "description": "Optional country hint for the managed identity.",
             },
-            "city": {
-                "type": "string",
-                "description": "Optional city hint for the managed identity.",
-            },
             "connection_type": {
                 "type": "string",
                 "description": "Optional connection type hint for the managed identity.",
@@ -160,10 +156,6 @@ CLAWBROWSER_ROTATE = {
             "country": {
                 "type": "string",
                 "description": "Optional country hint for the managed identity.",
-            },
-            "city": {
-                "type": "string",
-                "description": "Optional city hint for the managed identity.",
             },
             "connection_type": {
                 "type": "string",
