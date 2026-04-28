@@ -22,8 +22,8 @@ Primary path (both modes share the same installer for client integrations):
 
     curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- <target>
 
-Targets: `claude`, `codex`, `gemini`, `all`. Detect the current agent and
-pick one. Do not clone the repo manually.
+Targets: `claude`, `codex`, `gemini`, `hermes`, `openclaw`, `all`. Detect
+the current agent and pick one. Do not clone the repo manually.
 
 For container mode, also pull and start the browser container. Examples
 use `docker`; substitute your OCI runtime's CLI (Podman, nerdctl, etc.):

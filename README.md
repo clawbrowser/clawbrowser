@@ -11,6 +11,7 @@ Supported surfaces:
 - Codex app and plugin-capable Codex surfaces
 - Gemini CLI
 - Hermes Agent
+- OpenClaw
 - Other agents
 
 ### npx install
@@ -27,6 +28,7 @@ Targets:
 - `codex` for Codex
 - `gemini` for Gemini CLI
 - `hermes` for Hermes Agent
+- `openclaw` for OpenClaw
 - `all` for other agents or multi-target installs
 
 ### Claude Code and Claude Desktop
@@ -34,6 +36,9 @@ Targets:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- claude
 ```
+
+Claude copies the plugin bundle into `~/.claude/plugins/clawbrowser` and
+registers the MCP server in Claude Desktop config.
 
 ### Cursor
 
@@ -70,6 +75,15 @@ enables it in `~/.hermes/config.yaml`. The plugin registers five tools
 (`clawbrowser_start`, `clawbrowser_endpoint`, `clawbrowser_rotate`,
 `clawbrowser_stop`, `clawbrowser_status`), lifecycle hooks, and a bundled
 skill.
+
+### OpenClaw
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- openclaw
+```
+
+OpenClaw installs the bundle through `openclaw plugins install`, which
+registers it in OpenClaw's plugin registry and enables `clawbrowser`.
 
 ### Other agents
 

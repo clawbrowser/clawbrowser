@@ -6,8 +6,11 @@ REPOSITORY="clawbrowser/clawbrowser"
 INSTALL_ROOT="${CLAWBROWSER_INSTALL_ROOT:-${HOME}/.clawbrowser}"
 INSTALL_BIN="${CLAWBROWSER_INSTALL_BIN:-${HOME}/.local/bin}"
 CODEX_PLUGINS_ROOT="${CLAWBROWSER_CODEX_PLUGINS_ROOT:-${HOME}/.codex/plugins}"
+CLAUDE_PLUGINS_ROOT="${CLAWBROWSER_CLAUDE_PLUGINS_ROOT:-${HOME}/.claude/plugins}"
 AGENTS_PLUGINS_ROOT="${CLAWBROWSER_AGENTS_PLUGINS_ROOT:-${HOME}/.agents/plugins}"
 HERMES_PLUGINS_ROOT="${CLAWBROWSER_HERMES_PLUGINS_ROOT:-${HOME}/.hermes/plugins}"
+OPENCLAW_BIN="${CLAWBROWSER_OPENCLAW_BIN:-openclaw}"
+OPENCLAW_EXTENSIONS_ROOT="${CLAWBROWSER_OPENCLAW_EXTENSIONS_ROOT:-${CLAWBROWSER_OPENCLAW_PLUGINS_ROOT:-${HOME}/.openclaw/extensions}}"
 IMAGE_TAG="${CLAWBROWSER_IMAGE_TAG:-clawbrowser:latest}"
 RUNTIME_IMAGE="${CLAWBROWSER_RUNTIME_IMAGE:-docker.io/clawbrowser/clawbrowser:latest}"
 BUILD_DOCKER="${CLAWBROWSER_BUILD_DOCKER:-0}"
@@ -28,14 +31,17 @@ die() {
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/install.sh [all|codex|claude|gemini|hermes]
-  bash scripts/install.sh --target <all|codex|claude|gemini|hermes>
+  bash scripts/install.sh [all|codex|claude|gemini|hermes|openclaw]
+  bash scripts/install.sh --target <all|codex|claude|gemini|hermes|openclaw>
   curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- <target>
 
 Environment overrides:
   CLAWBROWSER_INSTALL_ROOT   Bundle install root, default: ~/.clawbrowser
   CLAWBROWSER_INSTALL_BIN    Command install directory, default: ~/.local/bin
+  CLAWBROWSER_CLAUDE_PLUGINS_ROOT  Claude plugin directory, default: ~/.claude/plugins
   CLAWBROWSER_HERMES_PLUGINS_ROOT  Hermes plugin directory, default: ~/.hermes/plugins
+  CLAWBROWSER_OPENCLAW_BIN   OpenClaw CLI command, default: openclaw
+  CLAWBROWSER_OPENCLAW_EXTENSIONS_ROOT  OpenClaw fallback staging root, default: ~/.openclaw/extensions
   CLAWBROWSER_IMAGE_TAG      Docker image tag to build locally, default: clawbrowser:latest
   CLAWBROWSER_RUNTIME_IMAGE  Docker image used at runtime when no native app bundle exists, default: docker.io/clawbrowser/clawbrowser:latest
   CLAWBROWSER_BUILD_DOCKER    Set to 1 to build a local Docker image from the release asset
@@ -134,9 +140,10 @@ ensure_source_root() {
 
 normalize_target() {
   case "${1}" in
-    all|codex|claude|claude-desktop|gemini|hermes)
+    all|codex|claude|claude-desktop|gemini|hermes|openclaw|open-claw)
       case "${1}" in
         claude-desktop) printf '%s\n' "claude" ;;
+        open-claw) printf '%s\n' "openclaw" ;;
         *) printf '%s\n' "${1}" ;;
       esac
       ;;
@@ -161,7 +168,7 @@ parse_args() {
       install)
         shift
         ;;
-      all|codex|claude|claude-desktop|gemini)
+      all|codex|claude|claude-desktop|gemini|hermes|openclaw|open-claw)
         TARGET="$(normalize_target "${1}")"
         shift
         ;;
@@ -346,14 +353,20 @@ download_native_app_bundle() {
   return 0
 }
 
-install_codex_plugin() {
+install_agent_plugin_bundle() {
+  local label="$1"
+  local plugins_root="$2"
   local source_dir="${INSTALL_ROOT}/plugins/clawbrowser"
-  local target_dir="${CODEX_PLUGINS_ROOT}/clawbrowser"
+  local target_dir="${plugins_root}/clawbrowser"
 
-  log "Installing Codex plugin into ${target_dir}"
-  mkdir -p "${CODEX_PLUGINS_ROOT}"
+  log "Installing ${label} plugin bundle into ${target_dir}"
+  mkdir -p "${plugins_root}"
   rm -rf "${target_dir}"
   cp -R "${source_dir}" "${target_dir}"
+}
+
+install_codex_plugin() {
+  install_agent_plugin_bundle "Codex" "${CODEX_PLUGINS_ROOT}"
 }
 
 write_codex_marketplace() {
@@ -443,11 +456,47 @@ PY
   log "Wrote Codex marketplace metadata: ${marketplace_file}"
 }
 
+restore_preserved_app_bundle() {
+  local preserved_app="$1"
+  local existing_app="$2"
+  local preserved_parent="$3"
+
+  if [[ -z "${preserved_app}" || ! ( -e "${preserved_app}" || -L "${preserved_app}" ) ]]; then
+    return 0
+  fi
+
+  mkdir -p "$(dirname "${existing_app}")"
+  rm -rf "${existing_app}"
+  mv "${preserved_app}" "${existing_app}"
+  rmdir "${preserved_parent}" 2>/dev/null || true
+}
+
 copy_bundle() {
+  local existing_app preserved_app preserved_parent
+  existing_app="${INSTALL_ROOT}/Clawbrowser.app"
+  preserved_app=""
+  preserved_parent=""
+
+  if [[ -e "${existing_app}" || -L "${existing_app}" ]]; then
+    require_command mktemp
+    preserved_parent="$(mktemp -d)"
+    preserved_app="${preserved_parent}/Clawbrowser.app"
+    mv "${existing_app}" "${preserved_app}"
+    trap 'restore_preserved_app_bundle "${preserved_app}" "${existing_app}" "${preserved_parent}"' ERR
+  fi
+
   log "Installing shared bundle into ${INSTALL_ROOT}"
   rm -rf "${INSTALL_ROOT}"
   mkdir -p "${INSTALL_ROOT}"
   cp -R "${SOURCE_ROOT}/." "${INSTALL_ROOT}/"
+
+  if [[ -n "${preserved_app}" && ( -e "${preserved_app}" || -L "${preserved_app}" ) ]]; then
+    rm -rf "${INSTALL_ROOT}/Clawbrowser.app"
+    mv "${preserved_app}" "${INSTALL_ROOT}/Clawbrowser.app"
+    preserved_app=""
+    rmdir "${preserved_parent}" 2>/dev/null || true
+  fi
+  trap - ERR
 
   chmod +x \
     "${INSTALL_ROOT}/clawbrowser" \
@@ -472,6 +521,7 @@ link_app_bundle() {
   local target_bundle="${INSTALL_ROOT}/Clawbrowser.app"
 
   if [[ "${source_bundle}" == "${target_bundle}" ]]; then
+    printf '%s\n' "${source_bundle}" > "${INSTALL_ROOT}/app_bundle_path"
     return 0
   fi
 
@@ -487,6 +537,10 @@ claude_desktop_config_path() {
   else
     printf '%s\n' "${HOME}/.config/Claude/claude_desktop_config.json"
   fi
+}
+
+install_claude_plugin() {
+  install_agent_plugin_bundle "Claude" "${CLAUDE_PLUGINS_ROOT}"
 }
 
 register_claude_desktop_mcp() {
@@ -607,6 +661,24 @@ PY
   log "Enabled clawbrowser in Hermes config: ${hermes_config}"
 }
 
+install_openclaw_plugin() {
+  local source_dir="${INSTALL_ROOT}/plugins/clawbrowser"
+
+  if command -v "${OPENCLAW_BIN}" >/dev/null 2>&1; then
+    log "Installing OpenClaw plugin via ${OPENCLAW_BIN} plugins install"
+    "${OPENCLAW_BIN}" plugins install "${source_dir}" --force
+    return 0
+  fi
+
+  if [[ "${TARGET}" == "openclaw" ]]; then
+    die "OpenClaw CLI not found: ${OPENCLAW_BIN}. Install OpenClaw or set CLAWBROWSER_OPENCLAW_BIN."
+  fi
+
+  log "OpenClaw CLI not found; staging plugin bundle into ${OPENCLAW_EXTENSIONS_ROOT}/clawbrowser"
+  install_agent_plugin_bundle "OpenClaw" "${OPENCLAW_EXTENSIONS_ROOT}"
+  log "Run 'openclaw plugins install ${OPENCLAW_EXTENSIONS_ROOT}/clawbrowser --force' after installing OpenClaw."
+}
+
 build_docker_fallback() {
   local archive_path helper_path
 
@@ -677,6 +749,7 @@ main() {
   fi
 
   if [[ "${TARGET}" == "all" || "${TARGET}" == "claude" ]]; then
+    install_claude_plugin
     register_claude_desktop_mcp
   fi
 
@@ -687,6 +760,10 @@ main() {
   if [[ "${TARGET}" == "all" || "${TARGET}" == "hermes" ]]; then
     install_hermes_plugin
     enable_hermes_plugin
+  fi
+
+  if [[ "${TARGET}" == "all" || "${TARGET}" == "openclaw" ]]; then
+    install_openclaw_plugin
   fi
 
   if [[ "${TARGET}" == "codex" ]]; then

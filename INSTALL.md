@@ -23,13 +23,17 @@ startup fails.
 ## Install the agent integration
 
 Detect the current agent and run the one-liner for the matching target
-(`claude`, `codex`, `gemini`, or `all`).
+(`claude`, `codex`, `gemini`, `hermes`, `openclaw`, or `all`).
 
 ### Claude Code / Claude Desktop (`claude`)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- claude
 ```
+
+The installer copies the Claude plugin bundle into
+`~/.claude/plugins/clawbrowser` and registers the MCP server in Claude
+Desktop config.
 
 ### Codex (`codex`)
 
@@ -64,6 +68,16 @@ lifecycle hooks, and a bundled skill. Check it with:
 hermes plugins list
 ```
 
+### OpenClaw (`openclaw`)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- openclaw
+```
+
+The installer runs `openclaw plugins install` for the Clawbrowser bundle, so
+OpenClaw writes the managed extension, registry entry, and enabled plugin
+config.
+
 ### Cursor, other agents, multi-target (`all`)
 
 ```bash
@@ -73,7 +87,7 @@ curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/script
 ### From a local checkout
 
 If you already cloned the repo, run the same installer locally with your
-chosen target (`claude`, `codex`, `gemini`, or `all`):
+chosen target (`claude`, `codex`, `gemini`, `hermes`, `openclaw`, or `all`):
 
 ```bash
 bash scripts/install.sh <target>
