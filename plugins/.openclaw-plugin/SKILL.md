@@ -40,19 +40,19 @@ Integration capabilities:
 - Apply installer hooks for integration materialization and launcher symlinks.
 
 Required files:
-- `.openclaw-plugin/plugin.json`
-- `.openclaw-plugin/init.sh`
-- `.openclaw-plugin/SKILL.md`
+- `plugins/.openclaw-plugin/plugin.json`
+- `plugins/.openclaw-plugin/init.sh`
+- `plugins/.openclaw-plugin/SKILL.md`
 
 Validation checklist:
-1. Plugin directory exists at `.openclaw-plugin`.
+1. Plugin directory exists at `plugins/.openclaw-plugin`.
 2. `plugin.json` parses as valid JSON.
 3. `init.sh` is executable.
 4. Installer places the integration in `INSTALL_ROOT/.openclaw-plugin`.
 5. Launcher symlink exists: `openclaw-plugin-init`.
 
 Apply flow:
-1. Update `.openclaw-plugin/plugin.json`.
-2. Update `.openclaw-plugin/init.sh`.
+1. Update `plugins/.openclaw-plugin/plugin.json`.
+2. Update `plugins/.openclaw-plugin/init.sh`.
 3. Run installer.
 4. Run `scripts/validate_openclaw_plugin.sh --mock-cdp`.

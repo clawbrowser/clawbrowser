@@ -58,10 +58,10 @@ EOF
 is_source_root_ready() {
   [[ -x "${SOURCE_ROOT}/bin/clawbrowser" ]] &&
     [[ -x "${SOURCE_ROOT}/bin/clawbrowser-mcp" ]] &&
-    [[ -f "${SOURCE_ROOT}/.claude-plugin/plugin.json" ]] &&
-    [[ -f "${SOURCE_ROOT}/.codex-plugin/plugin.json" ]] &&
-    [[ -f "${SOURCE_ROOT}/.openclaw-plugin/plugin.json" ]] &&
-    [[ -f "${SOURCE_ROOT}/.hermes-plugin/plugin.yaml" ]] &&
+    [[ -f "${SOURCE_ROOT}/plugins/.claude-plugin/plugin.json" ]] &&
+    [[ -f "${SOURCE_ROOT}/plugins/.codex-plugin/plugin.json" ]] &&
+    [[ -f "${SOURCE_ROOT}/plugins/.openclaw-plugin/plugin.json" ]] &&
+    [[ -f "${SOURCE_ROOT}/plugins/.hermes-plugin/plugin.yaml" ]] &&
     [[ -f "${SOURCE_ROOT}/gemini-extension.json" ]] &&
     [[ -f "${SOURCE_ROOT}/AGENTS.md" ]] &&
     [[ -f "${SOURCE_ROOT}/SKILL.md" ]] &&
@@ -458,7 +458,7 @@ stage_plugin_binaries() {
 install_codex_plugin() {
   local source_dir="${SOURCE_ROOT}"
   local target_dir="${CODEX_PLUGINS_ROOT}/clawbrowser"
-  local plugin_manifest="${source_dir}/.codex-plugin/plugin.json"
+  local plugin_manifest="${source_dir}/plugins/.codex-plugin/plugin.json"
   local resolved_target_dir
 
   if [[ ! -f "${plugin_manifest}" ]]; then
@@ -482,8 +482,8 @@ install_codex_plugin() {
     return 0
   fi
 
-  if ! cp -RL "${source_dir}/.codex-plugin/." "${target_dir}/.codex-plugin/" 2>/dev/null; then
-    plugin_install_notice "Failed to copy Codex plugin manifest from ${source_dir}/.codex-plugin to ${target_dir}/.codex-plugin"
+  if ! cp -RL "${source_dir}/plugins/.codex-plugin/." "${target_dir}/.codex-plugin/" 2>/dev/null; then
+    plugin_install_notice "Failed to copy Codex plugin manifest from ${source_dir}/plugins/.codex-plugin to ${target_dir}/.codex-plugin"
     return 0
   fi
 
@@ -520,7 +520,7 @@ PY
 install_claude_plugin() {
   local source_dir="${SOURCE_ROOT}"
   local target_dir="${CLAUDE_PLUGINS_ROOT}/clawbrowser"
-  local plugin_manifest="${source_dir}/.claude-plugin/plugin.json"
+  local plugin_manifest="${source_dir}/plugins/.claude-plugin/plugin.json"
 
   if [[ ! -f "${plugin_manifest}" ]]; then
     log "INFO: Claude plugin manifest missing at ${plugin_manifest}; skipping plugin copy for this run."
@@ -543,8 +543,8 @@ install_claude_plugin() {
     return 0
   fi
 
-  if ! cp -RL "${source_dir}/.claude-plugin/." "${target_dir}/" 2>/dev/null; then
-    plugin_install_notice "Failed to copy Claude plugin manifest from ${source_dir}/.claude-plugin to ${target_dir}"
+  if ! cp -RL "${source_dir}/plugins/.claude-plugin/." "${target_dir}/" 2>/dev/null; then
+    plugin_install_notice "Failed to copy Claude plugin manifest from ${source_dir}/plugins/.claude-plugin to ${target_dir}"
     return 0
   fi
 
@@ -745,7 +745,7 @@ register_gemini_extension() {
 }
 
 install_hermes_plugin() {
-  local source_dir="${SOURCE_ROOT}/.hermes-plugin"
+  local source_dir="${SOURCE_ROOT}/plugins/.hermes-plugin"
   local target_dir="${HERMES_PLUGINS_ROOT}/clawbrowser"
 
   if [[ ! -d "${source_dir}" ]]; then
@@ -778,7 +778,7 @@ install_hermes_plugin() {
 }
 
 install_openclaw_plugin() {
-  local source_dir="${SOURCE_ROOT}/.openclaw-plugin"
+  local source_dir="${SOURCE_ROOT}/plugins/.openclaw-plugin"
   local target_dir="${INSTALL_ROOT}/.openclaw-plugin"
 
   if [[ ! -d "${source_dir}" ]]; then

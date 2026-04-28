@@ -2,25 +2,42 @@
 
 Quick install is in [README.md](./README.md). Full contract: [AGENTS.md](./AGENTS.md). This guide covers the exact install commands, saved-key locations, and verify flow.
 
+Clawbrowser release archives now ship with `clawctl`. Use `clawctl install` as the primary bootstrap path: it unpacks the managed browser runtime, installs the agent integration, prompts once for the Clawbrowser API key when requested, writes the browser-managed `config.json`, and installs `clawctl` plus its bundled skill. Agents should use `clawctl` for browser sessions, tabs, and general browser tasks.
+
 ## MCP Security
 
 - `clawbrowser-mcp` is local stdio only, not a network daemon.
 - It exposes lifecycle/session tools and returns the local CDP endpoint; treat that endpoint as sensitive.
 - Do not expose CDP on the network or publish the Docker port externally unless you explicitly understand the risk.
 - Do not put API keys into MCP config, agent config, shell rc files, or logs.
-- Use the official `clawbrowser/clawbrowser` GitHub repository and install command only.
+- Use the official `clawbrowser/clawbrowser` release archive and the bundled `clawctl` install flow only.
 
 ## Install Commands
 
-Clawbrowser ships as a CLI + MCP server. Use the installer `auto` target if you want it to pick a supported target for you. If you already know which target you want, pass it explicitly.
+Clawbrowser ships as a managed browser runtime plus the `clawctl` agent CLI. Use the installer `auto` target if you want it to pick a supported target for you. If you already know which target you want, pass it explicitly.
 
 Recommended:
 
 ```bash
-bash scripts/install.sh auto
+./clawctl install --prompt-api-key auto
 ```
 
-Each install run wires up one target plus the shared runtime binaries.
+This is the preferred release-tar bootstrap flow:
+
+```bash
+tar -xzf clawbrowser-release.tar.gz
+cd clawbrowser-release
+./clawctl install --prompt-api-key auto
+```
+
+From a local `clawctl` checkout:
+
+```bash
+go run ./cmd/clawctl install --prompt-api-key auto
+```
+
+Each install run wires up one target plus the shared runtime binaries, installs the `clawctl` binary, and saves the browser API key into the managed config when prompted.
+The shell wrapper remains for compatibility, but it delegates to `clawctl install`.
 
 ### Shell Installer
 
@@ -40,9 +57,10 @@ Targets:
 
 | Target | Wires up |
 | --- | --- |
-| `auto` | Picks the matching target automatically |
+| `auto` | Detects the matching target automatically |
+| `all` | Installs every built-in target |
 | `codex` | Codex plugin + `~/.agents/plugins/marketplace.json` |
-| `claude` | Claude Code plugin bundle |
+| `claude-code` | Claude Code plugin bundle |
 | `gemini` | Gemini CLI extension |
 | `hermes` | Hermes plugin + MCP config in `~/.hermes/config.yaml` |
 | `openclaw` | OpenClaw plugin/config integration |
@@ -70,7 +88,7 @@ The `clawbrowser-config` named volume keeps the API key across restarts.
 
 ## Check For An Existing Key
 
-Always do this first. The launcher reuses a saved key automatically and should not prompt twice.
+Use this check to confirm whether `config.json` already contains an `api_key` before you decide to prompt again or run a no-prompt install.
 
 **Host:**
 
@@ -98,7 +116,7 @@ If either check passes, skip to [Verify](#verify-and-common-flow).
 
 ## Save The Key
 
-Get the key from [app.clawbrowser.ai](https://app.clawbrowser.ai). Ask the user exactly once. Never store it in shell rc files, MCP config, env vars, agent config, or logs.
+When `clawctl install --prompt-api-key` prompts, get the key from [app.clawbrowser.ai](https://app.clawbrowser.ai) and enter it once. The installer writes it into the browser-managed `config.json` and applies restrictive file permissions. Never store it in shell rc files, MCP config, env vars, agent config, or logs.
 Resolve config paths before writing. Do not pass `${XDG_CONFIG_HOME:-$HOME/.config}/...` directly to file/write tools; they may create literal workspace paths instead of the real config file.
 
 **Host:**
@@ -159,23 +177,27 @@ If Clawbrowser still reports "No API key found":
 
 ## Verify And Common Flow
 
-`clawbrowser://verify` is the explicit verify page and the source of truth for fingerprint, proxy, and geo status. Use it when identity or proxy proof matters, after rotate/regenerate tests, or when debugging browser-quality issues. If verify reports fingerprint mode inactive, the session was not launched correctly.
+Use `clawctl` for browser sessions, tabs, and page tasks. `verify` is the explicit verify page and the source of truth for fingerprint, proxy, and geo status. Use it when identity or proxy proof matters, after rotate/regenerate tests, or when debugging browser-quality issues. If verify reports fingerprint mode inactive, the session was not launched correctly.
 
 ```bash
-clawbrowser start --session <name> -- https://example.com
-clawbrowser endpoint --session <name>
-clawbrowser rotate --session <name>
-clawbrowser rotate --session <name> -- clawbrowser://verify
+clawctl launch --session <name> --url https://example.com --json
+clawctl endpoint --session <name> --json
+clawctl observe --session <name> --json
+clawctl tabs list --session <name> --json
+clawctl verify --session <name> --json
+clawctl stop --session <name> --json
 ```
 
-Some values may remain the same after rotate because of geo constraints or backend generation. Do not require every field to change.
+Use tabs for auth, verify, OAuth, checkout, and internal pages. Use `observe`, `click`, `fill`, `open`, and `wait` for normal page work. Some values may remain the same after rotate because of geo constraints or backend generation. Do not require every field to change.
 
 ## Quick Reference
 
-- CLI: `bin/clawbrowser`
+- Primary agent CLI: `clawctl`
+- CLI runtime: `bin/clawbrowser`
 - MCP server: `bin/clawbrowser-mcp`
 - Skill: `SKILL.md` (canonical root skill)
 - Agent instructions / full contract: `AGENTS.md`
-- Canonical plugin manifests: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.hermes-plugin/plugin.yaml`
+- Canonical plugin manifests: `plugins/.claude-plugin/plugin.json`, `plugins/.codex-plugin/plugin.json`, `plugins/.hermes-plugin/plugin.yaml`, `plugins/.openclaw-plugin/plugin.json`
 - Codex marketplace: `~/.agents/plugins/marketplace.json` (written by the installer)
+- Installer wrapper: `scripts/install.sh`
 - Hermes MCP config: public docs use `command: "clawbrowser-mcp"`; the installer may write the resolved user-local command path

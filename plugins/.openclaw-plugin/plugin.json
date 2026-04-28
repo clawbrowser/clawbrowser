@@ -5,7 +5,7 @@
   "author": "Clawbrowser",
   "source": {
     "type": "local",
-    "path": ".openclaw-plugin"
+    "path": "plugins/.openclaw-plugin"
   },
   "entry": {
     "type": "script",
