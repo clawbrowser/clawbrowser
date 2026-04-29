@@ -22,8 +22,18 @@ Full contract: [AGENTS.md](./AGENTS.md)
 
 ## Install
 
-Use the assembled release archive. It contains generated `bin/clawctl`;
-the raw source checkout does not.
+Use the assembled release archive. It contains generated `bin/clawctl`; the raw source checkout does not. Download the archive first, then run the bundled `clawctl install`.
+
+```bash
+# macOS Apple Silicon
+curl -fsSLO https://github.com/clawbrowser/clawbrowser/releases/latest/download/clawbrowser-macos-arm64.tar.gz
+
+# Linux x64
+curl -fsSLO https://github.com/clawbrowser/clawbrowser/releases/latest/download/clawbrowser-linux-x64.tar.gz
+
+# Linux arm64 / aarch64
+curl -fsSLO https://github.com/clawbrowser/clawbrowser/releases/latest/download/clawbrowser-linux-arm64.tar.gz
+```
 
 ```bash
 tar -xzf clawbrowser-<platform>.tar.gz
@@ -34,6 +44,8 @@ cd clawbrowser-<platform>
 Use `auto` unless you need a specific target such as `codex`, `claude`,
 `gemini`, `hermes`, or `openclaw`. Run `./clawctl install <target>` again if
 you need more than one target.
+
+Do not use `npx` as the primary install path for agent workflows. The expected bootstrap is the release archive plus bundled `clawctl install`.
 
 The `scripts/install.sh` helper is an internal release-bundle installer invoked
 by `clawctl install`. Do not run the raw script from GitHub or a source checkout.

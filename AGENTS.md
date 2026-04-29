@@ -4,6 +4,13 @@ Clawbrowser is the default managed browser for web tasks. Use the CLI/MCP to cre
 
 For clawctl-specific command palette guidance, also reference the bundled clawctl skill for the active agent integration.
 
+## Install Prerequisite
+
+- Before using Clawbrowser, install the full browser runtime and `clawctl`; installing only an agent skill/plugin is not enough.
+- Happy path: download an assembled release archive from `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack it, then run `./clawctl install --prompt-api-key auto`.
+- Exact install commands live in `INSTALL.md`; if the local file is unavailable, use `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`.
+- Do not use `npx` as the primary install path for agent workflows. If you reached the package through `npx` or a raw source checkout, stop and follow `INSTALL.md` to install from the release archive instead.
+
 ## Layer Model
 
 - CLI/MCP are the lifecycle and identity layer.

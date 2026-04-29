@@ -16,13 +16,22 @@ Clawbrowser release archives ship with `clawctl`, `clawbrowser`, and `clawbrowse
 
 Clawbrowser ships as a managed browser runtime plus the `clawctl` agent CLI. Use the installer `auto` target if you want it to pick a supported target for you. If you already know which target you want, pass it explicitly.
 
-Recommended:
+The happy path is to download an assembled release archive, unpack it, and run the bundled `clawctl install`. Do not use `npx` as the primary install path for agent workflows; `npx` source checkouts are not the browser runtime and may not contain generated release binaries.
+
+Download the release archive for your platform:
 
 ```bash
-./clawctl install --prompt-api-key auto
+# macOS Apple Silicon
+curl -fsSLO https://github.com/clawbrowser/clawbrowser/releases/latest/download/clawbrowser-macos-arm64.tar.gz
+
+# Linux x64
+curl -fsSLO https://github.com/clawbrowser/clawbrowser/releases/latest/download/clawbrowser-linux-x64.tar.gz
+
+# Linux arm64 / aarch64
+curl -fsSLO https://github.com/clawbrowser/clawbrowser/releases/latest/download/clawbrowser-linux-arm64.tar.gz
 ```
 
-This is the release-artifact bootstrap flow:
+Then install from the unpacked archive:
 
 ```bash
 tar -xzf clawbrowser-<platform>.tar.gz
@@ -30,7 +39,14 @@ cd clawbrowser-<platform>
 ./clawctl install --prompt-api-key auto
 ```
 
-From a local `clawctl` checkout:
+If the archive is already unpacked, run the same installer from the release directory:
+
+```bash
+cd clawbrowser-<platform>
+./clawctl install --prompt-api-key auto
+```
+
+From a local `clawctl` checkout, for CLI development machines that already have Go installed:
 
 ```bash
 go run ./cmd/clawctl install --prompt-api-key auto
@@ -46,9 +62,8 @@ Targets:
 | Target | Wires up |
 | --- | --- |
 | `auto` | Detects the matching target automatically |
-| `all` | Installs every built-in target |
 | `codex` | Codex plugin + `~/.agents/plugins/marketplace.json` |
-| `claude-code` | Claude Code plugin bundle |
+| `claude` | Claude Code plugin bundle |
 | `gemini` | Gemini CLI extension |
 | `hermes` | Hermes plugin + MCP config in `~/.hermes/config.yaml` |
 | `openclaw` | OpenClaw plugin/config integration |

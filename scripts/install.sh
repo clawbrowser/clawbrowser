@@ -73,7 +73,7 @@ is_source_root_ready() {
 
 ensure_source_root() {
   if ! is_source_root_ready; then
-    die "This installer must run from an assembled release bundle containing bin/clawctl, bin/clawbrowser, bin/clawbrowser-mcp, plugin manifests, AGENTS.md, GEMINI.md, SKILL.md, and scripts/install.sh. Raw source checkouts do not include generated bin/clawctl; run clawctl install from the unpacked release artifact instead."
+    die "This installer must run from an assembled release bundle containing bin/clawctl, bin/clawbrowser, bin/clawbrowser-mcp, plugin manifests, AGENTS.md, GEMINI.md, SKILL.md, and scripts/install.sh. Raw source checkouts and npx installs do not include the browser runtime; download a release archive and run bundled ./clawctl install instead. Install guide: https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md"
   fi
 }
 

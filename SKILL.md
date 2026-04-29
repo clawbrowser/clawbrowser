@@ -76,7 +76,10 @@ Default to container mode when there is no display. `auto` mode also falls back 
 
 ## Install
 
-- Prefer the repo-local marketplace or the `scripts/install.sh` bootstrap.
+- Before using Clawbrowser, the agent MUST install the full browser runtime and `clawctl`; installing only an agent skill/plugin is not enough.
+- Happy path: download an assembled release archive from `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack it, then run the bundled `./clawctl install --prompt-api-key auto`.
+- Install guide URL: `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`. If a local `INSTALL.md` is present beside this skill, prefer that local copy because it matches the installed release.
+- Do not use `npx` as the primary install path for agent workflows. If an agent reaches this package through `npx` or a raw source checkout, stop and follow `INSTALL.md` to install from the release archive instead.
 - If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude`, `codex`, `gemini`, or `openclaw`.
-- Use the official `clawbrowser/clawbrowser` GitHub repository and install command only.
+- Use the official `clawbrowser/clawbrowser` GitHub repository and bundled `clawctl install` command only.
 - In container mode, also pull and run the container image. See `INSTALL.md` for the exact commands and config paths.
