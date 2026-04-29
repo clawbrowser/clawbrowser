@@ -36,9 +36,21 @@ Environment overrides:
   CLAWBROWSER_CLAUDE_PLUGINS_ROOT  Claude plugin directory, default: ~/.claude/plugins
   CLAWBROWSER_GEMINI_EXTENSIONS_ROOT  Gemini extension directory, default: ~/.gemini/extensions
   CLAWBROWSER_HERMES_PLUGINS_ROOT  Hermes plugin directory, default: ~/.hermes/plugins
-  CLAWBROWSER_RUNTIME_IMAGE  Docker image used at runtime when no native app bundle exists, default: docker.io/clawbrowser/clawbrowser:latest
+  CLAWBROWSER_RUNTIME_IMAGE  Optional Docker backend image reference, default: docker.io/clawbrowser/clawbrowser:latest
   CLAWBROWSER_RELEASE_REF    Release ref or tag, default: latest
   CLAWBROWSER_APP_PATH       Optional macOS Clawbrowser.app path or executable
+
+Linux servers/containers (default path):
+  Use the bundled portable runtime (headful Clawbrowser + bundled Xvfb).
+  This path does not require Docker CLI/daemon/socket at agent runtime and does
+  not require a physical display.
+  See INSTALL.md#setup-modes-priority-order.
+
+Optional Docker backend (operator-managed):
+  Docker sidecar deployment is supported only when operators intentionally
+  provide Docker infrastructure and endpoint access.
+  See INSTALL.md#3-optional-docker-backend-explicit-operator-managed and
+  INSTALL.md#openclaw-sidecar-optional-operator-managed-infrastructure.
 
 This script expects an assembled release bundle that already contains
 bin/clawctl, bin/clawbrowser, and bin/clawbrowser-mcp. In normal installs,
@@ -196,6 +208,27 @@ require_command() {
   if ! command -v "${name}" >/dev/null 2>&1; then
     die "Required command not found: ${name}"
   fi
+}
+
+is_container_env() {
+  [[ -f "/.dockerenv" ]] && return 0
+  [[ -f "/run/.containerenv" ]] && return 0
+  if [[ -r "/proc/1/cgroup" ]] && grep -Eqa '(docker|containerd|kubepods|libpod)' /proc/1/cgroup; then
+    return 0
+  fi
+  return 1
+}
+
+require_python3() {
+  if command -v python3 >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if is_container_env; then
+    die "python3 is required for this release-bundle installer, and this looks like a minimal container. The default Linux path is the portable runtime (bundled Xvfb + full headful Clawbrowser), which does not require Docker runtime access. Install/run from an environment that has python3, then use clawctl start/endpoint normally. If your operator intentionally uses Docker backend sidecar mode, the host/operator must provision it and expose a reachable local CDP endpoint. See INSTALL.md#setup-modes-priority-order."
+  fi
+
+  die "Required command not found: python3"
 }
 
 absolute_path() {
@@ -364,7 +397,7 @@ plugin_install_notice() {
   local message="$1"
   log "WARNING: ${message}"
   log "INFO: Continuing without this plugin step."
-  log "INFO: Fallback: use clawbrowser in container mode for servers/no physical display, then rerun with a full release bundle if plugin assets are required."
+  log "INFO: Fallback: use clawbrowser portable backend for Linux servers/no physical display, then rerun with a full release bundle if plugin assets are required."
 }
 
 stage_plugin_binaries() {
@@ -937,7 +970,7 @@ main() {
   resolve_target
   require_command bash
   require_command mktemp
-  require_command python3
+  require_python3
 
   ensure_source_root
   prepare_runtime_root
@@ -953,10 +986,14 @@ main() {
   elif download_native_app_bundle; then
     log "Installed native app bundle into ${INSTALL_ROOT}/Clawbrowser.app"
   else
-    if docker_image_available "${RUNTIME_IMAGE}"; then
-      log "No macOS app bundle found, using existing Docker image"
+    if [[ "${CLAWBROWSER_BACKEND:-auto}" == "docker" ]]; then
+      if docker_image_available "${RUNTIME_IMAGE}"; then
+        log "No macOS app bundle found. Linux default remains portable backend; optional Docker backend image already exists: ${RUNTIME_IMAGE}"
+      else
+        log "No macOS app bundle found. Linux default remains portable backend; optional Docker backend image is ${RUNTIME_IMAGE}"
+      fi
     else
-      log "No macOS app bundle found, using Docker runtime image ${RUNTIME_IMAGE}"
+      log "No macOS app bundle found. Linux default remains portable backend. Optional Docker backend is operator-managed and selected explicitly with CLAWBROWSER_BACKEND=docker."
     fi
   fi
 
