@@ -248,11 +248,13 @@ exposes CDP. The example uses `docker`; for the launcher set
 ```bash
 docker pull docker.io/clawbrowser/clawbrowser:latest
 docker run -d \
+  --user root \
+  -e XDG_RUNTIME_DIR=/tmp/clawbrowser-runtime-root \
   -v clawbrowser-config:/home/clawbrowser/.config/clawbrowser \
   -p 127.0.0.1:9222:9222 \
   --name clawbrowser \
   docker.io/clawbrowser/clawbrowser:latest \
-  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-address=0.0.0.0 \
   --remote-debugging-port=9222
 ```
 
@@ -260,7 +262,10 @@ This binds CDP to localhost only. Do not publish the CDP port on a public
 interface unless you explicitly intend to expose browser automation and
 understand the risk.
 
-The `clawbrowser-config` named volume keeps the API key across restarts.
+The `clawbrowser-config` named volume keeps the API key across restarts. Run
+the container as `root` when using a Docker-managed config volume so the
+browser can initialize its writable profile and crash-reporting directories
+inside the mounted volume.
 
 ### 4) Existing CDP Endpoint (Advanced / Escape Hatch)
 
@@ -292,7 +297,9 @@ docker rm -f clawbrowser-openclaw 2>/dev/null || true
 docker run -d \
   --restart unless-stopped \
   --name clawbrowser-openclaw \
+  --user root \
   --network "container:${OPENCLAW_CONTAINER}" \
+  -e XDG_RUNTIME_DIR=/tmp/clawbrowser-runtime-root \
   -v clawbrowser-config:/home/clawbrowser/.config/clawbrowser \
   docker.io/clawbrowser/clawbrowser:latest \
   --remote-debugging-address=127.0.0.1 \
@@ -338,7 +345,9 @@ docker rm -f clawbrowser-openclaw
 docker run -d \
   --restart unless-stopped \
   --name clawbrowser-openclaw \
+  --user root \
   --network "container:${OPENCLAW_CONTAINER}" \
+  -e XDG_RUNTIME_DIR=/tmp/clawbrowser-runtime-root \
   -v clawbrowser-config:/home/clawbrowser/.config/clawbrowser \
   docker.io/clawbrowser/clawbrowser:latest \
   --remote-debugging-address=127.0.0.1 \

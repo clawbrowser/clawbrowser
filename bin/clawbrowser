@@ -1503,12 +1503,14 @@ launch_docker_session() {
     --rm \
     --name "${container_name}" \
     --label "clawbrowser.session=${session_slug}" \
+    --user root \
     --publish "127.0.0.1:${host_port}:${REMOTE_DEBUG_PORT}" \
     --env "CLAWBROWSER_API_KEY=${CLAWBROWSER_API_KEY}" \
     --env "CLAWBROWSER_CONFIG_DIR=/home/clawbrowser/.config/clawbrowser" \
+    --env "XDG_RUNTIME_DIR=/tmp/clawbrowser-runtime-root" \
     --volume "${config_path}:/home/clawbrowser/.config/clawbrowser" \
     "${IMAGE}" \
-    --remote-debugging-address=127.0.0.1 \
+    --remote-debugging-address=0.0.0.0 \
     --remote-debugging-port="${REMOTE_DEBUG_PORT}" \
     "${browser_args[@]}")"
 
@@ -1756,6 +1758,8 @@ list_profiles() {
     local output
     output="$("${DOCKER_BIN}" run \
       --rm \
+      --user root \
+      --env "XDG_RUNTIME_DIR=/tmp/clawbrowser-runtime-root" \
       --volume "${config_path}:/home/clawbrowser/.config/clawbrowser" \
       "${IMAGE}" \
       --list \

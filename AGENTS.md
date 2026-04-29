@@ -82,7 +82,7 @@ For clawctl-specific command palette guidance, also reference the bundled clawct
 - Do not store the key in shell rc files, MCP config, agent config, random env files, or logs.
 - Resolve config paths before writing. Do not pass `${XDG_CONFIG_HOME:-$HOME/.config}/...`, `$HOME/.config/...`, or `~/.config/...` directly to file/write tools; they may create literal workspace paths instead of the real config file.
 - Host config: use the resolved absolute path under the current user's config directory; if you need to write it manually, use a shell command or an already-resolved path.
-- Docker backend container config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
+- Docker backend container config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume. Docker-managed named volumes are root-owned by default; run that container as `root` with `XDG_RUNTIME_DIR=/tmp/clawbrowser-runtime-root` when using this volume.
 
 ## Common Workflows
 
@@ -144,7 +144,7 @@ These are pass-through browser arguments after `--`; they are not separate launc
 H. Missing API key:
 
 - Host mode uses the resolved absolute path under the current user's config directory; resolve it before writing.
-- Docker backend container mode uses `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
+- Docker backend container mode uses `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume. If you launch the image manually with that volume, include `--user root -e XDG_RUNTIME_DIR=/tmp/clawbrowser-runtime-root`.
 - Use `clawbrowser://auth` for manual reauthentication.
 
 I. Cleanup:
@@ -161,7 +161,7 @@ clawctl stop --session work --json
 
 - **Native macOS** - recommended on macOS. Uses `Clawbrowser.app` with the native WindowServer/GUI session.
 - **Portable Linux runtime** - recommended default for Linux VPS/no-display/server/container environments. Runs full headful Clawbrowser with Xvfb from a separately published portable runtime artifact and does not require Docker runtime access.
-- **Docker backend (optional/operator-managed)** - host-managed Dockerized runtime for operators who intentionally choose it. Config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
+- **Docker backend (optional/operator-managed)** - host-managed Dockerized runtime for operators who intentionally choose it. Config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume; Docker-managed config volumes require `--user root` and `XDG_RUNTIME_DIR=/tmp/clawbrowser-runtime-root`.
 - **Sidecar integration (optional/operator-managed)** - host-managed sidecar where the agent connects with `clawctl --cdp http://127.0.0.1:9222 ...`.
 
 Default to portable Linux runtime when there is no display. Use Docker backend only when operators intentionally provide Docker infrastructure.
