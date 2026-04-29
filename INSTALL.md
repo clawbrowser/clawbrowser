@@ -2,7 +2,8 @@
 
 Quick install is in [README.md](./README.md). Full contract: [AGENTS.md](./AGENTS.md). This guide covers the exact install commands, saved-key locations, and verify flow.
 
-Clawbrowser release archives ship with `clawctl`, `clawbrowser`, and `clawbrowser-mcp`. Use `clawctl install` as the primary bootstrap path for agent workflows. `clawctl` delegates runtime lifecycle to the `clawbrowser` launcher shipped in this release. Agents should use `clawctl` for browser sessions, tabs, and general browser tasks.
+Clawbrowser release archives ship the launcher and agent tooling: `clawctl`, `clawbrowser`, `clawbrowser-mcp`, and integration files. Large browser runtime payloads are published separately. On Linux, the Portable Xvfb runtime is downloaded by the `clawbrowser` launcher on first use or by `clawbrowser ensure-runtime --backend portable`; it is not bundled into the normal platform release archive. This keeps the main release archive smaller, and portable backend support depends on a matching portable runtime artifact for the platform.
+Use `clawctl install` as the primary bootstrap path for agent workflows. `clawctl` delegates runtime lifecycle to the `clawbrowser` launcher shipped in this release. Agents should use `clawctl` for browser sessions, tabs, and general browser tasks.
 
 ## MCP Security
 
@@ -14,11 +15,12 @@ Clawbrowser release archives ship with `clawctl`, `clawbrowser`, and `clawbrowse
 
 ## Install Commands
 
-Clawbrowser ships as a managed browser runtime plus the `clawctl` agent CLI. Use the installer `auto` target if you want it to pick a supported target for you. If you already know which target you want, pass it explicitly.
+Clawbrowser installs a managed browser launcher plus the `clawctl` agent CLI. On Linux portable sessions, the full Portable Xvfb runtime is a separate release artifact that the launcher downloads on demand. Use the installer `auto` target if you want it to pick a supported target for you. If you already know which target you want, pass it explicitly.
 
 The happy path is to download an assembled release archive, unpack it, and run the bundled `clawctl install`. Do not use `npx` as the primary install path for agent workflows; `npx` source checkouts are not the browser runtime and may not contain generated release binaries.
 
-Download the release archive for your platform:
+Download the normal release archive for your platform. These archives contain
+the launcher and integration tooling, not the full Portable Xvfb runtime:
 
 ```bash
 # macOS Apple Silicon
@@ -31,12 +33,25 @@ curl -fsSLO https://github.com/clawbrowser/clawbrowser/releases/latest/download/
 curl -fsSLO https://github.com/clawbrowser/clawbrowser/releases/latest/download/clawbrowser-linux-arm64.tar.gz
 ```
 
+For Linux portable runtime use, no separate manual download is normally needed;
+after install, the launcher fetches the matching portable artifact on first use.
+Integrations such as OpenClaw, Hermes, CI images, and offline mirrors can prefetch
+`clawbrowser-portable-linux-{amd64,arm64}-glibc` assets explicitly; see
+[Portable runtime artifacts](#portable-runtime-artifacts).
+
 Then install from the unpacked archive:
 
 ```bash
 tar -xzf clawbrowser-<platform>.tar.gz
 cd clawbrowser-<platform>
 ./clawctl install --prompt-api-key auto
+```
+
+After install, you can explicitly prepare or start the Linux portable runtime:
+
+```bash
+clawbrowser ensure-runtime --backend portable
+clawbrowser start --backend portable --session work
 ```
 
 If the archive is already unpacked, run the same installer from the release directory:
@@ -80,17 +95,27 @@ If you need more than one target, rerun the installer once per target.
 | Operator-managed Docker host | docker | Yes | No, container uses virtual display |
 | Existing browser provisioned elsewhere | existing CDP | No | Depends on external browser |
 
+Portable runtime support is artifact-specific. A normal release archive may exist
+for a platform before a Portable Xvfb runtime artifact exists for that platform.
+Currently:
+- release archives: `linux-x64`, `linux-arm64`, `macos-arm64`
+- Portable Xvfb runtime artifacts:
+  - `linux-amd64-glibc` (`clawbrowser-portable-linux-amd64-glibc`)
+  - `linux-arm64-glibc` (`clawbrowser-portable-linux-arm64-glibc`)
+- `musl`/Alpine portable flow is supported in principle, but no portable
+  artifacts are published yet
+
 ### 1) Linux Portable Runtime (Default for VPS/Containers/No Display)
 
 For Linux servers, CI-like environments, and most restricted containers,
-use the bundled Portable Xvfb runtime.
+use the Portable Xvfb runtime, which the launcher downloads on demand.
 
-- Runs full headful Clawbrowser under bundled Xvfb.
+- Runs full headful Clawbrowser under the portable runtime's bundled Xvfb.
 - Does not use Chromium headless mode.
 - Does not require Docker CLI/daemon/socket at runtime.
 - Does not require `docker-compose`, `sudo`, `apt`, or a physical display.
-- Uses the portable runtime tarball and launches Xvfb + Clawbrowser as local
-  child processes in the current environment.
+- Uses a separately published portable runtime tarball and launches Xvfb +
+  Clawbrowser as local child processes in the current environment.
 - Does not require creating a sidecar container.
 - Exposes a local CDP endpoint that `clawctl` uses for automation.
 
@@ -109,10 +134,69 @@ clawctl start --session work --url https://example.com --json
 clawctl endpoint --session work --json
 ```
 
+#### Portable runtime artifacts
+
+The normal `clawbrowser-linux-x64.tar.gz` and `clawbrowser-linux-arm64.tar.gz`
+release archives do not contain the full Portable Xvfb runtime payload. The
+portable runtime is a separate large artifact.
+
+The launcher downloads portable assets automatically on first portable use or
+when you run:
+
+```bash
+clawbrowser ensure-runtime --backend portable
+```
+
+OpenClaw, Hermes, CI images, and offline/mirrored environments may prefetch or
+mirror these assets explicitly.
+
+The launcher extracts the portable runtime into:
+- `$CLAWBROWSER_RUNTIME_ROOT` (if set)
+- else `$XDG_CACHE_HOME/clawbrowser/runtime`
+- else `$HOME/.cache/clawbrowser/runtime`
+
+Latest-release URL patterns:
+- `https://github.com/clawbrowser/clawbrowser/releases/latest/download/clawbrowser-portable-linux-amd64-glibc{.manifest.json,.tar.gz,.tar.gz.sha256}`
+- `https://github.com/clawbrowser/clawbrowser/releases/latest/download/clawbrowser-portable-linux-arm64-glibc{.manifest.json,.tar.gz,.tar.gz.sha256}`
+
+Tag-pinned URL patterns:
+- `https://github.com/clawbrowser/clawbrowser/releases/download/<tag>/clawbrowser-portable-linux-amd64-glibc{.manifest.json,.tar.gz,.tar.gz.sha256}`
+- `https://github.com/clawbrowser/clawbrowser/releases/download/<tag>/clawbrowser-portable-linux-arm64-glibc{.manifest.json,.tar.gz,.tar.gz.sha256}`
+
+Use tag-pinned URLs for reproducible CI, OpenClaw, Hermes, or mirrored
+installs. Use `latest` only for manual testing or quick-start workflows.
+
+#### Prefetching the portable runtime
+
+```bash
+mkdir -p /tmp/clawbrowser-portable
+cd /tmp/clawbrowser-portable
+
+for arch in amd64 arm64; do
+  artifact="clawbrowser-portable-linux-${arch}-glibc"
+  base="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${artifact}"
+  curl -fsSLO "${base}.manifest.json"
+  curl -fsSLO "${base}.tar.gz"
+  curl -fsSLO "${base}.tar.gz.sha256"
+  sha256sum -c "${artifact}.tar.gz.sha256"
+done
+```
+
+Manual prefetch is optional. The launcher can fetch these automatically.
+Integrations can mirror these files into their own artifact cache. Do not
+unpack manually unless you are implementing an offline/mirrored install flow;
+prefer `clawbrowser ensure-runtime --backend portable`.
+
+OpenClaw, Hermes, and other agent runtimes can either let `clawbrowser`
+download the Portable Xvfb runtime on first use, or prefetch/mirror the
+portable asset triplets above. They do not need Docker access for the portable backend.
+If they choose Docker backend instead, that is an explicit operator-managed
+deployment mode.
+
 What happens in portable mode:
 - Downloads the portable runtime `.manifest.json`, `.tar.gz`, and `.tar.gz.sha256` release assets.
 - Verifies SHA-256 before extraction.
-- Extracts into the runtime root and starts bundled Xvfb plus full headful Claw Browser.
+- Extracts into the runtime root and starts full headful Clawbrowser under Xvfb.
 - Writes portable runtime fields into `state.env` for session tracking.
 - Exposes the browser CDP endpoint on localhost for `clawctl`/MCP-driven automation.
 

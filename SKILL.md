@@ -70,7 +70,7 @@ clawctl stop --session work --json
 ## Runtime Modes
 
 - **Host mode** — desktop/macOS or Linux with a display. Config lives under the current user's config directory; resolve the absolute path before writing.
-- **Portable Linux runtime mode** — recommended default for Linux VPS/server/container/no-display environments. Runs full headful Clawbrowser with bundled Xvfb, without requiring Docker runtime access.
+- **Portable Linux runtime mode** — recommended default for Linux VPS/server/container/no-display environments. Runs full headful Clawbrowser with Xvfb from a separately published portable runtime artifact, without requiring Docker runtime access.
 - **Docker backend mode (optional/operator-managed)** — Dockerized runtime for operators who intentionally choose Docker and control host infrastructure. Config in the container at `/home/clawbrowser/.config/clawbrowser/config.json`, persisted in the `clawbrowser-config` named volume.
 - **Sidecar mode (optional/operator-managed)** — host-managed sidecar where the agent connects via `clawctl --cdp http://127.0.0.1:9222 ...`. See `INSTALL.md` for exact commands.
 
@@ -84,5 +84,5 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
 - Do not use `npx` as the primary install path for agent workflows. If you reach this package through `npx` or a raw source checkout, stop and follow `INSTALL.md` to install from the release archive instead.
 - If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude`, `codex`, `gemini`, or `openclaw`.
 - Use the official `clawbrowser/clawbrowser` GitHub repository and bundled `clawctl install` command only.
-- On Linux servers/containers/no-display environments, use the portable runtime path by default (bundled Xvfb + headful browser, no Docker runtime required).
+- On Linux servers/containers/no-display environments, use the portable runtime path by default (separately published portable artifact with Xvfb + headful browser, no Docker runtime required).
 - Docker backend and sidecar paths remain optional/operator-managed for hosts that intentionally provide Docker infrastructure.

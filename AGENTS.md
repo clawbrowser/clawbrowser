@@ -10,7 +10,7 @@ For clawctl-specific command palette guidance, also reference the bundled clawct
 - Happy path: download an assembled release archive from `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack it, then run `./clawctl install --prompt-api-key auto`.
 - Exact install commands live in `INSTALL.md`; if the local file is unavailable, use `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`.
 - Do not use `npx` as the primary install path for agent workflows. If you reached the package through `npx` or a raw source checkout, stop and follow `INSTALL.md` to install from the release archive instead.
-- On Linux servers/containers/no-display environments, default to the portable runtime path from `INSTALL.md` (bundled Xvfb + full headful Clawbrowser). This path does not require Docker CLI/daemon/socket at runtime.
+- On Linux servers/containers/no-display environments, default to the portable runtime path from `INSTALL.md` (separately published portable artifact with Xvfb + full headful Clawbrowser, downloaded on demand). This path does not require Docker CLI/daemon/socket at runtime.
 - Docker backend and sidecar flows remain optional/operator-managed infrastructure paths; do not assume restricted agents can self-provision Docker.
 
 ## Layer Model
@@ -160,7 +160,7 @@ clawctl stop --session work --json
 ## Runtime Modes
 
 - **Native macOS** - recommended on macOS. Uses `Clawbrowser.app` with the native WindowServer/GUI session.
-- **Portable Linux runtime** - recommended default for Linux VPS/no-display/server/container environments. Runs full headful Clawbrowser with bundled Xvfb and does not require Docker runtime access.
+- **Portable Linux runtime** - recommended default for Linux VPS/no-display/server/container environments. Runs full headful Clawbrowser with Xvfb from a separately published portable runtime artifact and does not require Docker runtime access.
 - **Docker backend (optional/operator-managed)** - host-managed Dockerized runtime for operators who intentionally choose it. Config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
 - **Sidecar integration (optional/operator-managed)** - host-managed sidecar where the agent connects with `clawctl --cdp http://127.0.0.1:9222 ...`.
 

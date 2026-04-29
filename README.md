@@ -23,6 +23,9 @@ Full contract: [AGENTS.md](./AGENTS.md)
 ## Install
 
 Use the assembled release archive. It contains generated `bin/clawctl`; the raw source checkout does not. Download the archive first, then run the bundled `clawctl install`.
+The normal platform release archives ship launcher/tooling (`clawctl`,
+`clawbrowser`, `clawbrowser-mcp`, integration files). The Linux portable
+runtime is a separate large artifact downloaded on demand by the launcher.
 
 ```bash
 # macOS Apple Silicon
@@ -66,11 +69,13 @@ Use this by default on Linux servers, CI-like environments, and restricted conta
 - No Docker CLI/daemon/socket required at runtime.
 - No `docker-compose`, `sudo`, or `apt` required for runtime use.
 - No physical display required.
-- Runs full headful Clawbrowser under bundled Xvfb.
-- Installer/runtime uses the portable runtime tarball and launches Xvfb + Clawbrowser as local child processes in the current environment.
+- Runs full headful Clawbrowser under Xvfb from the portable runtime artifact.
+- Installer/runtime downloads the separately published portable runtime tarball on demand and launches Xvfb + Clawbrowser as local child processes in the current environment.
 - Does not require creating a sidecar container.
 - Exposes a local CDP endpoint consumed by `clawctl`.
 - Docker is not required for portable install or portable start.
+- Normal `clawbrowser-linux-x64.tar.gz` and `clawbrowser-linux-arm64.tar.gz`
+  archives do not include the full portable runtime payload.
 
 ```bash
 clawctl install
@@ -140,7 +145,7 @@ Do not bypass the managed launcher for agent tasks. On macOS, the launcher may u
 ## Runtime Modes
 
 - **Host mode** — macOS or Linux with a display. Uses `Clawbrowser.app` when present.
-- **Portable Xvfb mode (recommended on Linux servers/containers)** — starts the bundled portable Linux runtime with virtual display support. This is the default Linux path and does not require Docker at runtime.
+- **Portable Xvfb mode (recommended on Linux servers/containers)** — starts the separately published portable Linux runtime (downloaded on demand) with virtual display support. This is the default Linux path and does not require Docker at runtime.
 - **Docker backend mode (optional/operator-managed)** — for environments that intentionally standardize on host-managed container runtime. Agents connect over `clawctl --cdp ...` when operators provide that endpoint.
 - **Existing CDP endpoint mode (advanced)** — use `clawctl --cdp ...` to drive a browser provisioned elsewhere.
 

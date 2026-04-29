@@ -41,7 +41,8 @@ Environment overrides:
   CLAWBROWSER_APP_PATH       Optional macOS Clawbrowser.app path or executable
 
 Linux servers/containers (default path):
-  Use the bundled portable runtime (headful Clawbrowser + bundled Xvfb).
+  Use the portable runtime (headful Clawbrowser + bundled Xvfb), downloaded
+  on demand as a separate release artifact.
   This path does not require Docker CLI/daemon/socket at agent runtime and does
   not require a physical display.
   See INSTALL.md#setup-modes-priority-order.
@@ -225,7 +226,7 @@ require_python3() {
   fi
 
   if is_container_env; then
-    die "python3 is required for this release-bundle installer, and this looks like a minimal container. The default Linux path is the portable runtime (bundled Xvfb + full headful Clawbrowser), which does not require Docker runtime access. Install/run from an environment that has python3, then use clawctl start/endpoint normally. If your operator intentionally uses Docker backend sidecar mode, the host/operator must provision it and expose a reachable local CDP endpoint. See INSTALL.md#setup-modes-priority-order."
+    die "python3 is required for this release-bundle installer, and this looks like a minimal container. The default Linux path is the portable runtime (full headful Clawbrowser under Xvfb), downloaded on demand as a separate release artifact, and it does not require Docker runtime access. Install/run from an environment that has python3, then use clawctl start/endpoint normally. If your operator intentionally uses Docker backend sidecar mode, the host/operator must provision it and expose a reachable local CDP endpoint. See INSTALL.md#setup-modes-priority-order."
   fi
 
   die "Required command not found: python3"
