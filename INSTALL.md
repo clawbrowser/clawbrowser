@@ -70,9 +70,96 @@ Targets:
 
 If you need more than one target, rerun the installer once per target.
 
-## Container Mode
+## Setup Modes (Priority Order)
 
-Docker or a Docker-compatible OCI CLI can run the published image. This is not Chrome headless mode: it runs full Clawbrowser with a virtual Linux display and exposes CDP. The example uses `docker`; for the launcher set `CLAWBROWSER_DOCKER_BIN` when using a compatible non-Docker CLI:
+| Environment | Recommended backend | Requires Docker? | Requires physical display? |
+| --- | --- | --- | --- |
+| Linux VPS / server without display | portable | No | No |
+| Dockerized/restricted container | portable | No | No |
+| macOS desktop / Mac mini | native app | No | Needs GUI session/display provision |
+| Operator-managed Docker host | docker | Yes | No, container uses virtual display |
+| Existing browser provisioned elsewhere | existing CDP | No | Depends on external browser |
+
+### 1) Linux Portable Runtime (Default for VPS/Containers/No Display)
+
+For Linux servers, CI-like environments, and most restricted containers,
+use the bundled Portable Xvfb runtime.
+
+- Runs full headful Clawbrowser under bundled Xvfb.
+- Does not use Chromium headless mode.
+- Does not require Docker CLI/daemon/socket at runtime.
+- Does not require `docker-compose`, `sudo`, `apt`, or a physical display.
+- Uses the portable runtime tarball and launches Xvfb + Clawbrowser as local
+  child processes in the current environment.
+- Does not require creating a sidecar container.
+- Exposes a local CDP endpoint that `clawctl` uses for automation.
+
+Portable runtime commands:
+
+```bash
+clawbrowser ensure-runtime --backend portable
+clawbrowser start --backend portable --session work -- clawbrowser://verify/
+```
+
+Managed-session flow (recommended for agents):
+
+```bash
+./clawctl install --prompt-api-key auto
+clawctl start --session work --url https://example.com --json
+clawctl endpoint --session work --json
+```
+
+What happens in portable mode:
+- Downloads the portable runtime `.manifest.json`, `.tar.gz`, and `.tar.gz.sha256` release assets.
+- Verifies SHA-256 before extraction.
+- Extracts into the runtime root and starts bundled Xvfb plus full headful Claw Browser.
+- Writes portable runtime fields into `state.env` for session tracking.
+- Exposes the browser CDP endpoint on localhost for `clawctl`/MCP-driven automation.
+
+In launcher `auto` mode, Linux prefers the portable backend. On Linux
+containers, Docker backend fallback is gated and only considered when
+`CLAWBROWSER_ALLOW_DOCKER_BACKEND=1` is set:
+
+```bash
+clawbrowser start --backend auto --session work -- clawbrowser://verify/
+```
+
+### 2) macOS Native App Runtime (Default on macOS)
+
+Use `Clawbrowser.app` with the native macOS WindowServer/GUI session.
+
+- The native runtime is `Clawbrowser.app`.
+- This mode requires a logged-in GUI user session tied to WindowServer.
+- Xvfb is Linux-only and not a macOS solution.
+- Headless Mac mini operators still need a GUI user session and may need a real
+  display, dummy HDMI adapter, Screen Sharing, or another provisioned display
+  strategy.
+- No Xvfb path exists on macOS; use the native app runtime.
+
+### 3) Optional Docker Backend (Explicit, Operator-Managed)
+
+Docker remains supported when operators intentionally want a Dockerized browser
+runtime and control the host. This is optional and is not the default path for
+restricted containers.
+
+- Workloads inside containers usually cannot start Docker containers unless the
+  host operator grants Docker access.
+- Docker socket access (for example bind-mounting `/var/run/docker.sock`) is
+  privileged and security-sensitive.
+- Docker sidecar deployment is valid as operator-managed infrastructure, not
+  restricted-container self-bootstrap.
+- Docker may still be used in Clawbrowser release CI/build pipelines, but users
+  and agents do not need Docker for portable install/runtime.
+- Use Docker only when you explicitly choose it, for example:
+
+```bash
+clawbrowser start --backend docker --session work -- clawbrowser://verify/
+```
+
+Docker or a Docker-compatible OCI CLI can run the published image. This is not
+Chrome headless mode: it runs full Clawbrowser with a virtual Linux display and
+exposes CDP. The example uses `docker`; for the launcher set
+`CLAWBROWSER_DOCKER_BIN` when using a compatible non-Docker CLI:
 
 ```bash
 docker pull docker.io/clawbrowser/clawbrowser:latest
@@ -85,9 +172,102 @@ docker run -d \
   --remote-debugging-port=9222
 ```
 
-This binds CDP to localhost only. Do not publish the CDP port on a public interface unless you are deliberately exposing browser automation and understand the risk.
+This binds CDP to localhost only. Do not publish the CDP port on a public
+interface unless you explicitly intend to expose browser automation and
+understand the risk.
 
 The `clawbrowser-config` named volume keeps the API key across restarts.
+
+### 4) Existing CDP Endpoint (Advanced / Escape Hatch)
+
+Use this when your infrastructure already provisions a browser and exposes CDP.
+In this mode, Clawbrowser tooling connects to an existing endpoint instead of
+launching a new local managed session.
+
+```bash
+clawctl --cdp http://127.0.0.1:9222 open https://example.com
+clawctl --cdp http://127.0.0.1:9222 tabs list --json
+clawctl --cdp http://127.0.0.1:9222 verify --json
+```
+
+#### OpenClaw Sidecar Integration (Optional, Operator-Managed Infrastructure)
+
+If an operator intentionally chooses OpenClaw sidecar mode, provision the
+browser from the Docker host (or platform infrastructure), not from a
+restricted container runtime.
+
+Run Clawbrowser as a host-managed sidecar container and share the OpenClaw
+gateway container's network namespace. That makes CDP available inside the
+containerized workflow as `127.0.0.1:9222` without exposing it publicly:
+
+```bash
+OPENCLAW_CONTAINER="${OPENCLAW_CONTAINER:-openclaw-openclaw-gateway-1}"
+
+docker pull docker.io/clawbrowser/clawbrowser:latest
+docker rm -f clawbrowser-openclaw 2>/dev/null || true
+docker run -d \
+  --restart unless-stopped \
+  --name clawbrowser-openclaw \
+  --network "container:${OPENCLAW_CONTAINER}" \
+  -v clawbrowser-config:/home/clawbrowser/.config/clawbrowser \
+  docker.io/clawbrowser/clawbrowser:latest \
+  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port=9222 \
+  --skip-verify \
+  about:blank
+```
+
+Verify from inside the OpenClaw container:
+
+```bash
+docker exec "$OPENCLAW_CONTAINER" \
+  curl -fsS http://127.0.0.1:9222/json/version
+
+docker exec "$OPENCLAW_CONTAINER" sh -lc \
+  'clawctl --cdp http://127.0.0.1:9222 doctor'
+```
+
+If `http://127.0.0.1:9222/json/version` is not reachable from the container
+runtime and it has no Docker host privileges, do not attempt self-bootstrap.
+Ask the host/operator to provision the sidecar or
+provide another reachable CDP endpoint.
+
+Use the same explicit CDP endpoint for commands that run inside the OpenClaw
+container:
+
+```bash
+clawctl --cdp http://127.0.0.1:9222 open https://example.com
+clawctl --cdp http://127.0.0.1:9222 tabs list --json
+clawctl --cdp http://127.0.0.1:9222 verify --json
+```
+
+Avoid using Docker service names such as
+`http://clawbrowser-openclaw:9222` for CDP. DevTools server rejects
+non-IP, non-localhost Host headers. The shared-network sidecar keeps the
+endpoint stable as `localhost` from inside the OpenClaw container.
+
+If you need a fresh identity in this sidecar mode, restart the sidecar with
+browser flags such as `--regenerate`:
+
+```bash
+docker rm -f clawbrowser-openclaw
+docker run -d \
+  --restart unless-stopped \
+  --name clawbrowser-openclaw \
+  --network "container:${OPENCLAW_CONTAINER}" \
+  -v clawbrowser-config:/home/clawbrowser/.config/clawbrowser \
+  docker.io/clawbrowser/clawbrowser:latest \
+  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port=9222 \
+  --skip-verify \
+  --regenerate \
+  clawbrowser://verify/
+```
+
+In this mode, `clawctl --cdp ...` controls the already-running sidecar. Do not
+expect `clawctl start`, `clawctl rotate`, or the `clawbrowser` launcher to
+start Docker from inside a restricted container unless an operator has
+deliberately provisioned Docker access.
 
 ## Check For An Existing Key
 
@@ -109,7 +289,7 @@ raise SystemExit(0 if isinstance(api_key, str) and api_key.strip() else 1)
 PY
 ```
 
-**Container:**
+**Docker backend container (optional):**
 
 ```bash
 docker exec clawbrowser sh -c 'test -s /home/clawbrowser/.config/clawbrowser/config.json && grep -qE "\"api_key\"[[:space:]]*:[[:space:]]*\"[^\"]+\"" /home/clawbrowser/.config/clawbrowser/config.json'
@@ -137,7 +317,7 @@ path.chmod(0o600)
 PY
 ```
 
-**Container** (persists in the named volume):
+**Docker backend container** (optional, persists in the named volume):
 
 ```bash
 docker exec clawbrowser sh -c '
@@ -196,12 +376,12 @@ Use tabs for auth, verify, OAuth, checkout, and internal pages. Use `observe`, `
 ## Quick Reference
 
 - Primary agent CLI: `clawctl` (delegates to `clawbrowser`)
-- Agent CLI binary: `bin/clawctl`
+- CLI binary: `bin/clawctl`
 - Launcher runtime: `bin/clawbrowser`
 - Compatibility MCP server: `bin/clawbrowser-mcp`
 - Direct CLI MCP entrypoint: `clawctl mcp`
-- Skills: `SKILL.md` (canonical root skill) plus the target-installed clawctl skill/reference where the agent supports skills
-- Agent instructions / full contract: `AGENTS.md`
+- Skills: `SKILL.md` (canonical root skill) plus the target-installed clawctl skill/reference where the integration supports skills
+- Instructions / full contract: `AGENTS.md`
 - Canonical plugin manifests: `plugins/.claude-plugin/plugin.json`, `plugins/.codex-plugin/plugin.json`, `plugins/.hermes-plugin/plugin.yaml`, `plugins/.openclaw-plugin/plugin.json`
 - Codex marketplace: `~/.agents/plugins/marketplace.json` (written by the installer)
 - Installer wrapper: `scripts/install.sh`

@@ -10,6 +10,8 @@ For clawctl-specific command palette guidance, also reference the bundled clawct
 - Happy path: download an assembled release archive from `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack it, then run `./clawctl install --prompt-api-key auto`.
 - Exact install commands live in `INSTALL.md`; if the local file is unavailable, use `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`.
 - Do not use `npx` as the primary install path for agent workflows. If you reached the package through `npx` or a raw source checkout, stop and follow `INSTALL.md` to install from the release archive instead.
+- On Linux servers/containers/no-display environments, default to the portable runtime path from `INSTALL.md` (bundled Xvfb + full headful Clawbrowser). This path does not require Docker CLI/daemon/socket at runtime.
+- Docker backend and sidecar flows remain optional/operator-managed infrastructure paths; do not assume restricted agents can self-provision Docker.
 
 ## Layer Model
 
@@ -80,7 +82,7 @@ For clawctl-specific command palette guidance, also reference the bundled clawct
 - Do not store the key in shell rc files, MCP config, agent config, random env files, or logs.
 - Resolve config paths before writing. Do not pass `${XDG_CONFIG_HOME:-$HOME/.config}/...`, `$HOME/.config/...`, or `~/.config/...` directly to file/write tools; they may create literal workspace paths instead of the real config file.
 - Host config: use the resolved absolute path under the current user's config directory; if you need to write it manually, use a shell command or an already-resolved path.
-- Container config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
+- Docker backend container config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
 
 ## Common Workflows
 
@@ -142,7 +144,7 @@ These are pass-through browser arguments after `--`; they are not separate launc
 H. Missing API key:
 
 - Host mode uses the resolved absolute path under the current user's config directory; resolve it before writing.
-- Container mode uses `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
+- Docker backend container mode uses `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
 - Use `clawbrowser://auth` for manual reauthentication.
 
 I. Cleanup:
@@ -157,7 +159,9 @@ clawctl stop --session work --json
 
 ## Runtime Modes
 
-- **Host** - desktop/macOS or Linux with a display. Config lives under the current user's config directory; resolve the absolute path before writing.
-- **Container** - VPS, SSH-only, or no physical display. OCI image `docker.io/clawbrowser/clawbrowser:latest` with Docker or a Docker-compatible OCI CLI configured through `CLAWBROWSER_DOCKER_BIN`. This runs full Clawbrowser with a virtual Linux display and exposes CDP; it is not Chrome headless mode. Config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
+- **Native macOS** - recommended on macOS. Uses `Clawbrowser.app` with the native WindowServer/GUI session.
+- **Portable Linux runtime** - recommended default for Linux VPS/no-display/server/container environments. Runs full headful Clawbrowser with bundled Xvfb and does not require Docker runtime access.
+- **Docker backend (optional/operator-managed)** - host-managed Dockerized runtime for operators who intentionally choose it. Config: `/home/clawbrowser/.config/clawbrowser/config.json` in the `clawbrowser-config` named volume.
+- **Sidecar integration (optional/operator-managed)** - host-managed sidecar where the agent connects with `clawctl --cdp http://127.0.0.1:9222 ...`.
 
-Default to container mode when there is no display. Launcher `auto` mode falls back native->container on its own.
+Default to portable Linux runtime when there is no display. Use Docker backend only when operators intentionally provide Docker infrastructure.
