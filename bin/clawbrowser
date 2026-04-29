@@ -17,6 +17,15 @@ CONTAINER_PREFIX="${CLAWBROWSER_CONTAINER_PREFIX:-clawbrowser}"
 REMOTE_DEBUG_PORT="${CLAWBROWSER_REMOTE_DEBUG_PORT:-9222}"
 READINESS_TIMEOUT_SECONDS="${CLAWBROWSER_READINESS_TIMEOUT_SECONDS:-60}"
 APP_READINESS_TIMEOUT_SECONDS="${CLAWBROWSER_APP_READINESS_TIMEOUT_SECONDS:-20}"
+PORTABLE_RUNTIME_ROOT="${CLAWBROWSER_RUNTIME_ROOT:-${CACHE_HOME}/clawbrowser/runtime}"
+PORTABLE_LOCAL_DIR="${CLAWBROWSER_PORTABLE_LOCAL_DIR:-}"
+PORTABLE_RUNTIME_ARTIFACT_BASENAME="${CLAWBROWSER_PORTABLE_RUNTIME_ARTIFACT_BASENAME:-clawbrowser-portable-xvfb-linux-amd64-glibc}"
+PORTABLE_RUNTIME_PLATFORM_DIR="${CLAWBROWSER_PORTABLE_RUNTIME_PLATFORM_DIR:-linux-amd64-glibc-xvfb}"
+PORTABLE_DEFAULT_SCREEN="${CLAWBROWSER_SCREEN:-1920x1080x24}"
+PORTABLE_DISPLAY_MIN="${CLAWBROWSER_PORTABLE_DISPLAY_MIN:-90}"
+PORTABLE_DISPLAY_MAX="${CLAWBROWSER_PORTABLE_DISPLAY_MAX:-110}"
+PORTABLE_XVFB_TIMEOUT_SECONDS="${CLAWBROWSER_PORTABLE_XVFB_TIMEOUT_SECONDS:-10}"
+CLAWBROWSER_ALLOW_DOCKER_BACKEND="${CLAWBROWSER_ALLOW_DOCKER_BACKEND:-0}"
 
 log() {
   printf '[clawbrowser] %s\n' "$*" >&2
@@ -42,9 +51,10 @@ Commands:
   ensure-runtime  Ensure the native Clawbrowser runtime is installed
   help       Show this help
 
-Options for start/rotate/status/endpoint/stop/list:
+Options for start/rotate/status/endpoint/stop/list/ensure-runtime:
   --session NAME            Session name. Default: default
   --port PORT               Host CDP port. Default: auto-select a free port
+  --backend MODE            Backend mode: auto|app|portable|docker
   --image IMAGE             Docker image tag. Default: local clawbrowser:latest if present, otherwise the published release image
   --verify                  Open clawbrowser://verify when no URL is supplied
   --help                    Show this help
@@ -56,9 +66,11 @@ Browser flags:
   --output=json keep working.
 
 Backend behavior:
-  In auto mode, the launcher prefers a native Clawbrowser.app on macOS and
+  In auto mode on macOS, the launcher prefers a native Clawbrowser.app and
   auto-installs Clawbrowser.app when needed, then falls back to Docker if
   native CDP startup fails.
+  In auto mode on Linux, portable is preferred and Docker is used only when
+  CLAWBROWSER_ALLOW_DOCKER_BACKEND=1 or when --backend docker is explicit.
   Native app readiness in auto mode uses a short timeout; override with
   CLAWBROWSER_APP_READINESS_TIMEOUT_SECONDS when needed.
 
@@ -242,6 +254,19 @@ is_macos() {
   [[ "$(uname -s)" == "Darwin" ]]
 }
 
+is_linux() {
+  [[ "$(uname -s)" == "Linux" ]]
+}
+
+is_container_env() {
+  [[ -f "/.dockerenv" ]] && return 0
+  [[ -f "/run/.containerenv" ]] && return 0
+  if [[ -r "/proc/1/cgroup" ]] && grep -Eqa '(docker|containerd|kubepods|libpod)' /proc/1/cgroup; then
+    return 0
+  fi
+  return 1
+}
+
 host_arch() {
   case "$(uname -m)" in
     arm64|aarch64) printf '%s\n' arm64 ;;
@@ -269,11 +294,39 @@ release_asset_base() {
   fi
 }
 
+portable_die() {
+  local code="$1"
+  shift
+  die "${code}: $*"
+}
+
+download_url() {
+  local url="$1"
+  local destination="$2"
+
+  python3 - "${url}" "${destination}" <<'PY'
+import pathlib
+import sys
+import urllib.request
+
+url = sys.argv[1]
+dest = pathlib.Path(sys.argv[2])
+dest.parent.mkdir(parents=True, exist_ok=True)
+
+with urllib.request.urlopen(url, timeout=60) as response:
+    with dest.open("wb") as fh:
+        while True:
+            chunk = response.read(1024 * 1024)
+            if not chunk:
+                break
+            fh.write(chunk)
+PY
+}
+
 download_release_asset() {
   local asset_name="$1"
   local destination="$2"
-  require_command curl
-  curl -fsSL "$(release_asset_base)/${asset_name}" -o "${destination}"
+  download_url "$(release_asset_base)/${asset_name}" "${destination}"
 }
 
 install_native_app_bundle() {
@@ -390,7 +443,372 @@ PY
   printf '%s\n' "${bundle_path}"
 }
 
+portable_platform_supported() {
+  if ! is_linux; then
+    return 1
+  fi
+
+  case "$(uname -m)" in
+    x86_64|amd64) ;;
+    *) return 1 ;;
+  esac
+
+  if command -v getconf >/dev/null 2>&1 && getconf GNU_LIBC_VERSION >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if command -v ldd >/dev/null 2>&1; then
+    if ldd --version 2>&1 | grep -qi 'musl'; then
+      return 1
+    fi
+    if ldd --version 2>&1 | grep -Eqi '(gnu libc|glibc)'; then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+portable_runtime_tar_name() {
+  printf '%s.tar.gz\n' "${PORTABLE_RUNTIME_ARTIFACT_BASENAME}"
+}
+
+portable_runtime_sha_name() {
+  printf '%s.tar.gz.sha256\n' "${PORTABLE_RUNTIME_ARTIFACT_BASENAME}"
+}
+
+portable_runtime_manifest_name() {
+  printf '%s.manifest.json\n' "${PORTABLE_RUNTIME_ARTIFACT_BASENAME}"
+}
+
+portable_runtime_version_from_manifest() {
+  local manifest_path="$1"
+  python3 - "${manifest_path}" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text())
+version = payload.get("version", "")
+if isinstance(version, str):
+    print(version.strip())
+PY
+}
+
+portable_runtime_target_dir() {
+  local runtime_version="$1"
+  printf '%s/%s/%s\n' "${PORTABLE_RUNTIME_ROOT}" "${runtime_version}" "${PORTABLE_RUNTIME_PLATFORM_DIR}"
+}
+
+portable_runtime_complete_marker() {
+  local runtime_dir="$1"
+  printf '%s/.complete\n' "${runtime_dir}"
+}
+
+portable_browser_entrypoint_relpath() {
+  local runtime_dir="$1"
+
+  python3 - "${runtime_dir}" <<'PY'
+import json
+import pathlib
+import sys
+
+runtime_dir = pathlib.Path(sys.argv[1])
+manifest = runtime_dir / "manifest.json"
+if not manifest.exists():
+    raise SystemExit(1)
+
+payload = json.loads(manifest.read_text())
+entrypoints = payload.get("entrypoints", {})
+browser = entrypoints.get("browser", "clawbrowser/clawbrowser.real")
+print(browser)
+PY
+}
+
+portable_browser_entrypoint() {
+  local runtime_dir="$1"
+  local relpath
+  local candidate
+
+  if relpath="$(portable_browser_entrypoint_relpath "${runtime_dir}" 2>/dev/null)"; then
+    candidate="${runtime_dir}/${relpath}"
+    if [[ -x "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  fi
+
+  if [[ -x "${runtime_dir}/clawbrowser/clawbrowser.real" ]]; then
+    printf '%s\n' "${runtime_dir}/clawbrowser/clawbrowser.real"
+    return 0
+  fi
+
+  if [[ -x "${runtime_dir}/clawbrowser/clawbrowser" ]]; then
+    printf '%s\n' "${runtime_dir}/clawbrowser/clawbrowser"
+    return 0
+  fi
+
+  return 1
+}
+
+portable_runtime_ready() {
+  local runtime_dir="$1"
+
+  [[ -f "${runtime_dir}/manifest.json" ]] || return 1
+  [[ -x "${runtime_dir}/bin/Xvfb" ]] || return 1
+  [[ -d "${runtime_dir}/share/X11/xkb" ]] || return 1
+  portable_browser_entrypoint "${runtime_dir}" >/dev/null 2>&1 || return 1
+  [[ -f "$(portable_runtime_complete_marker "${runtime_dir}")" ]] || return 1
+  return 0
+}
+
+portable_runtime_dir_from_candidate() {
+  local candidate="$1"
+  if [[ -z "${candidate}" ]]; then
+    return 1
+  fi
+  if [[ -d "${candidate}/${PORTABLE_RUNTIME_PLATFORM_DIR}" ]]; then
+    printf '%s\n' "${candidate}/${PORTABLE_RUNTIME_PLATFORM_DIR}"
+    return 0
+  fi
+  printf '%s\n' "${candidate}"
+}
+
+find_portable_runtime_local() {
+  local candidate runtime_dir
+
+  if [[ -n "${PORTABLE_LOCAL_DIR}" ]]; then
+    runtime_dir="$(portable_runtime_dir_from_candidate "${PORTABLE_LOCAL_DIR}")"
+    if portable_runtime_ready "${runtime_dir}"; then
+      printf '%s\n' "${runtime_dir}"
+      return 0
+    fi
+  fi
+
+  if [[ ! -d "${PORTABLE_RUNTIME_ROOT}" ]]; then
+    return 1
+  fi
+
+  while IFS= read -r candidate; do
+    runtime_dir="$(portable_runtime_dir_from_candidate "${candidate}")"
+    if portable_runtime_ready "${runtime_dir}"; then
+      printf '%s\n' "${runtime_dir}"
+      return 0
+    fi
+  done < <(find "${PORTABLE_RUNTIME_ROOT}" -mindepth 2 -maxdepth 2 -type d -name "${PORTABLE_RUNTIME_PLATFORM_DIR}" | sort -r)
+
+  return 1
+}
+
+verify_sha256_file() {
+  local file_path="$1"
+  local checksum_path="$2"
+
+  python3 - "${file_path}" "${checksum_path}" <<'PY'
+import hashlib
+import pathlib
+import re
+import sys
+
+artifact = pathlib.Path(sys.argv[1])
+checksum = pathlib.Path(sys.argv[2])
+
+digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+content = checksum.read_text().strip()
+match = re.match(r"^([a-fA-F0-9]{64})\b", content)
+if not match:
+    raise SystemExit(2)
+
+expected = match.group(1).lower()
+raise SystemExit(0 if digest == expected else 1)
+PY
+}
+
+ensure_portable_runtime() {
+  if ! portable_platform_supported; then
+    portable_die "PORTABLE_UNSUPPORTED_PLATFORM" "portable backend supports Linux amd64 glibc only."
+  fi
+
+  require_command tar
+  require_command mktemp
+
+  local tmp_dir manifest_file runtime_version runtime_dir
+  local local_runtime_dir
+  local tarball_file checksum_file stage_root extracted_root stage_runtime_dir
+  local final_dir
+  local tar_name sha_name manifest_name
+  mkdir -p "${PORTABLE_RUNTIME_ROOT}"
+
+  if local_runtime_dir="$(find_portable_runtime_local)"; then
+    log "Using local portable runtime at ${local_runtime_dir}"
+    printf '%s\n' "${local_runtime_dir}"
+    return 0
+  fi
+
+  tar_name="$(portable_runtime_tar_name)"
+  sha_name="$(portable_runtime_sha_name)"
+  manifest_name="$(portable_runtime_manifest_name)"
+
+  tmp_dir="$(mktemp -d "${PORTABLE_RUNTIME_ROOT}/.download.XXXXXX")"
+  manifest_file="${tmp_dir}/${manifest_name}"
+  tarball_file="${tmp_dir}/${tar_name}"
+  checksum_file="${tmp_dir}/${sha_name}"
+  stage_root="${tmp_dir}/stage"
+  mkdir -p "${stage_root}"
+
+  if ! download_release_asset "${manifest_name}" "${manifest_file}"; then
+    portable_die "PORTABLE_RUNTIME_DOWNLOAD_FAILED" "failed to download ${manifest_name} from $(release_asset_base)."
+  fi
+
+  runtime_version="$(portable_runtime_version_from_manifest "${manifest_file}" 2>/dev/null || true)"
+  if [[ -z "${runtime_version}" ]]; then
+    runtime_version="${RELEASE_REF}"
+  fi
+
+  runtime_dir="$(portable_runtime_target_dir "${runtime_version}")"
+  if portable_runtime_ready "${runtime_dir}"; then
+    rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
+    printf '%s\n' "${runtime_dir}"
+    return 0
+  fi
+
+  mkdir -p "$(dirname "${runtime_dir}")"
+
+  if ! download_release_asset "${tar_name}" "${tarball_file}"; then
+    portable_die "PORTABLE_RUNTIME_DOWNLOAD_FAILED" "failed to download ${tar_name} from $(release_asset_base)."
+  fi
+
+  if ! download_release_asset "${sha_name}" "${checksum_file}"; then
+    portable_die "PORTABLE_RUNTIME_DOWNLOAD_FAILED" "failed to download ${sha_name} from $(release_asset_base)."
+  fi
+
+  if ! verify_sha256_file "${tarball_file}" "${checksum_file}"; then
+    portable_die "PORTABLE_RUNTIME_CHECKSUM_FAILED" "sha256 mismatch for ${tar_name}; partial download removed."
+  fi
+
+  if ! tar -xzf "${tarball_file}" -C "${stage_root}"; then
+    portable_die "PORTABLE_RUNTIME_UNPACK_FAILED" "failed to unpack ${tar_name}."
+  fi
+
+  extracted_root="$(find "${stage_root}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  if [[ -z "${extracted_root}" ]]; then
+    portable_die "PORTABLE_RUNTIME_UNPACK_FAILED" "archive did not contain a runtime directory."
+  fi
+
+  if [[ -d "${extracted_root}/${PORTABLE_RUNTIME_PLATFORM_DIR}" ]]; then
+    stage_runtime_dir="${extracted_root}/${PORTABLE_RUNTIME_PLATFORM_DIR}"
+  else
+    stage_runtime_dir="${extracted_root}"
+  fi
+
+  cp "${manifest_file}" "${stage_runtime_dir}/manifest.json"
+  touch "${stage_runtime_dir}/.complete"
+
+  final_dir="${runtime_dir}.tmp.$$"
+  rm -rf "${final_dir}"
+  mv "${stage_runtime_dir}" "${final_dir}"
+  rm -rf "${runtime_dir}"
+  mv "${final_dir}" "${runtime_dir}"
+  chmod -R u+rwX "${runtime_dir}" >/dev/null 2>&1 || true
+
+  if ! portable_runtime_ready "${runtime_dir}"; then
+    portable_die "PORTABLE_RUNTIME_UNPACK_FAILED" "runtime extracted but required files are missing in ${runtime_dir}."
+  fi
+
+  rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
+  printf '%s\n' "${runtime_dir}"
+}
+
+allocate_display() {
+  local display
+  for ((display=PORTABLE_DISPLAY_MIN; display<=PORTABLE_DISPLAY_MAX; display++)); do
+    if [[ -e "/tmp/.X11-unix/X${display}" ]]; then
+      continue
+    fi
+    if [[ -e "/tmp/.X${display}-lock" ]]; then
+      continue
+    fi
+    printf ':%s\n' "${display}"
+    return 0
+  done
+  return 1
+}
+
+wait_for_x_socket() {
+  local display="$1"
+  local timeout_seconds="${2:-${PORTABLE_XVFB_TIMEOUT_SECONDS}}"
+  local display_number="${display#:}"
+  local socket_path="/tmp/.X11-unix/X${display_number}"
+  local deadline
+
+  deadline="$(python3 - <<PY
+import time
+print(time.time() + ${timeout_seconds})
+PY
+)"
+
+  while :; do
+    if [[ -S "${socket_path}" ]]; then
+      return 0
+    fi
+    if python3 - "${deadline}" <<'PY'
+import sys
+import time
+deadline = float(sys.argv[1])
+sys.exit(0 if time.time() > deadline else 1)
+PY
+    then
+      return 1
+    fi
+    sleep 0.1
+  done
+}
+
+ensure_portable_xkbcomp_binding() {
+  local runtime_dir="$1"
+  local runtime_xkbcomp="${runtime_dir}/bin/xkbcomp"
+  local system_xkbcomp="/usr/bin/xkbcomp"
+
+  if [[ -x "${system_xkbcomp}" ]]; then
+    return 0
+  fi
+
+  if [[ ! -x "${runtime_xkbcomp}" ]]; then
+    portable_die "PORTABLE_XVFB_FAILED" "runtime xkbcomp binary is missing at ${runtime_xkbcomp}."
+  fi
+
+  if ln -sfn "${runtime_xkbcomp}" "${system_xkbcomp}" >/dev/null 2>&1; then
+    log "Linked portable xkbcomp into ${system_xkbcomp}"
+    return 0
+  fi
+
+  if cp -f "${runtime_xkbcomp}" "${system_xkbcomp}" >/dev/null 2>&1; then
+    chmod +x "${system_xkbcomp}" >/dev/null 2>&1 || true
+    log "Copied portable xkbcomp into ${system_xkbcomp}"
+    return 0
+  fi
+
+  portable_die "PORTABLE_XVFB_FAILED" "${system_xkbcomp} is missing and could not be installed from runtime payload."
+}
+
+assert_not_headless_args() {
+  local arg
+  for arg in "$@"; do
+    case "${arg}" in
+      --headless|--headless=*|--headless=new|--headless=old)
+        portable_die "PORTABLE_BROWSER_LAUNCH_FAILED" "portable backend does not allow Chromium headless mode."
+        ;;
+    esac
+  done
+}
+
 choose_backend() {
+  case "${BACKEND}" in
+    auto|app|portable|docker) ;;
+    *) die "Unknown backend: ${BACKEND}. Expected one of: auto, app, portable, docker." ;;
+  esac
+
   if [[ "${BACKEND}" == "app" ]]; then
     if resolve_app_binary >/dev/null 2>&1; then
       backend="app"
@@ -406,22 +824,51 @@ choose_backend() {
     die "CLAWBROWSER_BACKEND=app was requested, but no Clawbrowser.app bundle was found."
   fi
 
+  if [[ "${BACKEND}" == "portable" ]]; then
+    if portable_platform_supported; then
+      backend="portable"
+      return 0
+    fi
+    portable_die "PORTABLE_UNSUPPORTED_PLATFORM" "--backend portable requires Linux amd64 glibc."
+  fi
+
   if [[ "${BACKEND}" == "docker" ]]; then
     backend="docker"
     return 0
   fi
 
-  if resolve_app_binary >/dev/null 2>&1; then
-    backend="app"
-    return 0
-  fi
-
-  if [[ "${AUTO_INSTALL_APP}" == "1" ]] && install_native_app_bundle; then
+  if is_macos; then
     if resolve_app_binary >/dev/null 2>&1; then
-      log "Installed Clawbrowser.app into ${HOME}/.clawbrowser/Clawbrowser.app"
       backend="app"
       return 0
     fi
+    if [[ "${AUTO_INSTALL_APP}" == "1" ]] && install_native_app_bundle; then
+      if resolve_app_binary >/dev/null 2>&1; then
+        log "Installed Clawbrowser.app into ${HOME}/.clawbrowser/Clawbrowser.app"
+        backend="app"
+        return 0
+      fi
+    fi
+    backend="docker"
+    return 0
+  fi
+
+  if is_linux; then
+    if portable_platform_supported; then
+      backend="portable"
+      return 0
+    fi
+
+    if [[ "${CLAWBROWSER_ALLOW_DOCKER_BACKEND}" == "1" ]]; then
+      backend="docker"
+      return 0
+    fi
+
+    if is_container_env; then
+      portable_die "PORTABLE_UNSUPPORTED_PLATFORM" "portable backend is unavailable and Docker fallback is disabled inside this container. Set CLAWBROWSER_ALLOW_DOCKER_BACKEND=1 to force Docker."
+    fi
+
+    portable_die "PORTABLE_UNSUPPORTED_PLATFORM" "portable backend supports Linux amd64 glibc only. Set CLAWBROWSER_ALLOW_DOCKER_BACKEND=1 to allow Docker fallback."
   fi
 
   backend="docker"
@@ -443,10 +890,36 @@ load_state() {
   local name="$1"
   local file
   file="$(state_file "${name}")"
+  container_name=""
+  host_port=""
+  image=""
+  backend=""
+  pid=""
+  runtime_dir=""
+  display=""
+  xvfb_pid=""
+  browser_config_dir=""
+  profile_dir=""
+  display_backend=""
+  runtime_version=""
+  runtime_platform=""
+  runtime_kind=""
+  sandbox=""
+  launcher_pid=""
+  screen=""
+  browser_log=""
+  xvfb_log=""
+  launcher_log=""
   if [[ -f "${file}" ]]; then
     # shellcheck disable=SC1090
     source "${file}"
   fi
+}
+
+write_state_kv() {
+  local key="$1"
+  local value="$2"
+  printf '%s=%q\n' "${key}" "${value}"
 }
 
 save_state() {
@@ -456,17 +929,22 @@ save_state() {
   local current_backend="${4:-docker}"
   local pid="${5:-}"
   local file
+  shift 5
   file="$(state_file "${name}")"
   mkdir -p "$(dirname "${file}")"
   chmod 700 "$(dirname "${file}")" 2>/dev/null || true
-  cat >"${file}" <<EOF
-session_name=${name}
-container_name=${container_name}
-host_port=${port}
-image=${IMAGE}
-backend=${current_backend}
-pid=${pid}
-EOF
+  {
+    write_state_kv "session_name" "${name}"
+    write_state_kv "container_name" "${container_name}"
+    write_state_kv "host_port" "${port}"
+    write_state_kv "image" "${IMAGE}"
+    write_state_kv "backend" "${current_backend}"
+    write_state_kv "pid" "${pid}"
+    while (($# > 0)); do
+      printf '%s\n' "$1"
+      shift
+    done
+  } >"${file}"
 }
 
 delete_state() {
@@ -616,13 +1094,34 @@ stop_session() {
   local container_name="clawbrowser-${name}"
   local saved_backend="${backend:-docker}"
   local saved_pid="${pid:-}"
+  local saved_xvfb_pid="${xvfb_pid:-}"
   local session_path
   local running
 
   load_state "${name}"
   saved_backend="${backend:-docker}"
   saved_pid="${pid:-}"
+  saved_xvfb_pid="${xvfb_pid:-}"
   session_path="$(session_dir "$(sanitize_name "${name}")")"
+
+  if [[ "${saved_backend}" == "portable" ]]; then
+    if [[ -n "${saved_pid}" ]] && kill -0 "${saved_pid}" >/dev/null 2>&1; then
+      kill "${saved_pid}" >/dev/null 2>&1 || true
+      sleep 1
+      if kill -0 "${saved_pid}" >/dev/null 2>&1; then
+        kill -9 "${saved_pid}" >/dev/null 2>&1 || true
+      fi
+    fi
+    if [[ -n "${saved_xvfb_pid}" ]] && kill -0 "${saved_xvfb_pid}" >/dev/null 2>&1; then
+      kill "${saved_xvfb_pid}" >/dev/null 2>&1 || true
+      sleep 1
+      if kill -0 "${saved_xvfb_pid}" >/dev/null 2>&1; then
+        kill -9 "${saved_xvfb_pid}" >/dev/null 2>&1 || true
+      fi
+    fi
+    delete_state "${name}"
+    return 0
+  fi
 
   if [[ "${saved_backend}" == "app" && -n "${saved_pid}" ]]; then
     if kill -0 "${saved_pid}" >/dev/null 2>&1; then
@@ -882,6 +1381,110 @@ except error.HTTPError as exc:
 PY
 }
 
+launch_portable_session() {
+  local session_slug="$1"
+  local host_port="$2"
+  local session_path="$3"
+  local config_path="$4"
+  local runtime_dir browser_exec display xdg_runtime_dir
+  local xvfb_log browser_log launcher_log browser_pid xvfb_process_pid runtime_version
+  local -a state_lines=()
+
+  runtime_dir="$(ensure_portable_runtime)"
+  if [[ ! -w "$(dirname "${runtime_dir}")" ]]; then
+    portable_die "PORTABLE_RUNTIME_NO_WRITABLE_DIR" "runtime parent directory is not writable: $(dirname "${runtime_dir}")."
+  fi
+  if [[ ! -x "${runtime_dir}" ]]; then
+    portable_die "PORTABLE_RUNTIME_NOEXEC" "runtime directory is not executable: ${runtime_dir}."
+  fi
+
+  browser_exec="$(portable_browser_entrypoint "${runtime_dir}" 2>/dev/null || true)"
+  if [[ -z "${browser_exec}" ]]; then
+    portable_die "PORTABLE_BROWSER_LAUNCH_FAILED" "portable runtime browser entrypoint missing under ${runtime_dir}."
+  fi
+
+  ensure_portable_xkbcomp_binding "${runtime_dir}"
+
+  assert_not_headless_args "${browser_args[@]}"
+
+  display="$(allocate_display || true)"
+  if [[ -z "${display}" ]]; then
+    portable_die "PORTABLE_XVFB_FAILED" "no free X display available in :${PORTABLE_DISPLAY_MIN}-:${PORTABLE_DISPLAY_MAX}."
+  fi
+
+  xdg_runtime_dir="${session_path}/xdg-runtime"
+  mkdir -p "${session_path}" "${config_path}" "${xdg_runtime_dir}"
+  chmod 700 "${session_path}" "${config_path}" "${xdg_runtime_dir}" 2>/dev/null || true
+
+  xvfb_log="${session_path}/xvfb.log"
+  browser_log="${session_path}/browser.log"
+  launcher_log="${session_path}/launcher.log"
+
+  log "Starting portable Xvfb on ${display}"
+  PORTABLE_DIR="${runtime_dir}" \
+  LD_LIBRARY_PATH="${runtime_dir}/lib/x86_64-linux-gnu:${runtime_dir}/lib/usr-x86_64-linux-gnu:${LD_LIBRARY_PATH:-}" \
+  FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
+  XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
+  XDG_DATA_DIRS="${runtime_dir}/share:${XDG_DATA_DIRS:-}" \
+  XDG_RUNTIME_DIR="${xdg_runtime_dir}" \
+  PATH="${runtime_dir}/bin:${PATH:-}" \
+  "${runtime_dir}/bin/Xvfb" "${display}" \
+    -screen 0 "${PORTABLE_DEFAULT_SCREEN}" \
+    -xkbdir "${runtime_dir}/share/X11/xkb" \
+    -nolisten tcp \
+    >"${xvfb_log}" 2>&1 &
+  xvfb_process_pid="$!"
+
+  if ! wait_for_x_socket "${display}" "${PORTABLE_XVFB_TIMEOUT_SECONDS}"; then
+    kill "${xvfb_process_pid}" >/dev/null 2>&1 || true
+    portable_die "PORTABLE_XVFB_FAILED" "bundled Xvfb did not create display socket for ${display} within ${PORTABLE_XVFB_TIMEOUT_SECONDS}s. Logs: ${xvfb_log}"
+  fi
+
+  log "Starting portable browser on 127.0.0.1:${host_port}"
+  DISPLAY="${display}" \
+  PORTABLE_DIR="${runtime_dir}" \
+  LD_LIBRARY_PATH="${runtime_dir}/lib/x86_64-linux-gnu:${runtime_dir}/lib/usr-x86_64-linux-gnu:${LD_LIBRARY_PATH:-}" \
+  FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
+  XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
+  XDG_DATA_DIRS="${runtime_dir}/share:${XDG_DATA_DIRS:-}" \
+  XDG_RUNTIME_DIR="${xdg_runtime_dir}" \
+  PATH="${runtime_dir}/bin:${PATH:-}" \
+  nohup "${browser_exec}" \
+    --remote-debugging-address=127.0.0.1 \
+    --remote-debugging-port="${host_port}" \
+    --user-data-dir="${config_path}" \
+    --no-first-run \
+    --no-default-browser-check \
+    --disable-dev-shm-usage \
+    --no-sandbox \
+    "${browser_args[@]}" \
+    >"${browser_log}" 2>&1 &
+  browser_pid="$!"
+
+  if ! kill -0 "${browser_pid}" >/dev/null 2>&1; then
+    kill "${xvfb_process_pid}" >/dev/null 2>&1 || true
+    portable_die "PORTABLE_BROWSER_LAUNCH_FAILED" "portable browser process exited immediately. Logs: ${browser_log}"
+  fi
+
+  runtime_version="$(portable_runtime_version_from_manifest "${runtime_dir}/manifest.json" 2>/dev/null || true)"
+  state_lines+=("$(write_state_kv "browser_config_dir" "${config_path}")")
+  state_lines+=("$(write_state_kv "profile_dir" "${config_path}")")
+  state_lines+=("$(write_state_kv "runtime_dir" "${runtime_dir}")")
+  state_lines+=("$(write_state_kv "display_backend" "xvfb")")
+  state_lines+=("$(write_state_kv "display" "${display}")")
+  state_lines+=("$(write_state_kv "xvfb_pid" "${xvfb_process_pid}")")
+  state_lines+=("$(write_state_kv "sandbox" "off")")
+  state_lines+=("$(write_state_kv "runtime_version" "${runtime_version}")")
+  state_lines+=("$(write_state_kv "runtime_platform" "linux-amd64-glibc")")
+  state_lines+=("$(write_state_kv "runtime_kind" "portable-xvfb")")
+  state_lines+=("$(write_state_kv "screen" "${PORTABLE_DEFAULT_SCREEN}")")
+  state_lines+=("$(write_state_kv "browser_log" "${browser_log}")")
+  state_lines+=("$(write_state_kv "xvfb_log" "${xvfb_log}")")
+  state_lines+=("$(write_state_kv "launcher_log" "${launcher_log}")")
+  state_lines+=("$(write_state_kv "launcher_pid" "$$")")
+  save_state "${session_slug}" "" "${host_port}" "portable" "${browser_pid}" "${state_lines[@]}"
+}
+
 launch_docker_session() {
   local session_slug="$1"
   local container_name="$2"
@@ -889,6 +1492,9 @@ launch_docker_session() {
   local config_path="$4"
   local cid
 
+  if [[ -z "${IMAGE}" ]]; then
+    resolve_image
+  fi
   require_command "${DOCKER_BIN}"
   log "Starting container session ${session_slug} on 127.0.0.1:${host_port}"
 
@@ -919,6 +1525,10 @@ parse_common_options() {
         ;;
       --port)
         host_port="$2"
+        shift 2
+        ;;
+      --backend)
+        BACKEND="$2"
         shift 2
         ;;
       --image)
@@ -954,7 +1564,7 @@ start_session() {
   session_path="$(session_dir "${session_slug}")"
   config_path="${session_path}/config"
   load_state "${session_slug}" || true
-  if [[ -z "${IMAGE}" ]]; then
+  if [[ "${BACKEND}" == "docker" && -z "${IMAGE}" ]]; then
     if [[ -n "${image:-}" ]]; then
       IMAGE="${image}"
     else
@@ -1013,6 +1623,10 @@ start_session() {
     launch_docker_session "${session_slug}" "${container_name}" "${host_port}" "${config_path}"
   fi
 
+  if [[ "${backend}" == "portable" ]]; then
+    launch_portable_session "${session_slug}" "${host_port}" "${session_path}" "${config_path}"
+  fi
+
   interrupted_start_session="${session_slug}"
   trap 'handle_start_interrupt' INT TERM
 
@@ -1043,6 +1657,9 @@ start_session() {
       else
         log "CDP endpoint failed to become ready, stopping session"
         stop_session "${session_slug}"
+        if [[ "${backend}" == "portable" ]]; then
+          portable_die "PORTABLE_BROWSER_CDP_TIMEOUT" "browser did not expose CDP on 127.0.0.1:${host_port}. Logs: ${session_path}/browser.log ${session_path}/xvfb.log"
+        fi
         die "Timed out waiting for CDP on port ${host_port}"
       fi
     fi
@@ -1063,8 +1680,8 @@ show_status() {
 
   if [[ -z "${container_name:-}" || -z "${host_port:-}" ]]; then
     if [[ -z "${pid:-}" ]]; then
-      if [[ "${backend:-}" == "app" && -n "${host_port:-}" ]] && is_cdp_alive "${host_port}" >/dev/null 2>&1; then
-        printf '%s\n' "session=${session_slug} status=running endpoint=http://127.0.0.1:${host_port} backend=app"
+      if [[ ("${backend:-}" == "app" || "${backend:-}" == "portable") && -n "${host_port:-}" ]] && is_cdp_alive "${host_port}" >/dev/null 2>&1; then
+        printf '%s\n' "session=${session_slug} status=running endpoint=http://127.0.0.1:${host_port} backend=${backend:-app}"
         return 0
       fi
       printf '%s\n' "session=${session_slug} status=stopped"
@@ -1100,7 +1717,7 @@ print_endpoint() {
 }
 
 list_profiles() {
-  local session_slug session_path config_path app_exec
+  local session_slug session_path config_path app_exec runtime_dir browser_exec
   session_slug="$(sanitize_name "${session_name}")"
   session_path="$(session_dir "${session_slug}")"
   config_path="${session_path}/config"
@@ -1115,8 +1732,26 @@ list_profiles() {
       --list \
       --output=json \
       --user-data-dir="${config_path}"
+  elif [[ "${backend}" == "portable" ]]; then
+    runtime_dir="$(ensure_portable_runtime)"
+    browser_exec="$(portable_browser_entrypoint "${runtime_dir}")"
+    mkdir -p "${session_path}/xdg-runtime-list"
+    chmod 700 "${session_path}/xdg-runtime-list" 2>/dev/null || true
+    PORTABLE_DIR="${runtime_dir}" \
+    LD_LIBRARY_PATH="${runtime_dir}/lib/x86_64-linux-gnu:${runtime_dir}/lib/usr-x86_64-linux-gnu:${LD_LIBRARY_PATH:-}" \
+    FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
+    XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
+    XDG_DATA_DIRS="${runtime_dir}/share:${XDG_DATA_DIRS:-}" \
+    XDG_RUNTIME_DIR="${session_path}/xdg-runtime-list" \
+    PATH="${runtime_dir}/bin:${PATH:-}" \
+    "${browser_exec}" \
+      --list \
+      --output=json \
+      --user-data-dir="${config_path}"
   else
-    resolve_image
+    if [[ -z "${IMAGE}" ]]; then
+      resolve_image
+    fi
     require_command "${DOCKER_BIN}"
     local output
     output="$("${DOCKER_BIN}" run \
@@ -1148,10 +1783,22 @@ rotate_session() {
 }
 
 ensure_runtime() {
-  local app_exec
+  local app_exec runtime_dir
+  choose_backend
 
-  if ! is_macos; then
-    log "Native runtime install is only used on macOS."
+  if [[ "${backend}" == "portable" ]]; then
+    runtime_dir="$(ensure_portable_runtime)"
+    printf '%s\n' "${runtime_dir}"
+    return 0
+  fi
+
+  if [[ "${backend}" == "docker" ]]; then
+    if [[ -n "${IMAGE}" ]]; then
+      printf '%s\n' "${IMAGE}"
+    else
+      resolve_image
+      printf '%s\n' "${IMAGE}"
+    fi
     return 0
   fi
 
@@ -1216,6 +1863,7 @@ main() {
       ;;
     ensure-runtime)
       browser_mode="status"
+      parse_common_options "$@"
       ensure_runtime
       ;;
     help|-h|--help)
