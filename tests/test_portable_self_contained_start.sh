@@ -53,7 +53,9 @@ make_fake_runtime() {
   loader_path="${runtime_dir}/lib/${arch_dir}/${loader_name}"
   mkdir -p \
     "${runtime_dir}/bin" \
+    "${runtime_dir}/lib/${arch_dir}/dri" \
     "${runtime_dir}/lib/${arch_dir}" \
+    "${runtime_dir}/lib/usr-${arch_dir}/dri" \
     "${runtime_dir}/lib/usr-${arch_dir}" \
     "${runtime_dir}/clawbrowser" \
     "${runtime_dir}/share/X11/xkb"
@@ -133,6 +135,12 @@ if not chrome_wrapper or not os.path.exists(chrome_wrapper):
     raise SystemExit("portable browser wrapper was not exposed via CHROME_WRAPPER")
 if os.environ.get("PORTABLE_RUNTIME_LOADER_USED") != "1":
     raise SystemExit("portable browser did not launch through the runtime loader")
+if "/dri" not in os.environ.get("LIBGL_DRIVERS_PATH", ""):
+    raise SystemExit("portable browser did not receive bundled Mesa DRI path")
+if os.environ.get("LIBGL_ALWAYS_SOFTWARE") != "1":
+    raise SystemExit("portable browser did not default to software GL")
+if os.environ.get("MESA_LOADER_DRIVER_OVERRIDE") != "swrast":
+    raise SystemExit("portable browser did not default to swrast")
 
 if "--list" in sys.argv[1:]:
     print(json.dumps([]))

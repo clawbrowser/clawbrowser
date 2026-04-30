@@ -828,6 +828,33 @@ portable_browser_library_path() {
     "${runtime_dir}"
 }
 
+portable_dri_driver_path() {
+  local runtime_dir="$1"
+  local arch_dir candidate
+  local -a paths=()
+  arch_dir="$(portable_debian_arch_dir)" || return 1
+  for candidate in \
+    "${runtime_dir}/lib/usr-${arch_dir}/dri" \
+    "${runtime_dir}/lib/${arch_dir}/dri"; do
+    if [[ -d "${candidate}" ]]; then
+      paths+=("${candidate}")
+    fi
+  done
+  (IFS=:; printf '%s\n' "${paths[*]}")
+}
+
+prepend_env_path() {
+  local prefix="$1"
+  local current="$2"
+  if [[ -n "${prefix}" && -n "${current}" ]]; then
+    printf '%s:%s\n' "${prefix}" "${current}"
+  elif [[ -n "${prefix}" ]]; then
+    printf '%s\n' "${prefix}"
+  else
+    printf '%s\n' "${current}"
+  fi
+}
+
 portable_loader_filename() {
   case "$(portable_host_arch)" in
     amd64) printf '%s\n' ld-linux-x86-64.so.2 ;;
@@ -864,7 +891,33 @@ portable_loader_or_die() {
 
 portable_binary_is_elf() {
   local binary_path="$1"
-  [[ "$(LC_ALL=C head -c 4 "${binary_path}" 2>/dev/null || true)" == $'\177ELF' ]]
+  python3 - "${binary_path}" <<'PY'
+import pathlib
+import sys
+
+try:
+    with pathlib.Path(sys.argv[1]).open("rb") as handle:
+        magic = handle.read(4)
+except OSError:
+    raise SystemExit(1)
+raise SystemExit(0 if magic == b"\x7fELF" else 1)
+PY
+}
+
+portable_elf_interpreter_patchable() {
+  local binary_path="$1"
+  python3 - "${binary_path}" <<'PY'
+import pathlib
+import sys
+
+payload = pathlib.Path(sys.argv[1]).read_bytes()
+candidates = (
+    b"/lib64/ld-linux-x86-64.so.2\0",
+    b"/lib/ld-linux-x86-64.so.2\0",
+    b"/lib/ld-linux-aarch64.so.1\0",
+)
+raise SystemExit(0 if any(needle in payload for needle in candidates) else 1)
+PY
 }
 
 portable_browser_loader_link() {
@@ -943,16 +996,17 @@ portable_prepared_browser_entrypoint() {
   mkdir -p "${prepared_dir}"
   for entry in "${browser_cwd}"/*; do
     entry_base="$(basename "${entry}")"
-    if [[ "${entry_base}" == "${browser_base}" ]]; then
-      continue
-    fi
     dest="${prepared_dir}/${entry_base}"
-    if [[ ! -e "${dest}" ]]; then
+    if [[ -f "${entry}" ]] && portable_binary_is_elf "${entry}" && portable_elf_interpreter_patchable "${entry}"; then
+      if [[ -L "${dest}" || ! -x "${dest}" || "${entry}" -nt "${dest}" ]]; then
+        patch_portable_browser_binary "${entry}" "${dest}" "${loader_link}"
+      fi
+    elif [[ ! -e "${dest}" ]]; then
       ln -s "${entry}" "${dest}" 2>/dev/null || true
     fi
   done
 
-  if [[ ! -x "${prepared_exec}" || "${browser_exec}" -nt "${prepared_exec}" ]]; then
+  if [[ ! -x "${prepared_exec}" ]]; then
     patch_portable_browser_binary "${browser_exec}" "${prepared_exec}" "${loader_link}"
   fi
 
@@ -1663,6 +1717,93 @@ for pid in matching_pids():
 PY
 }
 
+kill_process_tree() {
+  if [[ "$#" -eq 0 || ! -d /proc ]]; then
+    return 0
+  fi
+
+  python3 - "$@" <<'PY'
+import os
+import pathlib
+import signal
+import sys
+import time
+
+roots = set()
+for value in sys.argv[1:]:
+    try:
+        pid = int(value)
+    except ValueError:
+        continue
+    if pid > 1:
+        roots.add(pid)
+
+if not roots:
+    raise SystemExit(0)
+
+self_pid = os.getpid()
+parent_pid = os.getppid()
+
+def read_process_table():
+    children = {}
+    live = set()
+    for proc_dir in pathlib.Path("/proc").glob("[0-9]*"):
+        try:
+            pid = int(proc_dir.name)
+            stat = (proc_dir / "stat").read_text(errors="replace")
+            ppid = int(stat.rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            continue
+        live.add(pid)
+        children.setdefault(ppid, set()).add(pid)
+    return live, children
+
+def collect_targets():
+    live, children = read_process_table()
+    result = set()
+    stack = [pid for pid in roots if pid in live]
+    while stack:
+        pid = stack.pop()
+        if pid in result or pid in (self_pid, parent_pid):
+            continue
+        result.add(pid)
+        stack.extend(children.get(pid, ()))
+    return result
+
+def signal_targets(sig):
+    for pid in sorted(collect_targets(), reverse=True):
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            pass
+
+signal_targets(signal.SIGTERM)
+deadline = time.time() + 2.0
+while time.time() < deadline:
+    if not collect_targets():
+        raise SystemExit(0)
+    time.sleep(0.1)
+
+signal_targets(signal.SIGKILL)
+deadline = time.time() + 1.0
+while time.time() < deadline:
+    if not collect_targets():
+        raise SystemExit(0)
+    time.sleep(0.1)
+PY
+}
+
+cleanup_portable_display_artifacts() {
+  local display_value="$1"
+  local display_number="${display_value#:}"
+  if [[ -z "${display_number}" || ! "${display_number}" =~ ^[0-9]+$ ]]; then
+    return 0
+  fi
+  rm -f "/tmp/.X${display_number}-lock" "/tmp/.X11-unix/X${display_number}" 2>/dev/null || true
+}
+
 stop_session() {
   local name="$1"
   local default_container_name="clawbrowser-${name}"
@@ -1670,6 +1811,7 @@ stop_session() {
   local saved_container_name=""
   local saved_pid="${pid:-}"
   local saved_xvfb_pid="${xvfb_pid:-}"
+  local saved_display="${display:-}"
   local session_path
   local running
 
@@ -1678,6 +1820,7 @@ stop_session() {
   saved_container_name="${container_name:-}"
   saved_pid="${pid:-}"
   saved_xvfb_pid="${xvfb_pid:-}"
+  saved_display="${display:-}"
   session_path="$(session_dir "$(sanitize_name "${name}")")"
 
   if [[ -z "${saved_backend}" && -n "${saved_container_name}" ]]; then
@@ -1685,21 +1828,9 @@ stop_session() {
   fi
 
   if [[ "${saved_backend}" == "portable" ]]; then
-    if [[ -n "${saved_pid}" ]] && kill -0 "${saved_pid}" >/dev/null 2>&1; then
-      kill "${saved_pid}" >/dev/null 2>&1 || true
-      sleep 1
-      if kill -0 "${saved_pid}" >/dev/null 2>&1; then
-        kill -9 "${saved_pid}" >/dev/null 2>&1 || true
-      fi
-    fi
-    if [[ -n "${saved_xvfb_pid}" ]] && kill -0 "${saved_xvfb_pid}" >/dev/null 2>&1; then
-      kill "${saved_xvfb_pid}" >/dev/null 2>&1 || true
-      sleep 1
-      if kill -0 "${saved_xvfb_pid}" >/dev/null 2>&1; then
-        kill -9 "${saved_xvfb_pid}" >/dev/null 2>&1 || true
-      fi
-    fi
+    kill_process_tree "${saved_pid}" "${saved_xvfb_pid}" >/dev/null 2>&1 || true
     kill_processes_matching_path "${session_path}" >/dev/null 2>&1 || true
+    cleanup_portable_display_artifacts "${saved_display}"
     delete_state "${name}"
     return 0
   fi
@@ -1981,6 +2112,7 @@ launch_portable_session() {
   local session_path="$3"
   local config_path="$4"
   local runtime_dir browser_exec browser_cwd browser_wrapper display xdg_runtime_dir xvfb_exec portable_ld_library_path portable_browser_ld_library_path portable_loader
+  local portable_dri_path portable_libgl_drivers_path
   local browser_home browser_xdg_config browser_xdg_cache browser_xdg_data
   local browser_cache_root browser_data_root browser_state_root browser_session_root
   local xvfb_log browser_log launcher_log browser_pid browser_pid_file xvfb_process_pid runtime_version
@@ -1998,6 +2130,8 @@ launch_portable_session() {
 
   portable_ld_library_path="$(portable_library_path "${runtime_dir}")"
   portable_browser_ld_library_path="$(portable_browser_library_path "${runtime_dir}")"
+  portable_dri_path="$(portable_dri_driver_path "${runtime_dir}")"
+  portable_libgl_drivers_path="$(prepend_env_path "${portable_dri_path}" "${LIBGL_DRIVERS_PATH:-}")"
   portable_loader="$(portable_loader_or_die "${runtime_dir}")"
   browser_exec="$(portable_prepared_browser_entrypoint "${session_path}" "${portable_loader}" "${browser_exec}")"
   browser_cwd="$(dirname "${browser_exec}")"
@@ -2069,6 +2203,9 @@ launch_portable_session() {
     NO_AT_BRIDGE="${NO_AT_BRIDGE:-1}" \
     DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${xdg_runtime_dir}/bus}" \
     FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
+    LIBGL_DRIVERS_PATH="${portable_libgl_drivers_path}" \
+    LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-1}" \
+    MESA_LOADER_DRIVER_OVERRIDE="${MESA_LOADER_DRIVER_OVERRIDE:-swrast}" \
     XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
     XDG_CONFIG_HOME="${browser_xdg_config}" \
     XDG_CACHE_HOME="${browser_xdg_cache}" \
@@ -2387,6 +2524,7 @@ print_endpoint() {
 
 list_profiles() {
   local session_slug session_path config_path app_exec runtime_dir browser_exec browser_cwd browser_wrapper portable_browser_ld_library_path portable_loader
+  local portable_dri_path portable_libgl_drivers_path
   local browser_home browser_xdg_config browser_xdg_cache browser_xdg_data
   local browser_cache_root browser_data_root browser_state_root browser_session_root
   session_slug="$(sanitize_name "${session_name}")"
@@ -2407,6 +2545,8 @@ list_profiles() {
     runtime_dir="$(ensure_portable_runtime)"
     browser_exec="$(portable_browser_entrypoint "${runtime_dir}")"
     portable_browser_ld_library_path="$(portable_browser_library_path "${runtime_dir}")"
+    portable_dri_path="$(portable_dri_driver_path "${runtime_dir}")"
+    portable_libgl_drivers_path="$(prepend_env_path "${portable_dri_path}" "${LIBGL_DRIVERS_PATH:-}")"
     portable_loader="$(portable_loader_or_die "${runtime_dir}")"
     browser_exec="$(portable_prepared_browser_entrypoint "${session_path}" "${portable_loader}" "${browser_exec}")"
     browser_cwd="$(dirname "${browser_exec}")"
@@ -2434,6 +2574,9 @@ list_profiles() {
       PORTABLE_DIR="${runtime_dir}" \
       CHROME_WRAPPER="${browser_wrapper}" \
       FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
+      LIBGL_DRIVERS_PATH="${portable_libgl_drivers_path}" \
+      LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-1}" \
+      MESA_LOADER_DRIVER_OVERRIDE="${MESA_LOADER_DRIVER_OVERRIDE:-swrast}" \
       XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
       XDG_CONFIG_HOME="${browser_xdg_config}" \
       XDG_CACHE_HOME="${browser_xdg_cache}" \
