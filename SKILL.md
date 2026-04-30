@@ -69,10 +69,10 @@ clawctl stop --session work --json
 
 ## Runtime Modes
 
-- **Host mode** — desktop/macOS or Linux with a display. Config lives under the current user's config directory; resolve the absolute path before writing.
-- **Portable Linux runtime mode** — recommended default for Linux VPS/server/container/no-display environments. Runs full headful Clawbrowser with Xvfb from a separately published portable runtime artifact, without requiring Docker runtime access.
-- **Docker backend mode (optional/operator-managed)** — Dockerized runtime for operators who intentionally choose Docker and control host infrastructure. Config in the container at `/home/clawbrowser/.config/clawbrowser/config.json`, persisted in the `clawbrowser-config` named volume.
-- **Sidecar mode (optional/operator-managed)** — host-managed sidecar where the agent connects via `clawctl --cdp http://127.0.0.1:9222 ...`. See `INSTALL.md` for exact commands.
+- **Portable Linux runtime mode** — default for Linux VPS/server/container/no-display/no-root environments. Runs full headful Clawbrowser with bundled Xvfb, xkb data, browser binary, and libraries. No Docker, sudo, apt, or physical display is required.
+- **macOS native app mode** — uses `Clawbrowser.app` through a GUI WindowServer session.
+- **Docker backend mode (optional/operator-managed)** — use only when operators intentionally provide Docker and host infrastructure. Config in the container at `/home/clawbrowser/.config/clawbrowser/config.json`, persisted in the `clawbrowser-config` named volume.
+- **Existing CDP/sidecar mode (optional/operator-managed)** — connect via `clawctl --cdp http://127.0.0.1:9222 ...` when infrastructure already provides a browser.
 
 Default to portable Linux runtime when there is no display. Use Docker backend only when operators intentionally provide that infrastructure.
 
@@ -84,5 +84,20 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
 - Do not use `npx` as the primary install path for agent workflows. If you reach this package through `npx` or a raw source checkout, stop and follow `INSTALL.md` to install from the release archive instead.
 - If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude`, `codex`, `gemini`, or `openclaw`.
 - Use the official `clawbrowser/clawbrowser` GitHub repository and bundled `clawctl install` command only.
-- On Linux servers/containers/no-display environments, use the portable runtime path by default (separately published portable artifact with Xvfb + headful browser, no Docker runtime required).
+- On Linux servers/containers/no-display environments, use portable mode by default. The normal Linux release archive installs `clawctl` and the launcher; portable mode downloads `clawbrowser-portable-linux-<amd64|arm64>-glibc` automatically. If the portable runtime is already extracted, set `CLAWBROWSER_PORTABLE_LOCAL_DIR`.
 - Docker backend and sidecar paths remain optional/operator-managed for hosts that intentionally provide Docker infrastructure.
+
+## Install Fast Path
+
+```bash
+./clawctl install --prompt-api-key auto
+./clawctl start --session work --url clawbrowser://verify/ --json
+./clawctl endpoint --session work --json
+```
+
+For an existing CDP sidecar:
+
+```bash
+clawctl --cdp http://127.0.0.1:9222 tabs list --json
+clawctl --cdp http://127.0.0.1:9222 verify --json
+```

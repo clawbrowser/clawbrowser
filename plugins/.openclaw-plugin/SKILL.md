@@ -21,6 +21,18 @@ Daily browser contract:
 - `stop`: `clawctl stop --session <name>` only when the user asks to
   close the session
 
+Install/runtime contract:
+- Install from the assembled Clawbrowser release archive with
+  `./clawctl install --prompt-api-key auto`; do not use `npx` or a raw source
+  checkout as the runtime install path.
+- In restricted OpenClaw containers without Docker/root/display access, use the
+  portable Linux runtime. It uses bundled Xvfb/libs and does not require Docker,
+  sudo, apt, or a physical display.
+- If OpenClaw already provides a browser sidecar, connect with
+  `clawctl --cdp http://127.0.0.1:9222 ...`.
+- Docker sidecars are operator-managed infrastructure. Agents inside restricted
+  containers should not try to self-provision Docker.
+
 clawctl reference:
 - For the full clawctl command palette and agent workflow rules, also follow the bundled clawctl skill/reference for the active agent integration.
 
