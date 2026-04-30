@@ -156,21 +156,25 @@ jobs:
             local extract_dir="${RUNNER_TEMP}/clawbrowser-dist-${arch}"
             local dest_dir="clawbrowser-dist-${arch}"
             local src
-            local -a entries
+            local real_path
+            local -a real_paths
 
             rm -rf "${dest_dir}" "${extract_dir}"
             mkdir -p "${dest_dir}" "${extract_dir}"
 
             tar -xzf "${archive}" -C "${extract_dir}"
 
-            shopt -s dotglob nullglob
-            entries=("${extract_dir}"/*)
-            if [[ ${#entries[@]} -eq 1 && -d "${entries[0]}" ]]; then
-              src="${entries[0]}"
-            else
-              src="${extract_dir}"
+            real_paths=()
+            while IFS= read -r real_path; do
+              real_paths+=("${real_path}")
+            done < <(find "${extract_dir}" -type f -name clawbrowser.real | sort)
+            if [[ ${#real_paths[@]} -ne 1 ]]; then
+              echo "::error::expected exactly one clawbrowser.real in ${asset_name}, found ${#real_paths[@]}"
+              find "${extract_dir}" -maxdepth 3 -type f | sort | sed 's/^/- /'
+              exit 1
             fi
-            shopt -u dotglob nullglob
+
+            src="$(dirname "${real_paths[0]}")"
 
             cp -a "${src}/." "${dest_dir}/"
 
