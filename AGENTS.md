@@ -11,7 +11,7 @@ browser process for agent work.
 - Happy path: download from `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack, then run `./clawctl install --prompt-api-key auto`.
 - Exact commands and troubleshooting live in `INSTALL.md`; if unavailable, use `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`.
 - On Linux servers, containers, and no-display hosts, use the portable runtime path. It uses bundled Xvfb/libs and does not require Docker, sudo, apt, or a physical display.
-- Before installing, check free space on the target filesystem. If a writable workspace mount is available, prefer it for the browser install. Do not use `/tmp` as the durable install location for the browser install, including `clawctl`, the portable runtime, config, cache, or agent plugins.
+- Before installing, check free space on the target filesystem. The normal release archive is about 200 MB compressed; the portable runtime tarballs are about 500 MB compressed and larger when unpacked. Recommend at least 2 GB free. If a writable workspace mount is available, prefer it for the browser install. Do not use `/tmp` as the durable install location for the browser install, including `clawctl`, the portable runtime, config, cache, or agent plugins.
 - Docker and sidecar modes are operator-managed paths. Restricted agents should not try to self-provision Docker.
 
 ## Runtime Choice

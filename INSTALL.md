@@ -11,7 +11,7 @@ containers, and machines without a display. It does not require Docker, sudo,
 apt, or a physical display. `clawctl install` ensures the matching portable
 Xvfb runtime so `start --self-contained` can run without Docker.
 
-Before installing, check free space on the filesystem that will hold the runtime and browser state. If a writable workspace mount is available, prefer it for the browser install. Do not treat `/tmp` as durable storage for the browser install, including `clawctl`, the portable runtime, config, cache, or agent plugins.
+Before installing, check free space on the filesystem that will hold the runtime and browser state. The normal release archive is about 200 MB compressed; the portable runtime tarballs are about 500 MB compressed and larger when unpacked. Recommend at least 2 GB free. If a writable workspace mount is available, prefer it for the browser install. Do not treat `/tmp` as durable storage for the browser install, including `clawctl`, the portable runtime, config, cache, or agent plugins.
 
 ```bash
 set -euo pipefail
@@ -96,8 +96,9 @@ read-only `$HOME`, including containers where `HOME=/root` but `/root` cannot be
 written. Do not write to `/root` just because `HOME=/root`. If a writable workspace mount is available, prefer it over `/tmp`. Do not use `/tmp` as the installation root if you expect the browser runtime to survive a restart.
 
 Pick one writable base directory on a persistent volume, preferably the
-workspace mount when one is available, confirm it has enough free space, and
-make all Clawbrowser paths explicit:
+workspace mount when one is available, confirm it has enough free space for
+the 500 MB compressed portable runtime tarball and unpacked runtime, and make all Clawbrowser
+paths explicit:
 
 ```bash
 set -euo pipefail

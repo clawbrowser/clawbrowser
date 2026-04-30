@@ -87,7 +87,7 @@ Environment overrides:
   CLAWBROWSER_RELEASE_REF    Release ref or tag, default: latest
   CLAWBROWSER_APP_PATH       Optional macOS Clawbrowser.app path or executable
   HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, XDG_DATA_HOME
-                             Set these to writable paths in restricted containers on persistent storage; do not use /tmp as the durable browser install location
+                             Set these to writable paths in restricted containers on persistent storage; the normal release archive is about 200 MB compressed and the portable runtime tarballs are about 500 MB compressed, so recommend at least 2 GB free. Do not use /tmp as the durable browser install location.
                              If a writable workspace mount is available, prefer it
 
 Path resolution order:

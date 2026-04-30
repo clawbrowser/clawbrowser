@@ -86,7 +86,7 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
 - If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude`, `codex`, `gemini`, or `openclaw`.
 - Use the official `clawbrowser/clawbrowser` GitHub repository and bundled `clawctl install` command only.
 - On Linux servers/containers/no-display environments, use portable mode by default. The normal Linux release archive installs `clawctl` and the launcher; `clawctl install` ensures `clawbrowser-portable-linux-<amd64|arm64>-glibc`. If the portable runtime is already extracted, set `CLAWBROWSER_PORTABLE_LOCAL_DIR`.
-- Before installing, check free space on the target filesystem. If a writable workspace mount is available, prefer it for the browser install. Do not use `/tmp` as the durable install location for the browser install, including `clawctl`, the portable runtime, config, cache, or agent plugins.
+- Before installing, check free space on the target filesystem. The normal release archive is about 200 MB compressed; the portable runtime tarballs are about 500 MB compressed and larger when unpacked. Recommend at least 2 GB free. If a writable workspace mount is available, prefer it for the browser install. Do not use `/tmp` as the durable install location for the browser install, including `clawctl`, the portable runtime, config, cache, or agent plugins.
 - Docker backend and sidecar paths remain optional/operator-managed for hosts that intentionally provide Docker infrastructure.
 
 ## Install Fast Path
