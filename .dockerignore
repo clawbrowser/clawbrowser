@@ -4,3 +4,7 @@
 !docker-entrypoint.sh
 !clawbrowser-dist/
 !clawbrowser-dist/**
+!clawbrowser-dist-amd64/
+!clawbrowser-dist-amd64/**
+!clawbrowser-dist-arm64/
+!clawbrowser-dist-arm64/**

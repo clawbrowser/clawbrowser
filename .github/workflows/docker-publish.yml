@@ -90,6 +90,8 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
 
+      - uses: docker/setup-qemu-action@v3
+
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
@@ -100,7 +102,6 @@ jobs:
 
       - name: Download release artifact
         env:
-          ASSET_NAME: clawbrowser-linux-x64.tar.gz
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
@@ -111,65 +112,93 @@ jobs:
             --paginate \
             --slurp)"
 
-          asset_url="$(printf '%s' "${releases_json}" | jq -r \
-            --arg tag "${RELEASE_TAG}" \
-            --arg asset "${ASSET_NAME}" '
-              map(.[]?) |
-              map(select(.tag_name == $tag)) |
-              map(select(any((.assets // [])[]; .name == $asset))) |
-              sort_by(.draft) |
-              first? |
-              (.assets // [])[] |
-              select(.name == $asset) |
-              .url // empty
-            ')"
+          assets=(
+            "clawbrowser-linux-x64.tar.gz"
+            "clawbrowser-linux-arm64.tar.gz"
+          )
 
-          if [[ -z "${asset_url}" ]]; then
-            echo "::error::asset ${ASSET_NAME} was not found in any release for tag ${RELEASE_TAG}"
-            printf '%s' "${releases_json}" | jq -r \
-              --arg tag "${RELEASE_TAG}" '
+          for asset_name in "${assets[@]}"; do
+            asset_url="$(printf '%s' "${releases_json}" | jq -r \
+              --arg tag "${RELEASE_TAG}" \
+              --arg asset "${asset_name}" '
                 map(.[]?) |
                 map(select(.tag_name == $tag)) |
-                .[] |
-                "- release=\(.name) draft=\(.draft) assets=\([(.assets // [])[].name] | join(", "))"
-              '
-            exit 1
-          fi
+                map(select(any((.assets // [])[]; .name == $asset))) |
+                sort_by(.draft) |
+                first? |
+                (.assets // [])[] |
+                select(.name == $asset) |
+                .url // empty
+              ')"
 
-          gh api "${asset_url}" \
-            -H "Accept: application/octet-stream" \
-            > "${RUNNER_TEMP}/assets/${ASSET_NAME}"
+            if [[ -z "${asset_url}" ]]; then
+              echo "::error::asset ${asset_name} was not found in any release for tag ${RELEASE_TAG}"
+              printf '%s' "${releases_json}" | jq -r \
+                --arg tag "${RELEASE_TAG}" '
+                  map(.[]?) |
+                  map(select(.tag_name == $tag)) |
+                  .[] |
+                  "- release=\(.name) draft=\(.draft) assets=\([(.assets // [])[].name] | join(", "))"
+                '
+              exit 1
+            fi
+
+            gh api "${asset_url}" \
+              -H "Accept: application/octet-stream" \
+              > "${RUNNER_TEMP}/assets/${asset_name}"
+          done
 
       - name: Prepare build context
-        env:
-          ASSET_NAME: clawbrowser-linux-x64.tar.gz
         run: |
           set -euo pipefail
 
-          archive="${RUNNER_TEMP}/assets/${ASSET_NAME}"
-          extract_dir="${RUNNER_TEMP}/clawbrowser-dist-amd64"
+          rm -rf clawbrowser-dist-amd64 clawbrowser-dist-arm64
 
-          rm -rf clawbrowser-dist "${extract_dir}"
-          mkdir -p clawbrowser-dist "${extract_dir}"
+          assets=(
+            "clawbrowser-linux-x64.tar.gz"
+            "clawbrowser-linux-arm64.tar.gz"
+          )
 
-          tar -xzf "${archive}" -C "${extract_dir}"
+          for asset_name in "${assets[@]}"; do
+            case "${asset_name}" in
+              clawbrowser-linux-x64.tar.gz)
+                arch="amd64"
+                ;;
+              clawbrowser-linux-arm64.tar.gz)
+                arch="arm64"
+                ;;
+              *)
+                echo "::error::unsupported asset ${asset_name}"
+                exit 1
+                ;;
+            esac
 
-          shopt -s dotglob nullglob
-          entries=("${extract_dir}"/*)
-          if [[ ${#entries[@]} -eq 1 && -d "${entries[0]}" ]]; then
-            src="${entries[0]}"
-          else
-            src="${extract_dir}"
-          fi
+            archive="${RUNNER_TEMP}/assets/${asset_name}"
+            extract_dir="${RUNNER_TEMP}/clawbrowser-dist-${arch}"
+            output_dir="clawbrowser-dist-${arch}"
 
-          cp -a "${src}/." clawbrowser-dist/
+            rm -rf "${extract_dir}" "${output_dir}"
+            mkdir -p "${extract_dir}" "${output_dir}"
 
-          if [[ ! -f clawbrowser-dist/clawbrowser.real ]]; then
-            echo "::error::expected clawbrowser-dist/clawbrowser.real in ${ASSET_NAME}"
-            exit 1
-          fi
+            tar -xzf "${archive}" -C "${extract_dir}"
 
-          chmod +x clawbrowser-dist/clawbrowser.real
+            shopt -s dotglob nullglob
+            entries=("${extract_dir}"/*)
+            if [[ ${#entries[@]} -eq 1 && -d "${entries[0]}" ]]; then
+              src="${entries[0]}"
+            else
+              src="${extract_dir}"
+            fi
+
+            cp -a "${src}/." "${output_dir}/"
+
+            if [[ ! -f "${output_dir}/clawbrowser.real" ]]; then
+              echo "::error::expected ${output_dir}/clawbrowser.real in ${asset_name}"
+              exit 1
+            fi
+
+            chmod +x "${output_dir}/clawbrowser.real"
+          done
 
       - id: meta
         uses: docker/metadata-action@v5
@@ -186,7 +215,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
