@@ -205,6 +205,49 @@ test_missing_runtime_error() {
   assert_contains "${output}" "portable runtime not found; set CLAWBROWSER_PORTABLE_LOCAL_DIR or run clawctl install"
 }
 
+test_stop_missing_self_contained_no_docker() {
+  if [[ "$(uname -s)" != "Linux" ]]; then
+    skip "missing self-contained stop avoids Docker" "Linux-only"
+    return 0
+  fi
+
+  local tmp docker_log output
+  tmp="$(mktemp -d)"
+  docker_log="${tmp}/docker-called.log"
+  mkdir -p "${tmp}/bin"
+
+  cat >"${tmp}/bin/docker" <<SH
+#!/usr/bin/env bash
+printf 'docker invoked: %s\n' "\$*" >> "${docker_log}"
+exit 64
+SH
+  chmod +x "${tmp}/bin/docker"
+
+  output="$(
+    env -i \
+      PATH="${tmp}/bin:${PATH}" \
+      HOME=/root \
+      XDG_CONFIG_HOME="${tmp}/config" \
+      XDG_CACHE_HOME="${tmp}/cache" \
+      XDG_DATA_HOME="${tmp}/data" \
+      CLAWBROWSER_DOCKER_BIN="${tmp}/bin/docker" \
+      "${BIN}" stop --self-contained --session missing-self-contained
+  )"
+
+  if [[ -n "${output}" ]]; then
+    rm -rf "${tmp}"
+    fail "missing self-contained stop returned unexpected output: ${output}"
+  fi
+  if [[ -e "${docker_log}" ]]; then
+    output="$(cat "${docker_log}")"
+    rm -rf "${tmp}"
+    fail "missing self-contained stop invoked Docker: ${output}"
+  fi
+
+  rm -rf "${tmp}"
+  printf 'ok - missing self-contained stop avoids Docker\n'
+}
+
 test_self_contained_start_no_docker() {
   if [[ "$(uname -s)" != "Linux" ]]; then
     skip "self-contained portable startup" "Linux-only"
@@ -378,5 +421,6 @@ SH
 }
 
 test_missing_runtime_error
+test_stop_missing_self_contained_no_docker
 test_self_contained_start_no_docker
 test_self_contained_list_uses_loader_no_docker

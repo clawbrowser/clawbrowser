@@ -1605,20 +1605,84 @@ container_exists() {
   "${DOCKER_BIN}" ps --all --quiet --filter "name=^/${name}$" 2>/dev/null | head -n 1
 }
 
+kill_processes_matching_path() {
+  local marker="$1"
+  if [[ -z "${marker}" || ! -d /proc ]]; then
+    return 0
+  fi
+
+  python3 - "${marker}" <<'PY'
+import os
+import pathlib
+import signal
+import sys
+import time
+
+marker = sys.argv[1].encode("utf-8", "surrogateescape")
+self_pid = os.getpid()
+parent_pid = os.getppid()
+
+def matching_pids():
+    result = []
+    for proc_dir in pathlib.Path("/proc").glob("[0-9]*"):
+        try:
+            pid = int(proc_dir.name)
+        except ValueError:
+            continue
+        if pid in (self_pid, parent_pid):
+            continue
+        try:
+            cmdline = (proc_dir / "cmdline").read_bytes()
+        except OSError:
+            continue
+        if marker in cmdline:
+            result.append(pid)
+    return result
+
+for pid in matching_pids():
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    except PermissionError:
+        pass
+
+deadline = time.time() + 2.0
+while time.time() < deadline:
+    if not matching_pids():
+        raise SystemExit(0)
+    time.sleep(0.1)
+
+for pid in matching_pids():
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    except PermissionError:
+        pass
+PY
+}
+
 stop_session() {
   local name="$1"
-  local container_name="clawbrowser-${name}"
-  local saved_backend="${backend:-docker}"
+  local default_container_name="clawbrowser-${name}"
+  local saved_backend="${backend:-}"
+  local saved_container_name=""
   local saved_pid="${pid:-}"
   local saved_xvfb_pid="${xvfb_pid:-}"
   local session_path
   local running
 
   load_state "${name}"
-  saved_backend="${backend:-docker}"
+  saved_backend="${backend:-}"
+  saved_container_name="${container_name:-}"
   saved_pid="${pid:-}"
   saved_xvfb_pid="${xvfb_pid:-}"
   session_path="$(session_dir "$(sanitize_name "${name}")")"
+
+  if [[ -z "${saved_backend}" && -n "${saved_container_name}" ]]; then
+    saved_backend="docker"
+  fi
 
   if [[ "${saved_backend}" == "portable" ]]; then
     if [[ -n "${saved_pid}" ]] && kill -0 "${saved_pid}" >/dev/null 2>&1; then
@@ -1635,6 +1699,7 @@ stop_session() {
         kill -9 "${saved_xvfb_pid}" >/dev/null 2>&1 || true
       fi
     fi
+    kill_processes_matching_path "${session_path}" >/dev/null 2>&1 || true
     delete_state "${name}"
     return 0
   fi
@@ -1660,9 +1725,22 @@ stop_session() {
     return 0
   fi
 
-  running="$(container_exists "${container_name}" || true)"
+  if [[ "${saved_backend}" != "docker" ]]; then
+    delete_state "${name}"
+    return 0
+  fi
+
+  if [[ -z "${saved_container_name}" ]]; then
+    saved_container_name="${default_container_name}"
+  fi
+  if [[ -z "${saved_container_name}" || "${saved_container_name}" == "clawbrowser-" ]]; then
+    delete_state "${name}"
+    return 0
+  fi
+
+  running="$(container_exists "${saved_container_name}" || true)"
   if [[ -n "${running}" ]]; then
-    "${DOCKER_BIN}" stop "${container_name}" >/dev/null 2>&1 || true
+    "${DOCKER_BIN}" stop "${saved_container_name}" >/dev/null 2>&1 || true
   fi
   delete_state "${name}"
 }
@@ -1904,6 +1982,7 @@ launch_portable_session() {
   local config_path="$4"
   local runtime_dir browser_exec browser_cwd browser_wrapper display xdg_runtime_dir xvfb_exec portable_ld_library_path portable_browser_ld_library_path portable_loader
   local browser_home browser_xdg_config browser_xdg_cache browser_xdg_data
+  local browser_cache_root browser_data_root browser_state_root browser_session_root
   local xvfb_log browser_log launcher_log browser_pid browser_pid_file xvfb_process_pid runtime_version
   local -a state_lines=()
 
@@ -1938,8 +2017,12 @@ launch_portable_session() {
   browser_xdg_config="${session_path}/xdg-config"
   browser_xdg_cache="${session_path}/xdg-cache"
   browser_xdg_data="${session_path}/xdg-data"
-  mkdir -p "${session_path}" "${config_path}" "${xdg_runtime_dir}" "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}"
-  chmod 700 "${session_path}" "${config_path}" "${xdg_runtime_dir}" "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}" 2>/dev/null || true
+  browser_cache_root="${session_path}/browser-cache"
+  browser_data_root="${session_path}/browser-data"
+  browser_state_root="${session_path}/browser-state"
+  browser_session_root="${session_path}/browser-sessions"
+  mkdir -p "${session_path}" "${config_path}" "${xdg_runtime_dir}" "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}" "${browser_cache_root}" "${browser_data_root}" "${browser_state_root}" "${browser_session_root}"
+  chmod 700 "${session_path}" "${config_path}" "${xdg_runtime_dir}" "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}" "${browser_cache_root}" "${browser_data_root}" "${browser_state_root}" "${browser_session_root}" 2>/dev/null || true
 
   xvfb_log="${session_path}/xvfb.log"
   browser_log="${session_path}/browser.log"
@@ -1972,6 +2055,11 @@ launch_portable_session() {
   (
     cd "${browser_cwd}"
     env -u LD_LIBRARY_PATH \
+    CLAWBROWSER_CONFIG_DIR="${config_path}" \
+    CLAWBROWSER_CACHE_DIR="${browser_cache_root}" \
+    CLAWBROWSER_DATA_DIR="${browser_data_root}" \
+    CLAWBROWSER_STATE_ROOT="${browser_state_root}" \
+    CLAWBROWSER_SESSION_ROOT="${browser_session_root}" \
     DISPLAY="${display}" \
     HOME="${browser_home}" \
     PORTABLE_DIR="${runtime_dir}" \
@@ -2300,6 +2388,7 @@ print_endpoint() {
 list_profiles() {
   local session_slug session_path config_path app_exec runtime_dir browser_exec browser_cwd browser_wrapper portable_browser_ld_library_path portable_loader
   local browser_home browser_xdg_config browser_xdg_cache browser_xdg_data
+  local browser_cache_root browser_data_root browser_state_root browser_session_root
   session_slug="$(sanitize_name "${session_name}")"
   session_path="$(session_dir "${session_slug}")"
   config_path="${session_path}/config"
@@ -2326,12 +2415,21 @@ list_profiles() {
     browser_xdg_config="${session_path}/xdg-config-list"
     browser_xdg_cache="${session_path}/xdg-cache-list"
     browser_xdg_data="${session_path}/xdg-data-list"
-    mkdir -p "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}"
-    chmod 700 "${session_path}/xdg-runtime-list" "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}" 2>/dev/null || true
+    browser_cache_root="${session_path}/browser-cache-list"
+    browser_data_root="${session_path}/browser-data-list"
+    browser_state_root="${session_path}/browser-state-list"
+    browser_session_root="${session_path}/browser-sessions-list"
+    mkdir -p "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}" "${browser_cache_root}" "${browser_data_root}" "${browser_state_root}" "${browser_session_root}"
+    chmod 700 "${session_path}/xdg-runtime-list" "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}" "${browser_cache_root}" "${browser_data_root}" "${browser_state_root}" "${browser_session_root}" 2>/dev/null || true
     browser_wrapper="$(portable_browser_wrapper "${session_path}" "${portable_browser_ld_library_path}" "${portable_loader}" "${browser_exec}")"
     (
       cd "${browser_cwd}"
       exec env -u LD_LIBRARY_PATH \
+      CLAWBROWSER_CONFIG_DIR="${config_path}" \
+      CLAWBROWSER_CACHE_DIR="${browser_cache_root}" \
+      CLAWBROWSER_DATA_DIR="${browser_data_root}" \
+      CLAWBROWSER_STATE_ROOT="${browser_state_root}" \
+      CLAWBROWSER_SESSION_ROOT="${browser_session_root}" \
       HOME="${browser_home}" \
       PORTABLE_DIR="${runtime_dir}" \
       CHROME_WRAPPER="${browser_wrapper}" \

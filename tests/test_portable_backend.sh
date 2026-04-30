@@ -121,6 +121,9 @@ test_source_contract_for_browser_loader_binding() {
   grep -Fq -- '--disable-gpu' "${SOURCE_FILE}" || fail "portable start should disable GPU under Xvfb"
   grep -Fq -- '--disable-background-networking' "${SOURCE_FILE}" || fail "portable start should disable background networking in restricted containers"
   grep -Fq -- 'GSETTINGS_BACKEND="${GSETTINGS_BACKEND:-memory}"' "${SOURCE_FILE}" || fail "portable start should avoid host GSettings dependency"
+  grep -Fq -- 'CLAWBROWSER_CONFIG_DIR="${config_path}"' "${SOURCE_FILE}" || fail "portable browser should receive session-scoped config root"
+  grep -Fq -- 'CLAWBROWSER_CACHE_DIR="${browser_cache_root}"' "${SOURCE_FILE}" || fail "portable browser should receive session-scoped cache root"
+  grep -Fq -- 'kill_processes_matching_path "${session_path}"' "${SOURCE_FILE}" || fail "portable stop should clean up child processes by session path"
   if grep -Fq -- 'Portable browser reported CDP readiness' "${SOURCE_FILE}"; then
     fail "portable start must not treat browser log lines as CDP readiness"
   fi
