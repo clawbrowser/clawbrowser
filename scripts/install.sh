@@ -45,13 +45,12 @@ Linux servers/containers (default path):
   on demand as a separate release artifact.
   This path does not require Docker CLI/daemon/socket at agent runtime and does
   not require a physical display.
-  See INSTALL.md#setup-modes-priority-order.
+  See INSTALL.md#setup-modes.
 
 Optional Docker backend (operator-managed):
   Docker sidecar deployment is supported only when operators intentionally
   provide Docker infrastructure and endpoint access.
-  See INSTALL.md#3-optional-docker-backend-explicit-operator-managed and
-  INSTALL.md#openclaw-sidecar-optional-operator-managed-infrastructure.
+  See INSTALL.md#optional-docker-backend.
 
 This script expects an assembled release bundle that already contains
 bin/clawctl, bin/clawbrowser, and bin/clawbrowser-mcp. In normal installs,
@@ -226,7 +225,7 @@ require_python3() {
   fi
 
   if is_container_env; then
-    die "python3 is required for this release-bundle installer, and this looks like a minimal container. The default Linux path is the portable runtime (full headful Clawbrowser under Xvfb), downloaded on demand as a separate release artifact, and it does not require Docker runtime access. Install/run from an environment that has python3, then use clawctl start/endpoint normally. If your operator intentionally uses Docker backend sidecar mode, the host/operator must provision it and expose a reachable local CDP endpoint. See INSTALL.md#setup-modes-priority-order."
+    die "python3 is required for this release-bundle installer, and this looks like a minimal container. The default Linux path is the portable runtime (full headful Clawbrowser under Xvfb), downloaded on demand as a separate release artifact, and it does not require Docker runtime access. Install/run from an environment that has python3, then use clawctl start/endpoint normally. If your operator intentionally uses Docker backend sidecar mode, the host/operator must provision it and expose a reachable local CDP endpoint. See INSTALL.md#setup-modes."
   fi
 
   die "Required command not found: python3"

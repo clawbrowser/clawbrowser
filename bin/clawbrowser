@@ -19,8 +19,8 @@ READINESS_TIMEOUT_SECONDS="${CLAWBROWSER_READINESS_TIMEOUT_SECONDS:-60}"
 APP_READINESS_TIMEOUT_SECONDS="${CLAWBROWSER_APP_READINESS_TIMEOUT_SECONDS:-20}"
 PORTABLE_RUNTIME_ROOT="${CLAWBROWSER_RUNTIME_ROOT:-${CACHE_HOME}/clawbrowser/runtime}"
 PORTABLE_LOCAL_DIR="${CLAWBROWSER_PORTABLE_LOCAL_DIR:-}"
-PORTABLE_RUNTIME_ARTIFACT_BASENAME="${CLAWBROWSER_PORTABLE_RUNTIME_ARTIFACT_BASENAME:-clawbrowser-portable-xvfb-linux-amd64-glibc}"
-PORTABLE_RUNTIME_PLATFORM_DIR="${CLAWBROWSER_PORTABLE_RUNTIME_PLATFORM_DIR:-linux-amd64-glibc-xvfb}"
+PORTABLE_RUNTIME_ARTIFACT_BASENAME="${CLAWBROWSER_PORTABLE_RUNTIME_ARTIFACT_BASENAME:-}"
+PORTABLE_RUNTIME_PLATFORM_DIR="${CLAWBROWSER_PORTABLE_RUNTIME_PLATFORM_DIR:-}"
 PORTABLE_DEFAULT_SCREEN="${CLAWBROWSER_SCREEN:-1920x1080x24}"
 PORTABLE_DISPLAY_MIN="${CLAWBROWSER_PORTABLE_DISPLAY_MIN:-90}"
 PORTABLE_DISPLAY_MAX="${CLAWBROWSER_PORTABLE_DISPLAY_MAX:-110}"
@@ -55,6 +55,8 @@ Options for start/rotate/status/endpoint/stop/list/ensure-runtime:
   --session NAME            Session name. Default: default
   --port PORT               Host CDP port. Default: auto-select a free port
   --backend MODE            Backend mode: auto|app|portable|docker
+  --self-contained          Alias for --backend portable on Linux
+  --standalone              Alias for --backend portable on Linux
   --image IMAGE             Docker image tag. Default: local clawbrowser:latest if present, otherwise the published release image
   --verify                  Open clawbrowser://verify when no URL is supplied
   --help                    Show this help
@@ -71,6 +73,8 @@ Backend behavior:
   native CDP startup fails.
   In auto mode on Linux, portable is preferred and Docker is used only when
   CLAWBROWSER_ALLOW_DOCKER_BACKEND=1 or when --backend docker is explicit.
+  --self-contained/--standalone forces the portable backend. It uses the
+  portable runtime's bundled Xvfb, xkb data, browser binary, and libraries.
   Native app readiness in auto mode uses a short timeout; override with
   CLAWBROWSER_APP_READINESS_TIMEOUT_SECONDS when needed.
 
@@ -275,6 +279,22 @@ host_arch() {
   esac
 }
 
+portable_host_arch() {
+  case "$(uname -m)" in
+    x86_64|amd64) printf '%s\n' amd64 ;;
+    arm64|aarch64) printf '%s\n' arm64 ;;
+    *) return 1 ;;
+  esac
+}
+
+portable_debian_arch_dir() {
+  case "$(portable_host_arch)" in
+    amd64) printf '%s\n' x86_64-linux-gnu ;;
+    arm64) printf '%s\n' aarch64-linux-gnu ;;
+    *) return 1 ;;
+  esac
+}
+
 native_app_asset_name() {
   if ! is_macos; then
     return 1
@@ -449,7 +469,7 @@ portable_platform_supported() {
   fi
 
   case "$(uname -m)" in
-    x86_64|amd64) ;;
+    x86_64|amd64|arm64|aarch64) ;;
     *) return 1 ;;
   esac
 
@@ -469,16 +489,63 @@ portable_platform_supported() {
   return 1
 }
 
+portable_runtime_artifact_basename() {
+  local arch
+  if [[ -n "${PORTABLE_RUNTIME_ARTIFACT_BASENAME}" ]]; then
+    printf '%s\n' "${PORTABLE_RUNTIME_ARTIFACT_BASENAME}"
+    return 0
+  fi
+  arch="$(portable_host_arch)" || return 1
+  printf 'clawbrowser-portable-linux-%s-glibc\n' "${arch}"
+}
+
+portable_runtime_artifact_basenames() {
+  local arch
+  if [[ -n "${PORTABLE_RUNTIME_ARTIFACT_BASENAME}" ]]; then
+    printf '%s\n' "${PORTABLE_RUNTIME_ARTIFACT_BASENAME}"
+    return 0
+  fi
+  arch="$(portable_host_arch)" || return 1
+  printf 'clawbrowser-portable-linux-%s-glibc\n' "${arch}"
+  printf 'clawbrowser-portable-xvfb-linux-%s-glibc\n' "${arch}"
+}
+
+portable_runtime_platform_dir() {
+  local arch
+  if [[ -n "${PORTABLE_RUNTIME_PLATFORM_DIR}" ]]; then
+    printf '%s\n' "${PORTABLE_RUNTIME_PLATFORM_DIR}"
+    return 0
+  fi
+  arch="$(portable_host_arch)" || return 1
+  printf 'linux-%s-glibc\n' "${arch}"
+}
+
+portable_runtime_platform_dirs() {
+  local arch
+  if [[ -n "${PORTABLE_RUNTIME_PLATFORM_DIR}" ]]; then
+    printf '%s\n' "${PORTABLE_RUNTIME_PLATFORM_DIR}"
+    return 0
+  fi
+  arch="$(portable_host_arch)" || return 1
+  printf 'linux-%s-glibc\n' "${arch}"
+  printf 'linux-%s-glibc-xvfb\n' "${arch}"
+  printf 'clawbrowser-portable-linux-%s-glibc\n' "${arch}"
+  printf 'clawbrowser-portable-xvfb-linux-%s-glibc\n' "${arch}"
+}
+
 portable_runtime_tar_name() {
-  printf '%s.tar.gz\n' "${PORTABLE_RUNTIME_ARTIFACT_BASENAME}"
+  local basename="${1:-$(portable_runtime_artifact_basename)}"
+  printf '%s.tar.gz\n' "${basename}"
 }
 
 portable_runtime_sha_name() {
-  printf '%s.tar.gz.sha256\n' "${PORTABLE_RUNTIME_ARTIFACT_BASENAME}"
+  local basename="${1:-$(portable_runtime_artifact_basename)}"
+  printf '%s.tar.gz.sha256\n' "${basename}"
 }
 
 portable_runtime_manifest_name() {
-  printf '%s.manifest.json\n' "${PORTABLE_RUNTIME_ARTIFACT_BASENAME}"
+  local basename="${1:-$(portable_runtime_artifact_basename)}"
+  printf '%s.manifest.json\n' "${basename}"
 }
 
 portable_runtime_version_from_manifest() {
@@ -498,7 +565,7 @@ PY
 
 portable_runtime_target_dir() {
   local runtime_version="$1"
-  printf '%s/%s/%s\n' "${PORTABLE_RUNTIME_ROOT}" "${runtime_version}" "${PORTABLE_RUNTIME_PLATFORM_DIR}"
+  printf '%s/%s/%s\n' "${PORTABLE_RUNTIME_ROOT}" "${runtime_version}" "$(portable_runtime_platform_dir)"
 }
 
 portable_runtime_complete_marker() {
@@ -555,28 +622,30 @@ portable_browser_entrypoint() {
 portable_runtime_ready() {
   local runtime_dir="$1"
 
-  [[ -f "${runtime_dir}/manifest.json" ]] || return 1
   [[ -x "${runtime_dir}/bin/Xvfb" ]] || return 1
+  [[ -x "${runtime_dir}/bin/xkbcomp" ]] || return 1
   [[ -d "${runtime_dir}/share/X11/xkb" ]] || return 1
   portable_browser_entrypoint "${runtime_dir}" >/dev/null 2>&1 || return 1
-  [[ -f "$(portable_runtime_complete_marker "${runtime_dir}")" ]] || return 1
   return 0
 }
 
 portable_runtime_dir_from_candidate() {
   local candidate="$1"
+  local platform_dir
   if [[ -z "${candidate}" ]]; then
     return 1
   fi
-  if [[ -d "${candidate}/${PORTABLE_RUNTIME_PLATFORM_DIR}" ]]; then
-    printf '%s\n' "${candidate}/${PORTABLE_RUNTIME_PLATFORM_DIR}"
-    return 0
-  fi
+  while IFS= read -r platform_dir; do
+    if [[ -d "${candidate}/${platform_dir}" ]]; then
+      printf '%s\n' "${candidate}/${platform_dir}"
+      return 0
+    fi
+  done < <(portable_runtime_platform_dirs)
   printf '%s\n' "${candidate}"
 }
 
 find_portable_runtime_local() {
-  local candidate runtime_dir
+  local candidate runtime_dir platform_dir find_args=()
 
   if [[ -n "${PORTABLE_LOCAL_DIR}" ]]; then
     runtime_dir="$(portable_runtime_dir_from_candidate "${PORTABLE_LOCAL_DIR}")"
@@ -590,15 +659,39 @@ find_portable_runtime_local() {
     return 1
   fi
 
+  runtime_dir="$(portable_runtime_dir_from_candidate "${PORTABLE_RUNTIME_ROOT}")"
+  if portable_runtime_ready "${runtime_dir}"; then
+    printf '%s\n' "${runtime_dir}"
+    return 0
+  fi
+
+  while IFS= read -r platform_dir; do
+    if [[ ${#find_args[@]} -gt 0 ]]; then
+      find_args+=("-o")
+    fi
+    find_args+=("-name" "${platform_dir}")
+  done < <(portable_runtime_platform_dirs)
+
   while IFS= read -r candidate; do
     runtime_dir="$(portable_runtime_dir_from_candidate "${candidate}")"
     if portable_runtime_ready "${runtime_dir}"; then
       printf '%s\n' "${runtime_dir}"
       return 0
     fi
-  done < <(find "${PORTABLE_RUNTIME_ROOT}" -mindepth 2 -maxdepth 2 -type d -name "${PORTABLE_RUNTIME_PLATFORM_DIR}" | sort -r)
+  done < <(find "${PORTABLE_RUNTIME_ROOT}" -mindepth 1 -maxdepth 3 -type d \( "${find_args[@]}" \) | sort -r)
 
   return 1
+}
+
+portable_library_path() {
+  local runtime_dir="$1"
+  local arch_dir
+  arch_dir="$(portable_debian_arch_dir)" || return 1
+  printf '%s/lib/%s:%s/lib/usr-%s:%s/lib:%s' \
+    "${runtime_dir}" "${arch_dir}" \
+    "${runtime_dir}" "${arch_dir}" \
+    "${runtime_dir}" \
+    "${LD_LIBRARY_PATH:-}"
 }
 
 verify_sha256_file() {
@@ -625,19 +718,53 @@ raise SystemExit(0 if digest == expected else 1)
 PY
 }
 
+write_portable_runtime_manifest() {
+  local manifest_path="$1"
+  local runtime_version="$2"
+  local artifact_basename="$3"
+  local runtime_platform
+
+  runtime_platform="linux-$(portable_host_arch)-glibc"
+  python3 - "${manifest_path}" "${runtime_version}" "${artifact_basename}" "${runtime_platform}" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+version = sys.argv[2]
+artifact = sys.argv[3]
+platform = sys.argv[4]
+
+payload = {
+    "kind": "clawbrowser-portable",
+    "version": version,
+    "artifact": artifact,
+    "platform": platform,
+    "headful": True,
+    "headless_allowed": False,
+    "entrypoints": {
+        "browser": "clawbrowser/clawbrowser.real",
+        "xvfb": "bin/Xvfb",
+        "xkbcomp": "bin/xkbcomp",
+    },
+}
+path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+PY
+}
+
 ensure_portable_runtime() {
   if ! portable_platform_supported; then
-    portable_die "PORTABLE_UNSUPPORTED_PLATFORM" "portable backend supports Linux amd64 glibc only."
+    portable_die "PORTABLE_UNSUPPORTED_PLATFORM" "portable backend supports Linux amd64/arm64 glibc only."
   fi
 
   require_command tar
   require_command mktemp
 
-  local tmp_dir manifest_file runtime_version runtime_dir
+  local tmp_dir manifest_file runtime_version runtime_dir artifact_basename
   local local_runtime_dir
   local tarball_file checksum_file stage_root extracted_root stage_runtime_dir
   local final_dir
-  local tar_name sha_name manifest_name
+  local tar_name sha_name manifest_name manifest_available checksum_available last_error
   mkdir -p "${PORTABLE_RUNTIME_ROOT}"
 
   if local_runtime_dir="$(find_portable_runtime_local)"; then
@@ -646,78 +773,103 @@ ensure_portable_runtime() {
     return 0
   fi
 
-  tar_name="$(portable_runtime_tar_name)"
-  sha_name="$(portable_runtime_sha_name)"
-  manifest_name="$(portable_runtime_manifest_name)"
+  while IFS= read -r artifact_basename; do
+    tar_name="$(portable_runtime_tar_name "${artifact_basename}")"
+    sha_name="$(portable_runtime_sha_name "${artifact_basename}")"
+    manifest_name="$(portable_runtime_manifest_name "${artifact_basename}")"
 
-  tmp_dir="$(mktemp -d "${PORTABLE_RUNTIME_ROOT}/.download.XXXXXX")"
-  manifest_file="${tmp_dir}/${manifest_name}"
-  tarball_file="${tmp_dir}/${tar_name}"
-  checksum_file="${tmp_dir}/${sha_name}"
-  stage_root="${tmp_dir}/stage"
-  mkdir -p "${stage_root}"
+    tmp_dir="$(mktemp -d "${PORTABLE_RUNTIME_ROOT}/.download.XXXXXX")"
+    manifest_file="${tmp_dir}/${manifest_name}"
+    tarball_file="${tmp_dir}/${tar_name}"
+    checksum_file="${tmp_dir}/${sha_name}"
+    stage_root="${tmp_dir}/stage"
+    mkdir -p "${stage_root}"
 
-  if ! download_release_asset "${manifest_name}" "${manifest_file}"; then
-    portable_die "PORTABLE_RUNTIME_DOWNLOAD_FAILED" "failed to download ${manifest_name} from $(release_asset_base)."
-  fi
-
-  runtime_version="$(portable_runtime_version_from_manifest "${manifest_file}" 2>/dev/null || true)"
-  if [[ -z "${runtime_version}" ]]; then
+    manifest_available=0
     runtime_version="${RELEASE_REF}"
-  fi
+    if download_release_asset "${manifest_name}" "${manifest_file}" 2>/dev/null; then
+      manifest_available=1
+      runtime_version="$(portable_runtime_version_from_manifest "${manifest_file}" 2>/dev/null || true)"
+      if [[ -z "${runtime_version}" ]]; then
+        runtime_version="${RELEASE_REF}"
+      fi
+    fi
 
-  runtime_dir="$(portable_runtime_target_dir "${runtime_version}")"
-  if portable_runtime_ready "${runtime_dir}"; then
+    runtime_dir="$(portable_runtime_target_dir "${runtime_version}")"
+    if portable_runtime_ready "${runtime_dir}"; then
+      rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
+      printf '%s\n' "${runtime_dir}"
+      return 0
+    fi
+
+    mkdir -p "$(dirname "${runtime_dir}")"
+
+    if ! download_release_asset "${tar_name}" "${tarball_file}" 2>/dev/null; then
+      last_error="failed to download ${tar_name} from $(release_asset_base)."
+      rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
+      continue
+    fi
+
+    checksum_available=0
+    if download_release_asset "${sha_name}" "${checksum_file}" 2>/dev/null; then
+      checksum_available=1
+    fi
+
+    if [[ "${checksum_available}" == "1" ]]; then
+      if ! verify_sha256_file "${tarball_file}" "${checksum_file}"; then
+        rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
+        portable_die "PORTABLE_RUNTIME_CHECKSUM_FAILED" "sha256 mismatch for ${tar_name}; partial download removed."
+      fi
+    else
+      log "No checksum asset found for ${tar_name}; continuing without checksum verification"
+    fi
+
+    if ! tar -xzf "${tarball_file}" -C "${stage_root}"; then
+      rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
+      portable_die "PORTABLE_RUNTIME_UNPACK_FAILED" "failed to unpack ${tar_name}."
+    fi
+
+    if portable_runtime_ready "${stage_root}"; then
+      extracted_root="${stage_root}"
+    else
+      extracted_root="$(find "${stage_root}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+    fi
+    if [[ -z "${extracted_root}" ]]; then
+      rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
+      portable_die "PORTABLE_RUNTIME_UNPACK_FAILED" "archive did not contain a runtime directory."
+    fi
+
+    stage_runtime_dir="$(portable_runtime_dir_from_candidate "${extracted_root}")"
+    if ! portable_runtime_ready "${stage_runtime_dir}"; then
+      rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
+      portable_die "PORTABLE_RUNTIME_UNPACK_FAILED" "runtime extracted but required files are missing in ${stage_runtime_dir}."
+    fi
+
+    if [[ "${manifest_available}" == "1" ]]; then
+      cp "${manifest_file}" "${stage_runtime_dir}/manifest.json"
+    elif [[ ! -f "${stage_runtime_dir}/manifest.json" ]]; then
+      write_portable_runtime_manifest "${stage_runtime_dir}/manifest.json" "${runtime_version}" "${artifact_basename}"
+    fi
+    touch "${stage_runtime_dir}/.complete"
+
+    final_dir="${runtime_dir}.tmp.$$"
+    rm -rf "${final_dir}"
+    mv "${stage_runtime_dir}" "${final_dir}"
+    rm -rf "${runtime_dir}"
+    mv "${final_dir}" "${runtime_dir}"
+    chmod -R u+rwX "${runtime_dir}" >/dev/null 2>&1 || true
+
+    if ! portable_runtime_ready "${runtime_dir}"; then
+      rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
+      portable_die "PORTABLE_RUNTIME_UNPACK_FAILED" "runtime extracted but required files are missing in ${runtime_dir}."
+    fi
+
     rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
     printf '%s\n' "${runtime_dir}"
     return 0
-  fi
+  done < <(portable_runtime_artifact_basenames)
 
-  mkdir -p "$(dirname "${runtime_dir}")"
-
-  if ! download_release_asset "${tar_name}" "${tarball_file}"; then
-    portable_die "PORTABLE_RUNTIME_DOWNLOAD_FAILED" "failed to download ${tar_name} from $(release_asset_base)."
-  fi
-
-  if ! download_release_asset "${sha_name}" "${checksum_file}"; then
-    portable_die "PORTABLE_RUNTIME_DOWNLOAD_FAILED" "failed to download ${sha_name} from $(release_asset_base)."
-  fi
-
-  if ! verify_sha256_file "${tarball_file}" "${checksum_file}"; then
-    portable_die "PORTABLE_RUNTIME_CHECKSUM_FAILED" "sha256 mismatch for ${tar_name}; partial download removed."
-  fi
-
-  if ! tar -xzf "${tarball_file}" -C "${stage_root}"; then
-    portable_die "PORTABLE_RUNTIME_UNPACK_FAILED" "failed to unpack ${tar_name}."
-  fi
-
-  extracted_root="$(find "${stage_root}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-  if [[ -z "${extracted_root}" ]]; then
-    portable_die "PORTABLE_RUNTIME_UNPACK_FAILED" "archive did not contain a runtime directory."
-  fi
-
-  if [[ -d "${extracted_root}/${PORTABLE_RUNTIME_PLATFORM_DIR}" ]]; then
-    stage_runtime_dir="${extracted_root}/${PORTABLE_RUNTIME_PLATFORM_DIR}"
-  else
-    stage_runtime_dir="${extracted_root}"
-  fi
-
-  cp "${manifest_file}" "${stage_runtime_dir}/manifest.json"
-  touch "${stage_runtime_dir}/.complete"
-
-  final_dir="${runtime_dir}.tmp.$$"
-  rm -rf "${final_dir}"
-  mv "${stage_runtime_dir}" "${final_dir}"
-  rm -rf "${runtime_dir}"
-  mv "${final_dir}" "${runtime_dir}"
-  chmod -R u+rwX "${runtime_dir}" >/dev/null 2>&1 || true
-
-  if ! portable_runtime_ready "${runtime_dir}"; then
-    portable_die "PORTABLE_RUNTIME_UNPACK_FAILED" "runtime extracted but required files are missing in ${runtime_dir}."
-  fi
-
-  rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
-  printf '%s\n' "${runtime_dir}"
+  portable_die "PORTABLE_RUNTIME_DOWNLOAD_FAILED" "${last_error:-failed to download portable runtime from $(release_asset_base).}"
 }
 
 allocate_display() {
@@ -765,12 +917,36 @@ PY
   done
 }
 
-ensure_portable_xkbcomp_binding() {
+patch_portable_xvfb_binary() {
+  local source_xvfb="$1"
+  local patched_xvfb="$2"
+
+  mkdir -p "$(dirname "${patched_xvfb}")"
+  cp -f "${source_xvfb}" "${patched_xvfb}"
+  python3 - "${patched_xvfb}" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = path.read_bytes()
+needle = b"/usr/bin\x00"
+replacement = b".\x00" + (b"\x00" * (len(needle) - 2))
+if needle not in payload:
+    raise SystemExit(1)
+path.write_bytes(payload.replace(needle, replacement, 1))
+PY
+  chmod +x "${patched_xvfb}"
+}
+
+portable_xvfb_entrypoint() {
   local runtime_dir="$1"
+  local session_path="$2"
   local runtime_xkbcomp="${runtime_dir}/bin/xkbcomp"
   local system_xkbcomp="/usr/bin/xkbcomp"
+  local patched_xvfb="${session_path}/portable-bin/Xvfb"
 
   if [[ -x "${system_xkbcomp}" ]]; then
+    printf '%s\n' "${runtime_dir}/bin/Xvfb"
     return 0
   fi
 
@@ -780,16 +956,25 @@ ensure_portable_xkbcomp_binding() {
 
   if ln -sfn "${runtime_xkbcomp}" "${system_xkbcomp}" >/dev/null 2>&1; then
     log "Linked portable xkbcomp into ${system_xkbcomp}"
+    printf '%s\n' "${runtime_dir}/bin/Xvfb"
     return 0
   fi
 
   if cp -f "${runtime_xkbcomp}" "${system_xkbcomp}" >/dev/null 2>&1; then
     chmod +x "${system_xkbcomp}" >/dev/null 2>&1 || true
     log "Copied portable xkbcomp into ${system_xkbcomp}"
+    printf '%s\n' "${runtime_dir}/bin/Xvfb"
     return 0
   fi
 
-  portable_die "PORTABLE_XVFB_FAILED" "${system_xkbcomp} is missing and could not be installed from runtime payload."
+  if [[ ! -x "${patched_xvfb}" ]]; then
+    if ! patch_portable_xvfb_binary "${runtime_dir}/bin/Xvfb" "${patched_xvfb}"; then
+      portable_die "PORTABLE_XVFB_FAILED" "${system_xkbcomp} is missing and Xvfb could not be made self-contained with ${runtime_xkbcomp}."
+    fi
+  fi
+
+  log "Using self-contained portable Xvfb with bundled xkbcomp"
+  printf '%s\n' "${patched_xvfb}"
 }
 
 assert_not_headless_args() {
@@ -829,7 +1014,7 @@ choose_backend() {
       backend="portable"
       return 0
     fi
-    portable_die "PORTABLE_UNSUPPORTED_PLATFORM" "--backend portable requires Linux amd64 glibc."
+    portable_die "PORTABLE_UNSUPPORTED_PLATFORM" "--backend portable requires Linux amd64/arm64 glibc."
   fi
 
   if [[ "${BACKEND}" == "docker" ]]; then
@@ -868,7 +1053,7 @@ choose_backend() {
       portable_die "PORTABLE_UNSUPPORTED_PLATFORM" "portable backend is unavailable and Docker fallback is disabled inside this container. Set CLAWBROWSER_ALLOW_DOCKER_BACKEND=1 to force Docker."
     fi
 
-    portable_die "PORTABLE_UNSUPPORTED_PLATFORM" "portable backend supports Linux amd64 glibc only. Set CLAWBROWSER_ALLOW_DOCKER_BACKEND=1 to allow Docker fallback."
+    portable_die "PORTABLE_UNSUPPORTED_PLATFORM" "portable backend supports Linux amd64/arm64 glibc only. Set CLAWBROWSER_ALLOW_DOCKER_BACKEND=1 to allow Docker fallback."
   fi
 
   backend="docker"
@@ -1386,14 +1571,11 @@ launch_portable_session() {
   local host_port="$2"
   local session_path="$3"
   local config_path="$4"
-  local runtime_dir browser_exec display xdg_runtime_dir
+  local runtime_dir browser_exec display xdg_runtime_dir xvfb_exec portable_ld_library_path
   local xvfb_log browser_log launcher_log browser_pid xvfb_process_pid runtime_version
   local -a state_lines=()
 
   runtime_dir="$(ensure_portable_runtime)"
-  if [[ ! -w "$(dirname "${runtime_dir}")" ]]; then
-    portable_die "PORTABLE_RUNTIME_NO_WRITABLE_DIR" "runtime parent directory is not writable: $(dirname "${runtime_dir}")."
-  fi
   if [[ ! -x "${runtime_dir}" ]]; then
     portable_die "PORTABLE_RUNTIME_NOEXEC" "runtime directory is not executable: ${runtime_dir}."
   fi
@@ -1403,7 +1585,8 @@ launch_portable_session() {
     portable_die "PORTABLE_BROWSER_LAUNCH_FAILED" "portable runtime browser entrypoint missing under ${runtime_dir}."
   fi
 
-  ensure_portable_xkbcomp_binding "${runtime_dir}"
+  portable_ld_library_path="$(portable_library_path "${runtime_dir}")"
+  xvfb_exec="$(portable_xvfb_entrypoint "${runtime_dir}" "${session_path}")"
 
   assert_not_headless_args "${browser_args[@]}"
 
@@ -1421,18 +1604,20 @@ launch_portable_session() {
   launcher_log="${session_path}/launcher.log"
 
   log "Starting portable Xvfb on ${display}"
-  PORTABLE_DIR="${runtime_dir}" \
-  LD_LIBRARY_PATH="${runtime_dir}/lib/x86_64-linux-gnu:${runtime_dir}/lib/usr-x86_64-linux-gnu:${LD_LIBRARY_PATH:-}" \
-  FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
-  XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
-  XDG_DATA_DIRS="${runtime_dir}/share:${XDG_DATA_DIRS:-}" \
-  XDG_RUNTIME_DIR="${xdg_runtime_dir}" \
-  PATH="${runtime_dir}/bin:${PATH:-}" \
-  "${runtime_dir}/bin/Xvfb" "${display}" \
-    -screen 0 "${PORTABLE_DEFAULT_SCREEN}" \
-    -xkbdir "${runtime_dir}/share/X11/xkb" \
-    -nolisten tcp \
-    >"${xvfb_log}" 2>&1 &
+  (
+    cd "${runtime_dir}/bin"
+    PORTABLE_DIR="${runtime_dir}" \
+    LD_LIBRARY_PATH="${portable_ld_library_path}" \
+    FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
+    XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
+    XDG_DATA_DIRS="${runtime_dir}/share:${XDG_DATA_DIRS:-}" \
+    XDG_RUNTIME_DIR="${xdg_runtime_dir}" \
+    PATH="${runtime_dir}/bin:${PATH:-}" \
+    "${xvfb_exec}" "${display}" \
+      -screen 0 "${PORTABLE_DEFAULT_SCREEN}" \
+      -xkbdir "${runtime_dir}/share/X11/xkb" \
+      -nolisten tcp
+  ) >"${xvfb_log}" 2>&1 &
   xvfb_process_pid="$!"
 
   if ! wait_for_x_socket "${display}" "${PORTABLE_XVFB_TIMEOUT_SECONDS}"; then
@@ -1443,7 +1628,7 @@ launch_portable_session() {
   log "Starting portable browser on 127.0.0.1:${host_port}"
   DISPLAY="${display}" \
   PORTABLE_DIR="${runtime_dir}" \
-  LD_LIBRARY_PATH="${runtime_dir}/lib/x86_64-linux-gnu:${runtime_dir}/lib/usr-x86_64-linux-gnu:${LD_LIBRARY_PATH:-}" \
+  LD_LIBRARY_PATH="${portable_ld_library_path}" \
   FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
   XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
   XDG_DATA_DIRS="${runtime_dir}/share:${XDG_DATA_DIRS:-}" \
@@ -1475,7 +1660,7 @@ launch_portable_session() {
   state_lines+=("$(write_state_kv "xvfb_pid" "${xvfb_process_pid}")")
   state_lines+=("$(write_state_kv "sandbox" "off")")
   state_lines+=("$(write_state_kv "runtime_version" "${runtime_version}")")
-  state_lines+=("$(write_state_kv "runtime_platform" "linux-amd64-glibc")")
+  state_lines+=("$(write_state_kv "runtime_platform" "linux-$(portable_host_arch)-glibc")")
   state_lines+=("$(write_state_kv "runtime_kind" "portable-xvfb")")
   state_lines+=("$(write_state_kv "screen" "${PORTABLE_DEFAULT_SCREEN}")")
   state_lines+=("$(write_state_kv "browser_log" "${browser_log}")")
@@ -1530,6 +1715,10 @@ parse_common_options() {
       --backend)
         BACKEND="$2"
         shift 2
+        ;;
+      --self-contained|--standalone)
+        BACKEND="portable"
+        shift
         ;;
       --image)
         IMAGE="$2"
@@ -1738,7 +1927,7 @@ list_profiles() {
     mkdir -p "${session_path}/xdg-runtime-list"
     chmod 700 "${session_path}/xdg-runtime-list" 2>/dev/null || true
     PORTABLE_DIR="${runtime_dir}" \
-    LD_LIBRARY_PATH="${runtime_dir}/lib/x86_64-linux-gnu:${runtime_dir}/lib/usr-x86_64-linux-gnu:${LD_LIBRARY_PATH:-}" \
+    LD_LIBRARY_PATH="$(portable_library_path "${runtime_dir}")" \
     FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
     XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
     XDG_DATA_DIRS="${runtime_dir}/share:${XDG_DATA_DIRS:-}" \
