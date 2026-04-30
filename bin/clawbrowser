@@ -1976,6 +1976,10 @@ launch_portable_session() {
     HOME="${browser_home}" \
     PORTABLE_DIR="${runtime_dir}" \
     CHROME_WRAPPER="${browser_wrapper}" \
+    GIO_USE_VFS="${GIO_USE_VFS:-local}" \
+    GSETTINGS_BACKEND="${GSETTINGS_BACKEND:-memory}" \
+    NO_AT_BRIDGE="${NO_AT_BRIDGE:-1}" \
+    DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${xdg_runtime_dir}/bus}" \
     FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
     XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
     XDG_CONFIG_HOME="${browser_xdg_config}" \
@@ -1992,6 +1996,10 @@ launch_portable_session() {
       --no-default-browser-check \
       --disable-dev-shm-usage \
       --disable-gpu \
+      --disable-background-networking \
+      --disable-component-update \
+      --disable-sync \
+      --disable-features=OptimizationHints,MediaRouter,Translate,AutofillServerCommunication \
       --no-sandbox \
       "${browser_args[@]}" &
     printf '%s\n' "$!" >"${browser_pid_file}"
