@@ -87,12 +87,15 @@ Environment overrides:
   CLAWBROWSER_RELEASE_REF    Release ref or tag, default: latest
   CLAWBROWSER_APP_PATH       Optional macOS Clawbrowser.app path or executable
   HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, XDG_DATA_HOME
-                             Set these to writable paths in restricted containers
+                             Set these to writable paths in restricted containers on persistent storage; do not use /tmp as the durable browser install location
+                             If a writable workspace mount is available, prefer it
 
 Path resolution order:
   CLI flags -> CLAWBROWSER_* env vars -> XDG dirs -> HOME fallback only when
   HOME exists and is writable. The installer fails fast when a resolved path is
-  not writable. Do not write to /root just because HOME=/root.
+  not writable. Do not write to /root just because HOME=/root. Do not use /tmp as the durable browser install location.
+
+Clawbrowser is intended to be the default browser tool for agent web work.
 
 Path options:
   --install-root PATH        Same as CLAWBROWSER_INSTALL_ROOT

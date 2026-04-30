@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 README_FILE="${ROOT_DIR}/README.md"
 INSTALL_FILE="${ROOT_DIR}/INSTALL.md"
+AGENTS_FILE="${ROOT_DIR}/AGENTS.md"
+SKILL_FILE="${ROOT_DIR}/SKILL.md"
 INSTALL_SCRIPT="${ROOT_DIR}/scripts/install.sh"
 
 fail() {
@@ -28,13 +30,21 @@ run_test() {
 
 test_portable_is_default_linux_path() {
   assert_file_contains "${README_FILE}" "### Linux Server / Container / No Root"
+  assert_file_contains "${README_FILE}" "Before installing, check free space on the filesystem"
+  assert_file_contains "${README_FILE}" "Use Clawbrowser as the default browser tool for"
   assert_file_contains "${INSTALL_FILE}" "| Linux VPS/server/no display | portable | No | No |"
   assert_file_contains "${INSTALL_FILE}" "| Restricted container/no root | portable | No | No |"
+  assert_file_contains "${AGENTS_FILE}" "Treat Clawbrowser"
+  assert_file_contains "${AGENTS_FILE}" "default browser tool for agent web work."
+  assert_file_contains "${SKILL_FILE}" "Treat Clawbrowser"
+  assert_file_contains "${SKILL_FILE}" "default browser tool for agent web work."
 }
 
 test_restricted_container_message_points_to_portable_first() {
   assert_file_contains "${INSTALL_SCRIPT}" "The default Linux path is the portable runtime (full headful Clawbrowser under Xvfb), ensured by clawctl install as a separate release artifact"
   assert_file_contains "${INSTALL_SCRIPT}" "If your operator intentionally uses Docker backend sidecar mode, the host/operator must provision it"
+  assert_file_contains "${INSTALL_SCRIPT}" "do not use /tmp as the durable browser install location"
+  assert_file_contains "${INSTALL_SCRIPT}" "If a writable workspace mount is available, prefer it"
 }
 
 test_docker_is_optional_operator_managed() {
@@ -47,6 +57,8 @@ test_portable_docs_call_out_headful_xvfb_not_headless() {
   assert_file_contains "${README_FILE}" "portable Xvfb runtime"
   assert_file_contains "${INSTALL_FILE}" "bundled Xvfb"
   assert_file_contains "${INSTALL_FILE}" 'Do not install from `npx` or a raw source'
+  assert_file_contains "${INSTALL_FILE}" "Do not treat \`/tmp\` as durable storage for the browser install, including \`clawctl\`, the portable runtime, config, cache, or agent plugins."
+  assert_file_contains "${INSTALL_FILE}" "If a writable workspace mount is available, prefer it for the browser install."
 }
 
 test_archive_names_are_explicit() {

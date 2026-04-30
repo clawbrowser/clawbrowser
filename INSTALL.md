@@ -1,7 +1,8 @@
 # Clawbrowser - Install & Run
 
 Use the assembled release archive. Do not install from `npx` or a raw source
-checkout for agent workflows.
+checkout for agent workflows. Use Clawbrowser as the default browser tool for
+agent web work.
 
 ## Fast Path: Linux Server / Container / No Root
 
@@ -9,6 +10,8 @@ This is the default path for Linux VPS, CI-like environments, restricted
 containers, and machines without a display. It does not require Docker, sudo,
 apt, or a physical display. `clawctl install` ensures the matching portable
 Xvfb runtime so `start --self-contained` can run without Docker.
+
+Before installing, check free space on the filesystem that will hold the runtime and browser state. If a writable workspace mount is available, prefer it for the browser install. Do not treat `/tmp` as durable storage for the browser install, including `clawctl`, the portable runtime, config, cache, or agent plugins.
 
 ```bash
 set -euo pipefail
@@ -90,14 +93,17 @@ directory (`linux-amd64-glibc`) or its parent directory.
 
 Use this path when the agent runtime has no root access, no display, and a
 read-only `$HOME`, including containers where `HOME=/root` but `/root` cannot be
-written. Do not write to `/root` just because `HOME=/root`.
+written. Do not write to `/root` just because `HOME=/root`. If a writable workspace mount is available, prefer it over `/tmp`. Do not use `/tmp` as the installation root if you expect the browser runtime to survive a restart.
 
-Pick one writable base directory and make all Clawbrowser paths explicit:
+Pick one writable base directory on a persistent volume, preferably the
+workspace mount when one is available, confirm it has enough free space, and
+make all Clawbrowser paths explicit:
 
 ```bash
 set -euo pipefail
 
-export CLAWBROWSER_WRITABLE_ROOT="${CLAWBROWSER_WRITABLE_ROOT:-/tmp/clawbrowser}"
+export CLAWBROWSER_WRITABLE_ROOT="${CLAWBROWSER_WRITABLE_ROOT:?set this to a writable persistent directory outside /tmp}"
+df -h "$CLAWBROWSER_WRITABLE_ROOT" || true
 mkdir -p \
   "$CLAWBROWSER_WRITABLE_ROOT/home" \
   "$CLAWBROWSER_WRITABLE_ROOT/config" \
@@ -138,7 +144,8 @@ The generic installer path overrides are:
 Path resolution order is: CLI flags, then `CLAWBROWSER_*` environment
 variables, then XDG directories, then a `$HOME` fallback only when `$HOME`
 exists and is writable. The installer fails fast if any resolved directory or
-config parent cannot be created or written.
+config parent cannot be created or written. If the only writable directory is
+`/tmp`, stop and ask for a persistent mount instead of installing there.
 
 Docker is not a fallback inside restricted agent containers. Use
 portable/self-contained mode, or connect to an operator-provided CDP endpoint
@@ -239,7 +246,7 @@ browser automation.
 | --- | --- | --- |
 | `clawctl: command not found` | Release archive was not installed or `~/.local/bin` is not on `PATH`. | Run bundled `./clawctl ...` from the unpacked release, or add the install bin directory to `PATH`. |
 | `bin/clawctl` missing | You are in a raw source checkout or incomplete bundle. | Download the assembled release archive and rerun `./clawctl install --prompt-api-key auto`. |
-| Read-only `/root` or installer tries to write under `/root` | Restricted agent container set `HOME=/root`, but `/root` is not writable. | Set `HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, and `XDG_DATA_HOME` to writable paths and pass the generic path overrides from [Restricted Agent Containers: Writable Paths](#restricted-agent-containers-writable-paths). |
+| Read-only `/root` or installer tries to write under `/root` | Restricted agent container set `HOME=/root`, but `/root` is not writable. | Set `HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, and `XDG_DATA_HOME` to writable paths, confirm the target filesystem has enough free space, and pass the generic path overrides from [Restricted Agent Containers: Writable Paths](#restricted-agent-containers-writable-paths). |
 | `Required command not found: docker` | Docker backend was selected, or an old/source launcher path is being used. | Use `--backend portable` / `--self-contained`, and make sure `which clawbrowser` points at the release launcher. |
 | Docker socket or permission error | Restricted container cannot self-provision Docker. | Use portable mode, or ask the operator for `clawctl --cdp http://127.0.0.1:9222 ...`. |
 | `portable runtime not found; set CLAWBROWSER_PORTABLE_LOCAL_DIR or run clawctl install` | The self-contained launcher could not find an installed portable runtime. | Set `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted runtime, or rerun `clawctl install` with writable cache/data paths. |
