@@ -131,6 +131,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 chrome_wrapper = os.environ.get("CHROME_WRAPPER", "")
 if not chrome_wrapper or not os.path.exists(chrome_wrapper):
     raise SystemExit("portable browser wrapper was not exposed via CHROME_WRAPPER")
+if os.environ.get("PORTABLE_RUNTIME_LOADER_USED") != "1":
+    raise SystemExit("portable browser did not launch through the runtime loader")
 
 if "--list" in sys.argv[1:]:
     print(json.dumps([]))
@@ -238,13 +240,17 @@ SH
   chmod +x "${tmp}/bin/docker"
 
   cleanup() {
-    HOME=/root \
-    XDG_CONFIG_HOME="${opt_root}/config" \
-    XDG_CACHE_HOME="${opt_root}/cache" \
-    XDG_DATA_HOME="${opt_root}/data" \
-    CLAWBROWSER_PORTABLE_LOCAL_DIR="${runtime_parent}" \
-    "${BIN}" stop --session "${session}" >/dev/null 2>&1 || true
-    rm -rf "${tmp}" "${opt_root}"
+    if [[ -n "${session:-}" && -n "${opt_root:-}" && -n "${runtime_parent:-}" ]]; then
+      HOME=/root \
+      XDG_CONFIG_HOME="${opt_root}/config" \
+      XDG_CACHE_HOME="${opt_root}/cache" \
+      XDG_DATA_HOME="${opt_root}/data" \
+      CLAWBROWSER_PORTABLE_LOCAL_DIR="${runtime_parent}" \
+      "${BIN}" stop --session "${session}" >/dev/null 2>&1 || true
+    fi
+    [[ -n "${tmp:-}" ]] && rm -rf "${tmp}"
+    [[ -n "${opt_root:-}" ]] && rm -rf "${opt_root}"
+    true
   }
   trap cleanup RETURN EXIT
 
@@ -337,7 +343,8 @@ SH
   chmod +x "${tmp}/bin/docker"
 
   cleanup() {
-    rm -rf "${tmp}"
+    [[ -n "${tmp:-}" ]] && rm -rf "${tmp}"
+    true
   }
   trap cleanup RETURN EXIT
 

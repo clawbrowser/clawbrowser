@@ -862,6 +862,103 @@ portable_loader_or_die() {
   printf '%s\n' "${portable_loader}"
 }
 
+portable_binary_is_elf() {
+  local binary_path="$1"
+  [[ "$(LC_ALL=C head -c 4 "${binary_path}" 2>/dev/null || true)" == $'\177ELF' ]]
+}
+
+portable_browser_loader_link() {
+  local portable_loader="$1"
+  local link_path link_dir
+  link_path="$(python3 - "${portable_loader}" <<'PY'
+import hashlib
+import os
+import sys
+
+key = f"{os.getuid()}:{sys.argv[1]}".encode("utf-8", "surrogateescape")
+print(f"/tmp/cld-{hashlib.sha256(key).hexdigest()[:8]}/ld")
+PY
+)"
+  link_dir="$(dirname "${link_path}")"
+  mkdir -p "${link_dir}"
+  chmod 700 "${link_dir}" 2>/dev/null || true
+  ln -sf "${portable_loader}" "${link_path}"
+  printf '%s\n' "${link_path}"
+}
+
+patch_portable_browser_binary() {
+  local source_browser="$1"
+  local patched_browser="$2"
+  local loader_link="$3"
+
+  mkdir -p "$(dirname "${patched_browser}")"
+  if ! cp --reflink=auto -f "${source_browser}" "${patched_browser}" 2>/dev/null; then
+    cp -f "${source_browser}" "${patched_browser}"
+  fi
+  python3 - "${patched_browser}" "${loader_link}" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+loader = sys.argv[2].encode("utf-8", "surrogateescape") + b"\0"
+payload = path.read_bytes()
+candidates = [
+    b"/lib64/ld-linux-x86-64.so.2\0",
+    b"/lib/ld-linux-x86-64.so.2\0",
+    b"/lib/ld-linux-aarch64.so.1\0",
+]
+
+for needle in candidates:
+    offset = payload.find(needle)
+    if offset == -1:
+        continue
+    if len(loader) > len(needle):
+        raise SystemExit(f"portable loader link {loader[:-1]!r} is longer than ELF interpreter {needle[:-1]!r}")
+    replacement = loader + (b"\0" * (len(needle) - len(loader)))
+    path.write_bytes(payload[:offset] + replacement + payload[offset + len(needle):])
+    raise SystemExit(0)
+
+raise SystemExit("ELF interpreter path not found in portable browser binary")
+PY
+  chmod +x "${patched_browser}"
+}
+
+portable_prepared_browser_entrypoint() {
+  local session_path="$1"
+  local portable_loader="$2"
+  local browser_exec="$3"
+  local browser_cwd browser_base prepared_dir prepared_exec loader_link entry entry_base dest
+
+  if ! portable_binary_is_elf "${browser_exec}"; then
+    printf '%s\n' "${browser_exec}"
+    return 0
+  fi
+
+  browser_cwd="$(dirname "${browser_exec}")"
+  browser_base="$(basename "${browser_exec}")"
+  prepared_dir="${session_path}/portable-browser"
+  prepared_exec="${prepared_dir}/${browser_base}"
+  loader_link="$(portable_browser_loader_link "${portable_loader}")"
+
+  mkdir -p "${prepared_dir}"
+  for entry in "${browser_cwd}"/*; do
+    entry_base="$(basename "${entry}")"
+    if [[ "${entry_base}" == "${browser_base}" ]]; then
+      continue
+    fi
+    dest="${prepared_dir}/${entry_base}"
+    if [[ ! -e "${dest}" ]]; then
+      ln -s "${entry}" "${dest}" 2>/dev/null || true
+    fi
+  done
+
+  if [[ ! -x "${prepared_exec}" || "${browser_exec}" -nt "${prepared_exec}" ]]; then
+    patch_portable_browser_binary "${browser_exec}" "${prepared_exec}" "${loader_link}"
+  fi
+
+  printf '%s\n' "${prepared_exec}"
+}
+
 verify_sha256_file() {
   local file_path="$1"
   local checksum_path="$2"
@@ -1179,15 +1276,23 @@ EOF
 portable_browser_wrapper() {
   local session_path="$1"
   local portable_browser_ld_library_path="$2"
-  local browser_exec="$3"
+  local portable_loader="$3"
+  local browser_exec="$4"
   local portable_bin_dir="${session_path}/portable-bin"
   local wrapped_browser="${portable_bin_dir}/clawbrowser"
 
   mkdir -p "${portable_bin_dir}"
-  cat >"${wrapped_browser}" <<EOF
+  if portable_binary_is_elf "${browser_exec}"; then
+    cat >"${wrapped_browser}" <<EOF
 #!/bin/sh
 PORTABLE_BROWSER_WRAPPER_USED=1 LD_LIBRARY_PATH="${portable_browser_ld_library_path}" exec "${browser_exec}" "\$@"
 EOF
+  else
+    cat >"${wrapped_browser}" <<EOF
+#!/bin/sh
+PORTABLE_BROWSER_WRAPPER_USED=1 exec "${portable_loader}" --library-path "${portable_browser_ld_library_path}" "${browser_exec}" "\$@"
+EOF
+  fi
   chmod +x "${wrapped_browser}" >/dev/null 2>&1 || true
   printf '%s\n' "${wrapped_browser}"
 }
@@ -1807,13 +1912,14 @@ launch_portable_session() {
   if [[ -z "${browser_exec}" ]]; then
     portable_die "PORTABLE_BROWSER_LAUNCH_FAILED" "portable runtime browser entrypoint missing under ${runtime_dir}."
   fi
-  browser_cwd="$(dirname "${browser_exec}")"
 
   portable_ld_library_path="$(portable_library_path "${runtime_dir}")"
   portable_browser_ld_library_path="$(portable_browser_library_path "${runtime_dir}")"
   portable_loader="$(portable_loader_or_die "${runtime_dir}")"
+  browser_exec="$(portable_prepared_browser_entrypoint "${session_path}" "${portable_loader}" "${browser_exec}")"
+  browser_cwd="$(dirname "${browser_exec}")"
   xvfb_exec="$(portable_xvfb_entrypoint "${runtime_dir}" "${session_path}" "${portable_ld_library_path}" "${portable_loader}")"
-  browser_wrapper="$(portable_browser_wrapper "${session_path}" "${portable_browser_ld_library_path}" "${browser_exec}")"
+  browser_wrapper="$(portable_browser_wrapper "${session_path}" "${portable_browser_ld_library_path}" "${portable_loader}" "${browser_exec}")"
 
   assert_not_headless_args "${browser_args[@]}"
 
@@ -1860,11 +1966,11 @@ launch_portable_session() {
   rm -f "${browser_pid_file}" 2>/dev/null || true
   (
     cd "${browser_cwd}"
+    env -u LD_LIBRARY_PATH \
     DISPLAY="${display}" \
     HOME="${browser_home}" \
     PORTABLE_DIR="${runtime_dir}" \
     CHROME_WRAPPER="${browser_wrapper}" \
-    LD_LIBRARY_PATH="${portable_browser_ld_library_path}" \
     FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
     XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
     XDG_CONFIG_HOME="${browser_xdg_config}" \
@@ -1873,7 +1979,7 @@ launch_portable_session() {
     XDG_DATA_DIRS="${runtime_dir}/share:${XDG_DATA_DIRS:-}" \
     XDG_RUNTIME_DIR="${xdg_runtime_dir}" \
     PATH="${runtime_dir}/bin:${PATH:-}" \
-    "${browser_exec}" \
+    "${browser_wrapper}" \
       --remote-debugging-address=127.0.0.1 \
       --remote-debugging-port="${host_port}" \
       --user-data-dir="${config_path}" \
@@ -2204,9 +2310,10 @@ list_profiles() {
   elif [[ "${backend}" == "portable" ]]; then
     runtime_dir="$(ensure_portable_runtime)"
     browser_exec="$(portable_browser_entrypoint "${runtime_dir}")"
-    browser_cwd="$(dirname "${browser_exec}")"
     portable_browser_ld_library_path="$(portable_browser_library_path "${runtime_dir}")"
     portable_loader="$(portable_loader_or_die "${runtime_dir}")"
+    browser_exec="$(portable_prepared_browser_entrypoint "${session_path}" "${portable_loader}" "${browser_exec}")"
+    browser_cwd="$(dirname "${browser_exec}")"
     mkdir -p "${session_path}/xdg-runtime-list"
     browser_home="${session_path}/home-list"
     browser_xdg_config="${session_path}/xdg-config-list"
@@ -2214,13 +2321,13 @@ list_profiles() {
     browser_xdg_data="${session_path}/xdg-data-list"
     mkdir -p "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}"
     chmod 700 "${session_path}/xdg-runtime-list" "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}" 2>/dev/null || true
-    browser_wrapper="$(portable_browser_wrapper "${session_path}" "${portable_browser_ld_library_path}" "${browser_exec}")"
+    browser_wrapper="$(portable_browser_wrapper "${session_path}" "${portable_browser_ld_library_path}" "${portable_loader}" "${browser_exec}")"
     (
       cd "${browser_cwd}"
+      exec env -u LD_LIBRARY_PATH \
       HOME="${browser_home}" \
       PORTABLE_DIR="${runtime_dir}" \
       CHROME_WRAPPER="${browser_wrapper}" \
-      LD_LIBRARY_PATH="${portable_browser_ld_library_path}" \
       FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
       XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
       XDG_CONFIG_HOME="${browser_xdg_config}" \
@@ -2229,7 +2336,7 @@ list_profiles() {
       XDG_DATA_DIRS="${runtime_dir}/share:${XDG_DATA_DIRS:-}" \
       XDG_RUNTIME_DIR="${session_path}/xdg-runtime-list" \
       PATH="${runtime_dir}/bin:${PATH:-}" \
-      exec "${browser_exec}" \
+      "${browser_wrapper}" \
         --list \
         --output=json \
         --user-data-dir="${config_path}"

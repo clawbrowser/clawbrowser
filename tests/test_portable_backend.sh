@@ -108,11 +108,15 @@ test_source_contract_for_xkbcomp_binding() {
 
 test_source_contract_for_browser_loader_binding() {
   grep -Fq -- 'portable_browser_library_path' "${SOURCE_FILE}" || fail "portable browser library path helper missing"
+  grep -Fq -- 'portable_prepared_browser_entrypoint' "${SOURCE_FILE}" || fail "portable browser prepared entrypoint helper missing"
+  grep -Fq -- 'patch_portable_browser_binary' "${SOURCE_FILE}" || fail "portable browser interpreter patch helper missing"
+  grep -Fq -- 'portable_browser_loader_link' "${SOURCE_FILE}" || fail "portable browser loader symlink helper missing"
   grep -Fq -- 'portable_browser_wrapper' "${SOURCE_FILE}" || fail "portable browser wrapper helper missing"
-  grep -Fq -- 'PORTABLE_BROWSER_WRAPPER_USED=1 LD_LIBRARY_PATH=' "${SOURCE_FILE}" || fail "portable browser wrapper should isolate LD_LIBRARY_PATH"
+  grep -Fq -- 'PORTABLE_BROWSER_WRAPPER_USED=1 LD_LIBRARY_PATH="${portable_browser_ld_library_path}" exec "${browser_exec}"' "${SOURCE_FILE}" || fail "portable browser wrapper should execute patched browser with isolated library path"
+  grep -Fq -- 'PORTABLE_BROWSER_WRAPPER_USED=1 exec "${portable_loader}" --library-path "${portable_browser_ld_library_path}" "${browser_exec}"' "${SOURCE_FILE}" || fail "portable browser wrapper should use bundled loader for non-ELF test entrypoints"
   grep -Fq -- 'CHROME_WRAPPER="${browser_wrapper}"' "${SOURCE_FILE}" || fail "portable browser wrapper env missing"
-  grep -Fq -- 'LD_LIBRARY_PATH="${portable_browser_ld_library_path}"' "${SOURCE_FILE}" || fail "portable start should use filtered browser LD_LIBRARY_PATH"
-  grep -Fq -- 'exec "${browser_exec}"' "${SOURCE_FILE}" || fail "portable start should launch browser entrypoint directly"
+  grep -Fq -- 'env -u LD_LIBRARY_PATH' "${SOURCE_FILE}" || fail "portable browser launch should clear inherited LD_LIBRARY_PATH"
+  grep -Fq -- '"${browser_wrapper}"' "${SOURCE_FILE}" || fail "portable start should launch through prepared browser wrapper"
 }
 
 test_source_contract_for_self_contained_flag() {
