@@ -103,6 +103,7 @@ test_source_contract_for_xkbcomp_binding() {
   grep -Fq -- 'patch_portable_xvfb_binary' "${SOURCE_FILE}" || fail "portable Xvfb self-contained patch helper missing"
   grep -Fq -- 'portable_loader_path' "${SOURCE_FILE}" || fail "portable runtime loader helper missing"
   grep -Fq -- 'wrapped_xkbcomp=' "${SOURCE_FILE}" || fail "portable xkbcomp wrapper path missing"
+  grep -Fq -- 'prepare_x11_socket_dir' "${SOURCE_FILE}" || fail "portable Xvfb should prepare /tmp/.X11-unix for non-root containers"
   grep -Fq -- 'Using self-contained portable Xvfb/xkbcomp wrappers' "${SOURCE_FILE}" || fail "portable self-contained Xvfb wrapper log missing"
 }
 

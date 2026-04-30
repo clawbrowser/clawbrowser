@@ -1156,6 +1156,17 @@ allocate_display() {
   return 1
 }
 
+prepare_x11_socket_dir() {
+  local socket_dir="/tmp/.X11-unix"
+  if [[ ! -d "${socket_dir}" ]]; then
+    mkdir -p "${socket_dir}" 2>/dev/null || portable_die "PORTABLE_XVFB_FAILED" "failed to create ${socket_dir} for bundled Xvfb."
+  fi
+  chmod 1777 "${socket_dir}" 2>/dev/null || true
+  if [[ ! -w "${socket_dir}" || ! -x "${socket_dir}" ]]; then
+    portable_die "PORTABLE_XVFB_FAILED" "${socket_dir} is not writable/executable for bundled Xvfb."
+  fi
+}
+
 wait_for_x_socket() {
   local display="$1"
   local timeout_seconds="${2:-${PORTABLE_XVFB_TIMEOUT_SECONDS}}"
@@ -1916,6 +1927,7 @@ launch_portable_session() {
 
   assert_not_headless_args "${browser_args[@]}"
 
+  prepare_x11_socket_dir
   display="$(allocate_display || true)"
   if [[ -z "${display}" ]]; then
     portable_die "PORTABLE_XVFB_FAILED" "no free X display available in :${PORTABLE_DISPLAY_MIN}-:${PORTABLE_DISPLAY_MAX}."
