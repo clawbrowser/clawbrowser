@@ -1513,13 +1513,6 @@ PY
   done
 }
 
-portable_browser_log_has_cdp() {
-  local browser_log="$1"
-  local port="$2"
-  [[ -f "${browser_log}" ]] || return 1
-  grep -Fq "DevTools listening on ws://127.0.0.1:${port}/" "${browser_log}"
-}
-
 read_cdp_endpoint() {
   local port="$1"
   python3 - "$port" <<'PY'
@@ -1986,6 +1979,7 @@ launch_portable_session() {
       --no-first-run \
       --no-default-browser-check \
       --disable-dev-shm-usage \
+      --disable-gpu \
       --no-sandbox \
       "${browser_args[@]}" &
     printf '%s\n' "$!" >"${browser_pid_file}"
@@ -2221,8 +2215,6 @@ start_session() {
         log "Native app reused an existing browser session; attaching to 127.0.0.1:${existing_port}"
         host_port="${existing_port}"
         save_state "${session_slug}" "" "${host_port}" "app" "${existing_pid}"
-      elif [[ "${backend}" == "portable" ]] && portable_browser_log_has_cdp "${session_path}/browser.log" "${host_port}"; then
-        log "Portable browser reported CDP readiness in ${session_path}/browser.log"
       else
         log "CDP endpoint failed to become ready, stopping session"
         stop_session "${session_slug}"
@@ -2280,12 +2272,7 @@ print_endpoint() {
     die "No saved endpoint for session ${session_slug}"
   fi
   if ! is_cdp_alive "${host_port}" >/dev/null 2>&1; then
-    if [[ "${backend:-}" != "portable" ]]; then
-      die "Session ${session_slug} is not running"
-    fi
-    if ! portable_browser_log_has_cdp "${browser_log:-}" "${host_port}"; then
-      die "Session ${session_slug} is not running"
-    fi
+    die "Session ${session_slug} is not running"
   fi
   printf 'http://127.0.0.1:%s\n' "${host_port}"
 }

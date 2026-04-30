@@ -117,6 +117,10 @@ test_source_contract_for_browser_loader_binding() {
   grep -Fq -- 'CHROME_WRAPPER="${browser_wrapper}"' "${SOURCE_FILE}" || fail "portable browser wrapper env missing"
   grep -Fq -- 'env -u LD_LIBRARY_PATH' "${SOURCE_FILE}" || fail "portable browser launch should clear inherited LD_LIBRARY_PATH"
   grep -Fq -- '"${browser_wrapper}"' "${SOURCE_FILE}" || fail "portable start should launch through prepared browser wrapper"
+  grep -Fq -- '--disable-gpu' "${SOURCE_FILE}" || fail "portable start should disable GPU under Xvfb"
+  if grep -Fq -- 'Portable browser reported CDP readiness' "${SOURCE_FILE}"; then
+    fail "portable start must not treat browser log lines as CDP readiness"
+  fi
 }
 
 test_source_contract_for_self_contained_flag() {
