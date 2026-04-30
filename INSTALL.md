@@ -85,6 +85,64 @@ curl -fsS "$endpoint/json/version"
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` can point either at the extracted platform
 directory (`linux-amd64-glibc`) or its parent directory.
 
+## Restricted Agent Containers: Writable Paths
+
+Use this path when the agent runtime has no root access, no display, and a
+read-only `$HOME`, including containers where `HOME=/root` but `/root` cannot be
+written. Do not write to `/root` just because `HOME=/root`.
+
+Pick one writable base directory and make all Clawbrowser paths explicit:
+
+```bash
+set -euo pipefail
+
+export CLAWBROWSER_WRITABLE_ROOT="${CLAWBROWSER_WRITABLE_ROOT:-/tmp/clawbrowser}"
+mkdir -p \
+  "$CLAWBROWSER_WRITABLE_ROOT/home" \
+  "$CLAWBROWSER_WRITABLE_ROOT/config" \
+  "$CLAWBROWSER_WRITABLE_ROOT/cache" \
+  "$CLAWBROWSER_WRITABLE_ROOT/data"
+
+export HOME="$CLAWBROWSER_WRITABLE_ROOT/home"
+export XDG_CONFIG_HOME="$CLAWBROWSER_WRITABLE_ROOT/config"
+export XDG_CACHE_HOME="$CLAWBROWSER_WRITABLE_ROOT/cache"
+export XDG_DATA_HOME="$CLAWBROWSER_WRITABLE_ROOT/data"
+
+./clawctl install --prompt-api-key auto \
+  --install-root "$XDG_DATA_HOME/clawbrowser/runtime" \
+  --bin-dir "$XDG_DATA_HOME/clawbrowser/bin" \
+  --config-dir "$XDG_CONFIG_HOME/clawbrowser" \
+  --cache-dir "$XDG_CACHE_HOME/clawbrowser" \
+  --data-dir "$XDG_DATA_HOME/clawbrowser" \
+  --agent-config "$XDG_CONFIG_HOME/clawbrowser/agent-marketplace.json" \
+  --agent-plugins-dir "$XDG_DATA_HOME/clawbrowser/agent-plugins"
+
+export PATH="$XDG_DATA_HOME/clawbrowser/bin:$PATH"
+clawctl start --session work --url clawbrowser://verify/ --json
+clawctl endpoint --session work --json
+```
+
+The generic installer path overrides are:
+
+| CLI flag | Environment variable |
+| --- | --- |
+| `--install-root` | `CLAWBROWSER_INSTALL_ROOT` |
+| `--bin-dir` | `CLAWBROWSER_BIN_DIR` |
+| `--config-dir` | `CLAWBROWSER_CONFIG_DIR` |
+| `--cache-dir` | `CLAWBROWSER_CACHE_DIR` |
+| `--data-dir` | `CLAWBROWSER_DATA_DIR` |
+| `--agent-config` | `CLAWBROWSER_AGENT_CONFIG` |
+| `--agent-plugins-dir` | `CLAWBROWSER_AGENT_PLUGINS_DIR` |
+
+Path resolution order is: CLI flags, then `CLAWBROWSER_*` environment
+variables, then XDG directories, then a `$HOME` fallback only when `$HOME`
+exists and is writable. The installer fails fast if any resolved directory or
+config parent cannot be created or written.
+
+Docker is not a fallback inside restricted agent containers. Use
+portable/self-contained mode, or connect to an operator-provided CDP endpoint
+with `clawctl --cdp http://127.0.0.1:9222 ...`.
+
 ## Canonical Agent Flow
 
 Use `clawctl` for session lifecycle and use CDP for page automation.
@@ -122,11 +180,14 @@ for the real API key from `https://app.clawbrowser.ai` and writes it to the
 browser-managed `config.json`. Do not put API keys in MCP config, agent config,
 shell rc files, env files, or logs.
 
-Host config path:
+On regular hosts, the default config path resolves like this:
 
 ```bash
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser"
 ```
+
+In restricted containers, set `XDG_CONFIG_HOME` to a writable directory as shown
+above instead of relying on `$HOME`.
 
 Resolve that path before writing. Do not pass literal strings such as
 `${XDG_CONFIG_HOME:-$HOME/.config}/...`, `$HOME/...`, or `~/...` to file-write
@@ -137,7 +198,7 @@ tools.
 | Environment | Use | Docker? | Display? |
 | --- | --- | --- | --- |
 | Linux VPS/server/no display | portable | No | No |
-| Restricted container/no root | portable | No | No |
+| Restricted container/no root | portable/self-contained with explicit writable paths | No | No |
 | macOS desktop/Mac mini | native app | No | GUI session required |
 | Operator-managed Docker host | docker | Yes | No physical display |
 | Existing browser/CDP sidecar | `clawctl --cdp ...` | No from agent | External owner |
@@ -177,6 +238,7 @@ browser automation.
 | --- | --- | --- |
 | `clawctl: command not found` | Release archive was not installed or `~/.local/bin` is not on `PATH`. | Run bundled `./clawctl ...` from the unpacked release, or add the install bin directory to `PATH`. |
 | `bin/clawctl` missing | You are in a raw source checkout or incomplete bundle. | Download the assembled release archive and rerun `./clawctl install --prompt-api-key auto`. |
+| Read-only `/root` or installer tries to write under `/root` | Restricted agent container set `HOME=/root`, but `/root` is not writable. | Set `HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, and `XDG_DATA_HOME` to writable paths and pass the generic path overrides from [Restricted Agent Containers: Writable Paths](#restricted-agent-containers-writable-paths). |
 | `Required command not found: docker` | Docker backend was selected, or an old/source launcher path is being used. | Use `--backend portable` / `--self-contained`, and make sure `which clawbrowser` points at the release launcher. |
 | Docker socket or permission error | Restricted container cannot self-provision Docker. | Use portable mode, or ask the operator for `clawctl --cdp http://127.0.0.1:9222 ...`. |
 | Portable artifact missing | Current release lacks the matching portable runtime asset. | Check the release assets for `clawbrowser-portable-linux-<amd64|arm64>-glibc.*`, or pin to a release that has it. |

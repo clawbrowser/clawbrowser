@@ -3,13 +3,6 @@ set -euo pipefail
 
 SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPOSITORY="clawbrowser/clawbrowser"
-INSTALL_ROOT="${CLAWBROWSER_INSTALL_ROOT:-${HOME}/.clawbrowser}"
-INSTALL_BIN="${CLAWBROWSER_INSTALL_BIN:-${HOME}/.local/bin}"
-CODEX_PLUGINS_ROOT="${CLAWBROWSER_CODEX_PLUGINS_ROOT:-${HOME}/.codex/plugins}"
-CLAUDE_PLUGINS_ROOT="${CLAWBROWSER_CLAUDE_PLUGINS_ROOT:-${HOME}/.claude/plugins}"
-AGENTS_PLUGINS_ROOT="${CLAWBROWSER_AGENTS_PLUGINS_ROOT:-${HOME}/.agents/plugins}"
-HERMES_PLUGINS_ROOT="${CLAWBROWSER_HERMES_PLUGINS_ROOT:-${HOME}/.hermes/plugins}"
-GEMINI_EXTENSIONS_ROOT="${CLAWBROWSER_GEMINI_EXTENSIONS_ROOT:-${HOME}/.gemini/extensions}"
 RUNTIME_IMAGE="${CLAWBROWSER_RUNTIME_IMAGE:-docker.io/clawbrowser/clawbrowser:latest}"
 RELEASE_REF="${CLAWBROWSER_RELEASE_REF:-latest}"
 TARGET="${CLAWBROWSER_TARGET:-auto}"
@@ -23,22 +16,87 @@ die() {
   exit 1
 }
 
+home_writable() {
+  [[ -n "${HOME:-}" && -d "${HOME}" && -w "${HOME}" ]]
+}
+
+home_path_or_die() {
+  local suffix="$1"
+  local label="$2"
+  if home_writable; then
+    printf '%s/%s\n' "${HOME}" "${suffix}"
+    return 0
+  fi
+  die "No writable ${label} path resolved. Set the matching CLI flag or CLAWBROWSER_* env var. Do not write to /root just because HOME=/root."
+}
+
+xdg_or_home_path() {
+  local xdg_var="$1"
+  local home_suffix="$2"
+  local label="$3"
+  local xdg_value="${!xdg_var:-}"
+  if [[ -n "${xdg_value}" ]]; then
+    printf '%s/clawbrowser\n' "${xdg_value}"
+    return 0
+  fi
+  home_path_or_die "${home_suffix}" "${label}"
+}
+
+CONFIG_DIR="${CLAWBROWSER_CONFIG_DIR:-}"
+CACHE_DIR="${CLAWBROWSER_CACHE_DIR:-}"
+DATA_DIR="${CLAWBROWSER_DATA_DIR:-}"
+INSTALL_ROOT="${CLAWBROWSER_INSTALL_ROOT:-}"
+INSTALL_BIN="${CLAWBROWSER_BIN_DIR:-${CLAWBROWSER_INSTALL_BIN:-}}"
+AGENT_PLUGINS_DIR="${CLAWBROWSER_AGENT_PLUGINS_DIR:-}"
+AGENT_CONFIG="${CLAWBROWSER_AGENT_CONFIG:-}"
+AGENT_CONFIG_EXPLICIT=0
+if [[ -n "${CLAWBROWSER_AGENT_CONFIG:-}" ]]; then
+  AGENT_CONFIG_EXPLICIT=1
+fi
+CODEX_PLUGINS_ROOT="${CLAWBROWSER_CODEX_PLUGINS_ROOT:-}"
+CLAUDE_PLUGINS_ROOT="${CLAWBROWSER_CLAUDE_PLUGINS_ROOT:-}"
+AGENTS_PLUGINS_ROOT="${CLAWBROWSER_AGENTS_PLUGINS_ROOT:-}"
+HERMES_PLUGINS_ROOT="${CLAWBROWSER_HERMES_PLUGINS_ROOT:-}"
+GEMINI_EXTENSIONS_ROOT="${CLAWBROWSER_GEMINI_EXTENSIONS_ROOT:-}"
+
 usage() {
   cat <<'EOF'
 Usage:
   bash scripts/install.sh [auto|codex|claude|gemini|hermes|openclaw]
-  bash scripts/install.sh --target <auto|codex|claude|gemini|hermes|openclaw>
+  bash scripts/install.sh --target <auto|codex|claude|gemini|hermes|openclaw> [path options]
 
 Environment overrides:
   CLAWBROWSER_TARGET         Install target, default: auto
-  CLAWBROWSER_INSTALL_ROOT   Bundle install root, default: ~/.clawbrowser
-  CLAWBROWSER_INSTALL_BIN    Command install directory, default: ~/.local/bin
+  CLAWBROWSER_INSTALL_ROOT   Bundle install root
+  CLAWBROWSER_BIN_DIR        Command install directory
+  CLAWBROWSER_CONFIG_DIR     Browser-managed config directory
+  CLAWBROWSER_CACHE_DIR      Browser/runtime cache directory
+  CLAWBROWSER_DATA_DIR       Browser/runtime data directory
+  CLAWBROWSER_AGENT_CONFIG   Agent config file to update when applicable
+  CLAWBROWSER_AGENT_PLUGINS_DIR  Agent plugin root used when target-specific roots are not set
+  CLAWBROWSER_INSTALL_BIN    Legacy alias for CLAWBROWSER_BIN_DIR
   CLAWBROWSER_CLAUDE_PLUGINS_ROOT  Claude plugin directory, default: ~/.claude/plugins
   CLAWBROWSER_GEMINI_EXTENSIONS_ROOT  Gemini extension directory, default: ~/.gemini/extensions
   CLAWBROWSER_HERMES_PLUGINS_ROOT  Hermes plugin directory, default: ~/.hermes/plugins
   CLAWBROWSER_RUNTIME_IMAGE  Optional Docker backend image reference, default: docker.io/clawbrowser/clawbrowser:latest
   CLAWBROWSER_RELEASE_REF    Release ref or tag, default: latest
   CLAWBROWSER_APP_PATH       Optional macOS Clawbrowser.app path or executable
+  HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, XDG_DATA_HOME
+                             Set these to writable paths in restricted containers
+
+Path resolution order:
+  CLI flags -> CLAWBROWSER_* env vars -> XDG dirs -> HOME fallback only when
+  HOME exists and is writable. The installer fails fast when a resolved path is
+  not writable. Do not write to /root just because HOME=/root.
+
+Path options:
+  --install-root PATH        Same as CLAWBROWSER_INSTALL_ROOT
+  --bin-dir PATH             Same as CLAWBROWSER_BIN_DIR
+  --config-dir PATH          Same as CLAWBROWSER_CONFIG_DIR
+  --cache-dir PATH           Same as CLAWBROWSER_CACHE_DIR
+  --data-dir PATH            Same as CLAWBROWSER_DATA_DIR
+  --agent-config PATH        Same as CLAWBROWSER_AGENT_CONFIG
+  --agent-plugins-dir PATH   Same as CLAWBROWSER_AGENT_PLUGINS_DIR
 
 Linux servers/containers (default path):
   Use the portable runtime (headful Clawbrowser + bundled Xvfb), downloaded
@@ -181,6 +239,47 @@ parse_args() {
         TARGET="$(normalize_target "${2}")"
         shift 2
         ;;
+      --install-root)
+        [[ $# -ge 2 ]] || die "${1} requires a path"
+        INSTALL_ROOT="${2}"
+        shift 2
+        ;;
+      --bin-dir)
+        [[ $# -ge 2 ]] || die "${1} requires a path"
+        INSTALL_BIN="${2}"
+        shift 2
+        ;;
+      --config-dir)
+        [[ $# -ge 2 ]] || die "${1} requires a path"
+        CONFIG_DIR="${2}"
+        shift 2
+        ;;
+      --cache-dir)
+        [[ $# -ge 2 ]] || die "${1} requires a path"
+        CACHE_DIR="${2}"
+        shift 2
+        ;;
+      --data-dir)
+        [[ $# -ge 2 ]] || die "${1} requires a path"
+        DATA_DIR="${2}"
+        shift 2
+        ;;
+      --agent-config)
+        [[ $# -ge 2 ]] || die "${1} requires a path"
+        AGENT_CONFIG="${2}"
+        AGENT_CONFIG_EXPLICIT=1
+        AGENTS_PLUGINS_ROOT="$(dirname "${AGENT_CONFIG}")"
+        shift 2
+        ;;
+      --agent-plugins-dir)
+        [[ $# -ge 2 ]] || die "${1} requires a path"
+        AGENT_PLUGINS_DIR="${2}"
+        CODEX_PLUGINS_ROOT="${CLAWBROWSER_CODEX_PLUGINS_ROOT:-${AGENT_PLUGINS_DIR}/codex}"
+        CLAUDE_PLUGINS_ROOT="${CLAWBROWSER_CLAUDE_PLUGINS_ROOT:-${AGENT_PLUGINS_DIR}/claude}"
+        HERMES_PLUGINS_ROOT="${CLAWBROWSER_HERMES_PLUGINS_ROOT:-${AGENT_PLUGINS_DIR}/hermes}"
+        GEMINI_EXTENSIONS_ROOT="${CLAWBROWSER_GEMINI_EXTENSIONS_ROOT:-${AGENT_PLUGINS_DIR}/gemini}"
+        shift 2
+        ;;
       install)
         shift
         ;;
@@ -201,6 +300,123 @@ parse_args() {
   if [[ $# -gt 0 ]]; then
     die "Unexpected extra arguments: $*"
   fi
+}
+
+resolve_paths() {
+  local data_root_selected=0
+  local config_root_selected=0
+  local shared_agent_plugins_selected=0
+
+  if [[ -n "${DATA_DIR}" || -n "${XDG_DATA_HOME:-}" ]]; then
+    data_root_selected=1
+  fi
+  if [[ -n "${CONFIG_DIR}" || -n "${XDG_CONFIG_HOME:-}" ]]; then
+    config_root_selected=1
+  fi
+  if [[ -n "${AGENT_PLUGINS_DIR}" ]]; then
+    shared_agent_plugins_selected=1
+  fi
+
+  if [[ -z "${CONFIG_DIR}" ]]; then
+    CONFIG_DIR="$(xdg_or_home_path XDG_CONFIG_HOME ".config/clawbrowser" "config")"
+  fi
+  if [[ -z "${CACHE_DIR}" ]]; then
+    CACHE_DIR="$(xdg_or_home_path XDG_CACHE_HOME ".cache/clawbrowser" "cache")"
+  fi
+  if [[ -z "${DATA_DIR}" ]]; then
+    DATA_DIR="$(xdg_or_home_path XDG_DATA_HOME ".local/share/clawbrowser" "data")"
+  fi
+
+  if [[ -z "${INSTALL_ROOT}" ]]; then
+    if [[ "${data_root_selected}" == "1" ]]; then
+      INSTALL_ROOT="${DATA_DIR}/runtime"
+    else
+      INSTALL_ROOT="$(home_path_or_die ".clawbrowser" "install-root")"
+    fi
+  fi
+  if [[ -z "${INSTALL_BIN}" ]]; then
+    if [[ "${data_root_selected}" == "1" ]]; then
+      INSTALL_BIN="${DATA_DIR}/bin"
+    else
+      INSTALL_BIN="$(home_path_or_die ".local/bin" "bin-dir")"
+    fi
+  fi
+  if [[ -z "${AGENT_PLUGINS_DIR}" ]]; then
+    if [[ "${data_root_selected}" == "1" ]]; then
+      AGENT_PLUGINS_DIR="${DATA_DIR}/agent-plugins"
+    else
+      AGENT_PLUGINS_DIR="$(home_path_or_die ".local/share/clawbrowser/agent-plugins" "agent-plugins-dir")"
+    fi
+  fi
+  if [[ -z "${AGENT_CONFIG}" ]]; then
+    if [[ "${config_root_selected}" == "1" ]]; then
+      AGENT_CONFIG="${CONFIG_DIR}/agent-marketplace.json"
+    else
+      AGENT_CONFIG="$(home_path_or_die ".agents/plugins/marketplace.json" "agent-config")"
+    fi
+  fi
+
+  if [[ -z "${CODEX_PLUGINS_ROOT}" ]]; then
+    if [[ "${data_root_selected}" == "1" || "${shared_agent_plugins_selected}" == "1" ]]; then
+      CODEX_PLUGINS_ROOT="${AGENT_PLUGINS_DIR}/codex"
+    else
+      CODEX_PLUGINS_ROOT="$(home_path_or_die ".codex/plugins" "codex plugins")"
+    fi
+  fi
+  if [[ -z "${CLAUDE_PLUGINS_ROOT}" ]]; then
+    if [[ "${data_root_selected}" == "1" || "${shared_agent_plugins_selected}" == "1" ]]; then
+      CLAUDE_PLUGINS_ROOT="${AGENT_PLUGINS_DIR}/claude"
+    else
+      CLAUDE_PLUGINS_ROOT="$(home_path_or_die ".claude/plugins" "claude plugins")"
+    fi
+  fi
+  if [[ -z "${AGENTS_PLUGINS_ROOT}" ]]; then
+    AGENTS_PLUGINS_ROOT="$(dirname "${AGENT_CONFIG}")"
+  fi
+  if [[ -z "${HERMES_PLUGINS_ROOT}" ]]; then
+    if [[ "${data_root_selected}" == "1" || "${shared_agent_plugins_selected}" == "1" ]]; then
+      HERMES_PLUGINS_ROOT="${AGENT_PLUGINS_DIR}/hermes"
+    else
+      HERMES_PLUGINS_ROOT="$(home_path_or_die ".hermes/plugins" "hermes plugins")"
+    fi
+  fi
+  if [[ -z "${GEMINI_EXTENSIONS_ROOT}" ]]; then
+    if [[ "${data_root_selected}" == "1" || "${shared_agent_plugins_selected}" == "1" ]]; then
+      GEMINI_EXTENSIONS_ROOT="${AGENT_PLUGINS_DIR}/gemini"
+    else
+      GEMINI_EXTENSIONS_ROOT="$(home_path_or_die ".gemini/extensions" "gemini extensions")"
+    fi
+  fi
+}
+
+ensure_writable_dir() {
+  local path="$1"
+  local label="$2"
+  if ! mkdir -p "${path}" 2>/dev/null; then
+    die "${label} is not writable or cannot be created: ${path}"
+  fi
+  if [[ ! -d "${path}" || ! -w "${path}" ]]; then
+    die "${label} is not writable: ${path}"
+  fi
+}
+
+ensure_writable_file_parent() {
+  local path="$1"
+  local label="$2"
+  ensure_writable_dir "$(dirname "${path}")" "${label} parent"
+  if [[ -e "${path}" && ! -w "${path}" ]]; then
+    die "${label} is not writable: ${path}"
+  fi
+}
+
+ensure_writable_paths() {
+  ensure_writable_dir "${INSTALL_ROOT}" "install root"
+  ensure_writable_dir "${INSTALL_BIN}" "bin dir"
+  ensure_writable_dir "${CONFIG_DIR}" "config dir"
+  ensure_writable_dir "${CACHE_DIR}" "cache dir"
+  ensure_writable_dir "${DATA_DIR}" "data dir"
+  ensure_writable_file_parent "${AGENT_CONFIG}" "agent config"
+  ensure_writable_dir "${AGENT_PLUGINS_DIR}" "agent plugins dir"
 }
 
 require_command() {
@@ -265,6 +481,7 @@ is_macos() {
 
 resolve_app_binary() {
   local candidate bundle
+  local bundles=("${INSTALL_ROOT}/Clawbrowser.app")
 
   if [[ -n "${CLAWBROWSER_APP_PATH:-}" ]]; then
     if [[ "${CLAWBROWSER_APP_PATH}" == *.app ]]; then
@@ -282,14 +499,17 @@ resolve_app_binary() {
     return 1
   fi
 
-  for bundle in \
-    "${INSTALL_ROOT}/Clawbrowser.app" \
-    "${HOME}/.clawbrowser/Clawbrowser.app" \
-    "${HOME}/Desktop/Clawbrowser.app" \
-    "${HOME}/Downloads/Clawbrowser.app" \
-    "${HOME}/Applications/Clawbrowser.app" \
-    "/Applications/Clawbrowser.app"
-  do
+  if [[ -n "${HOME:-}" ]]; then
+    bundles+=(
+      "${HOME}/.clawbrowser/Clawbrowser.app"
+      "${HOME}/Desktop/Clawbrowser.app"
+      "${HOME}/Downloads/Clawbrowser.app"
+      "${HOME}/Applications/Clawbrowser.app"
+    )
+  fi
+  bundles+=("/Applications/Clawbrowser.app")
+
+  for bundle in "${bundles[@]}"; do
     candidate="${bundle}/Contents/MacOS/Clawbrowser"
     if [[ -x "${candidate}" ]]; then
       printf '%s\n' "${candidate}"
@@ -302,6 +522,7 @@ resolve_app_binary() {
 
 resolve_app_bundle() {
   local candidate
+  local candidates=("${INSTALL_ROOT}/Clawbrowser.app")
   if [[ -n "${CLAWBROWSER_APP_PATH:-}" ]]; then
     if [[ "${CLAWBROWSER_APP_PATH}" == *.app ]]; then
       candidate="${CLAWBROWSER_APP_PATH}"
@@ -318,13 +539,16 @@ resolve_app_bundle() {
     return 1
   fi
 
-  for candidate in \
-    "${INSTALL_ROOT}/Clawbrowser.app" \
-    "${HOME}/Desktop/Clawbrowser.app" \
-    "${HOME}/Downloads/Clawbrowser.app" \
-    "${HOME}/Applications/Clawbrowser.app" \
-    "/Applications/Clawbrowser.app"
-  do
+  if [[ -n "${HOME:-}" ]]; then
+    candidates+=(
+      "${HOME}/Desktop/Clawbrowser.app"
+      "${HOME}/Downloads/Clawbrowser.app"
+      "${HOME}/Applications/Clawbrowser.app"
+    )
+  fi
+  candidates+=("/Applications/Clawbrowser.app")
+
+  for candidate in "${candidates[@]}"; do
     if [[ -d "${candidate}" ]]; then
       python3 - "$candidate" <<'PY'
 import os
@@ -522,7 +746,7 @@ install_claude_plugin() {
 }
 
 write_codex_marketplace() {
-  local marketplace_file="${AGENTS_PLUGINS_ROOT}/marketplace.json"
+  local marketplace_file="${AGENT_CONFIG}"
   local plugin_dir="${CODEX_PLUGINS_ROOT}/clawbrowser"
 
   if [[ ! -d "${plugin_dir}" ]]; then
@@ -776,9 +1000,17 @@ install_openclaw_plugin() {
 }
 
 enable_hermes_plugin() {
-  local hermes_config="${HOME}/.hermes/config.yaml"
+  local hermes_config
   local resolved_install_bin
   local mcp_command
+
+  if [[ "${AGENT_CONFIG_EXPLICIT}" == "1" ]]; then
+    hermes_config="${AGENT_CONFIG}"
+  elif [[ -n "${XDG_CONFIG_HOME:-}" || -n "${CLAWBROWSER_CONFIG_DIR:-}" ]]; then
+    hermes_config="${CONFIG_DIR}/hermes/config.yaml"
+  else
+    hermes_config="$(home_path_or_die ".hermes/config.yaml" "Hermes config")"
+  fi
 
   resolved_install_bin="$(absolute_path "${INSTALL_BIN}")"
   mcp_command="${resolved_install_bin}/clawctl"
@@ -967,6 +1199,8 @@ docker_image_available() {
 
 main() {
   parse_args "$@"
+  resolve_paths
+  ensure_writable_paths
   resolve_target
   require_command bash
   require_command mktemp
