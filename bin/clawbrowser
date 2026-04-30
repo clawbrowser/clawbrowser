@@ -223,6 +223,10 @@ ensure_prompt_context() {
     fi
   fi
 
+  if browser_args_skip_verify; then
+    return 0
+  fi
+
   log "No API key found. Get one at https://app.clawbrowser.ai"
 
   if [[ -t 0 ]]; then
@@ -236,6 +240,18 @@ ensure_prompt_context() {
   if [[ -z "${CLAWBROWSER_API_KEY}" ]]; then
     die "API key cannot be empty."
   fi
+}
+
+browser_args_skip_verify() {
+  local arg
+  for arg in "${browser_args[@]}"; do
+    case "${arg}" in
+      --skip-verify|--list)
+        return 0
+        ;;
+    esac
+  done
+  return 1
 }
 
 config_dir() {
@@ -803,6 +819,15 @@ portable_library_path() {
     "${runtime_dir}"
 }
 
+portable_browser_library_path() {
+  local runtime_dir="$1"
+  local arch_dir
+  arch_dir="$(portable_debian_arch_dir)" || return 1
+  printf '%s/lib/usr-%s:%s/lib' \
+    "${runtime_dir}" "${arch_dir}" \
+    "${runtime_dir}"
+}
+
 portable_loader_filename() {
   case "$(portable_host_arch)" in
     amd64) printf '%s\n' ld-linux-x86-64.so.2 ;;
@@ -825,6 +850,16 @@ portable_loader_path() {
     fi
   done
   return 1
+}
+
+portable_loader_or_die() {
+  local runtime_dir="$1"
+  local portable_loader
+  portable_loader="$(portable_loader_path "${runtime_dir}" 2>/dev/null || true)"
+  if [[ -z "${portable_loader}" || ! -x "${portable_loader}" ]]; then
+    portable_die "PORTABLE_RUNTIME_NOEXEC" "portable runtime loader not found under ${runtime_dir}/lib."
+  fi
+  printf '%s\n' "${portable_loader}"
 }
 
 verify_sha256_file() {
@@ -1054,6 +1089,35 @@ PY
   done
 }
 
+wait_for_file() {
+  local file_path="$1"
+  local timeout_seconds="$2"
+  local deadline
+
+  deadline="$(python3 - "${timeout_seconds}" <<'PY'
+import sys
+import time
+print(time.time() + float(sys.argv[1]))
+PY
+)"
+
+  while :; do
+    if [[ -s "${file_path}" ]]; then
+      return 0
+    fi
+    if python3 - "${deadline}" <<'PY'
+import sys
+import time
+deadline = float(sys.argv[1])
+sys.exit(0 if time.time() > deadline else 1)
+PY
+    then
+      return 1
+    fi
+    sleep 0.1
+  done
+}
+
 patch_portable_xvfb_binary() {
   local source_xvfb="$1"
   local patched_xvfb="$2"
@@ -1110,6 +1174,22 @@ EOF
 
   log "Using self-contained portable Xvfb/xkbcomp wrappers"
   printf '%s\n' "${patched_xvfb}"
+}
+
+portable_browser_wrapper() {
+  local session_path="$1"
+  local portable_browser_ld_library_path="$2"
+  local browser_exec="$3"
+  local portable_bin_dir="${session_path}/portable-bin"
+  local wrapped_browser="${portable_bin_dir}/clawbrowser"
+
+  mkdir -p "${portable_bin_dir}"
+  cat >"${wrapped_browser}" <<EOF
+#!/bin/sh
+PORTABLE_BROWSER_WRAPPER_USED=1 LD_LIBRARY_PATH="${portable_browser_ld_library_path}" exec "${browser_exec}" "\$@"
+EOF
+  chmod +x "${wrapped_browser}" >/dev/null 2>&1 || true
+  printf '%s\n' "${wrapped_browser}"
 }
 
 assert_not_headless_args() {
@@ -1326,6 +1406,13 @@ PY
 
     sleep 0.25
   done
+}
+
+portable_browser_log_has_cdp() {
+  local browser_log="$1"
+  local port="$2"
+  [[ -f "${browser_log}" ]] || return 1
+  grep -Fq "DevTools listening on ws://127.0.0.1:${port}/" "${browser_log}"
 }
 
 read_cdp_endpoint() {
@@ -1706,8 +1793,9 @@ launch_portable_session() {
   local host_port="$2"
   local session_path="$3"
   local config_path="$4"
-  local runtime_dir browser_exec display xdg_runtime_dir xvfb_exec portable_ld_library_path portable_loader
-  local xvfb_log browser_log launcher_log browser_pid xvfb_process_pid runtime_version
+  local runtime_dir browser_exec browser_cwd browser_wrapper display xdg_runtime_dir xvfb_exec portable_ld_library_path portable_browser_ld_library_path portable_loader
+  local browser_home browser_xdg_config browser_xdg_cache browser_xdg_data
+  local xvfb_log browser_log launcher_log browser_pid browser_pid_file xvfb_process_pid runtime_version
   local -a state_lines=()
 
   runtime_dir="$(ensure_portable_runtime)"
@@ -1719,13 +1807,13 @@ launch_portable_session() {
   if [[ -z "${browser_exec}" ]]; then
     portable_die "PORTABLE_BROWSER_LAUNCH_FAILED" "portable runtime browser entrypoint missing under ${runtime_dir}."
   fi
+  browser_cwd="$(dirname "${browser_exec}")"
 
   portable_ld_library_path="$(portable_library_path "${runtime_dir}")"
-  portable_loader="$(portable_loader_path "${runtime_dir}" 2>/dev/null || true)"
-  if [[ -z "${portable_loader}" || ! -x "${portable_loader}" ]]; then
-    portable_die "PORTABLE_XVFB_FAILED" "portable runtime loader not found under ${runtime_dir}/lib."
-  fi
+  portable_browser_ld_library_path="$(portable_browser_library_path "${runtime_dir}")"
+  portable_loader="$(portable_loader_or_die "${runtime_dir}")"
   xvfb_exec="$(portable_xvfb_entrypoint "${runtime_dir}" "${session_path}" "${portable_ld_library_path}" "${portable_loader}")"
+  browser_wrapper="$(portable_browser_wrapper "${session_path}" "${portable_browser_ld_library_path}" "${browser_exec}")"
 
   assert_not_headless_args "${browser_args[@]}"
 
@@ -1735,11 +1823,16 @@ launch_portable_session() {
   fi
 
   xdg_runtime_dir="${session_path}/xdg-runtime"
-  mkdir -p "${session_path}" "${config_path}" "${xdg_runtime_dir}"
-  chmod 700 "${session_path}" "${config_path}" "${xdg_runtime_dir}" 2>/dev/null || true
+  browser_home="${session_path}/home"
+  browser_xdg_config="${session_path}/xdg-config"
+  browser_xdg_cache="${session_path}/xdg-cache"
+  browser_xdg_data="${session_path}/xdg-data"
+  mkdir -p "${session_path}" "${config_path}" "${xdg_runtime_dir}" "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}"
+  chmod 700 "${session_path}" "${config_path}" "${xdg_runtime_dir}" "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}" 2>/dev/null || true
 
   xvfb_log="${session_path}/xvfb.log"
   browser_log="${session_path}/browser.log"
+  browser_pid_file="${session_path}/browser.pid"
   launcher_log="${session_path}/launcher.log"
 
   log "Starting portable Xvfb on ${display}"
@@ -1764,25 +1857,38 @@ launch_portable_session() {
   fi
 
   log "Starting portable browser on 127.0.0.1:${host_port}"
-  DISPLAY="${display}" \
-  PORTABLE_DIR="${runtime_dir}" \
-  LD_LIBRARY_PATH="${portable_ld_library_path}" \
-  FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
-  XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
-  XDG_DATA_DIRS="${runtime_dir}/share:${XDG_DATA_DIRS:-}" \
-  XDG_RUNTIME_DIR="${xdg_runtime_dir}" \
-  PATH="${runtime_dir}/bin:${PATH:-}" \
-  nohup "${browser_exec}" \
-    --remote-debugging-address=127.0.0.1 \
-    --remote-debugging-port="${host_port}" \
-    --user-data-dir="${config_path}" \
-    --no-first-run \
-    --no-default-browser-check \
-    --disable-dev-shm-usage \
-    --no-sandbox \
-    "${browser_args[@]}" \
-    >"${browser_log}" 2>&1 &
-  browser_pid="$!"
+  rm -f "${browser_pid_file}" 2>/dev/null || true
+  (
+    cd "${browser_cwd}"
+    DISPLAY="${display}" \
+    HOME="${browser_home}" \
+    PORTABLE_DIR="${runtime_dir}" \
+    CHROME_WRAPPER="${browser_wrapper}" \
+    LD_LIBRARY_PATH="${portable_browser_ld_library_path}" \
+    FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
+    XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
+    XDG_CONFIG_HOME="${browser_xdg_config}" \
+    XDG_CACHE_HOME="${browser_xdg_cache}" \
+    XDG_DATA_HOME="${browser_xdg_data}" \
+    XDG_DATA_DIRS="${runtime_dir}/share:${XDG_DATA_DIRS:-}" \
+    XDG_RUNTIME_DIR="${xdg_runtime_dir}" \
+    PATH="${runtime_dir}/bin:${PATH:-}" \
+    "${browser_exec}" \
+      --remote-debugging-address=127.0.0.1 \
+      --remote-debugging-port="${host_port}" \
+      --user-data-dir="${config_path}" \
+      --no-first-run \
+      --no-default-browser-check \
+      --disable-dev-shm-usage \
+      --no-sandbox \
+      "${browser_args[@]}" &
+    printf '%s\n' "$!" >"${browser_pid_file}"
+  ) >"${browser_log}" 2>&1 &
+  if ! wait_for_file "${browser_pid_file}" 5; then
+    kill "${xvfb_process_pid}" >/dev/null 2>&1 || true
+    portable_die "PORTABLE_BROWSER_LAUNCH_FAILED" "portable browser PID was not recorded. Logs: ${browser_log}"
+  fi
+  browser_pid="$(cat "${browser_pid_file}")"
 
   if ! kill -0 "${browser_pid}" >/dev/null 2>&1; then
     kill "${xvfb_process_pid}" >/dev/null 2>&1 || true
@@ -1949,9 +2055,9 @@ start_session() {
     rm -f "${config_path}/config.json" 2>/dev/null || true
   fi
 
+  build_browser_args
   ensure_prompt_context "${session_slug}"
   seed_session_config "${config_path}"
-  build_browser_args
 
   if [[ "${backend}" == "app" ]]; then
     app_exec="$(resolve_app_binary)"
@@ -2009,6 +2115,8 @@ start_session() {
         log "Native app reused an existing browser session; attaching to 127.0.0.1:${existing_port}"
         host_port="${existing_port}"
         save_state "${session_slug}" "" "${host_port}" "app" "${existing_pid}"
+      elif [[ "${backend}" == "portable" ]] && portable_browser_log_has_cdp "${session_path}/browser.log" "${host_port}"; then
+        log "Portable browser reported CDP readiness in ${session_path}/browser.log"
       else
         log "CDP endpoint failed to become ready, stopping session"
         stop_session "${session_slug}"
@@ -2066,13 +2174,19 @@ print_endpoint() {
     die "No saved endpoint for session ${session_slug}"
   fi
   if ! is_cdp_alive "${host_port}" >/dev/null 2>&1; then
-    die "Session ${session_slug} is not running"
+    if [[ "${backend:-}" != "portable" ]]; then
+      die "Session ${session_slug} is not running"
+    fi
+    if ! portable_browser_log_has_cdp "${browser_log:-}" "${host_port}"; then
+      die "Session ${session_slug} is not running"
+    fi
   fi
   printf 'http://127.0.0.1:%s\n' "${host_port}"
 }
 
 list_profiles() {
-  local session_slug session_path config_path app_exec runtime_dir browser_exec
+  local session_slug session_path config_path app_exec runtime_dir browser_exec browser_cwd browser_wrapper portable_browser_ld_library_path portable_loader
+  local browser_home browser_xdg_config browser_xdg_cache browser_xdg_data
   session_slug="$(sanitize_name "${session_name}")"
   session_path="$(session_dir "${session_slug}")"
   config_path="${session_path}/config"
@@ -2090,19 +2204,36 @@ list_profiles() {
   elif [[ "${backend}" == "portable" ]]; then
     runtime_dir="$(ensure_portable_runtime)"
     browser_exec="$(portable_browser_entrypoint "${runtime_dir}")"
+    browser_cwd="$(dirname "${browser_exec}")"
+    portable_browser_ld_library_path="$(portable_browser_library_path "${runtime_dir}")"
+    portable_loader="$(portable_loader_or_die "${runtime_dir}")"
     mkdir -p "${session_path}/xdg-runtime-list"
-    chmod 700 "${session_path}/xdg-runtime-list" 2>/dev/null || true
-    PORTABLE_DIR="${runtime_dir}" \
-    LD_LIBRARY_PATH="$(portable_library_path "${runtime_dir}")" \
-    FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
-    XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
-    XDG_DATA_DIRS="${runtime_dir}/share:${XDG_DATA_DIRS:-}" \
-    XDG_RUNTIME_DIR="${session_path}/xdg-runtime-list" \
-    PATH="${runtime_dir}/bin:${PATH:-}" \
-    "${browser_exec}" \
-      --list \
-      --output=json \
-      --user-data-dir="${config_path}"
+    browser_home="${session_path}/home-list"
+    browser_xdg_config="${session_path}/xdg-config-list"
+    browser_xdg_cache="${session_path}/xdg-cache-list"
+    browser_xdg_data="${session_path}/xdg-data-list"
+    mkdir -p "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}"
+    chmod 700 "${session_path}/xdg-runtime-list" "${browser_home}" "${browser_xdg_config}" "${browser_xdg_cache}" "${browser_xdg_data}" 2>/dev/null || true
+    browser_wrapper="$(portable_browser_wrapper "${session_path}" "${portable_browser_ld_library_path}" "${browser_exec}")"
+    (
+      cd "${browser_cwd}"
+      HOME="${browser_home}" \
+      PORTABLE_DIR="${runtime_dir}" \
+      CHROME_WRAPPER="${browser_wrapper}" \
+      LD_LIBRARY_PATH="${portable_browser_ld_library_path}" \
+      FONTCONFIG_PATH="${runtime_dir}/etc/fonts" \
+      XKB_CONFIG_ROOT="${runtime_dir}/share/X11/xkb" \
+      XDG_CONFIG_HOME="${browser_xdg_config}" \
+      XDG_CACHE_HOME="${browser_xdg_cache}" \
+      XDG_DATA_HOME="${browser_xdg_data}" \
+      XDG_DATA_DIRS="${runtime_dir}/share:${XDG_DATA_DIRS:-}" \
+      XDG_RUNTIME_DIR="${session_path}/xdg-runtime-list" \
+      PATH="${runtime_dir}/bin:${PATH:-}" \
+      exec "${browser_exec}" \
+        --list \
+        --output=json \
+        --user-data-dir="${config_path}"
+    )
   else
     if [[ -z "${IMAGE}" ]]; then
       resolve_image

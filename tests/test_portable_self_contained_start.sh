@@ -117,14 +117,24 @@ SH
 if [[ "${1:-}" == "--library-path" ]]; then
   shift 2
 fi
+export PORTABLE_RUNTIME_LOADER_USED=1
 exec "$@"
 SH
 
   cat >"${runtime_dir}/clawbrowser/clawbrowser.real" <<'PY'
 #!/usr/bin/env python3
 import json
+import os
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+chrome_wrapper = os.environ.get("CHROME_WRAPPER", "")
+if not chrome_wrapper or not os.path.exists(chrome_wrapper):
+    raise SystemExit("portable browser wrapper was not exposed via CHROME_WRAPPER")
+
+if "--list" in sys.argv[1:]:
+    print(json.dumps([]))
+    raise SystemExit(0)
 
 port = None
 for arg in sys.argv[1:]:
@@ -250,7 +260,6 @@ SH
       CLAWBROWSER_DATA_DIR=/root/should-not-win/data \
       CLAWBROWSER_DOCKER_BIN="${tmp}/bin/docker" \
       CLAWBROWSER_PORTABLE_LOCAL_DIR="${runtime_parent}" \
-      CLAWBROWSER_API_KEY=test-key \
       "${BIN}" start \
         --self-contained \
         --session "${session}" \
@@ -299,5 +308,68 @@ PY
   printf 'ok - self-contained portable startup\n'
 }
 
+test_self_contained_list_uses_loader_no_docker() {
+  if [[ "$(uname -s)" != "Linux" ]]; then
+    skip "self-contained portable list" "Linux-only"
+    return 0
+  fi
+
+  local platform tmp opt_root runtime_parent runtime_dir docker_log output session
+  platform="$(portable_platform_dir)" || {
+    skip "self-contained portable list" "unsupported architecture"
+    return 0
+  }
+
+  tmp="$(mktemp -d)"
+  opt_root="${tmp}/opt"
+  session="portable-list-${$}"
+  runtime_parent="${tmp}/runtime"
+  runtime_dir="${runtime_parent}/${platform}"
+  docker_log="${tmp}/docker-called.log"
+  mkdir -p "${tmp}/bin" "${runtime_dir}" "${opt_root}"
+  make_fake_runtime "${runtime_dir}"
+
+  cat >"${tmp}/bin/docker" <<SH
+#!/usr/bin/env bash
+printf 'docker invoked: %s\n' "\$*" >> "${docker_log}"
+exit 64
+SH
+  chmod +x "${tmp}/bin/docker"
+
+  cleanup() {
+    rm -rf "${tmp}"
+  }
+  trap cleanup RETURN EXIT
+
+  output="$(
+    env \
+      PATH="${tmp}/bin:${PATH}" \
+      HOME=/root \
+      XDG_CONFIG_HOME="${opt_root}/config" \
+      XDG_CACHE_HOME="${opt_root}/cache" \
+      XDG_DATA_HOME="${opt_root}/data" \
+      CLAWBROWSER_DOCKER_BIN="${tmp}/bin/docker" \
+      CLAWBROWSER_PORTABLE_LOCAL_DIR="${runtime_parent}" \
+      "${BIN}" list \
+        --self-contained \
+        --session "${session}" \
+        --config-dir "${opt_root}/config/clawbrowser" \
+        --cache-dir "${opt_root}/cache/clawbrowser" \
+        --data-dir "${opt_root}/data/clawbrowser" \
+        --state-dir "${opt_root}/state/clawbrowser" \
+        --session-dir "${opt_root}/cache/clawbrowser/sessions"
+  )"
+
+  if [[ "${output}" != "[]" ]]; then
+    fail "portable list returned ${output}, want []"
+  fi
+  if [[ -e "${docker_log}" ]]; then
+    fail "portable self-contained list invoked Docker"
+  fi
+
+  printf 'ok - self-contained portable list\n'
+}
+
 test_missing_runtime_error
 test_self_contained_start_no_docker
+test_self_contained_list_uses_loader_no_docker

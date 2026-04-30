@@ -106,6 +106,15 @@ test_source_contract_for_xkbcomp_binding() {
   grep -Fq -- 'Using self-contained portable Xvfb/xkbcomp wrappers' "${SOURCE_FILE}" || fail "portable self-contained Xvfb wrapper log missing"
 }
 
+test_source_contract_for_browser_loader_binding() {
+  grep -Fq -- 'portable_browser_library_path' "${SOURCE_FILE}" || fail "portable browser library path helper missing"
+  grep -Fq -- 'portable_browser_wrapper' "${SOURCE_FILE}" || fail "portable browser wrapper helper missing"
+  grep -Fq -- 'PORTABLE_BROWSER_WRAPPER_USED=1 LD_LIBRARY_PATH=' "${SOURCE_FILE}" || fail "portable browser wrapper should isolate LD_LIBRARY_PATH"
+  grep -Fq -- 'CHROME_WRAPPER="${browser_wrapper}"' "${SOURCE_FILE}" || fail "portable browser wrapper env missing"
+  grep -Fq -- 'LD_LIBRARY_PATH="${portable_browser_ld_library_path}"' "${SOURCE_FILE}" || fail "portable start should use filtered browser LD_LIBRARY_PATH"
+  grep -Fq -- 'exec "${browser_exec}"' "${SOURCE_FILE}" || fail "portable start should launch browser entrypoint directly"
+}
+
 test_source_contract_for_self_contained_flag() {
   grep -Fq -- '--self-contained|--standalone)' "${SOURCE_FILE}" || fail "self-contained option parser missing"
   grep -Fq -- 'SELF_CONTAINED_REQUESTED=1' "${SOURCE_FILE}" || fail "self-contained flag should win over backend parse order"
@@ -135,6 +144,7 @@ run_test "source contract for headless rejection" test_source_contract_for_headl
 run_test "source contract for offline runtime short-circuit" test_source_contract_for_offline_runtime_short_circuit
 run_test "source contract for Xvfb xkbdir flag" test_source_contract_for_xvfb_xkbdir_flag
 run_test "source contract for xkbcomp binding" test_source_contract_for_xkbcomp_binding
+run_test "source contract for browser loader binding" test_source_contract_for_browser_loader_binding
 run_test "source contract for self-contained flag" test_source_contract_for_self_contained_flag
 run_test "source contract for restricted paths" test_source_contract_for_restricted_paths
 run_test "source contract for missing runtime error" test_source_contract_for_missing_runtime_error
