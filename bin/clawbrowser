@@ -1,6 +1,41 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+log() {
+  printf '[clawbrowser] %s\n' "$*" >&2
+}
+
+die() {
+  printf '[clawbrowser] ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+home_writable() {
+  [[ -n "${HOME:-}" && -d "${HOME}" && -w "${HOME}" ]]
+}
+
+home_path_or_die() {
+  local suffix="$1"
+  local label="$2"
+  if home_writable; then
+    printf '%s/%s\n' "${HOME}" "${suffix}"
+    return 0
+  fi
+  die "No writable ${label} path resolved. Set the matching CLAWBROWSER_* env var or XDG path. Do not write to /root just because HOME=/root."
+}
+
+xdg_or_home_path() {
+  local xdg_var="$1"
+  local home_suffix="$2"
+  local label="$3"
+  local xdg_value="${!xdg_var:-}"
+  if [[ -n "${xdg_value}" ]]; then
+    printf '%s/clawbrowser\n' "${xdg_value}"
+    return 0
+  fi
+  home_path_or_die "${home_suffix}" "${label}"
+}
+
 IMAGE="${CLAWBROWSER_IMAGE:-}"
 DOCKER_BIN="${CLAWBROWSER_DOCKER_BIN:-docker}"
 APP_PATH="${CLAWBROWSER_APP_PATH:-}"
@@ -8,16 +43,17 @@ BACKEND="${CLAWBROWSER_BACKEND:-auto}"
 RELEASE_REF="${CLAWBROWSER_RELEASE_REF:-latest}"
 REPOSITORY="${CLAWBROWSER_REPOSITORY:-clawbrowser/clawbrowser}"
 AUTO_INSTALL_APP="${CLAWBROWSER_AUTO_INSTALL_APP:-1}"
-CACHE_HOME="${CLAWBROWSER_CACHE_HOME:-${XDG_CACHE_HOME:-${HOME}/.cache}}"
-STATE_HOME="${CLAWBROWSER_STATE_HOME:-${XDG_STATE_HOME:-${HOME}/.local/state}}"
-SESSION_ROOT="${CLAWBROWSER_SESSION_ROOT:-${CACHE_HOME}/clawbrowser/sessions}"
-STATE_ROOT="${CLAWBROWSER_STATE_ROOT:-${STATE_HOME}/clawbrowser}"
+CONFIG_ROOT="${CLAWBROWSER_CONFIG_DIR:-}"
+CACHE_ROOT="${CLAWBROWSER_CACHE_DIR:-${CLAWBROWSER_CACHE_HOME:-}}"
+DATA_ROOT="${CLAWBROWSER_DATA_DIR:-}"
+STATE_ROOT="${CLAWBROWSER_STATE_ROOT:-}"
+SESSION_ROOT="${CLAWBROWSER_SESSION_ROOT:-}"
 DEFAULT_SESSION="${CLAWBROWSER_SESSION_NAME:-default}"
 CONTAINER_PREFIX="${CLAWBROWSER_CONTAINER_PREFIX:-clawbrowser}"
 REMOTE_DEBUG_PORT="${CLAWBROWSER_REMOTE_DEBUG_PORT:-9222}"
 READINESS_TIMEOUT_SECONDS="${CLAWBROWSER_READINESS_TIMEOUT_SECONDS:-60}"
 APP_READINESS_TIMEOUT_SECONDS="${CLAWBROWSER_APP_READINESS_TIMEOUT_SECONDS:-20}"
-PORTABLE_RUNTIME_ROOT="${CLAWBROWSER_RUNTIME_ROOT:-${CACHE_HOME}/clawbrowser/runtime}"
+PORTABLE_RUNTIME_ROOT="${CLAWBROWSER_RUNTIME_ROOT:-}"
 PORTABLE_LOCAL_DIR="${CLAWBROWSER_PORTABLE_LOCAL_DIR:-}"
 PORTABLE_RUNTIME_ARTIFACT_BASENAME="${CLAWBROWSER_PORTABLE_RUNTIME_ARTIFACT_BASENAME:-}"
 PORTABLE_RUNTIME_PLATFORM_DIR="${CLAWBROWSER_PORTABLE_RUNTIME_PLATFORM_DIR:-}"
@@ -26,14 +62,44 @@ PORTABLE_DISPLAY_MIN="${CLAWBROWSER_PORTABLE_DISPLAY_MIN:-90}"
 PORTABLE_DISPLAY_MAX="${CLAWBROWSER_PORTABLE_DISPLAY_MAX:-110}"
 PORTABLE_XVFB_TIMEOUT_SECONDS="${CLAWBROWSER_PORTABLE_XVFB_TIMEOUT_SECONDS:-10}"
 CLAWBROWSER_ALLOW_DOCKER_BACKEND="${CLAWBROWSER_ALLOW_DOCKER_BACKEND:-0}"
+PATHS_RESOLVED=0
 
-log() {
-  printf '[clawbrowser] %s\n' "$*" >&2
+resolve_launcher_paths() {
+  if [[ "${PATHS_RESOLVED}" == "1" ]]; then
+    return 0
+  fi
+
+  if [[ -z "${CONFIG_ROOT}" ]]; then
+    CONFIG_ROOT="$(xdg_or_home_path XDG_CONFIG_HOME ".config/clawbrowser" "config")"
+  fi
+  if [[ -z "${CACHE_ROOT}" ]]; then
+    CACHE_ROOT="$(xdg_or_home_path XDG_CACHE_HOME ".cache/clawbrowser" "cache")"
+  fi
+  if [[ -z "${DATA_ROOT}" ]]; then
+    DATA_ROOT="$(xdg_or_home_path XDG_DATA_HOME ".local/share/clawbrowser" "data")"
+  fi
+  if [[ -z "${STATE_ROOT}" ]]; then
+    if [[ -n "${XDG_STATE_HOME:-}" ]]; then
+      STATE_ROOT="${XDG_STATE_HOME}/clawbrowser"
+    elif home_writable; then
+      STATE_ROOT="$(home_path_or_die ".local/state/clawbrowser" "state")"
+    else
+      STATE_ROOT="${DATA_ROOT}/state"
+    fi
+  fi
+  if [[ -z "${SESSION_ROOT}" ]]; then
+    SESSION_ROOT="${CACHE_ROOT}/sessions"
+  fi
+  if [[ -z "${PORTABLE_RUNTIME_ROOT}" ]]; then
+    PORTABLE_RUNTIME_ROOT="${CACHE_ROOT}/runtime"
+  fi
+
+  PATHS_RESOLVED=1
 }
 
-die() {
-  printf '[clawbrowser] ERROR: %s\n' "$*" >&2
-  exit 1
+prepare_launcher_runtime() {
+  resolve_launcher_paths
+  require_command python3
 }
 
 usage() {
@@ -77,6 +143,12 @@ Backend behavior:
   portable runtime's bundled Xvfb, xkb data, browser binary, and libraries.
   Native app readiness in auto mode uses a short timeout; override with
   CLAWBROWSER_APP_READINESS_TIMEOUT_SECONDS when needed.
+
+Writable paths:
+  In restricted containers, set HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, and
+  XDG_DATA_HOME to writable paths, or set CLAWBROWSER_CONFIG_DIR,
+  CLAWBROWSER_CACHE_DIR, and CLAWBROWSER_DATA_DIR explicitly. The launcher does
+  not write to /root just because HOME=/root.
 
 Secrets:
   This launcher does not write CLAWBROWSER_API_KEY to agent-side files or shell
@@ -152,8 +224,7 @@ ensure_prompt_context() {
 }
 
 config_dir() {
-  local base_dir="${XDG_CONFIG_HOME:-${HOME}/.config}"
-  printf '%s/clawbrowser' "${base_dir}"
+  printf '%s' "${CONFIG_ROOT}"
 }
 
 config_file() {
@@ -358,7 +429,7 @@ install_native_app_bundle() {
 
   tmp_dir="$(mktemp -d)"
   archive_path="${tmp_dir}/${asset_name}"
-  target_bundle="${HOME}/.clawbrowser/Clawbrowser.app"
+  target_bundle="${DATA_ROOT}/Clawbrowser.app"
 
   if ! download_release_asset "${asset_name}" "${archive_path}"; then
     rm -rf "${tmp_dir}"
@@ -402,7 +473,7 @@ resolve_app_binary() {
     return 1
   fi
 
-  local saved_bundle_path="${HOME}/.clawbrowser/app_bundle_path"
+  local saved_bundle_path="${DATA_ROOT}/app_bundle_path"
   if [[ -f "${saved_bundle_path}" ]]; then
     local saved_bundle
     saved_bundle="$(cat "${saved_bundle_path}" 2>/dev/null || true)"
@@ -427,13 +498,17 @@ resolve_app_binary() {
     fi
   fi
 
-  for bundle in \
-    "${HOME}/.clawbrowser/Clawbrowser.app" \
-    "${HOME}/Desktop/Clawbrowser.app" \
-    "${HOME}/Downloads/Clawbrowser.app" \
-    "${HOME}/Applications/Clawbrowser.app" \
-    "/Applications/Clawbrowser.app"
-  do
+  local candidate_bundles=("${DATA_ROOT}/Clawbrowser.app" "/Applications/Clawbrowser.app")
+  if [[ -n "${HOME:-}" ]]; then
+    candidate_bundles+=(
+      "${HOME}/.clawbrowser/Clawbrowser.app"
+      "${HOME}/Desktop/Clawbrowser.app"
+      "${HOME}/Downloads/Clawbrowser.app"
+      "${HOME}/Applications/Clawbrowser.app"
+    )
+  fi
+
+  for bundle in "${candidate_bundles[@]}"; do
     candidate="${bundle}/Contents/MacOS/Clawbrowser"
     if [[ -x "${candidate}" ]]; then
       printf '%s\n' "${candidate}"
@@ -1001,7 +1076,7 @@ choose_backend() {
     fi
     if [[ "${AUTO_INSTALL_APP}" == "1" ]] && install_native_app_bundle; then
       if resolve_app_binary >/dev/null 2>&1; then
-        log "Installed Clawbrowser.app into ${HOME}/.clawbrowser/Clawbrowser.app"
+        log "Installed Clawbrowser.app into ${DATA_ROOT}/Clawbrowser.app"
         backend="app"
         return 0
       fi
@@ -1029,7 +1104,7 @@ choose_backend() {
     fi
     if [[ "${AUTO_INSTALL_APP}" == "1" ]] && install_native_app_bundle; then
       if resolve_app_binary >/dev/null 2>&1; then
-        log "Installed Clawbrowser.app into ${HOME}/.clawbrowser/Clawbrowser.app"
+        log "Installed Clawbrowser.app into ${DATA_ROOT}/Clawbrowser.app"
         backend="app"
         return 0
       fi
@@ -2000,7 +2075,7 @@ ensure_runtime() {
     die "Clawbrowser.app is not installed and auto-install is disabled."
   fi
 
-  log "Installing Clawbrowser.app into ${HOME}/.clawbrowser/Clawbrowser.app"
+  log "Installing Clawbrowser.app into ${DATA_ROOT}/Clawbrowser.app"
   install_native_app_bundle || die "Failed to install Clawbrowser.app from release assets."
 
   if app_exec="$(resolve_app_binary 2>/dev/null)"; then
@@ -2012,8 +2087,6 @@ ensure_runtime() {
 }
 
 main() {
-  require_command python3
-
   local command="${1:-start}"
   if [[ $# -gt 0 ]]; then
     shift
@@ -2023,36 +2096,43 @@ main() {
     start|setup)
       browser_mode="start"
       parse_common_options "$@"
+      prepare_launcher_runtime
       start_session
       ;;
     rotate|restart)
       browser_mode="start"
       parse_common_options "$@"
+      prepare_launcher_runtime
       rotate_session
       ;;
     status)
       browser_mode="status"
       parse_common_options "$@"
+      prepare_launcher_runtime
       show_status
       ;;
     endpoint)
       browser_mode="endpoint"
       parse_common_options "$@"
+      prepare_launcher_runtime
       print_endpoint
       ;;
     stop)
       browser_mode="stop"
       parse_common_options "$@"
+      prepare_launcher_runtime
       stop_session "$(sanitize_name "${session_name}")"
       ;;
     list)
       browser_mode="list"
       parse_common_options "$@"
+      prepare_launcher_runtime
       list_profiles
       ;;
     ensure-runtime)
       browser_mode="status"
       parse_common_options "$@"
+      prepare_launcher_runtime
       ensure_runtime
       ;;
     help|-h|--help)
@@ -2061,6 +2141,7 @@ main() {
     *)
       browser_args=("${command}" "$@")
       browser_mode="start"
+      prepare_launcher_runtime
       start_session
       ;;
   esac
