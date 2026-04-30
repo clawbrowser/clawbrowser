@@ -84,7 +84,7 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
 - Do not use `npx` as the primary install path for agent workflows. If you reach this package through `npx` or a raw source checkout, stop and follow `INSTALL.md` to install from the release archive instead.
 - If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude`, `codex`, `gemini`, or `openclaw`.
 - Use the official `clawbrowser/clawbrowser` GitHub repository and bundled `clawctl install` command only.
-- On Linux servers/containers/no-display environments, use portable mode by default. The normal Linux release archive installs `clawctl` and the launcher; portable mode downloads `clawbrowser-portable-linux-<amd64|arm64>-glibc` automatically. If the portable runtime is already extracted, set `CLAWBROWSER_PORTABLE_LOCAL_DIR`.
+- On Linux servers/containers/no-display environments, use portable mode by default. The normal Linux release archive installs `clawctl` and the launcher; `clawctl install` ensures `clawbrowser-portable-linux-<amd64|arm64>-glibc`. If the portable runtime is already extracted, set `CLAWBROWSER_PORTABLE_LOCAL_DIR`.
 - Docker backend and sidecar paths remain optional/operator-managed for hosts that intentionally provide Docker infrastructure.
 
 ## Install Fast Path

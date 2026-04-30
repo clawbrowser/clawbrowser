@@ -17,6 +17,11 @@ die() {
 }
 
 home_writable() {
+  case "${HOME:-}" in
+    /root|/root/|/root/.)
+      return 1
+      ;;
+  esac
   [[ -n "${HOME:-}" && -d "${HOME}" && -w "${HOME}" ]]
 }
 
@@ -441,7 +446,7 @@ require_python3() {
   fi
 
   if is_container_env; then
-    die "python3 is required for this release-bundle installer, and this looks like a minimal container. The default Linux path is the portable runtime (full headful Clawbrowser under Xvfb), downloaded on demand as a separate release artifact, and it does not require Docker runtime access. Install/run from an environment that has python3, then use clawctl start/endpoint normally. If your operator intentionally uses Docker backend sidecar mode, the host/operator must provision it and expose a reachable local CDP endpoint. See INSTALL.md#setup-modes."
+    die "python3 is required for this release-bundle installer, and this looks like a minimal container. The default Linux path is the portable runtime (full headful Clawbrowser under Xvfb), ensured by clawctl install as a separate release artifact, and it does not require Docker runtime access. Install/run from an environment that has python3, then use clawctl start/endpoint normally. If your operator intentionally uses Docker backend sidecar mode, the host/operator must provision it and expose a reachable local CDP endpoint. See INSTALL.md#setup-modes."
   fi
 
   die "Required command not found: python3"
@@ -477,6 +482,10 @@ release_asset_base() {
 
 is_macos() {
   [[ "$(uname -s)" == "Darwin" ]]
+}
+
+is_linux() {
+  [[ "$(uname -s)" == "Linux" ]]
 }
 
 resolve_app_binary() {
@@ -916,6 +925,22 @@ link_launchers() {
   ln -sfn "${INSTALL_ROOT}/bin/clawbrowser-mcp" "${INSTALL_BIN}/clawbrowser-mcp"
 }
 
+ensure_portable_runtime_installed() {
+  if ! is_linux; then
+    return 0
+  fi
+
+  case "${CLAWBROWSER_BACKEND:-auto}" in
+    docker|app|cdp)
+      return 0
+      ;;
+  esac
+
+  log "Ensuring portable Linux runtime"
+  CLAWBROWSER_PORTABLE_ALLOW_DOWNLOAD=1 \
+    "${INSTALL_ROOT}/bin/clawbrowser" ensure-runtime --backend portable >/dev/null
+}
+
 link_app_bundle() {
   local source_bundle="$1"
   local target_bundle="${INSTALL_ROOT}/Clawbrowser.app"
@@ -1209,6 +1234,7 @@ main() {
   ensure_source_root
   prepare_runtime_root
   link_launchers
+  ensure_portable_runtime_installed
 
   native_bundle=""
   if native_bundle="$(resolve_app_bundle 2>/dev/null)"; then

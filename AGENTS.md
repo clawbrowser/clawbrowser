@@ -22,8 +22,8 @@ unmanaged browser process for agent work.
 | Operator-managed Docker host | Docker backend only if explicitly provided |
 
 The normal Linux release archive is not the portable runtime payload. Start
-from the normal release archive and let portable mode download
-`clawbrowser-portable-linux-<amd64|arm64>-glibc` automatically, or set
+from the normal release archive and let `clawctl install` ensure
+`clawbrowser-portable-linux-<amd64|arm64>-glibc`, or set
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted portable runtime.
 
 ## Session Flow

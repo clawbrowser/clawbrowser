@@ -13,8 +13,9 @@ the agent runtime install path.
 
 ### Linux Server / Container / No Root
 
-No Docker, sudo, apt, or physical display is required. The launcher downloads
-the matching portable Xvfb runtime on first use.
+No Docker, sudo, apt, or physical display is required. `clawctl install`
+ensures the matching portable Xvfb runtime, and the launcher starts it
+directly in self-contained mode.
 
 ```bash
 set -euo pipefail
@@ -37,6 +38,7 @@ cd "clawbrowser-${platform}"
 Force portable mode explicitly when needed:
 
 ```bash
+./clawctl start --self-contained --session work --url clawbrowser://verify/ --json
 ./clawbrowser start --self-contained --session work -- clawbrowser://verify/
 ```
 
@@ -59,11 +61,11 @@ macOS uses `Clawbrowser.app` and a GUI WindowServer session. Xvfb is Linux-only.
 | Archive | Purpose |
 | --- | --- |
 | `clawbrowser-linux-x64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Normal release archives with `clawctl`, launcher, MCP server, and integration files. |
-| `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Portable Linux runtime payload with bundled Xvfb, libs, xkb data, and portable browser binary. Downloaded automatically by portable mode. |
+| `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Portable Linux runtime payload with bundled Xvfb, libs, xkb data, and portable browser binary. Ensured by `clawctl install` for portable Linux mode. |
 
 The normal Linux release archive is not the portable runtime payload. Start
-with the normal release archive; let portable mode fetch the portable runtime
-unless you are building an offline image.
+with the normal release archive; let `clawctl install` fetch the portable
+runtime unless you are building an offline image.
 
 ## Agent Flow
 
