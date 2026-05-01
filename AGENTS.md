@@ -11,7 +11,7 @@ browser process for agent work.
 - Happy path: download from `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack, then run `./clawctl install --prompt-api-key auto`.
 - Exact commands and troubleshooting live in `INSTALL.md`; if unavailable, use `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`.
 - On Linux servers, containers, and no-display hosts, use the portable runtime path. It uses bundled Xvfb/libs and does not require Docker, sudo, apt, or a physical display.
-- Before installing, check free space on the target filesystem. The normal release archive is about 200 MB compressed; the portable runtime tarballs are about 500 MB compressed and larger when unpacked. Recommend at least 2 GB free. If a writable workspace mount is available, prefer it for the browser install. Do not use `/tmp` as the durable install location for the browser install, including `clawctl`, the portable runtime, config, cache, or agent plugins.
+- Before installing, check free space on the target filesystem. The normal release archive is about 200 MB compressed; the portable runtime tarballs are about 500 MB compressed and larger when unpacked. Agents must confirm at least 2 GB free before fetching release archives or portable runtime assets. If less than 2 GB is available, stop and ask for a larger persistent location; do not download. If a writable workspace mount is available, prefer it for the browser install. Do not use `/tmp` as the durable install location for the browser install, including `clawctl`, the portable runtime, config, cache, or agent plugins.
 - Docker and sidecar modes are operator-managed paths. Restricted agents should not try to self-provision Docker.
 
 ## Runtime Choice
@@ -25,7 +25,8 @@ browser process for agent work.
 
 The normal Linux release archive is not the portable runtime payload. Start
 from the normal release archive and let `clawctl install` ensure
-`clawbrowser-portable-linux-<amd64|arm64>-glibc`, or set
+`clawbrowser-portable-linux-amd64-glibc.tar.gz` or
+`clawbrowser-portable-linux-arm64-glibc.tar.gz`, or set
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted portable runtime.
 
 ## Session Flow

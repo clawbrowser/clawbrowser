@@ -1138,13 +1138,14 @@ ensure_portable_runtime() {
       checksum_available=1
     fi
 
-    if [[ "${checksum_available}" == "1" ]]; then
-      if ! verify_sha256_file "${tarball_file}" "${checksum_file}"; then
-        rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
-        portable_die "PORTABLE_RUNTIME_CHECKSUM_FAILED" "sha256 mismatch for ${tar_name}; partial download removed."
-      fi
-    else
-      log "No checksum asset found for ${tar_name}; continuing without checksum verification"
+    if [[ "${checksum_available}" != "1" ]]; then
+      rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
+      portable_die "PORTABLE_RUNTIME_CHECKSUM_MISSING" "missing sha256 asset ${sha_name}; refusing to install ${tar_name}."
+    fi
+
+    if ! verify_sha256_file "${tarball_file}" "${checksum_file}"; then
+      rm -rf "${tmp_dir}" >/dev/null 2>&1 || true
+      portable_die "PORTABLE_RUNTIME_CHECKSUM_FAILED" "sha256 mismatch for ${tar_name}; partial download removed."
     fi
 
     if ! tar -xzf "${tarball_file}" -C "${stage_root}"; then

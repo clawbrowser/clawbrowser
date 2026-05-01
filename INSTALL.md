@@ -10,11 +10,19 @@ This is the default path for Linux VPS, CI-like environments, restricted
 containers, and machines without a display. It does not require Docker, sudo,
 apt, or a physical display. `clawctl install` ensures the matching portable
 Xvfb runtime so `start --self-contained` can run without Docker.
+In this proof path, `clawctl install` configures the agent integration, and
+`clawbrowser start --self-contained` explicitly verifies the no-monitor
+portable runtime.
 
-Before installing, check free space on the filesystem that will hold the runtime and browser state. The normal release archive is about 200 MB compressed; the portable runtime tarballs are about 500 MB compressed and larger when unpacked. Recommend at least 2 GB free. If a writable workspace mount is available, prefer it for the browser install. Do not treat `/tmp` as durable storage for the browser install, including `clawctl`, the portable runtime, config, cache, or agent plugins.
+Before installing, check free space on the filesystem that will hold the
+runtime and browser state. The normal release archive is about 200 MB
+compressed. The portable runtime tarballs are about 500 MB compressed and larger when unpacked. Recommend at least 2 GB free. If a writable workspace mount is available, prefer it for the browser install. Do not treat `/tmp` as durable storage for the browser install, including `clawctl`, the portable runtime, config, cache, or agent plugins.
+Agents must check the target filesystem before fetching anything. If it has
+less than 2 GB free, stop and ask for a larger persistent location; do not
+download release archives or portable runtime assets.
 
 ```bash
-set -euo pipefail
+set -Eeuo pipefail
 
 case "$(uname -m)" in
   x86_64|amd64) platform="linux-x64" ;;
@@ -22,21 +30,39 @@ case "$(uname -m)" in
   *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
 esac
 
-curl -fsSLO "https://github.com/clawbrowser/clawbrowser/releases/latest/download/clawbrowser-${platform}.tar.gz"
-tar -xzf "clawbrowser-${platform}.tar.gz"
+archive="clawbrowser-${platform}.tar.gz"
+url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
+required_kb=2097152
+available_kb="$(df -Pk . | awk 'NR==2 {print $4}')"
+if (( available_kb < required_kb )); then
+  echo "need at least 2 GB free before fetching Clawbrowser; available: ${available_kb} KB" >&2
+  exit 1
+fi
+
+curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
+tar -tzf "$archive" >/dev/null
+tar -xzf "$archive"
 cd "clawbrowser-${platform}"
 
+# Configure clawctl and agent integration.
 ./clawctl install --prompt-api-key auto
-./clawctl start --session work --url clawbrowser://verify/ --json
-./clawctl endpoint --session work --json
-```
 
-For an explicit launcher command, use portable/self-contained mode:
+# No-monitor / no-display proof path. This downloads and validates the
+# portable Linux runtime when missing.
+./clawbrowser ensure-runtime --backend portable
 
-```bash
-./clawctl start --self-contained --session work --url clawbrowser://verify/ --json
+# Force portable/self-contained mode with bundled Xvfb.
 ./clawbrowser start --self-contained --session work -- clawbrowser://verify/
-./clawbrowser endpoint --session work
+
+# Confirm the CDP endpoint is available and alive.
+endpoint="$(./clawbrowser endpoint --session work)"
+printf '%s\n' "$endpoint"
+curl -fsS "$endpoint/json/version"
+
+# Confirm clawctl is available and can verify the managed session too.
+./clawctl --help >/dev/null
+./clawctl endpoint --session work --json
+./clawctl verify --session work --json
 ```
 
 ## macOS Fast Path
@@ -44,8 +70,18 @@ For an explicit launcher command, use portable/self-contained mode:
 Use the assembled macOS release archive from a logged-in GUI session:
 
 ```bash
-curl -fsSLO https://github.com/clawbrowser/clawbrowser/releases/latest/download/clawbrowser-macos-arm64.tar.gz
-tar -xzf clawbrowser-macos-arm64.tar.gz
+archive="clawbrowser-macos-arm64.tar.gz"
+url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
+required_kb=2097152
+available_kb="$(df -Pk . | awk 'NR==2 {print $4}')"
+if (( available_kb < required_kb )); then
+  echo "need at least 2 GB free before fetching Clawbrowser; available: ${available_kb} KB" >&2
+  exit 1
+fi
+
+curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
+tar -tzf "$archive" >/dev/null
+tar -xzf "$archive"
 cd clawbrowser-macos-arm64
 
 ./clawctl install --prompt-api-key auto
@@ -70,6 +106,10 @@ The normal Linux release archive is not the portable runtime payload. If you
 need the no-root server/container path, run the normal installer so `clawctl`
 can ensure the portable Xvfb runtime, or set
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted portable runtime.
+Downloaded portable runtimes are unpacked into the persistent runtime root,
+defaulting to the launcher cache root's `runtime` directory. Set
+`CLAWBROWSER_PORTABLE_RUNTIME_ROOT` or pass `--runtime-root` to place it on a
+durable mounted path.
 
 ## Already Have The Portable Runtime
 
@@ -93,18 +133,26 @@ directory (`linux-amd64-glibc`) or its parent directory.
 
 Use this path when the agent runtime has no root access, no display, and a
 read-only `$HOME`, including containers where `HOME=/root` but `/root` cannot be
-written. Do not write to `/root` just because `HOME=/root`. If a writable workspace mount is available, prefer it over `/tmp`. Do not use `/tmp` as the installation root if you expect the browser runtime to survive a restart.
+written. Do not write to `/root` just because `HOME=/root`. If a writable
+workspace mount is available, prefer it over `/tmp`. Do not use `/tmp` as the
+installation root if you expect the browser runtime to survive a restart.
 
 Pick one writable base directory on a persistent volume, preferably the
 workspace mount when one is available, confirm it has enough free space for
-the 500 MB compressed portable runtime tarball and unpacked runtime, and make all Clawbrowser
-paths explicit:
+the 500 MB compressed portable runtime tarball and unpacked runtime, and make
+all Clawbrowser paths explicit:
 
 ```bash
-set -euo pipefail
+set -Eeuo pipefail
 
 export CLAWBROWSER_WRITABLE_ROOT="${CLAWBROWSER_WRITABLE_ROOT:?set this to a writable persistent directory outside /tmp}"
-df -h "$CLAWBROWSER_WRITABLE_ROOT" || true
+required_kb=2097152
+available_kb="$(df -Pk "$CLAWBROWSER_WRITABLE_ROOT" | awk 'NR==2 {print $4}')"
+if (( available_kb < required_kb )); then
+  echo "need at least 2 GB free before fetching Clawbrowser; available: ${available_kb} KB" >&2
+  exit 1
+fi
+
 mkdir -p \
   "$CLAWBROWSER_WRITABLE_ROOT/home" \
   "$CLAWBROWSER_WRITABLE_ROOT/config" \
@@ -126,8 +174,15 @@ export XDG_DATA_HOME="$CLAWBROWSER_WRITABLE_ROOT/data"
   --agent-plugins-dir "$XDG_DATA_HOME/clawbrowser/agent-plugins"
 
 export PATH="$XDG_DATA_HOME/clawbrowser/bin:$PATH"
-clawctl start --session work --url clawbrowser://verify/ --json
+
+# No-monitor / no-display proof path.
+./clawbrowser ensure-runtime --backend portable
+./clawbrowser start --self-contained --session work -- clawbrowser://verify/
+./clawbrowser endpoint --session work
+
+# Optional agent-facing check through clawctl.
 clawctl endpoint --session work --json
+clawctl verify --session work --json
 ```
 
 The generic installer path overrides are:
@@ -251,9 +306,10 @@ browser automation.
 | `Required command not found: docker` | Docker backend was selected, or an old/source launcher path is being used. | Use `--backend portable` / `--self-contained`, and make sure `which clawbrowser` points at the release launcher. |
 | Docker socket or permission error | Restricted container cannot self-provision Docker. | Use portable mode, or ask the operator for `clawctl --cdp http://127.0.0.1:9222 ...`. |
 | `portable runtime not found; set CLAWBROWSER_PORTABLE_LOCAL_DIR or run clawctl install` | The self-contained launcher could not find an installed portable runtime. | Set `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted runtime, or rerun `clawctl install` with writable cache/data paths. |
-| Portable artifact missing | Current release lacks the matching portable runtime asset. | Check the release assets for `clawbrowser-portable-linux-<amd64|arm64>-glibc.*`, or pin to a release that has it. |
+| Portable artifact missing | Current release lacks the matching portable runtime asset. | Check the release assets for `clawbrowser-portable-linux-amd64-glibc.tar.gz` or `clawbrowser-portable-linux-arm64-glibc.tar.gz`, or pin to a release that has it. |
+| Portable checksum missing | Current release lacks the matching `.sha256` asset for the portable runtime. | Publish the checksum asset or pin to a complete release; the launcher refuses unchecked portable runtime installs. |
 | Alpine/musl error | Portable artifacts are glibc builds. | Use a glibc image, operator-managed Docker, or an external CDP endpoint. |
-| Endpoint refused or stale | Session restarted or endpoint changed. | Run `clawctl endpoint --session <name> --json`; if still down, run `clawctl start --session <name> --url clawbrowser://verify/ --json`. |
+| Endpoint refused or stale | Session restarted or endpoint changed. | Run `clawctl endpoint --session <name> --json`; if still down on Linux no-monitor hosts, run `clawbrowser start --self-contained --session <name> -- clawbrowser://verify/`. |
 
 ## Quick Reference
 
