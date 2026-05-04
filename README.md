@@ -12,6 +12,11 @@ Use the standalone `clawctl` release archive for the host OS/arch. The browser
 archive is not the bootstrapper. `clawctl install` owns browser and portable
 runtime download/install.
 
+Agent-specific plugin, MCP, and extension templates are owned by `clawctl` and
+materialized by `clawctl install`. This release repository does not publish
+root `.mcp.json`, Claude, Codex, Gemini, Hermes, or OpenClaw plugin specs as a
+manual installation surface.
+
 Use a durable filesystem for the browser install, config, cache, data, and any
 portable runtime. The standalone `clawctl` archive is small and does not
 require a 2 GB preflight. The 2 GB free-space check applies only when fetching
@@ -72,8 +77,8 @@ macOS uses `Clawbrowser.app` and a GUI WindowServer session. Xvfb is Linux-only.
 | Archive | Purpose |
 | --- | --- |
 | `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-macos-arm64.tar.gz` | Standalone bootstrapper archives. Start here. |
-| `clawbrowser-linux-amd64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Browser payload archives. `clawctl install` downloads one when no usable browser exists. |
-| `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Portable Linux runtime payload with bundled Xvfb, libs, xkb data, and portable browser binary. `clawctl install` downloads one when Linux needs portable mode. |
+| `clawbrowser-linux-amd64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Browser payload archives. `clawctl install` downloads one when no usable browser exists. There is no release-owned public plugin-spec install surface; `clawctl install` and `clawctl start` own setup and launch. |
+| `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Portable Linux runtime payload with bundled Xvfb, libs, xkb data, and portable browser binary. Ensured by `clawctl install` when Linux needs portable mode. |
 
 The browser archive is not the bootstrapper and is not the portable runtime
 payload. Start with the standalone `clawctl` archive; let `clawctl install`

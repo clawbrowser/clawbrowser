@@ -9,8 +9,9 @@ Full contract: [AGENTS.md](./AGENTS.md)
 
 Reference clawctl skill: use the bundled clawctl skill for the active integration.
 Use it for the full clawctl command palette and agent workflow details.
-This release ships `clawctl` plus browser and integration assets. It does not
-ship a release-owned `bin/` launcher; use `clawctl install` and
+This release ships `clawctl` plus browser runtime assets. Agent integration
+templates are owned by `clawctl` and installed through `clawctl install`. It
+does not ship a release-owned `bin/` launcher; use `clawctl install` and
 `clawctl start`.
 
 ## Short Contract
