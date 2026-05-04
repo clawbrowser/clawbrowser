@@ -25,6 +25,14 @@ browser process for agent work.
   existing browser when one is usable, downloads Clawbrowser when missing,
   installs the portable Linux runtime when the host needs Xvfb, and prepares
   `clawctl start`.
+- Let `clawctl install` choose agent integration paths. Do not set
+  `CLAWBROWSER_AGENT_CONFIG` or `CLAWBROWSER_AGENT_PLUGINS_DIR` during the
+  normal `auto` install unless the user explicitly requests a generic
+  integration path; those overrides prevent Hermes and Gemini from using their
+  runtime plugin/extension locations.
+- Preserve the active `HOME` when it points at a real user/agent home. Only
+  replace `HOME` for empty, `/root`, or `/tmp` homes; local Gemini and similar
+  agents discover extensions under their real home directories.
 - Exact commands and troubleshooting live in `INSTALL.md`; if unavailable, use `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`.
 - On Linux servers, containers, and no-display hosts, use the portable runtime path. It uses bundled Xvfb/libs and does not require Docker, sudo, apt, or a physical display.
 - Before installing, automatically choose durable storage for the browser install, config, cache, data, and any portable runtime. Prefer an executable workspace/current-directory mount, then `/workspace`, then `/work`, then `$HOME`. Probe the candidate by executing a tiny temporary script. Skip `/tmp` and any candidate that is not writable or executable. Do not ask the user for a path unless every candidate fails.

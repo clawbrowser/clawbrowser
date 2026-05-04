@@ -15,9 +15,10 @@ agents still need the standalone `clawctl` binary and the runtime installed by
 `clawctl install`.
 
 Agent-specific plugin, MCP, and extension templates are owned by `clawctl` and
-materialized by `clawctl install`. This release repository does not publish
-root `.mcp.json`, Claude, Codex, Gemini, Hermes, or OpenClaw plugin specs as a
-manual installation surface.
+materialized by `clawctl install`. This includes enabling Hermes plugins and
+Gemini extensions in the agent locations those runtimes actually scan. This
+release repository does not publish root `.mcp.json`, Claude, Codex, Gemini,
+Hermes, or OpenClaw plugin specs as a manual installation surface.
 
 Use a durable filesystem for the browser install, config, cache, data, and any
 portable runtime. The standalone `clawctl` archive is small and does not
@@ -40,6 +41,11 @@ agent path is intentionally short. Do not rewrite the script and do not use
    workdir, not `/tmp`.
 3. Install Clawbrowser:
    `clawctl install --json`.
+   Do not set `CLAWBROWSER_AGENT_CONFIG` or
+   `CLAWBROWSER_AGENT_PLUGINS_DIR` unless you intentionally want a generic
+   integration path; those overrides bypass agent-specific auto-detection.
+   Preserve the active `HOME` unless it is empty, `/root`, or `/tmp`, because
+   local agents such as Gemini discover extensions under their real home.
 4. Ask once for the Clawbrowser API key from `https://app.clawbrowser.ai`.
 5. Save the API key:
    `printf '%s\n' "$CLAWBROWSER_API_KEY" | clawctl config set api-key --stdin`.

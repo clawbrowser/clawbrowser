@@ -25,7 +25,11 @@ after `chmod +x`.
 Steps with the exact commands:
 
 1. Find a durable writable directory outside `/tmp`, then set the Clawbrowser
-   config/cache/data paths under it.
+   config/cache/data paths under it. Do not set generic agent plugin overrides;
+   `clawctl install` must see the active agent environment so it can write
+   Hermes plugins, Gemini extensions, Codex plugins, and other integrations to
+   the paths those agents actually scan. Preserve the current `HOME` when it is
+   a real user/agent home; only replace it for empty, `/root`, or `/tmp` homes.
 2. Download and extract the standalone `clawctl` archive:
    `curl -fL -o "$archive" "$url" && tar -xzf "$archive"` from inside that
    workdir, not `/tmp`.
@@ -51,6 +55,7 @@ arguments.
 ```bash
 set -Eeuo pipefail
 
+original_home="${HOME:-}"
 selected_workdir=""
 for candidate in \
   "${CLAWBROWSER_WORKDIR:-}" \
@@ -75,18 +80,17 @@ done
 export CLAWBROWSER_WORKDIR="$selected_workdir"
 
 mkdir -p "$CLAWBROWSER_WORKDIR/home" "$CLAWBROWSER_WORKDIR/config" "$CLAWBROWSER_WORKDIR/cache" "$CLAWBROWSER_WORKDIR/data" "$CLAWBROWSER_WORKDIR/bin"
-export HOME="$CLAWBROWSER_WORKDIR/home"
+case "${original_home:-}" in
+  ""|/root|/root/*|/tmp|/tmp/*) export HOME="$CLAWBROWSER_WORKDIR/home" ;;
+  *) export HOME="$original_home" ;;
+esac
 export XDG_CONFIG_HOME="$CLAWBROWSER_WORKDIR/config"
 export XDG_CACHE_HOME="$CLAWBROWSER_WORKDIR/cache"
 export XDG_DATA_HOME="$CLAWBROWSER_WORKDIR/data"
 export CLAWBROWSER_BIN_DIR="$CLAWBROWSER_WORKDIR/bin"
-export CLAWBROWSER_AGENT_CONFIG="$XDG_CONFIG_HOME/clawbrowser/agent-marketplace.json"
-export CLAWBROWSER_AGENT_PLUGINS_DIR="$XDG_DATA_HOME/clawbrowser/agent-plugins"
 export CLAWBROWSER_PORTABLE_RUNTIME_ROOT="$XDG_CACHE_HOME/clawbrowser/runtime"
 mkdir -p \
   "$CLAWBROWSER_BIN_DIR" \
-  "$(dirname "$CLAWBROWSER_AGENT_CONFIG")" \
-  "$CLAWBROWSER_AGENT_PLUGINS_DIR" \
   "$CLAWBROWSER_PORTABLE_RUNTIME_ROOT"
 cd "$CLAWBROWSER_WORKDIR"
 

@@ -96,6 +96,13 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
   existing browser when one is usable, downloads Clawbrowser when missing,
   installs the portable Linux runtime when the host needs Xvfb, and prepares
   the paths that `clawctl start` uses later.
+- Let `clawctl install` choose agent integration paths. Do not set
+  `CLAWBROWSER_AGENT_CONFIG` or `CLAWBROWSER_AGENT_PLUGINS_DIR` during the
+  normal `auto` install unless the user explicitly requests a generic
+  integration path; those overrides bypass Hermes/Gemini runtime discovery.
+- Preserve the active `HOME` when it points at a real user/agent home. Only
+  replace `HOME` for empty, `/root`, or `/tmp` homes so local Gemini can keep
+  discovering extensions under its real home directory.
 - Install guide URL: `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`. If a local `INSTALL.md` is present beside this skill, prefer that local copy because it matches the installed release.
 - Do not use `npx` as the primary install path for agent workflows. If you reach this package through `npx` or a raw source checkout, stop and follow `INSTALL.md` to install from the release archive instead.
 - If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude-code`, `codex`, `gemini`, `openclaw`, `cursor`, or `all`.
