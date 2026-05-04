@@ -30,6 +30,19 @@ paths that `clawctl start` uses later.
 ```bash
 set -Eeuo pipefail
 
+runtime_root="${CLAWBROWSER_PORTABLE_RUNTIME_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/clawbrowser/runtime}"
+mkdir -p "$runtime_root"
+
+# Linux no-display/no-root hosts may fetch and unpack a portable runtime during
+# clawctl install. Check that durable runtime location before install starts.
+required_kb=2097152
+available_kb="$(df -Pk "$runtime_root" | awk 'NR==2 {print $4}')"
+if (( available_kb < required_kb )); then
+  echo "need at least 2 GB free before fetching the portable runtime; available: ${available_kb} KB" >&2
+  exit 1
+fi
+export CLAWBROWSER_PORTABLE_RUNTIME_ROOT="$runtime_root"
+
 case "$(uname -m)" in
   x86_64|amd64) platform="linux-amd64" ;;
   arm64|aarch64) platform="linux-arm64" ;;
@@ -43,14 +56,6 @@ curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
 cd "clawctl-${platform}"
-
-# This Linux no-display/no-root path may fetch and unpack a portable runtime.
-required_kb=2097152
-available_kb="$(df -Pk . | awk 'NR==2 {print $4}')"
-if (( available_kb < required_kb )); then
-  echo "need at least 2 GB free before fetching the portable runtime; available: ${available_kb} KB" >&2
-  exit 1
-fi
 
 # Configure clawctl, install/reuse the browser, and prepare the runtime.
 ./clawctl config set api-key
