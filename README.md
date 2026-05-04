@@ -30,8 +30,6 @@ paths that `clawctl start` uses later.
 ```bash
 set -Eeuo pipefail
 
-: "${CLAWBROWSER_API_KEY:?set CLAWBROWSER_API_KEY}"
-
 selected_workdir=""
 for candidate in \
   "${CLAWBROWSER_WORKDIR:-}" \
@@ -88,7 +86,7 @@ rm -rf "clawctl-${platform}"
 tar -xzf "$archive"
 cd "clawctl-${platform}"
 
-printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
+./clawctl config set api-key
 ./clawctl install --json
 
 # Start through clawctl. On no-display Linux this uses the portable runtime
@@ -109,7 +107,7 @@ tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
 cd clawctl-macos-arm64
 
-printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
+./clawctl config set api-key
 ./clawctl install --json
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
