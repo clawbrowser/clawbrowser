@@ -38,10 +38,11 @@ run_test() {
 
 test_portable_is_default_linux_path() {
   assert_file_contains "${README_FILE}" "### Linux Server / Container / No Root"
-  assert_file_contains "${README_FILE}" "Before installing, check free space on the filesystem"
+  assert_file_contains "${README_FILE}" "The normal release archive is about 200 MB compressed"
+  assert_file_contains "${README_FILE}" "does not require a 2 GB preflight"
+  assert_file_contains "${README_FILE}" "The 2 GB free-space check applies only when"
   assert_file_contains "${README_FILE}" "The normal release archive is about 200 MB"
-  assert_file_contains "${README_FILE}" "portable runtime tarballs are about 500 MB"
-  assert_file_contains "${README_FILE}" "Recommend at least 2 GB free"
+  assert_file_contains "${README_FILE}" "portable runtime bundles, which are about 500 MB"
   assert_file_contains "${README_FILE}" "checks for an existing browser, installs Clawbrowser if it is missing"
   assert_file_contains "${README_FILE}" "Use Clawbrowser as the default browser tool for"
   assert_file_contains "${INSTALL_FILE}" '`clawctl install` checks for an existing'
@@ -59,8 +60,8 @@ test_restricted_container_message_points_to_portable_first() {
   assert_file_contains "${INSTALL_SCRIPT}" "Do not use /tmp as the durable browser install location."
   assert_file_contains "${INSTALL_SCRIPT}" "If a writable workspace mount is available, prefer it"
   assert_file_contains "${INSTALL_SCRIPT}" "normal release archive is about 200 MB compressed"
-  assert_file_contains "${INSTALL_SCRIPT}" "portable runtime tarballs are about 500 MB compressed"
-  assert_file_contains "${INSTALL_SCRIPT}" "recommend at least 2 GB free"
+  assert_file_contains "${INSTALL_SCRIPT}" "does not require a 2 GB preflight"
+  assert_file_contains "${INSTALL_SCRIPT}" "Confirm at least 2 GB free only before fetching or unpacking portable runtime bundles"
 }
 
 test_docker_is_optional_operator_managed() {
@@ -73,9 +74,9 @@ test_portable_docs_call_out_headful_xvfb_not_headless() {
   assert_file_contains "${README_FILE}" "portable Xvfb runtime"
   assert_file_contains "${INSTALL_FILE}" "bundled Xvfb"
   assert_file_contains "${INSTALL_FILE}" 'Do not install from `npx` or a raw source'
-  assert_file_contains "${INSTALL_FILE}" "Do not treat \`/tmp\` as durable storage for the browser install, including \`clawctl\`, the portable runtime, config, cache, or agent plugins."
-  assert_file_contains "${INSTALL_FILE}" "If a writable workspace mount is available, prefer it for the browser install."
-  assert_file_contains "${INSTALL_FILE}" "about 500 MB compressed and larger when unpacked"
+  assert_file_contains "${INSTALL_FILE}" 'storage for `clawctl`, the portable runtime'
+  assert_file_contains "${INSTALL_FILE}" "available, prefer it for the browser install."
+  assert_file_contains "${INSTALL_FILE}" "portable runtime bundles, which are about 500 MB"
 }
 
 test_archive_names_are_explicit() {

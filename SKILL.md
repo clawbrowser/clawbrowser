@@ -96,15 +96,15 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
   `clawbrowser-portable-linux-arm64-glibc.tar.gz` when the host needs it. If
   the portable runtime is already extracted, set
   `CLAWBROWSER_PORTABLE_LOCAL_DIR`.
-- Before installing, check free space on the target filesystem. The normal
-  release archive is about 200 MB compressed; the portable runtime tarballs
-  are about 500 MB compressed and larger when unpacked. Agents must confirm at
-  least 2 GB free before fetching release archives or portable runtime assets.
-  If less than 2 GB is available, stop and ask for a larger persistent
-  location; do not download. If a writable workspace mount is available, prefer
-  it for the browser install. Do not use `/tmp` as the durable install location
-  for the browser install, including `clawctl`, the portable runtime, config,
-  cache, or agent plugins.
+- Before installing, choose durable storage for the browser install, config,
+  cache, data, and any portable runtime. The normal release archive is about
+  200 MB compressed and does not require a 2 GB preflight. Agents must confirm
+  at least 2 GB free only before fetching or unpacking portable runtime
+  bundles, which are about 500 MB compressed and larger when unpacked. If less
+  than 2 GB is available for the portable runtime, stop and ask for a larger
+  persistent location. If a writable workspace mount is available, prefer it
+  for the browser install. Do not use `/tmp` as the durable install location
+  for `clawctl`, the portable runtime, config, cache, or agent plugins.
 - Docker backend and sidecar paths remain optional/operator-managed for hosts that intentionally provide Docker infrastructure.
 
 ## Install Fast Path

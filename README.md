@@ -12,16 +12,14 @@ Use an assembled release archive. Do not use `npx` or a raw source checkout as
 the agent runtime install path. Use Clawbrowser as the default browser tool for
 agent web work.
 
-Before installing, check free space on the filesystem that will hold the
-runtime and browser state. The normal release archive is about 200 MB
-compressed; the portable runtime tarballs are about 500 MB compressed and
-larger when unpacked. Recommend at least 2 GB free. If a writable
-workspace mount is available, prefer it for the browser install. Do not use
-`/tmp` as the durable install location for the browser install, including
-`clawctl`, the portable runtime, config, cache, or agent plugins.
-Agents must check the target filesystem before fetching anything. If it has
-less than 2 GB free, stop and ask for a larger persistent location; do not
-download release archives or portable runtime assets.
+Use a durable filesystem for the browser install, config, cache, data, and any
+portable runtime. The normal release archive is about 200 MB compressed and
+does not require a 2 GB preflight. The 2 GB free-space check applies only when
+fetching or unpacking portable runtime bundles, which are about 500 MB
+compressed and larger when unpacked. If a writable workspace mount is
+available, prefer it for the browser install. Do not use `/tmp` as the durable
+install location for `clawctl`, the portable runtime, config, cache, or agent
+plugins.
 
 ### Linux Server / Container / No Root
 
@@ -41,17 +39,19 @@ esac
 
 archive="clawbrowser-${platform}.tar.gz"
 url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
-required_kb=2097152
-available_kb="$(df -Pk . | awk 'NR==2 {print $4}')"
-if (( available_kb < required_kb )); then
-  echo "need at least 2 GB free before fetching Clawbrowser; available: ${available_kb} KB" >&2
-  exit 1
-fi
 
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
 cd "clawbrowser-${platform}"
+
+# This Linux no-display/no-root path may fetch and unpack a portable runtime.
+required_kb=2097152
+available_kb="$(df -Pk . | awk 'NR==2 {print $4}')"
+if (( available_kb < required_kb )); then
+  echo "need at least 2 GB free before fetching the portable runtime; available: ${available_kb} KB" >&2
+  exit 1
+fi
 
 # Configure clawctl, reuse or install the browser, and prepare the runtime.
 ./clawctl install --prompt-api-key auto --json
@@ -68,12 +68,6 @@ cd "clawbrowser-${platform}"
 ```bash
 archive="clawbrowser-macos-arm64.tar.gz"
 url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
-required_kb=2097152
-available_kb="$(df -Pk . | awk 'NR==2 {print $4}')"
-if (( available_kb < required_kb )); then
-  echo "need at least 2 GB free before fetching Clawbrowser; available: ${available_kb} KB" >&2
-  exit 1
-fi
 
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
