@@ -81,26 +81,30 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
 
 ## Install
 
-- Before using Clawbrowser, install the full browser runtime and `clawctl`; installing only an integration skill/plugin is not enough.
-- Happy path: download an assembled release archive from `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack it, then run the bundled `./clawctl install --prompt-api-key auto`.
+- Before using Clawbrowser, install standalone `clawctl`; installing only an integration skill/plugin is not enough.
+- Happy path: download `clawctl-linux-amd64.tar.gz`,
+  `clawctl-linux-arm64.tar.gz`, or `clawctl-darwin-arm64.tar.gz` from
+  `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack it,
+  configure the API key with `./clawctl config set api-key`, then run
+  `./clawctl install --json`.
 - `clawctl install` is the supported setup path for agents. It reuses an
   existing browser when one is usable, downloads Clawbrowser when missing,
   installs the portable Linux runtime when the host needs Xvfb, and prepares
   the paths that `clawctl start` uses later.
 - Install guide URL: `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`. If a local `INSTALL.md` is present beside this skill, prefer that local copy because it matches the installed release.
-- Do not use `npx` as the primary install path for agent workflows. If you reach this package through `npx` or a raw source checkout, stop and follow `INSTALL.md` to install from the release archive instead.
 - If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude`, `codex`, `gemini`, or `openclaw`.
 - Use the official `clawbrowser/clawbrowser` GitHub repository and bundled `clawctl install` command only.
 - On Linux servers/containers/no-display environments, use portable mode by
-  default. The normal Linux release archive provides `clawctl`; `clawctl install` ensures
+  default. The standalone `clawctl` archive provides the bootstrapper; `clawctl install` ensures
+  the browser and
   `clawbrowser-portable-linux-amd64-glibc.tar.gz` or
   `clawbrowser-portable-linux-arm64-glibc.tar.gz` when the host needs it. If
   the portable runtime is already extracted, set
   `CLAWBROWSER_PORTABLE_LOCAL_DIR`.
 - Before installing, choose durable storage for the browser install, config,
-  cache, data, and any portable runtime. The normal release archive is about
-  200 MB compressed and does not require a 2 GB preflight. Agents must confirm
-  at least 2 GB free only before fetching or unpacking portable runtime
+  cache, data, and any portable runtime. The standalone `clawctl` archive is
+  small and does not require a 2 GB preflight. Agents must confirm at least
+  2 GB free only before fetching or unpacking portable runtime
   bundles, which are about 500 MB compressed and larger when unpacked. If less
   than 2 GB is available for the portable runtime, stop and ask for a larger
   persistent location. If a writable workspace mount is available, prefer it
@@ -111,7 +115,8 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
 ## Install Fast Path
 
 ```bash
-./clawctl install --prompt-api-key auto
+./clawctl config set api-key
+./clawctl install --json
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
 ```

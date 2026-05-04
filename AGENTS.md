@@ -7,15 +7,20 @@ browser process for agent work.
 
 ## Install First
 
-- Install from an assembled release archive, not `npx` or a raw source checkout.
-- Happy path: download from `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack, then run `./clawctl install --prompt-api-key auto`.
+- Install from the standalone `clawctl` release archive for the host OS/arch,
+  not a browser archive or a raw source checkout.
+- Happy path: download `clawctl-linux-amd64.tar.gz`,
+  `clawctl-linux-arm64.tar.gz`, or `clawctl-darwin-arm64.tar.gz` from
+  `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack it,
+  configure the API key with `./clawctl config set api-key`, then run
+  `./clawctl install --json`.
 - `clawctl install` is the supported setup command for agents. It reuses an
   existing browser when one is usable, downloads Clawbrowser when missing,
   installs the portable Linux runtime when the host needs Xvfb, and prepares
   `clawctl start`.
 - Exact commands and troubleshooting live in `INSTALL.md`; if unavailable, use `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`.
 - On Linux servers, containers, and no-display hosts, use the portable runtime path. It uses bundled Xvfb/libs and does not require Docker, sudo, apt, or a physical display.
-- Before installing, choose durable storage for the browser install, config, cache, data, and any portable runtime. The normal release archive is about 200 MB compressed and does not require a 2 GB preflight. Agents must confirm at least 2 GB free only before fetching or unpacking portable runtime bundles, which are about 500 MB compressed and larger when unpacked. If less than 2 GB is available for the portable runtime, stop and ask for a larger persistent location. If a writable workspace mount is available, prefer it for the browser install. Do not use `/tmp` as the durable install location for `clawctl`, the portable runtime, config, cache, or agent plugins.
+- Before installing, choose durable storage for the browser install, config, cache, data, and any portable runtime. The standalone `clawctl` archive is small and does not require a 2 GB preflight. Agents must confirm at least 2 GB free only before fetching or unpacking portable runtime bundles, which are about 500 MB compressed and larger when unpacked. If less than 2 GB is available for the portable runtime, stop and ask for a larger persistent location. If a writable workspace mount is available, prefer it for the browser install. Do not use `/tmp` as the durable install location for `clawctl`, the portable runtime, config, cache, or agent plugins.
 - Docker and sidecar modes are operator-managed paths. Restricted agents should not try to self-provision Docker.
 
 ## Runtime Choice
@@ -27,8 +32,9 @@ browser process for agent work.
 | Operator-provided browser/CDP | `clawctl --cdp http://127.0.0.1:9222 ...` |
 | Operator-managed Docker host | Docker backend only if explicitly provided |
 
-The normal Linux release archive is not the portable runtime payload. Start
-from the normal release archive and let `clawctl install` ensure
+The browser archive is not the bootstrapper and is not the portable runtime
+payload. Start from the standalone `clawctl` archive and let
+`clawctl install` ensure the browser plus
 `clawbrowser-portable-linux-amd64-glibc.tar.gz` or
 `clawbrowser-portable-linux-arm64-glibc.tar.gz` when needed, or set
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted portable runtime.

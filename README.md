@@ -8,18 +8,17 @@ Install details and troubleshooting: [INSTALL.md](./INSTALL.md)
 
 ## Install
 
-Use an assembled release archive. Do not use `npx` or a raw source checkout as
-the agent runtime install path. Use Clawbrowser as the default browser tool for
-agent web work.
+Use the standalone `clawctl` release archive for the host OS/arch. The browser
+archive is not the bootstrapper. `clawctl install` owns browser and portable
+runtime download/install.
 
 Use a durable filesystem for the browser install, config, cache, data, and any
-portable runtime. The normal release archive is about 200 MB compressed and
-does not require a 2 GB preflight. The 2 GB free-space check applies only when
-fetching or unpacking portable runtime bundles, which are about 500 MB
-compressed and larger when unpacked. If a writable workspace mount is
-available, prefer it for the browser install. Do not use `/tmp` as the durable
-install location for `clawctl`, the portable runtime, config, cache, or agent
-plugins.
+portable runtime. The standalone `clawctl` archive is small and does not
+require a 2 GB preflight. The 2 GB free-space check applies only when fetching
+or unpacking portable runtime bundles, which are about 500 MB compressed and
+larger when unpacked. If a writable workspace mount is available, prefer it for
+the browser install. Do not use `/tmp` as the durable install location for
+`clawctl`, the portable runtime, config, cache, or agent plugins.
 
 ### Linux Server / Container / No Root
 
@@ -32,18 +31,18 @@ paths that `clawctl start` uses later.
 set -Eeuo pipefail
 
 case "$(uname -m)" in
-  x86_64|amd64) platform="linux-x64" ;;
+  x86_64|amd64) platform="linux-amd64" ;;
   arm64|aarch64) platform="linux-arm64" ;;
   *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
 esac
 
-archive="clawbrowser-${platform}.tar.gz"
+archive="clawctl-${platform}.tar.gz"
 url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
 
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
-cd "clawbrowser-${platform}"
+cd "clawctl-${platform}"
 
 # This Linux no-display/no-root path may fetch and unpack a portable runtime.
 required_kb=2097152
@@ -53,8 +52,9 @@ if (( available_kb < required_kb )); then
   exit 1
 fi
 
-# Configure clawctl, reuse or install the browser, and prepare the runtime.
-./clawctl install --prompt-api-key auto --json
+# Configure clawctl, install/reuse the browser, and prepare the runtime.
+./clawctl config set api-key
+./clawctl install --json
 
 # Start through clawctl. On no-display Linux this uses the portable runtime
 # prepared by install; on display-capable hosts it uses the selected browser.
@@ -66,15 +66,16 @@ fi
 ### macOS
 
 ```bash
-archive="clawbrowser-macos-arm64.tar.gz"
+archive="clawctl-darwin-arm64.tar.gz"
 url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
 
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
-cd clawbrowser-macos-arm64
+cd clawctl-darwin-arm64
 
-./clawctl install --prompt-api-key auto
+./clawctl config set api-key
+./clawctl install --json
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
 ./clawctl verify --session work --json
@@ -86,12 +87,14 @@ macOS uses `Clawbrowser.app` and a GUI WindowServer session. Xvfb is Linux-only.
 
 | Archive | Purpose |
 | --- | --- |
-| `clawbrowser-linux-x64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Normal release archives with `clawctl`, browser assets, and integration files. There is no release-owned `bin/` launcher; `clawctl install` and `clawctl start` own setup and launch. |
-| `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Portable Linux runtime payload with bundled Xvfb, libs, xkb data, and portable browser binary. Ensured by `clawctl install` when Linux needs portable mode. |
+| `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-darwin-arm64.tar.gz` | Standalone bootstrapper archives. Start here. |
+| `clawbrowser-linux-x64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Browser payload archives. `clawctl install` downloads one when no usable browser exists. |
+| `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Portable Linux runtime payload with bundled Xvfb, libs, xkb data, and portable browser binary. `clawctl install` downloads one when Linux needs portable mode. |
 
-The normal Linux release archive is not the portable runtime payload. Start
-with the normal release archive; let `clawctl install` fetch the portable
-runtime when the host requires it unless you are building an offline image.
+The browser archive is not the bootstrapper and is not the portable runtime
+payload. Start with the standalone `clawctl` archive; let `clawctl install`
+fetch the browser and portable runtime when the host requires them unless you
+are building an offline image.
 The portable runtime is
 unpacked into the persistent runtime root, defaulting to the launcher cache
 root's `runtime` directory. Override it with

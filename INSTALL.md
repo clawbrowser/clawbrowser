@@ -1,8 +1,8 @@
 # Clawbrowser - Install & Run
 
-Use the assembled release archive. Do not install from `npx` or a raw source
-checkout for agent workflows. Use Clawbrowser as the default browser tool for
-agent web work.
+Use the standalone `clawctl` release archive for the host OS/arch. The browser
+archive is not the bootstrapper. `clawctl install` owns browser and portable
+runtime download/install.
 
 ## Fast Path: Linux Server / Container / No Root
 
@@ -14,29 +14,29 @@ missing, ensures the matching portable Xvfb runtime when the host needs it,
 and prepares the paths that `clawctl start` uses later.
 
 Use a durable filesystem for the browser install, config, cache, data, and any
-portable runtime. The normal release archive is about 200 MB compressed and
-does not require a 2 GB preflight. The 2 GB free-space check applies only when
-fetching or unpacking portable runtime bundles, which are about 500 MB
-compressed and larger when unpacked. If a writable workspace mount is
-available, prefer it for the browser install. Do not treat `/tmp` as durable
-storage for `clawctl`, the portable runtime, config, cache, or agent plugins.
+portable runtime. The standalone `clawctl` archive is small and does not
+require a 2 GB preflight. The 2 GB free-space check applies only when fetching
+or unpacking portable runtime bundles, which are about 500 MB compressed and
+larger when unpacked. If a writable workspace mount is available, prefer it for
+the browser install. Do not treat `/tmp` as durable storage for `clawctl`, the
+portable runtime, config, cache, or agent plugins.
 
 ```bash
 set -Eeuo pipefail
 
 case "$(uname -m)" in
-  x86_64|amd64) platform="linux-x64" ;;
+  x86_64|amd64) platform="linux-amd64" ;;
   arm64|aarch64) platform="linux-arm64" ;;
   *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
 esac
 
-archive="clawbrowser-${platform}.tar.gz"
+archive="clawctl-${platform}.tar.gz"
 url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
 
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
-cd "clawbrowser-${platform}"
+cd "clawctl-${platform}"
 
 # This Linux no-display/no-root path may fetch and unpack a portable runtime.
 required_kb=2097152
@@ -47,7 +47,8 @@ if (( available_kb < required_kb )); then
 fi
 
 # Configure clawctl, reuse or install the browser, and prepare the runtime.
-./clawctl install --prompt-api-key auto --json
+./clawctl config set api-key
+./clawctl install --json
 
 # Start through clawctl. On no-display Linux this uses the portable runtime
 # prepared by install; on display-capable hosts it uses the selected browser.
@@ -58,18 +59,19 @@ fi
 
 ## macOS Fast Path
 
-Use the assembled macOS release archive from a logged-in GUI session:
+Use the standalone macOS `clawctl` archive from a logged-in GUI session:
 
 ```bash
-archive="clawbrowser-macos-arm64.tar.gz"
+archive="clawctl-darwin-arm64.tar.gz"
 url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
 
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
-cd clawbrowser-macos-arm64
+cd clawctl-darwin-arm64
 
-./clawctl install --prompt-api-key auto
+./clawctl config set api-key
+./clawctl install --json
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
 ./clawctl verify --session work --json
@@ -81,15 +83,15 @@ macOS uses `Clawbrowser.app` and WindowServer. Xvfb is Linux-only.
 
 | Thing | Use it for | Notes |
 | --- | --- | --- |
-| `clawbrowser-linux-x64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Normal install | Contains `clawctl`, browser assets, and integration files. Start here. |
+| `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-darwin-arm64.tar.gz` | Bootstrap install | Standalone `clawctl` archives. Start here. |
+| `clawbrowser-linux-x64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Browser payload | `clawctl install` downloads one when no usable browser exists. |
 | `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Linux portable runtime | Contains the bundled Xvfb, libraries, xkb data, and portable browser binary. `clawctl install` ensures it when Linux needs portable mode unless you prefetch it. |
 | Raw source checkout | Development only | Does not represent the installed agent runtime. Use `go run ./cmd/clawctl ...` only while developing the CLI. |
-| `npx clawbrowser` | Not an agent runtime install | Do not use it as the primary install path. |
 | Docker image | Operator-managed runtime | Optional. Use only when infrastructure intentionally provides Docker or a CDP sidecar. |
 
-The normal Linux release archive is not the portable runtime payload. If you
-need the no-root server/container path, run the normal installer so `clawctl`
-can ensure the portable Xvfb runtime, or set
+The browser archive is not the bootstrapper and is not the portable runtime
+payload. Start with the standalone `clawctl` archive so `clawctl install` can
+ensure the browser and portable Xvfb runtime, or set
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted portable runtime.
 Downloaded portable runtimes are unpacked into the persistent runtime root,
 defaulting to the launcher cache root's `runtime` directory. Set
@@ -104,7 +106,8 @@ runtime tarball.
 export CLAWBROWSER_PORTABLE_LOCAL_DIR="/absolute/path/to/linux-amd64-glibc"
 # or: /absolute/path/to/linux-arm64-glibc
 
-./clawctl install --prompt-api-key auto --json
+./clawctl config set api-key
+./clawctl install --json
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
 ./clawctl verify --session work --json
@@ -148,7 +151,8 @@ export XDG_CONFIG_HOME="$CLAWBROWSER_WRITABLE_ROOT/config"
 export XDG_CACHE_HOME="$CLAWBROWSER_WRITABLE_ROOT/cache"
 export XDG_DATA_HOME="$CLAWBROWSER_WRITABLE_ROOT/data"
 
-./clawctl install --prompt-api-key auto \
+./clawctl config set api-key
+./clawctl install \
   --install-root "$XDG_DATA_HOME/clawbrowser/runtime" \
   --bin-dir "$XDG_DATA_HOME/clawbrowser/bin" \
   --config-dir "$XDG_CONFIG_HOME/clawbrowser" \
@@ -222,8 +226,8 @@ clawctl start --session work --url clawbrowser://verify/ --json
 clawctl verify --session work --json
 ```
 
-If no saved key exists, `clawctl install --prompt-api-key auto` prompts once
-for the real API key from `https://app.clawbrowser.ai` and writes it to the
+If no saved key exists, run `clawctl config set api-key` once with the real API
+key from `https://app.clawbrowser.ai`. The key is written to the
 browser-managed `config.json`. Do not put API keys in MCP config, agent config,
 shell rc files, env files, or logs.
 
@@ -283,8 +287,8 @@ browser automation.
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| `clawctl: command not found` | Release archive was not installed or the installed binary directory is not on `PATH`. | Run bundled `./clawctl ...` from the unpacked release, or add the install bin directory to `PATH`. |
-| `./clawctl` missing | You are in a raw source checkout or incomplete bundle. | Download the assembled release archive and rerun `./clawctl install --prompt-api-key auto`. |
+| `clawctl: command not found` | Standalone `clawctl` archive was not installed or the installed binary directory is not on `PATH`. | Run `./clawctl ...` from the unpacked standalone archive, or add the install bin directory to `PATH`. |
+| `./clawctl` missing | You are in a raw source checkout or incomplete bundle. | Download the standalone `clawctl` archive and rerun `./clawctl install`. |
 | Read-only `/root` or installer tries to write under `/root` | Restricted agent container set `HOME=/root`, but `/root` is not writable. | Set `HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, and `XDG_DATA_HOME` to writable paths, confirm the target filesystem has enough free space, and pass the generic path overrides from [Restricted Agent Containers: Writable Paths](#restricted-agent-containers-writable-paths). |
 | `Required command not found: docker` | Docker backend was selected, or an old/source launcher path is being used. | Rerun `clawctl install` and `clawctl start` with the release `clawctl`; use `--backend portable` only when explicitly forcing portable mode. |
 | Docker socket or permission error | Restricted container cannot self-provision Docker. | Use portable mode, or ask the operator for `clawctl --cdp http://127.0.0.1:9222 ...`. |
