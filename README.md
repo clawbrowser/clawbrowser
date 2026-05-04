@@ -20,81 +20,29 @@ larger when unpacked. If a writable workspace mount is available, prefer it for
 the browser install. Do not use `/tmp` as the durable install location for
 `clawctl`, the portable runtime, config, cache, or agent plugins.
 
-### Linux Server / Container / No Root
+### Agent Install
 
-No Docker, sudo, apt, or physical display is required. `clawctl install`
-checks for an existing browser, installs Clawbrowser if it is missing, ensures
-the matching portable Xvfb runtime when the host needs it, and prepares the
-paths that `clawctl start` uses later.
+Use the copy/paste flow in [INSTALL.md](./INSTALL.md#agent-fast-path). The
+agent path is intentionally short:
 
-```bash
-set -Eeuo pipefail
+1. Find a durable writable directory outside `/tmp`.
+2. Download the standalone `clawctl` archive:
+   `curl -fL -o "$archive" "$url" && tar -xzf "$archive"`.
+3. Install Clawbrowser:
+   `clawctl install --json`.
+4. Ask once for the Clawbrowser API key from `https://app.clawbrowser.ai`.
+5. Save the API key:
+   `printf '%s\n' "$CLAWBROWSER_API_KEY" | clawctl config set api-key --stdin`.
+6. Verify:
 
-selected_workdir=""
-for candidate in \
-  "${CLAWBROWSER_WORKDIR:-}" \
-  "$PWD/.clawbrowser" \
-  "${WORKSPACE:+$WORKSPACE/.clawbrowser}" \
-  "${GITHUB_WORKSPACE:+$GITHUB_WORKSPACE/.clawbrowser}" \
-  "/workspace/.clawbrowser" \
-  "/work/.clawbrowser" \
-  "${HOME:+$HOME/.clawbrowser}"; do
-  [ -n "$candidate" ] || continue
-  case "$candidate" in /tmp|/tmp/*) continue ;; esac
-  mkdir -p "$candidate" 2>/dev/null || continue
-  probe="$candidate/.exec-probe"
-  printf '#!/bin/sh\nexit 0\n' > "$probe" 2>/dev/null || continue
-  chmod +x "$probe" 2>/dev/null || continue
-  "$probe" >/dev/null 2>&1 || { rm -f "$probe"; continue; }
-  rm -f "$probe"
-  selected_workdir="$candidate"
-  break
-done
-[ -n "$selected_workdir" ] || { echo "no writable executable Clawbrowser workdir found" >&2; exit 1; }
-export CLAWBROWSER_WORKDIR="$selected_workdir"
+   ```bash
+   clawctl start --session work --url clawbrowser://verify/ --json
+   clawctl endpoint --session work --json
+   clawctl verify --session work --json
+   ```
 
-mkdir -p "$CLAWBROWSER_WORKDIR/config" "$CLAWBROWSER_WORKDIR/cache" "$CLAWBROWSER_WORKDIR/data"
-export XDG_CONFIG_HOME="$CLAWBROWSER_WORKDIR/config"
-export XDG_CACHE_HOME="$CLAWBROWSER_WORKDIR/cache"
-export XDG_DATA_HOME="$CLAWBROWSER_WORKDIR/data"
-runtime_root="${CLAWBROWSER_PORTABLE_RUNTIME_ROOT:-$XDG_CACHE_HOME/clawbrowser/runtime}"
-mkdir -p "$runtime_root"
-cd "$CLAWBROWSER_WORKDIR"
-
-# Linux no-display/no-root hosts may fetch and unpack a portable runtime during
-# clawctl install. Check that durable runtime location before install starts.
-required_kb=2097152
-available_kb="$(df -Pk "$runtime_root" | awk 'NR==2 {print $4}')"
-if (( available_kb < required_kb )); then
-  echo "need at least 2 GB free before fetching the portable runtime; available: ${available_kb} KB" >&2
-  exit 1
-fi
-export CLAWBROWSER_PORTABLE_RUNTIME_ROOT="$runtime_root"
-
-case "$(uname -m)" in
-  x86_64|amd64) platform="linux-amd64" ;;
-  arm64|aarch64) platform="linux-arm64" ;;
-  *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
-esac
-
-archive="clawctl-${platform}.tar.gz"
-url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
-
-curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
-tar -tzf "$archive" >/dev/null
-rm -rf "clawctl-${platform}"
-tar -xzf "$archive"
-cd "clawctl-${platform}"
-
-./clawctl config set api-key
-./clawctl install --json
-
-# Start through clawctl. On no-display Linux this uses the portable runtime
-# prepared by install; on display-capable hosts it uses the selected browser.
-./clawctl start --session work --url clawbrowser://verify/ --json
-./clawctl endpoint --session work --json
-./clawctl verify --session work --json
-```
+No Docker, sudo, apt, manual portable runtime download, or physical display is
+required for Linux server/container installs.
 
 ### macOS
 
@@ -107,8 +55,8 @@ tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
 cd clawctl-macos-arm64
 
-./clawctl config set api-key
 ./clawctl install --json
+./clawctl config set api-key
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
 ./clawctl verify --session work --json
@@ -138,8 +86,10 @@ across restarts.
 
 ```bash
 clawctl install --json
-clawctl start --session work --url https://example.com --json
+clawctl config set api-key
+clawctl start --session work --url clawbrowser://verify/ --json
 clawctl endpoint --session work --json
+clawctl verify --session work --json
 ```
 
 Attach your CDP client to the returned endpoint. Re-fetch it after start,

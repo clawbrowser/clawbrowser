@@ -4,22 +4,36 @@ Use the standalone `clawctl` release archive for the host OS/arch. The browser
 archive is not the bootstrapper. `clawctl install` owns browser and portable
 runtime download/install.
 
-## Fast Path: Linux Server / Container / No Root
+## Agent Fast Path
 
-This is the default path for Linux VPS, CI-like environments, restricted
-containers, and machines without a display. It does not require Docker, sudo,
-apt, or a physical display. `clawctl install` checks for an existing
-Clawbrowser, installs the matching release artifact when the browser is
-missing, ensures the matching portable Xvfb runtime when the host needs it,
-and prepares the paths that `clawctl start` uses later.
+This is the path agents should follow on Linux servers, restricted containers,
+CI-like hosts, and macOS GUI hosts. Do not start from a browser archive, raw
+source checkout, Docker, a manual runtime download, or `--runtime-version`.
 
-Use a durable filesystem for the browser install, config, cache, data, and any
-portable runtime. The standalone `clawctl` archive is small and does not
-require a 2 GB preflight. The 2 GB free-space check applies only when fetching
-or unpacking portable runtime bundles, which are about 500 MB compressed and
-larger when unpacked. If a writable workspace mount is available, prefer it for
-the browser install. Do not treat `/tmp` as durable storage for `clawctl`, the
-portable runtime, config, cache, or agent plugins.
+Steps with the exact commands:
+
+1. Find a durable writable directory outside `/tmp`, then set the Clawbrowser
+   config/cache/data paths under it.
+2. Download and extract the standalone `clawctl` archive:
+   `curl -fL -o "$archive" "$url" && tar -xzf "$archive"`.
+3. Install Clawbrowser:
+   `"$clawctl_bootstrap" install --json`.
+4. Ask once for the Clawbrowser API key from `https://app.clawbrowser.ai`.
+5. Save the API key:
+   `printf '%s\n' "$CLAWBROWSER_API_KEY" | "$clawctl" config set api-key --stdin`.
+6. Verify with these commands:
+
+   ```bash
+   "$clawctl" start --session work --url clawbrowser://verify/ --json
+   "$clawctl" endpoint --session work --json
+   "$clawctl" verify --session work --json
+   ```
+
+The full copy/paste script is below.
+
+Use one shell variable for the key only long enough to save it. Do not put API
+keys in shell rc files, MCP config, agent config, env files, logs, or command
+arguments.
 
 ```bash
 set -Eeuo pipefail
@@ -47,28 +61,27 @@ done
 [ -n "$selected_workdir" ] || { echo "no writable executable Clawbrowser workdir found" >&2; exit 1; }
 export CLAWBROWSER_WORKDIR="$selected_workdir"
 
-mkdir -p "$CLAWBROWSER_WORKDIR/config" "$CLAWBROWSER_WORKDIR/cache" "$CLAWBROWSER_WORKDIR/data"
+mkdir -p "$CLAWBROWSER_WORKDIR/home" "$CLAWBROWSER_WORKDIR/config" "$CLAWBROWSER_WORKDIR/cache" "$CLAWBROWSER_WORKDIR/data" "$CLAWBROWSER_WORKDIR/bin"
+export HOME="$CLAWBROWSER_WORKDIR/home"
 export XDG_CONFIG_HOME="$CLAWBROWSER_WORKDIR/config"
 export XDG_CACHE_HOME="$CLAWBROWSER_WORKDIR/cache"
 export XDG_DATA_HOME="$CLAWBROWSER_WORKDIR/data"
-runtime_root="${CLAWBROWSER_PORTABLE_RUNTIME_ROOT:-$XDG_CACHE_HOME/clawbrowser/runtime}"
-mkdir -p "$runtime_root"
+export CLAWBROWSER_BIN_DIR="$CLAWBROWSER_WORKDIR/bin"
+export CLAWBROWSER_AGENT_CONFIG="$XDG_CONFIG_HOME/clawbrowser/agent-marketplace.json"
+export CLAWBROWSER_AGENT_PLUGINS_DIR="$XDG_DATA_HOME/clawbrowser/agent-plugins"
+export CLAWBROWSER_PORTABLE_RUNTIME_ROOT="$XDG_CACHE_HOME/clawbrowser/runtime"
+mkdir -p \
+  "$CLAWBROWSER_BIN_DIR" \
+  "$(dirname "$CLAWBROWSER_AGENT_CONFIG")" \
+  "$CLAWBROWSER_AGENT_PLUGINS_DIR" \
+  "$CLAWBROWSER_PORTABLE_RUNTIME_ROOT"
 cd "$CLAWBROWSER_WORKDIR"
 
-# Linux no-display/no-root hosts may fetch and unpack a portable runtime during
-# clawctl install. Check that durable runtime location before install starts.
-required_kb=2097152
-available_kb="$(df -Pk "$runtime_root" | awk 'NR==2 {print $4}')"
-if (( available_kb < required_kb )); then
-  echo "need at least 2 GB free before fetching the portable runtime; available: ${available_kb} KB" >&2
-  exit 1
-fi
-export CLAWBROWSER_PORTABLE_RUNTIME_ROOT="$runtime_root"
-
-case "$(uname -m)" in
-  x86_64|amd64) platform="linux-amd64" ;;
-  arm64|aarch64) platform="linux-arm64" ;;
-  *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
+case "$(uname -s):$(uname -m)" in
+  Linux:x86_64|Linux:amd64) platform="linux-amd64" ;;
+  Linux:arm64|Linux:aarch64) platform="linux-arm64" ;;
+  Darwin:arm64) platform="macos-arm64" ;;
+  *) echo "unsupported host: $(uname -s) $(uname -m)" >&2; exit 1 ;;
 esac
 
 archive="clawctl-${platform}.tar.gz"
@@ -78,17 +91,34 @@ curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
 rm -rf "clawctl-${platform}"
 tar -xzf "$archive"
-cd "clawctl-${platform}"
+clawctl_bootstrap="$CLAWBROWSER_WORKDIR/clawctl-${platform}/clawctl"
+[ -x "$clawctl_bootstrap" ] || { echo "missing clawctl in extracted archive" >&2; exit 1; }
 
-./clawctl config set api-key
-./clawctl install --json
+"$clawctl_bootstrap" install --json
 
-# Start through clawctl. On no-display Linux this uses the portable runtime
-# prepared by install; on display-capable hosts it uses the selected browser.
-./clawctl start --session work --url clawbrowser://verify/ --json
-./clawctl endpoint --session work --json
-./clawctl verify --session work --json
+clawctl="$CLAWBROWSER_BIN_DIR/clawctl"
+[ -x "$clawctl" ] || clawctl="$clawctl_bootstrap"
+
+if [ -z "${CLAWBROWSER_API_KEY:-}" ]; then
+  printf "Clawbrowser API key from https://app.clawbrowser.ai: " >&2
+  stty -echo 2>/dev/null || true
+  IFS= read -r CLAWBROWSER_API_KEY || true
+  stty echo 2>/dev/null || true
+  printf "\n" >&2
+fi
+[ -n "$CLAWBROWSER_API_KEY" ] || { echo "Clawbrowser API key is required" >&2; exit 1; }
+printf '%s\n' "$CLAWBROWSER_API_KEY" | "$clawctl" config set api-key --stdin
+unset CLAWBROWSER_API_KEY
+
+"$clawctl" start --session work --url clawbrowser://verify/ --json
+"$clawctl" endpoint --session work --json
+"$clawctl" verify --session work --json
 ```
+
+Linux portable installs need enough free space for the runtime bundle, which is
+about 500 MB compressed and larger after unpacking. If install reports a space
+error, rerun the same flow with `CLAWBROWSER_WORKDIR` set to a larger durable
+path.
 
 ## macOS Fast Path
 
@@ -103,8 +133,8 @@ tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
 cd clawctl-macos-arm64
 
-./clawctl config set api-key
 ./clawctl install --json
+./clawctl config set api-key
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
 ./clawctl verify --session work --json
@@ -139,8 +169,8 @@ runtime tarball.
 export CLAWBROWSER_PORTABLE_LOCAL_DIR="/absolute/path/to/linux-amd64-glibc"
 # or: /absolute/path/to/linux-arm64-glibc
 
-./clawctl config set api-key
 ./clawctl install --json
+./clawctl config set api-key
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
 ./clawctl verify --session work --json
@@ -149,82 +179,21 @@ export CLAWBROWSER_PORTABLE_LOCAL_DIR="/absolute/path/to/linux-amd64-glibc"
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` can point either at the extracted platform
 directory (`linux-amd64-glibc`) or its parent directory.
 
-## Restricted Agent Containers: Writable Paths
+## Restricted Agent Containers
 
-Use this path when the agent runtime has no root access, no display, and a
-read-only `$HOME`, including containers where `HOME=/root` but `/root` cannot be
-written. Do not write to `/root` just because `HOME=/root`. If a writable
-workspace mount is available, prefer it over `/tmp`. Do not execute `clawctl`
-from `/tmp`; restricted containers may mount `/tmp` with `noexec`.
-
-Pick one writable base directory on a persistent volume, preferably the
-workspace mount when one is available, confirm it has enough free space for
-the 500 MB compressed portable runtime tarball and unpacked runtime, and make
-all Clawbrowser paths explicit:
+Use the same [Agent Fast Path](#agent-fast-path). Do not build a custom matrix
+of path flags. If the automatic workdir probe fails, set one durable writable
+directory and rerun the same flow:
 
 ```bash
-set -Eeuo pipefail
-
-export CLAWBROWSER_WRITABLE_ROOT="${CLAWBROWSER_WRITABLE_ROOT:?set this to a writable persistent directory outside /tmp}"
-required_kb=2097152
-available_kb="$(df -Pk "$CLAWBROWSER_WRITABLE_ROOT" | awk 'NR==2 {print $4}')"
-if (( available_kb < required_kb )); then
-  echo "need at least 2 GB free before fetching the portable runtime; available: ${available_kb} KB" >&2
-  exit 1
-fi
-
-mkdir -p \
-  "$CLAWBROWSER_WRITABLE_ROOT/home" \
-  "$CLAWBROWSER_WRITABLE_ROOT/config" \
-  "$CLAWBROWSER_WRITABLE_ROOT/cache" \
-  "$CLAWBROWSER_WRITABLE_ROOT/data"
-
-export HOME="$CLAWBROWSER_WRITABLE_ROOT/home"
-export XDG_CONFIG_HOME="$CLAWBROWSER_WRITABLE_ROOT/config"
-export XDG_CACHE_HOME="$CLAWBROWSER_WRITABLE_ROOT/cache"
-export XDG_DATA_HOME="$CLAWBROWSER_WRITABLE_ROOT/data"
-
-./clawctl config set api-key
-./clawctl install \
-  --install-root "$XDG_DATA_HOME/clawbrowser/runtime" \
-  --bin-dir "$XDG_DATA_HOME/clawbrowser/bin" \
-  --config-dir "$XDG_CONFIG_HOME/clawbrowser" \
-  --cache-dir "$XDG_CACHE_HOME/clawbrowser" \
-  --data-dir "$XDG_DATA_HOME/clawbrowser" \
-  --agent-config "$XDG_CONFIG_HOME/clawbrowser/agent-marketplace.json" \
-  --agent-plugins-dir "$XDG_DATA_HOME/clawbrowser/agent-plugins" \
-  --json
-
-export PATH="$XDG_DATA_HOME/clawbrowser/bin:$PATH"
-
-# No-monitor / no-display proof path through clawctl.
-clawctl start --session work --url clawbrowser://verify/ --json
-clawctl endpoint --session work --json
-clawctl verify --session work --json
+export CLAWBROWSER_WORKDIR="/workspace/.clawbrowser"
 ```
 
-The generic installer path overrides are:
-
-| CLI flag | Environment variable |
-| --- | --- |
-| `--install-root` | `CLAWBROWSER_INSTALL_ROOT` |
-| `--bin-dir` | `CLAWBROWSER_BIN_DIR` |
-| `--config-dir` | `CLAWBROWSER_CONFIG_DIR` |
-| `--cache-dir` | `CLAWBROWSER_CACHE_DIR` |
-| `--data-dir` | `CLAWBROWSER_DATA_DIR` |
-| `--agent-config` | `CLAWBROWSER_AGENT_CONFIG` |
-| `--agent-plugins-dir` | `CLAWBROWSER_AGENT_PLUGINS_DIR` |
-
-Path resolution order is: CLI flags, then `CLAWBROWSER_*` environment
-variables, then XDG directories, then a `$HOME` fallback only when `$HOME`
-exists and is writable. The installer fails fast if any resolved directory or
-config parent cannot be created or written. If the only writable directory is
-`/tmp`, stop and ask for a persistent mount instead of installing there.
-
-Docker is not a fallback inside restricted agent containers. Use
-portable mode prepared by `clawctl install`, or connect to an
-operator-provided CDP endpoint
-with `clawctl --cdp http://127.0.0.1:9222 ...`.
+Use a real workspace mount, `/workspace`, `/work`, or another persistent
+operator-provided directory. Do not use `/tmp` as the install, config, cache,
+data, portable runtime, or plugin location. Do not try Docker as a fallback
+inside restricted agent containers; use portable mode from `clawctl install` or
+an operator-provided CDP endpoint.
 
 ## Canonical Agent Flow
 
@@ -232,8 +201,10 @@ Use `clawctl` for session lifecycle and use CDP for page automation.
 
 ```bash
 clawctl install --json
-clawctl start --session work --url https://example.com --json
+clawctl config set api-key
+clawctl start --session work --url clawbrowser://verify/ --json
 clawctl endpoint --session work --json
+clawctl verify --session work --json
 ```
 
 Attach your CDP client to the returned endpoint. Re-fetch the endpoint after
@@ -328,7 +299,7 @@ browser automation.
 | --- | --- | --- |
 | `clawctl: command not found` | Standalone `clawctl` archive was not installed or the installed binary directory is not on `PATH`. | Run `./clawctl ...` from the unpacked standalone archive, or add the install bin directory to `PATH`. |
 | `./clawctl` missing | You are in a raw source checkout or incomplete bundle. | Download the standalone `clawctl` archive and rerun `./clawctl install`. |
-| Read-only `/root` or installer tries to write under `/root` | Restricted agent container set `HOME=/root`, but `/root` is not writable. | Set `HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, and `XDG_DATA_HOME` to writable paths, confirm the target filesystem has enough free space, and pass the generic path overrides from [Restricted Agent Containers: Writable Paths](#restricted-agent-containers-writable-paths). |
+| Read-only `/root` or installer tries to write under `/root` | Restricted agent container set `HOME=/root`, but `/root` is not usable for durable state. | Set `CLAWBROWSER_WORKDIR` to one durable writable directory, such as `/workspace/.clawbrowser`, then rerun the [Agent Fast Path](#agent-fast-path). |
 | `Required command not found: docker` | Docker backend was selected, or an old/source launcher path is being used. | Rerun `clawctl install` and `clawctl start` with the release `clawctl`; use `--backend portable` only when explicitly forcing portable mode. |
 | Docker socket or permission error | Restricted container cannot self-provision Docker. | Use portable mode, or ask the operator for `clawctl --cdp http://127.0.0.1:9222 ...`. |
 | `portable runtime not found; set CLAWBROWSER_PORTABLE_LOCAL_DIR or run clawctl install` | The self-contained launcher could not find an installed portable runtime. | Set `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted runtime, or rerun `clawctl install` with writable cache/data paths. |

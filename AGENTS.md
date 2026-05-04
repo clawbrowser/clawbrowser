@@ -12,9 +12,12 @@ browser process for agent work.
 - Happy path: download `clawctl-linux-amd64.tar.gz`,
   `clawctl-linux-arm64.tar.gz`, or `clawctl-macos-arm64.tar.gz` from
   `https://github.com/clawbrowser/clawbrowser/releases/latest`, automatically
-  choose a writable executable non-`/tmp` workdir, persist the API key with
-  `./clawctl config set api-key`,
-  then run `./clawctl install --json`.
+  choose a writable executable non-`/tmp` workdir, run
+  `./clawctl install --json`, then persist the API key with the installed
+  `clawctl config set api-key --stdin` before running
+  `clawctl start --session work --url clawbrowser://verify/ --json`,
+  `clawctl endpoint --session work --json`, and
+  `clawctl verify --session work --json`.
 - `clawctl install` is the supported setup command for agents. It reuses an
   existing browser when one is usable, downloads Clawbrowser when missing,
   installs the portable Linux runtime when the host needs Xvfb, and prepares
