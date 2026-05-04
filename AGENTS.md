@@ -12,7 +12,9 @@ browser process for agent work.
 - Happy path: download `clawctl-linux-amd64.tar.gz`,
   `clawctl-linux-arm64.tar.gz`, or `clawctl-macos-arm64.tar.gz` from
   `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack it in a
-  non-`/tmp` executable directory, then run `./clawctl install --json`.
+  non-`/tmp` executable directory, persist the API key with
+  `printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin`,
+  then run `./clawctl install --json`.
 - `clawctl install` is the supported setup command for agents. It reuses an
   existing browser when one is usable, downloads Clawbrowser when missing,
   installs the portable Linux runtime when the host needs Xvfb, and prepares
@@ -84,7 +86,7 @@ clawctl --cdp http://127.0.0.1:9222 verify --json
 - Browser-managed `config.json` is the source of truth for saved auth.
 - If missing, ask once for the real API key from `https://app.clawbrowser.ai`.
 - Do not use dummy keys.
-- If `CLAWBROWSER_API_KEY` is already set, do not run `config set api-key`.
+- If `CLAWBROWSER_API_KEY` is set, persist it with `clawctl config set api-key --stdin`.
 - Do not store keys in MCP config, agent config, shell rc files, random env files, logs, or positional shell arguments.
 - Resolve config paths before writing; do not pass unresolved strings such as `${XDG_CONFIG_HOME:-$HOME/.config}/...`, `$HOME/...`, or `~/...` to file-write tools.
 - Use `clawbrowser://auth` for manual reauthentication.
