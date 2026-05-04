@@ -859,22 +859,46 @@ PY
   log "Wrote Codex marketplace metadata: ${marketplace_file}"
 }
 
+restore_preserved_app_bundle() {
+  local preserved_app="$1"
+  local existing_app="$2"
+  local preserved_app_path_file="$3"
+  local existing_app_path_file="$4"
+  local preserved_parent="$5"
+
+  if [[ -n "${preserved_app}" && ( -e "${preserved_app}" || -L "${preserved_app}" ) ]]; then
+    mkdir -p "$(dirname "${existing_app}")"
+    rm -rf "${existing_app}"
+    mv "${preserved_app}" "${existing_app}"
+  fi
+  if [[ -n "${preserved_app_path_file}" && -f "${preserved_app_path_file}" ]]; then
+    mkdir -p "$(dirname "${existing_app_path_file}")"
+    mv "${preserved_app_path_file}" "${existing_app_path_file}"
+  fi
+  if [[ -n "${preserved_parent}" ]]; then
+    rmdir "${preserved_parent}" 2>/dev/null || true
+  fi
+}
+
 prepare_runtime_root() {
-  local preserved_app_dir=""
+  local existing_app="${INSTALL_ROOT}/Clawbrowser.app"
+  local existing_app_path_file="${INSTALL_ROOT}/app_bundle_path"
+  local preserved_app=""
   local preserved_app_path_file=""
-  local preserve_tmp=""
+  local preserved_parent=""
   local path
 
-  if [[ -e "${INSTALL_ROOT}/Clawbrowser.app" || -f "${INSTALL_ROOT}/app_bundle_path" ]]; then
-    preserve_tmp="$(mktemp -d)"
-    if [[ -e "${INSTALL_ROOT}/Clawbrowser.app" ]]; then
-      cp -R "${INSTALL_ROOT}/Clawbrowser.app" "${preserve_tmp}/Clawbrowser.app" 2>/dev/null || true
-      preserved_app_dir="${preserve_tmp}/Clawbrowser.app"
+  if [[ -e "${existing_app}" || -L "${existing_app}" || -f "${existing_app_path_file}" ]]; then
+    preserved_parent="$(mktemp -d)"
+    if [[ -e "${existing_app}" || -L "${existing_app}" ]]; then
+      preserved_app="${preserved_parent}/Clawbrowser.app"
+      mv "${existing_app}" "${preserved_app}"
     fi
-    if [[ -f "${INSTALL_ROOT}/app_bundle_path" ]]; then
-      cp "${INSTALL_ROOT}/app_bundle_path" "${preserve_tmp}/app_bundle_path" 2>/dev/null || true
-      preserved_app_path_file="${preserve_tmp}/app_bundle_path"
+    if [[ -f "${existing_app_path_file}" ]]; then
+      preserved_app_path_file="${preserved_parent}/app_bundle_path"
+      mv "${existing_app_path_file}" "${preserved_app_path_file}"
     fi
+    trap 'restore_preserved_app_bundle "${preserved_app}" "${existing_app}" "${preserved_app_path_file}" "${existing_app_path_file}" "${preserved_parent}"' ERR
   fi
 
   log "Installing runtime files into ${INSTALL_ROOT}"
@@ -901,16 +925,20 @@ prepare_runtime_root() {
 
   find "${INSTALL_ROOT}" -type d -name "__pycache__" -prune -exec rm -rf {} + 2>/dev/null || true
 
-  if [[ -n "${preserved_app_dir}" && -e "${preserved_app_dir}" ]]; then
+  if [[ -n "${preserved_app}" && ( -e "${preserved_app}" || -L "${preserved_app}" ) ]]; then
     rm -rf "${INSTALL_ROOT}/Clawbrowser.app"
-    cp -R "${preserved_app_dir}" "${INSTALL_ROOT}/Clawbrowser.app"
+    mv "${preserved_app}" "${INSTALL_ROOT}/Clawbrowser.app"
+    preserved_app=""
   fi
   if [[ -n "${preserved_app_path_file}" && -f "${preserved_app_path_file}" ]]; then
-    cp "${preserved_app_path_file}" "${INSTALL_ROOT}/app_bundle_path"
+    mv "${preserved_app_path_file}" "${INSTALL_ROOT}/app_bundle_path"
+    preserved_app_path_file=""
   fi
-  if [[ -n "${preserve_tmp}" ]]; then
-    rm -rf "${preserve_tmp}"
+  if [[ -n "${preserved_parent}" ]]; then
+    rmdir "${preserved_parent}" 2>/dev/null || true
+    preserved_parent=""
   fi
+  trap - ERR
 
   chmod +x \
     "${INSTALL_ROOT}/bin/clawbrowser-install.js" \
