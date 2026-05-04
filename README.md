@@ -30,8 +30,12 @@ paths that `clawctl start` uses later.
 ```bash
 set -Eeuo pipefail
 
+: "${CLAWBROWSER_API_KEY:?set CLAWBROWSER_API_KEY}"
+
 runtime_root="${CLAWBROWSER_PORTABLE_RUNTIME_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/clawbrowser/runtime}"
-mkdir -p "$runtime_root"
+workdir="${CLAWBROWSER_WORKDIR:-$HOME/clawbrowser}"
+mkdir -p "$runtime_root" "$workdir"
+cd "$workdir"
 
 # Linux no-display/no-root hosts may fetch and unpack a portable runtime during
 # clawctl install. Check that durable runtime location before install starts.
@@ -54,11 +58,11 @@ url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archi
 
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
+rm -rf "clawctl-${platform}"
 tar -xzf "$archive"
 cd "clawctl-${platform}"
 
-# Configure clawctl, install/reuse the browser, and prepare the runtime.
-printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
+# Install/reuse the browser and prepare the runtime.
 ./clawctl install --json
 
 # Start through clawctl. On no-display Linux this uses the portable runtime
@@ -79,7 +83,6 @@ tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
 cd clawctl-macos-arm64
 
-printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
 ./clawctl install --json
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json

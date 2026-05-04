@@ -84,10 +84,8 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
 - Before using Clawbrowser, install standalone `clawctl`; installing only an integration skill/plugin is not enough.
 - Happy path: download `clawctl-linux-amd64.tar.gz`,
   `clawctl-linux-arm64.tar.gz`, or `clawctl-macos-arm64.tar.gz` from
-  `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack it,
-  configure the API key with
-  `printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin`,
-  then run `./clawctl install --json`.
+  `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack it in a
+  non-`/tmp` executable directory, then run `./clawctl install --json`.
 - `clawctl install` is the supported setup path for agents. It reuses an
   existing browser when one is usable, downloads Clawbrowser when missing,
   installs the portable Linux runtime when the host needs Xvfb, and prepares
@@ -116,7 +114,6 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
 ## Install Fast Path
 
 ```bash
-printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
 ./clawctl install --json
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json

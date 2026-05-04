@@ -24,8 +24,12 @@ portable runtime, config, cache, or agent plugins.
 ```bash
 set -Eeuo pipefail
 
+: "${CLAWBROWSER_API_KEY:?set CLAWBROWSER_API_KEY}"
+
 runtime_root="${CLAWBROWSER_PORTABLE_RUNTIME_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/clawbrowser/runtime}"
-mkdir -p "$runtime_root"
+workdir="${CLAWBROWSER_WORKDIR:-$HOME/clawbrowser}"
+mkdir -p "$runtime_root" "$workdir"
+cd "$workdir"
 
 # Linux no-display/no-root hosts may fetch and unpack a portable runtime during
 # clawctl install. Check that durable runtime location before install starts.
@@ -48,11 +52,11 @@ url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archi
 
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
+rm -rf "clawctl-${platform}"
 tar -xzf "$archive"
 cd "clawctl-${platform}"
 
-# Configure clawctl, reuse or install the browser, and prepare the runtime.
-printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
+# Reuse or install the browser and prepare the runtime.
 ./clawctl install --json
 
 # Start through clawctl. On no-display Linux this uses the portable runtime
@@ -75,7 +79,6 @@ tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
 cd clawctl-macos-arm64
 
-printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
 ./clawctl install --json
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
@@ -111,7 +114,6 @@ runtime tarball.
 export CLAWBROWSER_PORTABLE_LOCAL_DIR="/absolute/path/to/linux-amd64-glibc"
 # or: /absolute/path/to/linux-arm64-glibc
 
-printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
 ./clawctl install --json
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
@@ -126,8 +128,8 @@ directory (`linux-amd64-glibc`) or its parent directory.
 Use this path when the agent runtime has no root access, no display, and a
 read-only `$HOME`, including containers where `HOME=/root` but `/root` cannot be
 written. Do not write to `/root` just because `HOME=/root`. If a writable
-workspace mount is available, prefer it over `/tmp`. Do not use `/tmp` as the
-installation root if you expect the browser runtime to survive a restart.
+workspace mount is available, prefer it over `/tmp`. Do not execute `clawctl`
+from `/tmp`; restricted containers may mount `/tmp` with `noexec`.
 
 Pick one writable base directory on a persistent volume, preferably the
 workspace mount when one is available, confirm it has enough free space for
@@ -156,7 +158,6 @@ export XDG_CONFIG_HOME="$CLAWBROWSER_WRITABLE_ROOT/config"
 export XDG_CACHE_HOME="$CLAWBROWSER_WRITABLE_ROOT/cache"
 export XDG_DATA_HOME="$CLAWBROWSER_WRITABLE_ROOT/data"
 
-printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
 ./clawctl install \
   --install-root "$XDG_DATA_HOME/clawbrowser/runtime" \
   --bin-dir "$XDG_DATA_HOME/clawbrowser/bin" \
