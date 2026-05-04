@@ -81,10 +81,9 @@ macOS uses `Clawbrowser.app` and WindowServer. Xvfb is Linux-only.
 
 | Thing | Use it for | Notes |
 | --- | --- | --- |
-| `clawbrowser-linux-x64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Normal install | Contains generated `clawctl`, the `clawbrowser` launcher, `clawbrowser-mcp`, and integration files. Start here. |
+| `clawbrowser-linux-x64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Normal install | Contains `clawctl`, browser assets, and integration files. Start here. |
 | `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Linux portable runtime | Contains the bundled Xvfb, libraries, xkb data, and portable browser binary. `clawctl install` ensures it when Linux needs portable mode unless you prefetch it. |
 | Raw source checkout | Development only | Does not represent the installed agent runtime. Use `go run ./cmd/clawctl ...` only while developing the CLI. |
-| `scripts/install.sh` | Release-bundle helper | Called by `clawctl install`; do not curl-pipe it or run it from a source checkout. |
 | `npx clawbrowser` | Not an agent runtime install | Do not use it as the primary install path. |
 | Docker image | Operator-managed runtime | Optional. Use only when infrastructure intentionally provides Docker or a CDP sidecar. |
 
@@ -260,7 +259,7 @@ or ask the operator for a CDP endpoint.
 Use this only when the operator intentionally provides Docker infrastructure.
 
 ```bash
-clawbrowser start --backend docker --session work -- clawbrowser://verify/
+clawctl start --backend docker --session work --url clawbrowser://verify/ --json
 ```
 
 For a host-managed sidecar, keep CDP bound to localhost:
@@ -284,8 +283,8 @@ browser automation.
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| `clawctl: command not found` | Release archive was not installed or `~/.local/bin` is not on `PATH`. | Run bundled `./clawctl ...` from the unpacked release, or add the install bin directory to `PATH`. |
-| `bin/clawctl` missing | You are in a raw source checkout or incomplete bundle. | Download the assembled release archive and rerun `./clawctl install --prompt-api-key auto`. |
+| `clawctl: command not found` | Release archive was not installed or the installed binary directory is not on `PATH`. | Run bundled `./clawctl ...` from the unpacked release, or add the install bin directory to `PATH`. |
+| `./clawctl` missing | You are in a raw source checkout or incomplete bundle. | Download the assembled release archive and rerun `./clawctl install --prompt-api-key auto`. |
 | Read-only `/root` or installer tries to write under `/root` | Restricted agent container set `HOME=/root`, but `/root` is not writable. | Set `HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, and `XDG_DATA_HOME` to writable paths, confirm the target filesystem has enough free space, and pass the generic path overrides from [Restricted Agent Containers: Writable Paths](#restricted-agent-containers-writable-paths). |
 | `Required command not found: docker` | Docker backend was selected, or an old/source launcher path is being used. | Rerun `clawctl install` and `clawctl start` with the release `clawctl`; use `--backend portable` only when explicitly forcing portable mode. |
 | Docker socket or permission error | Restricted container cannot self-provision Docker. | Use portable mode, or ask the operator for `clawctl --cdp http://127.0.0.1:9222 ...`. |

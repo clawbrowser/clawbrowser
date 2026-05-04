@@ -9,7 +9,9 @@ Full contract: [AGENTS.md](./AGENTS.md)
 
 Reference clawctl skill: use the bundled clawctl skill for the active integration.
 Use it for the full clawctl command palette and agent workflow details.
-This release ships `clawctl`, the `clawbrowser` launcher, and `clawbrowser-mcp`.
+This release ships `clawctl` plus browser and integration assets. It does not
+ship a release-owned `bin/` launcher; use `clawctl install` and
+`clawctl start`.
 
 ## Short Contract
 
@@ -41,7 +43,7 @@ This release ships `clawctl`, the `clawbrowser` launcher, and `clawbrowser-mcp`.
 
 ## MCP Security
 
-- `clawctl mcp` and the packaged `clawbrowser-mcp` server are local stdio only, not network daemons.
+- `clawctl mcp` is local stdio only, not a network daemon.
 - It exposes lifecycle/session tools and returns the local CDP endpoint; treat that endpoint as sensitive.
 - Do not expose CDP on the network or publish the Docker port externally unless you explicitly understand the risk.
 - Do not put API keys into MCP config, agent config, shell rc files, or logs.
@@ -90,8 +92,7 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
 - If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude`, `codex`, `gemini`, or `openclaw`.
 - Use the official `clawbrowser/clawbrowser` GitHub repository and bundled `clawctl install` command only.
 - On Linux servers/containers/no-display environments, use portable mode by
-  default. The normal Linux release archive installs `clawctl` and the
-  launcher; `clawctl install` ensures
+  default. The normal Linux release archive provides `clawctl`; `clawctl install` ensures
   `clawbrowser-portable-linux-amd64-glibc.tar.gz` or
   `clawbrowser-portable-linux-arm64-glibc.tar.gz` when the host needs it. If
   the portable runtime is already extracted, set

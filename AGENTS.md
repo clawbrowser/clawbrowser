@@ -59,7 +59,7 @@ clawctl --cdp http://127.0.0.1:9222 verify --json
 
 ## Endpoint Rules
 
-- `clawctl mcp` and `clawbrowser-mcp` are local stdio tools, not network daemons.
+- `clawctl mcp` is a local stdio tool, not a network daemon.
 - Treat CDP endpoints as sensitive localhost handles.
 - CDP endpoints are temporary runtime handles.
 - Always fetch the current endpoint with `clawctl endpoint --session <name>` after start, reattach, restart, rotate, or connection failure.

@@ -86,7 +86,7 @@ macOS uses `Clawbrowser.app` and a GUI WindowServer session. Xvfb is Linux-only.
 
 | Archive | Purpose |
 | --- | --- |
-| `clawbrowser-linux-x64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Normal release archives with `clawctl`, launcher, MCP server, and integration files. |
+| `clawbrowser-linux-x64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Normal release archives with `clawctl`, browser assets, and integration files. There is no release-owned `bin/` launcher; `clawctl install` and `clawctl start` own setup and launch. |
 | `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Portable Linux runtime payload with bundled Xvfb, libs, xkb data, and portable browser binary. Ensured by `clawctl install` when Linux needs portable mode. |
 
 The normal Linux release archive is not the portable runtime payload. Start

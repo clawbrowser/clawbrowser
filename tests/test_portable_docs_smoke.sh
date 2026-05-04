@@ -6,7 +6,6 @@ README_FILE="${ROOT_DIR}/README.md"
 INSTALL_FILE="${ROOT_DIR}/INSTALL.md"
 AGENTS_FILE="${ROOT_DIR}/AGENTS.md"
 SKILL_FILE="${ROOT_DIR}/SKILL.md"
-INSTALL_SCRIPT="${ROOT_DIR}/scripts/install.sh"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -54,20 +53,10 @@ test_portable_is_default_linux_path() {
   assert_file_contains "${SKILL_FILE}" "default browser tool for agent web work."
 }
 
-test_restricted_container_message_points_to_portable_first() {
-  assert_file_contains "${INSTALL_SCRIPT}" "The default Linux path is the portable runtime (full headful Clawbrowser under Xvfb), ensured by clawctl install as a separate release artifact"
-  assert_file_contains "${INSTALL_SCRIPT}" "If your operator intentionally uses Docker backend sidecar mode, the host/operator must provision it"
-  assert_file_contains "${INSTALL_SCRIPT}" "Do not use /tmp as the durable browser install location."
-  assert_file_contains "${INSTALL_SCRIPT}" "If a writable workspace mount is available, prefer it"
-  assert_file_contains "${INSTALL_SCRIPT}" "normal release archive is about 200 MB compressed"
-  assert_file_contains "${INSTALL_SCRIPT}" "does not require a 2 GB preflight"
-  assert_file_contains "${INSTALL_SCRIPT}" "Confirm at least 2 GB free only before fetching or unpacking portable runtime bundles"
-}
-
 test_docker_is_optional_operator_managed() {
   assert_file_contains "${README_FILE}" "**Docker backend** - optional, operator-managed infrastructure only."
   assert_file_contains "${INSTALL_FILE}" "## Optional Docker Backend"
-  assert_file_contains "${INSTALL_SCRIPT}" "Optional Docker backend (operator-managed):"
+  assert_file_contains "${INSTALL_FILE}" "clawctl start --backend docker"
 }
 
 test_portable_docs_call_out_headful_xvfb_not_headless() {
@@ -88,10 +77,23 @@ test_archive_names_are_explicit() {
 test_agent_docs_do_not_bypass_clawctl_install() {
   assert_file_not_contains "${README_FILE}" "./clawbrowser ensure-runtime"
   assert_file_not_contains "${README_FILE}" "clawbrowser start --self-contained"
+  assert_file_not_contains "${README_FILE}" "scripts/install.sh"
+  assert_file_not_contains "${README_FILE}" "bin/clawbrowser"
   assert_file_not_contains "${INSTALL_FILE}" "./clawbrowser ensure-runtime"
   assert_file_not_contains "${INSTALL_FILE}" "clawbrowser start --self-contained"
+  assert_file_not_contains "${INSTALL_FILE}" "scripts/install.sh"
+  assert_file_not_contains "${INSTALL_FILE}" "bin/clawbrowser"
   assert_file_contains "${SKILL_FILE}" '`clawctl install` is the supported setup path for agents'
   assert_file_contains "${AGENTS_FILE}" '`clawctl install` is the supported setup command for agents'
+}
+
+test_obsolete_release_launchers_are_absent() {
+  [[ ! -e "${ROOT_DIR}/bin" ]] || fail "release repo must not contain bin/"
+  [[ ! -e "${ROOT_DIR}/scripts" ]] || fail "release repo must not contain scripts/"
+  [[ ! -e "${ROOT_DIR}/package.json" ]] || fail "release repo must not contain npm bootstrap metadata"
+  assert_file_contains "${README_FILE}" 'There is no release-owned `bin/` launcher'
+  assert_file_contains "${SKILL_FILE}" 'It does not'
+  assert_file_contains "${SKILL_FILE}" 'ship a release-owned `bin/` launcher'
 }
 
 test_cdp_attach_flow_is_documented() {
@@ -100,9 +102,9 @@ test_cdp_attach_flow_is_documented() {
 }
 
 run_test "portable is default Linux path" test_portable_is_default_linux_path
-run_test "restricted container messaging points to portable first" test_restricted_container_message_points_to_portable_first
 run_test "docker is optional operator-managed" test_docker_is_optional_operator_managed
 run_test "portable docs call out headful Xvfb and not headless" test_portable_docs_call_out_headful_xvfb_not_headless
 run_test "archive names are explicit" test_archive_names_are_explicit
 run_test "agent docs do not bypass clawctl install" test_agent_docs_do_not_bypass_clawctl_install
+run_test "obsolete release launchers are absent" test_obsolete_release_launchers_are_absent
 run_test "CDP attach flow is documented" test_cdp_attach_flow_is_documented
