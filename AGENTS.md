@@ -7,6 +7,9 @@ browser process for agent work.
 
 ## Install First
 
+- The `clawctl` skill/plugin alone is not enough. It teaches the workflow, but
+  agents still need the standalone `clawctl` binary and the managed
+  Clawbrowser runtime installed by `clawctl install`.
 - Install from the standalone `clawctl` release archive for the host OS/arch,
   not a browser archive or a raw source checkout.
 - Happy path: download `clawctl-linux-amd64.tar.gz`,

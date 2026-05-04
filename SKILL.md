@@ -82,7 +82,7 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
 
 ## Install
 
-- Before using Clawbrowser, install standalone `clawctl`; installing only an integration skill/plugin is not enough.
+- Before using Clawbrowser, install standalone `clawctl`; installing only an integration skill/plugin is not enough. The skill teaches commands, but agents still need the `clawctl` binary and the managed Clawbrowser runtime installed by `clawctl install`.
 - Happy path: download `clawctl-linux-amd64.tar.gz`,
   `clawctl-linux-arm64.tar.gz`, or `clawctl-macos-arm64.tar.gz` from
   `https://github.com/clawbrowser/clawbrowser/releases/latest`, automatically

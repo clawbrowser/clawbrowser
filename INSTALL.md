@@ -2,7 +2,9 @@
 
 Use the standalone `clawctl` release archive for the host OS/arch. The browser
 archive is not the bootstrapper. `clawctl install` owns browser and portable
-runtime download/install.
+runtime download/install. Installing only the `clawctl` agent skill or plugin is
+not enough; the skill teaches commands, but the standalone `clawctl` binary and
+managed Clawbrowser runtime still need to be installed.
 
 ## Agent Fast Path
 

@@ -10,7 +10,9 @@ Install details and troubleshooting: [INSTALL.md](./INSTALL.md)
 
 Use the standalone `clawctl` release archive for the host OS/arch. The browser
 archive is not the bootstrapper. `clawctl install` owns browser and portable
-runtime download/install.
+runtime download/install. The `clawctl` skill/plugin is not enough by itself;
+agents still need the standalone `clawctl` binary and the runtime installed by
+`clawctl install`.
 
 Agent-specific plugin, MCP, and extension templates are owned by `clawctl` and
 materialized by `clawctl install`. This release repository does not publish
