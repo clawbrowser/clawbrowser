@@ -10,7 +10,7 @@ browser process for agent work.
 - Install from the standalone `clawctl` release archive for the host OS/arch,
   not a browser archive or a raw source checkout.
 - Happy path: download `clawctl-linux-amd64.tar.gz`,
-  `clawctl-linux-arm64.tar.gz`, or `clawctl-darwin-arm64.tar.gz` from
+  `clawctl-linux-arm64.tar.gz`, or `clawctl-macos-arm64.tar.gz` from
   `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack it,
   configure the API key with `./clawctl config set api-key`, then run
   `./clawctl install --json`.

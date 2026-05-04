@@ -71,13 +71,13 @@ cd "clawctl-${platform}"
 ### macOS
 
 ```bash
-archive="clawctl-darwin-arm64.tar.gz"
+archive="clawctl-macos-arm64.tar.gz"
 url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
 
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
-cd clawctl-darwin-arm64
+cd clawctl-macos-arm64
 
 ./clawctl config set api-key
 ./clawctl install --json
@@ -92,8 +92,8 @@ macOS uses `Clawbrowser.app` and a GUI WindowServer session. Xvfb is Linux-only.
 
 | Archive | Purpose |
 | --- | --- |
-| `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-darwin-arm64.tar.gz` | Standalone bootstrapper archives. Start here. |
-| `clawbrowser-linux-x64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Browser payload archives. `clawctl install` downloads one when no usable browser exists. |
+| `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-macos-arm64.tar.gz` | Standalone bootstrapper archives. Start here. |
+| `clawbrowser-linux-amd64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Browser payload archives. `clawctl install` downloads one when no usable browser exists. |
 | `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Portable Linux runtime payload with bundled Xvfb, libs, xkb data, and portable browser binary. `clawctl install` downloads one when Linux needs portable mode. |
 
 The browser archive is not the bootstrapper and is not the portable runtime
