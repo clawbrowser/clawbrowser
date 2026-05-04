@@ -52,7 +52,7 @@ tar -xzf "$archive"
 cd "clawctl-${platform}"
 
 # Configure clawctl, reuse or install the browser, and prepare the runtime.
-./clawctl config set api-key
+printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
 ./clawctl install --json
 
 # Start through clawctl. On no-display Linux this uses the portable runtime
@@ -75,7 +75,7 @@ tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
 cd clawctl-macos-arm64
 
-./clawctl config set api-key
+printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
 ./clawctl install --json
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
@@ -111,7 +111,7 @@ runtime tarball.
 export CLAWBROWSER_PORTABLE_LOCAL_DIR="/absolute/path/to/linux-amd64-glibc"
 # or: /absolute/path/to/linux-arm64-glibc
 
-./clawctl config set api-key
+printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
 ./clawctl install --json
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
@@ -156,7 +156,7 @@ export XDG_CONFIG_HOME="$CLAWBROWSER_WRITABLE_ROOT/config"
 export XDG_CACHE_HOME="$CLAWBROWSER_WRITABLE_ROOT/cache"
 export XDG_DATA_HOME="$CLAWBROWSER_WRITABLE_ROOT/data"
 
-./clawctl config set api-key
+printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
 ./clawctl install \
   --install-root "$XDG_DATA_HOME/clawbrowser/runtime" \
   --bin-dir "$XDG_DATA_HOME/clawbrowser/bin" \
@@ -232,9 +232,16 @@ clawctl verify --session work --json
 ```
 
 If no saved key exists, run `clawctl config set api-key` once with the real API
-key from `https://app.clawbrowser.ai`. The key is written to the
-browser-managed `config.json`. Do not put API keys in MCP config, agent config,
-shell rc files, env files, or logs.
+key from `https://app.clawbrowser.ai`. Interactive users can type it at the
+hidden prompt. Non-interactive agents should use:
+
+```bash
+printf '%s\n' "$CLAWBROWSER_API_KEY" | clawctl config set api-key --stdin
+```
+
+The key is written to the browser-managed `config.json`. Do not put API keys in
+MCP config, agent config, shell rc files, env files, logs, or positional shell
+arguments.
 
 On regular hosts, the default config path resolves like this:
 

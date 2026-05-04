@@ -58,7 +58,7 @@ tar -xzf "$archive"
 cd "clawctl-${platform}"
 
 # Configure clawctl, install/reuse the browser, and prepare the runtime.
-./clawctl config set api-key
+printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
 ./clawctl install --json
 
 # Start through clawctl. On no-display Linux this uses the portable runtime
@@ -79,7 +79,7 @@ tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
 cd clawctl-macos-arm64
 
-./clawctl config set api-key
+printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin
 ./clawctl install --json
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
