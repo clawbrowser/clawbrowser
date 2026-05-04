@@ -10,12 +10,19 @@ This is the path agents should follow on Linux servers, restricted containers,
 CI-like hosts, and macOS GUI hosts. Do not start from a browser archive, raw
 source checkout, Docker, a manual runtime download, or `--runtime-version`.
 
+Copy the script below instead of rewriting it. It deliberately downloads,
+extracts, installs, and runs `clawctl` from one executable workdir. Never set
+`CLAWBROWSER_WORKDIR` to `/tmp` or extract `clawctl` under `/tmp`; many agent
+containers mount `/tmp` with `noexec`, which causes `Permission denied` even
+after `chmod +x`.
+
 Steps with the exact commands:
 
 1. Find a durable writable directory outside `/tmp`, then set the Clawbrowser
    config/cache/data paths under it.
 2. Download and extract the standalone `clawctl` archive:
-   `curl -fL -o "$archive" "$url" && tar -xzf "$archive"`.
+   `curl -fL -o "$archive" "$url" && tar -xzf "$archive"` from inside that
+   workdir, not `/tmp`.
 3. Install Clawbrowser:
    `"$clawctl_bootstrap" install --json`.
 4. Ask once for the Clawbrowser API key from `https://app.clawbrowser.ai`.
@@ -117,8 +124,9 @@ unset CLAWBROWSER_API_KEY
 
 Linux portable installs need enough free space for the runtime bundle, which is
 about 500 MB compressed and larger after unpacking. If install reports a space
-error, rerun the same flow with `CLAWBROWSER_WORKDIR` set to a larger durable
-path.
+error or `Permission denied` while running `clawctl`, rerun the same script with
+`CLAWBROWSER_WORKDIR` set to a larger durable executable path such as
+`/workspace/.clawbrowser`, `/work/.clawbrowser`, or `$PWD/.clawbrowser`.
 
 ## macOS Fast Path
 
@@ -183,17 +191,17 @@ directory (`linux-amd64-glibc`) or its parent directory.
 
 Use the same [Agent Fast Path](#agent-fast-path). Do not build a custom matrix
 of path flags. If the automatic workdir probe fails, set one durable writable
-directory and rerun the same flow:
+executable directory and rerun the same script:
 
 ```bash
 export CLAWBROWSER_WORKDIR="/workspace/.clawbrowser"
 ```
 
-Use a real workspace mount, `/workspace`, `/work`, or another persistent
-operator-provided directory. Do not use `/tmp` as the install, config, cache,
-data, portable runtime, or plugin location. Do not try Docker as a fallback
-inside restricted agent containers; use portable mode from `clawctl install` or
-an operator-provided CDP endpoint.
+Use a real workspace mount, `/workspace`, `/work`, `$PWD/.clawbrowser`, or
+another persistent operator-provided directory. Do not use `/tmp` for the
+archive, extraction, install, config, cache, data, portable runtime, or plugin
+location. Do not try Docker as a fallback inside restricted agent containers;
+use portable mode from `clawctl install` or an operator-provided CDP endpoint.
 
 ## Canonical Agent Flow
 
@@ -299,6 +307,7 @@ browser automation.
 | --- | --- | --- |
 | `clawctl: command not found` | Standalone `clawctl` archive was not installed or the installed binary directory is not on `PATH`. | Run `./clawctl ...` from the unpacked standalone archive, or add the install bin directory to `PATH`. |
 | `./clawctl` missing | You are in a raw source checkout or incomplete bundle. | Download the standalone `clawctl` archive and rerun `./clawctl install`. |
+| `Permission denied` when running `clawctl`, even after `chmod +x` | The archive was extracted under `/tmp` or another `noexec` filesystem. The tarball is not the problem. | Stop trying `chmod`. Set `CLAWBROWSER_WORKDIR` to a durable executable directory such as `/workspace/.clawbrowser`, `/work/.clawbrowser`, or `$PWD/.clawbrowser`, then rerun the [Agent Fast Path](#agent-fast-path). |
 | Read-only `/root` or installer tries to write under `/root` | Restricted agent container set `HOME=/root`, but `/root` is not usable for durable state. | Set `CLAWBROWSER_WORKDIR` to one durable writable directory, such as `/workspace/.clawbrowser`, then rerun the [Agent Fast Path](#agent-fast-path). |
 | `Required command not found: docker` | Docker backend was selected, or an old/source launcher path is being used. | Rerun `clawctl install` and `clawctl start` with the release `clawctl`; use `--backend portable` only when explicitly forcing portable mode. |
 | Docker socket or permission error | Restricted container cannot self-provision Docker. | Use portable mode, or ask the operator for `clawctl --cdp http://127.0.0.1:9222 ...`. |

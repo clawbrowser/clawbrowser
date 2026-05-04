@@ -25,6 +25,11 @@ browser process for agent work.
 - Exact commands and troubleshooting live in `INSTALL.md`; if unavailable, use `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`.
 - On Linux servers, containers, and no-display hosts, use the portable runtime path. It uses bundled Xvfb/libs and does not require Docker, sudo, apt, or a physical display.
 - Before installing, automatically choose durable storage for the browser install, config, cache, data, and any portable runtime. Prefer an executable workspace/current-directory mount, then `/workspace`, then `/work`, then `$HOME`. Probe the candidate by executing a tiny temporary script. Skip `/tmp` and any candidate that is not writable or executable. Do not ask the user for a path unless every candidate fails.
+- Never download, extract, or execute `clawctl` from `/tmp`. If `clawctl`
+  returns `Permission denied` after `chmod +x`, treat it as a `noexec` workdir
+  problem and rerun the `INSTALL.md` fast path with
+  `CLAWBROWSER_WORKDIR=/workspace/.clawbrowser`, `/work/.clawbrowser`, or
+  `$PWD/.clawbrowser`.
 - Docker and sidecar modes are operator-managed paths. Restricted agents should not try to self-provision Docker.
 
 ## Runtime Choice

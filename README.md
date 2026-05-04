@@ -23,11 +23,14 @@ the browser install. Do not use `/tmp` as the durable install location for
 ### Agent Install
 
 Use the copy/paste flow in [INSTALL.md](./INSTALL.md#agent-fast-path). The
-agent path is intentionally short:
+agent path is intentionally short. Do not rewrite the script and do not use
+`/tmp`; many agent containers mount `/tmp` with `noexec`, which causes
+`Permission denied` even after `chmod +x`.
 
 1. Find a durable writable directory outside `/tmp`.
 2. Download the standalone `clawctl` archive:
-   `curl -fL -o "$archive" "$url" && tar -xzf "$archive"`.
+   `curl -fL -o "$archive" "$url" && tar -xzf "$archive"` from inside that
+   workdir, not `/tmp`.
 3. Install Clawbrowser:
    `clawctl install --json`.
 4. Ask once for the Clawbrowser API key from `https://app.clawbrowser.ai`.

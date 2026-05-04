@@ -115,6 +115,11 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
   workdir by probing candidates such as the current directory, workspace mount,
   `/workspace`, `/work`, and `$HOME`; do not ask for a path unless all probes
   fail.
+- Never download, extract, or execute `clawctl` from `/tmp`. If `clawctl`
+  returns `Permission denied` after `chmod +x`, treat it as a `noexec` workdir
+  problem and rerun the `INSTALL.md` fast path with
+  `CLAWBROWSER_WORKDIR=/workspace/.clawbrowser`, `/work/.clawbrowser`, or
+  `$PWD/.clawbrowser`.
 - Docker backend and sidecar paths remain optional/operator-managed for hosts that intentionally provide Docker infrastructure.
 
 ## Install Fast Path
