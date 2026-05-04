@@ -84,8 +84,8 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
 - Before using Clawbrowser, install standalone `clawctl`; installing only an integration skill/plugin is not enough.
 - Happy path: download `clawctl-linux-amd64.tar.gz`,
   `clawctl-linux-arm64.tar.gz`, or `clawctl-macos-arm64.tar.gz` from
-  `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack it in a
-  non-`/tmp` executable directory, persist the API key with
+  `https://github.com/clawbrowser/clawbrowser/releases/latest`, automatically
+  choose a writable executable non-`/tmp` workdir, persist the API key with
   `printf '%s\n' "$CLAWBROWSER_API_KEY" | ./clawctl config set api-key --stdin`,
   then run `./clawctl install --json`.
 - `clawctl install` is the supported setup path for agents. It reuses an
@@ -108,9 +108,10 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
   2 GB free only before fetching or unpacking portable runtime
   bundles, which are about 500 MB compressed and larger when unpacked. If less
   than 2 GB is available for the portable runtime, stop and ask for a larger
-  persistent location. If a writable workspace mount is available, prefer it
-  for the browser install. Do not use `/tmp` as the durable install location
-  for `clawctl`, the portable runtime, config, cache, or agent plugins.
+  persistent location. Automatically pick a writable executable non-`/tmp`
+  workdir by probing candidates such as the current directory, workspace mount,
+  `/workspace`, `/work`, and `$HOME`; do not ask for a path unless all probes
+  fail.
 - Docker backend and sidecar paths remain optional/operator-managed for hosts that intentionally provide Docker infrastructure.
 
 ## Install Fast Path

@@ -25,7 +25,29 @@ portable runtime, config, cache, or agent plugins.
 set -Eeuo pipefail
 
 : "${CLAWBROWSER_API_KEY:?set CLAWBROWSER_API_KEY}"
-: "${CLAWBROWSER_WORKDIR:?set CLAWBROWSER_WORKDIR to a writable executable directory outside /tmp}"
+
+selected_workdir=""
+for candidate in \
+  "${CLAWBROWSER_WORKDIR:-}" \
+  "$PWD/.clawbrowser" \
+  "${WORKSPACE:+$WORKSPACE/.clawbrowser}" \
+  "${GITHUB_WORKSPACE:+$GITHUB_WORKSPACE/.clawbrowser}" \
+  "/workspace/.clawbrowser" \
+  "/work/.clawbrowser" \
+  "${HOME:+$HOME/.clawbrowser}"; do
+  [ -n "$candidate" ] || continue
+  case "$candidate" in /tmp|/tmp/*) continue ;; esac
+  mkdir -p "$candidate" 2>/dev/null || continue
+  probe="$candidate/.exec-probe"
+  printf '#!/bin/sh\nexit 0\n' > "$probe" 2>/dev/null || continue
+  chmod +x "$probe" 2>/dev/null || continue
+  "$probe" >/dev/null 2>&1 || { rm -f "$probe"; continue; }
+  rm -f "$probe"
+  selected_workdir="$candidate"
+  break
+done
+[ -n "$selected_workdir" ] || { echo "no writable executable Clawbrowser workdir found" >&2; exit 1; }
+export CLAWBROWSER_WORKDIR="$selected_workdir"
 
 mkdir -p "$CLAWBROWSER_WORKDIR/config" "$CLAWBROWSER_WORKDIR/cache" "$CLAWBROWSER_WORKDIR/data"
 export XDG_CONFIG_HOME="$CLAWBROWSER_WORKDIR/config"
