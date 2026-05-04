@@ -8,11 +8,10 @@ agent web work.
 
 This is the default path for Linux VPS, CI-like environments, restricted
 containers, and machines without a display. It does not require Docker, sudo,
-apt, or a physical display. `clawctl install` ensures the matching portable
-Xvfb runtime so `start --self-contained` can run without Docker.
-In this proof path, `clawctl install` configures the agent integration, and
-`clawbrowser start --self-contained` explicitly verifies the no-monitor
-portable runtime.
+apt, or a physical display. `clawctl install` checks for an existing
+Clawbrowser, installs the matching release artifact when the browser is
+missing, ensures the matching portable Xvfb runtime when the host needs it,
+and prepares the paths that `clawctl start` uses later.
 
 Before installing, check free space on the filesystem that will hold the
 runtime and browser state. The normal release archive is about 200 MB
@@ -44,23 +43,12 @@ tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
 cd "clawbrowser-${platform}"
 
-# Configure clawctl and agent integration.
-./clawctl install --prompt-api-key auto
+# Configure clawctl, reuse or install the browser, and prepare the runtime.
+./clawctl install --prompt-api-key auto --json
 
-# No-monitor / no-display proof path. This downloads and validates the
-# portable Linux runtime when missing.
-./clawbrowser ensure-runtime --backend portable
-
-# Force portable/self-contained mode with bundled Xvfb.
-./clawbrowser start --self-contained --session work -- clawbrowser://verify/
-
-# Confirm the CDP endpoint is available and alive.
-endpoint="$(./clawbrowser endpoint --session work)"
-printf '%s\n' "$endpoint"
-curl -fsS "$endpoint/json/version"
-
-# Confirm clawctl is available and can verify the managed session too.
-./clawctl --help >/dev/null
+# Start through clawctl. On no-display Linux this uses the portable runtime
+# prepared by install; on display-capable hosts it uses the selected browser.
+./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
 ./clawctl verify --session work --json
 ```
@@ -87,6 +75,7 @@ cd clawbrowser-macos-arm64
 ./clawctl install --prompt-api-key auto
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
+./clawctl verify --session work --json
 ```
 
 macOS uses `Clawbrowser.app` and WindowServer. Xvfb is Linux-only.
@@ -96,7 +85,7 @@ macOS uses `Clawbrowser.app` and WindowServer. Xvfb is Linux-only.
 | Thing | Use it for | Notes |
 | --- | --- | --- |
 | `clawbrowser-linux-x64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Normal install | Contains generated `clawctl`, the `clawbrowser` launcher, `clawbrowser-mcp`, and integration files. Start here. |
-| `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Linux portable runtime | Contains the bundled Xvfb, libraries, xkb data, and portable browser binary. `clawctl install` ensures it for portable Linux mode unless you prefetch it. |
+| `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Linux portable runtime | Contains the bundled Xvfb, libraries, xkb data, and portable browser binary. `clawctl install` ensures it when Linux needs portable mode unless you prefetch it. |
 | Raw source checkout | Development only | Does not represent the installed agent runtime. Use `go run ./cmd/clawctl ...` only while developing the CLI. |
 | `scripts/install.sh` | Release-bundle helper | Called by `clawctl install`; do not curl-pipe it or run it from a source checkout. |
 | `npx clawbrowser` | Not an agent runtime install | Do not use it as the primary install path. |
@@ -108,8 +97,7 @@ can ensure the portable Xvfb runtime, or set
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted portable runtime.
 Downloaded portable runtimes are unpacked into the persistent runtime root,
 defaulting to the launcher cache root's `runtime` directory. Set
-`CLAWBROWSER_PORTABLE_RUNTIME_ROOT` or pass `--runtime-root` to place it on a
-durable mounted path.
+`CLAWBROWSER_PORTABLE_RUNTIME_ROOT` to place it on a durable mounted path.
 
 ## Already Have The Portable Runtime
 
@@ -120,10 +108,10 @@ runtime tarball.
 export CLAWBROWSER_PORTABLE_LOCAL_DIR="/absolute/path/to/linux-amd64-glibc"
 # or: /absolute/path/to/linux-arm64-glibc
 
-./clawbrowser ensure-runtime --backend portable
-./clawbrowser start --self-contained --session work -- clawbrowser://verify/
-endpoint="$(./clawbrowser endpoint --session work)"
-curl -fsS "$endpoint/json/version"
+./clawctl install --prompt-api-key auto --json
+./clawctl start --session work --url clawbrowser://verify/ --json
+./clawctl endpoint --session work --json
+./clawctl verify --session work --json
 ```
 
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` can point either at the extracted platform
@@ -171,16 +159,13 @@ export XDG_DATA_HOME="$CLAWBROWSER_WRITABLE_ROOT/data"
   --cache-dir "$XDG_CACHE_HOME/clawbrowser" \
   --data-dir "$XDG_DATA_HOME/clawbrowser" \
   --agent-config "$XDG_CONFIG_HOME/clawbrowser/agent-marketplace.json" \
-  --agent-plugins-dir "$XDG_DATA_HOME/clawbrowser/agent-plugins"
+  --agent-plugins-dir "$XDG_DATA_HOME/clawbrowser/agent-plugins" \
+  --json
 
 export PATH="$XDG_DATA_HOME/clawbrowser/bin:$PATH"
 
-# No-monitor / no-display proof path.
-./clawbrowser ensure-runtime --backend portable
-./clawbrowser start --self-contained --session work -- clawbrowser://verify/
-./clawbrowser endpoint --session work
-
-# Optional agent-facing check through clawctl.
+# No-monitor / no-display proof path through clawctl.
+clawctl start --session work --url clawbrowser://verify/ --json
 clawctl endpoint --session work --json
 clawctl verify --session work --json
 ```
@@ -204,7 +189,8 @@ config parent cannot be created or written. If the only writable directory is
 `/tmp`, stop and ask for a persistent mount instead of installing there.
 
 Docker is not a fallback inside restricted agent containers. Use
-portable/self-contained mode, or connect to an operator-provided CDP endpoint
+portable mode prepared by `clawctl install`, or connect to an
+operator-provided CDP endpoint
 with `clawctl --cdp http://127.0.0.1:9222 ...`.
 
 ## Canonical Agent Flow
@@ -212,6 +198,7 @@ with `clawctl --cdp http://127.0.0.1:9222 ...`.
 Use `clawctl` for session lifecycle and use CDP for page automation.
 
 ```bash
+clawctl install --json
 clawctl start --session work --url https://example.com --json
 clawctl endpoint --session work --json
 ```
@@ -303,13 +290,13 @@ browser automation.
 | `clawctl: command not found` | Release archive was not installed or `~/.local/bin` is not on `PATH`. | Run bundled `./clawctl ...` from the unpacked release, or add the install bin directory to `PATH`. |
 | `bin/clawctl` missing | You are in a raw source checkout or incomplete bundle. | Download the assembled release archive and rerun `./clawctl install --prompt-api-key auto`. |
 | Read-only `/root` or installer tries to write under `/root` | Restricted agent container set `HOME=/root`, but `/root` is not writable. | Set `HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, and `XDG_DATA_HOME` to writable paths, confirm the target filesystem has enough free space, and pass the generic path overrides from [Restricted Agent Containers: Writable Paths](#restricted-agent-containers-writable-paths). |
-| `Required command not found: docker` | Docker backend was selected, or an old/source launcher path is being used. | Use `--backend portable` / `--self-contained`, and make sure `which clawbrowser` points at the release launcher. |
+| `Required command not found: docker` | Docker backend was selected, or an old/source launcher path is being used. | Rerun `clawctl install` and `clawctl start` with the release `clawctl`; use `--backend portable` only when explicitly forcing portable mode. |
 | Docker socket or permission error | Restricted container cannot self-provision Docker. | Use portable mode, or ask the operator for `clawctl --cdp http://127.0.0.1:9222 ...`. |
 | `portable runtime not found; set CLAWBROWSER_PORTABLE_LOCAL_DIR or run clawctl install` | The self-contained launcher could not find an installed portable runtime. | Set `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted runtime, or rerun `clawctl install` with writable cache/data paths. |
 | Portable artifact missing | Current release lacks the matching portable runtime asset. | Check the release assets for `clawbrowser-portable-linux-amd64-glibc.tar.gz` or `clawbrowser-portable-linux-arm64-glibc.tar.gz`, or pin to a release that has it. |
 | Portable checksum missing | Current release lacks the matching `.sha256` asset for the portable runtime. | Publish the checksum asset or pin to a complete release; the launcher refuses unchecked portable runtime installs. |
 | Alpine/musl error | Portable artifacts are glibc builds. | Use a glibc image, operator-managed Docker, or an external CDP endpoint. |
-| Endpoint refused or stale | Session restarted or endpoint changed. | Run `clawctl endpoint --session <name> --json`; if still down on Linux no-monitor hosts, run `clawbrowser start --self-contained --session <name> -- clawbrowser://verify/`. |
+| Endpoint refused or stale | Session restarted or endpoint changed. | Run `clawctl endpoint --session <name> --json`; if still down on Linux no-monitor hosts, run `clawctl start --session <name> --url clawbrowser://verify/ --json`. |
 
 ## Quick Reference
 

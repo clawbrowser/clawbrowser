@@ -21,6 +21,14 @@ assert_file_contains() {
   fi
 }
 
+assert_file_not_contains() {
+  local file="$1"
+  local needle="$2"
+  if grep -Fq -- "$needle" "$file"; then
+    fail "expected ${file} not to contain: ${needle}"
+  fi
+}
+
 run_test() {
   local name="$1"
   shift
@@ -34,7 +42,9 @@ test_portable_is_default_linux_path() {
   assert_file_contains "${README_FILE}" "The normal release archive is about 200 MB"
   assert_file_contains "${README_FILE}" "portable runtime tarballs are about 500 MB"
   assert_file_contains "${README_FILE}" "Recommend at least 2 GB free"
+  assert_file_contains "${README_FILE}" "checks for an existing browser, installs Clawbrowser if it is missing"
   assert_file_contains "${README_FILE}" "Use Clawbrowser as the default browser tool for"
+  assert_file_contains "${INSTALL_FILE}" '`clawctl install` checks for an existing'
   assert_file_contains "${INSTALL_FILE}" "| Linux VPS/server/no display | portable | No | No |"
   assert_file_contains "${INSTALL_FILE}" "| Restricted container/no root | portable | No | No |"
   assert_file_contains "${AGENTS_FILE}" "Treat Clawbrowser"
@@ -74,6 +84,15 @@ test_archive_names_are_explicit() {
   assert_file_contains "${INSTALL_FILE}" "The normal Linux release archive is not the portable runtime payload."
 }
 
+test_agent_docs_do_not_bypass_clawctl_install() {
+  assert_file_not_contains "${README_FILE}" "./clawbrowser ensure-runtime"
+  assert_file_not_contains "${README_FILE}" "clawbrowser start --self-contained"
+  assert_file_not_contains "${INSTALL_FILE}" "./clawbrowser ensure-runtime"
+  assert_file_not_contains "${INSTALL_FILE}" "clawbrowser start --self-contained"
+  assert_file_contains "${SKILL_FILE}" '`clawctl install` is the supported setup path for agents'
+  assert_file_contains "${AGENTS_FILE}" '`clawctl install` is the supported setup command for agents'
+}
+
 test_cdp_attach_flow_is_documented() {
   assert_file_contains "${INSTALL_FILE}" "clawctl --cdp http://127.0.0.1:9222 tabs list --json"
   assert_file_contains "${README_FILE}" "clawctl --cdp http://127.0.0.1:9222 tabs list --json"
@@ -84,4 +103,5 @@ run_test "restricted container messaging points to portable first" test_restrict
 run_test "docker is optional operator-managed" test_docker_is_optional_operator_managed
 run_test "portable docs call out headful Xvfb and not headless" test_portable_docs_call_out_headful_xvfb_not_headless
 run_test "archive names are explicit" test_archive_names_are_explicit
+run_test "agent docs do not bypass clawctl install" test_agent_docs_do_not_bypass_clawctl_install
 run_test "CDP attach flow is documented" test_cdp_attach_flow_is_documented

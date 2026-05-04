@@ -81,6 +81,10 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
 
 - Before using Clawbrowser, install the full browser runtime and `clawctl`; installing only an integration skill/plugin is not enough.
 - Happy path: download an assembled release archive from `https://github.com/clawbrowser/clawbrowser/releases/latest`, unpack it, then run the bundled `./clawctl install --prompt-api-key auto`.
+- `clawctl install` is the supported setup path for agents. It reuses an
+  existing browser when one is usable, downloads Clawbrowser when missing,
+  installs the portable Linux runtime when the host needs Xvfb, and prepares
+  the paths that `clawctl start` uses later.
 - Install guide URL: `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`. If a local `INSTALL.md` is present beside this skill, prefer that local copy because it matches the installed release.
 - Do not use `npx` as the primary install path for agent workflows. If you reach this package through `npx` or a raw source checkout, stop and follow `INSTALL.md` to install from the release archive instead.
 - If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude`, `codex`, `gemini`, or `openclaw`.
@@ -89,8 +93,9 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
   default. The normal Linux release archive installs `clawctl` and the
   launcher; `clawctl install` ensures
   `clawbrowser-portable-linux-amd64-glibc.tar.gz` or
-  `clawbrowser-portable-linux-arm64-glibc.tar.gz`. If the portable runtime is
-  already extracted, set `CLAWBROWSER_PORTABLE_LOCAL_DIR`.
+  `clawbrowser-portable-linux-arm64-glibc.tar.gz` when the host needs it. If
+  the portable runtime is already extracted, set
+  `CLAWBROWSER_PORTABLE_LOCAL_DIR`.
 - Before installing, check free space on the target filesystem. The normal
   release archive is about 200 MB compressed; the portable runtime tarballs
   are about 500 MB compressed and larger when unpacked. Agents must confirm at

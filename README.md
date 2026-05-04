@@ -26,11 +26,9 @@ download release archives or portable runtime assets.
 ### Linux Server / Container / No Root
 
 No Docker, sudo, apt, or physical display is required. `clawctl install`
-ensures the matching portable Xvfb runtime, and the launcher starts it
-directly in self-contained mode.
-In this proof path, `clawctl install` configures the agent integration, and
-`clawbrowser start --self-contained` explicitly verifies the no-monitor
-portable runtime.
+checks for an existing browser, installs Clawbrowser if it is missing, ensures
+the matching portable Xvfb runtime when the host needs it, and prepares the
+paths that `clawctl start` uses later.
 
 ```bash
 set -Eeuo pipefail
@@ -55,23 +53,12 @@ tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
 cd "clawbrowser-${platform}"
 
-# Configure clawctl and agent integration.
-./clawctl install --prompt-api-key auto
+# Configure clawctl, reuse or install the browser, and prepare the runtime.
+./clawctl install --prompt-api-key auto --json
 
-# No-monitor / no-display proof path. This downloads and validates the
-# portable Linux runtime when missing.
-./clawbrowser ensure-runtime --backend portable
-
-# Force portable/self-contained mode with bundled Xvfb.
-./clawbrowser start --self-contained --session work -- clawbrowser://verify/
-
-# Confirm the CDP endpoint is available and alive.
-endpoint="$(./clawbrowser endpoint --session work)"
-printf '%s\n' "$endpoint"
-curl -fsS "$endpoint/json/version"
-
-# Confirm clawctl is available and can verify the managed session too.
-./clawctl --help >/dev/null
+# Start through clawctl. On no-display Linux this uses the portable runtime
+# prepared by install; on display-capable hosts it uses the selected browser.
+./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
 ./clawctl verify --session work --json
 ```
@@ -96,6 +83,7 @@ cd clawbrowser-macos-arm64
 ./clawctl install --prompt-api-key auto
 ./clawctl start --session work --url clawbrowser://verify/ --json
 ./clawctl endpoint --session work --json
+./clawctl verify --session work --json
 ```
 
 macOS uses `Clawbrowser.app` and a GUI WindowServer session. Xvfb is Linux-only.
@@ -105,19 +93,21 @@ macOS uses `Clawbrowser.app` and a GUI WindowServer session. Xvfb is Linux-only.
 | Archive | Purpose |
 | --- | --- |
 | `clawbrowser-linux-x64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Normal release archives with `clawctl`, launcher, MCP server, and integration files. |
-| `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Portable Linux runtime payload with bundled Xvfb, libs, xkb data, and portable browser binary. Ensured by `clawctl install` for portable Linux mode. |
+| `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Portable Linux runtime payload with bundled Xvfb, libs, xkb data, and portable browser binary. Ensured by `clawctl install` when Linux needs portable mode. |
 
 The normal Linux release archive is not the portable runtime payload. Start
 with the normal release archive; let `clawctl install` fetch the portable
-runtime unless you are building an offline image. The portable runtime is
+runtime when the host requires it unless you are building an offline image.
+The portable runtime is
 unpacked into the persistent runtime root, defaulting to the launcher cache
-root's `runtime` directory. Override it with `--runtime-root` or
+root's `runtime` directory. Override it with
 `CLAWBROWSER_PORTABLE_RUNTIME_ROOT` when the default cache path is not durable
 across restarts.
 
 ## Agent Flow
 
 ```bash
+clawctl install --json
 clawctl start --session work --url https://example.com --json
 clawctl endpoint --session work --json
 ```
