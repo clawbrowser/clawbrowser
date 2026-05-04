@@ -6,6 +6,10 @@ runtime download/install.
 
 ## Agent Fast Path
 
+Agent integration templates live in `clawctl` and are installed through
+`clawctl install`. This release repository must not be used as a source for
+manual `.mcp.json`, Claude, Codex, Gemini, Hermes, or OpenClaw plugin setup.
+
 This is the path agents should follow on Linux servers, restricted containers,
 CI-like hosts, and macOS GUI hosts. Do not start from a browser archive, raw
 source checkout, Docker, a manual runtime download, or `--runtime-version`.
@@ -155,7 +159,7 @@ macOS uses `Clawbrowser.app` and WindowServer. Xvfb is Linux-only.
 | Thing | Use it for | Notes |
 | --- | --- | --- |
 | `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-macos-arm64.tar.gz` | Bootstrap install | Standalone `clawctl` archives. Start here. |
-| `clawbrowser-linux-amd64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Browser payload | `clawctl install` downloads one when no usable browser exists. |
+| `clawbrowser-linux-amd64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Browser payload | `clawctl install` downloads one when no usable browser exists. Agent integrations are materialized by `clawctl install`; do not install plugin specs from this repository manually. |
 | `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Linux portable runtime | Contains the bundled Xvfb, libraries, xkb data, and portable browser binary. `clawctl install` ensures it when Linux needs portable mode unless you prefetch it. |
 | Raw source checkout | Development only | Does not represent the installed agent runtime. Use `go run ./cmd/clawctl ...` only while developing the CLI. |
 | Docker image | Operator-managed runtime | Optional. Use only when infrastructure intentionally provides Docker or a CDP sidecar. |
