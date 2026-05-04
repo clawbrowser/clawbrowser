@@ -96,7 +96,8 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
   installs the portable Linux runtime when the host needs Xvfb, and prepares
   the paths that `clawctl start` uses later.
 - Install guide URL: `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`. If a local `INSTALL.md` is present beside this skill, prefer that local copy because it matches the installed release.
-- If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude`, `codex`, `gemini`, or `openclaw`.
+- Do not use `npx` as the primary install path for agent workflows. If you reach this package through `npx` or a raw source checkout, stop and follow `INSTALL.md` to install from the release archive instead.
+- If you are installing, use the installer `auto` target unless you need a specific target such as `hermes`, `claude-code`, `codex`, `gemini`, `openclaw`, `cursor`, or `all`.
 - Use the official `clawbrowser/clawbrowser` GitHub repository and bundled `clawctl install` command only.
 - On Linux servers/containers/no-display environments, use portable mode by
   default. The standalone `clawctl` archive provides the bootstrapper; `clawctl install` ensures
