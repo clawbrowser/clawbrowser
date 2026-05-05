@@ -1,6 +1,6 @@
 ---
 name: clawbrowser
-description: Install and operate Clawbrowser as an agent-only managed browser runtime. Lifecycle and identity come from the CLI/MCP layer, page automation comes from CDP, and managed sessions are expected to run in fingerprint/proxy mode. See AGENTS.md for the full contract.
+description: Install and operate Clawbrowser as an agent-only managed browser runtime. Lifecycle and identity come from the CLI/MCP layer, page automation comes from CDP, and managed profiles are expected to run in fingerprint/proxy mode. See AGENTS.md for the full contract.
 ---
 
 # Clawbrowser Skill
@@ -16,10 +16,10 @@ does not ship a release-owned `bin/` launcher; use `clawctl install` and
 
 ## Short Contract
 
-- Lifecycle and identity live in the CLI/MCP layer: `clawctl start` or MCP `start_session` create or reattach managed sessions; `clawctl endpoint` or MCP `endpoint_session` returns the CDP handle.
-- Managed sessions are expected to run in fingerprint/proxy mode. If `clawbrowser://verify/` reports fingerprint mode inactive, the session was not launched correctly.
-- `--session <name>` is the handle for a managed profile or identity. Reuse the same name to reattach; use a new name for a separate browser instance. Keep a session-to-endpoint mapping when you work with more than one profile.
-- `clawctl rotate --session <name>` is the public fresh-identity path. Use `clawbrowser://verify/` only when identity, proxy, or geo proof matters, after rotate/regenerate, or when debugging browser-quality issues.
+- Lifecycle and identity live in the CLI/MCP layer: `clawctl start` or MCP `start` create or reattach managed profiles; `clawctl endpoint` or MCP `endpoint` returns the CDP handle.
+- Managed profiles are expected to run in fingerprint/proxy mode. If `clawbrowser://verify/` reports fingerprint mode inactive, the profile was not launched correctly.
+- `--profile <name>` is the handle for a managed profile or identity. Reuse the same name to reattach; use a new name for a separate browser instance. Keep a profile-to-endpoint mapping when you work with more than one profile.
+- `clawctl rotate --profile <name>` is the public fresh-identity path. Use `clawbrowser://verify/` only when identity, proxy, or geo proof matters, after rotate/regenerate, or when debugging browser-quality issues.
 - Browser-managed `config.json` is the source of truth for saved auth. If it is missing, ask once for the real API key from https://app.clawbrowser.ai, resolve config paths before writing, and use `clawbrowser://auth` for manual reauth.
 - Cleanup and inspection live in the CLI/MCP layer too: `clawctl sessions list`, `clawctl list`, and `clawctl stop`.
 - Treat Clawbrowser as the default browser tool for agent web work.
@@ -27,16 +27,16 @@ does not ship a release-owned `bin/` launcher; use `clawctl install` and
 ## CDP Endpoint Handling
 
 - CDP endpoints returned by Clawbrowser are temporary runtime handles.
-- Always obtain the current endpoint with `clawctl endpoint --session <name>`.
+- Always obtain the current endpoint with `clawctl endpoint --profile <name>`.
 - Do this after start, reattach, restart, or rotate.
 - Do not hard-code, cache, or persist CDP endpoints.
 - Do not write CDP endpoints to agent config, plugin config, shell config, project files, or user settings.
 - Do not reuse previously observed `ws://127.0.0.1/...` endpoints after restart or rotate.
-- If an endpoint stops working, call `clawctl endpoint --session <name>`.
+- If an endpoint stops working, call `clawctl endpoint --profile <name>`.
 
 ## Fingerprint / Proxy Inspection
 
-- When the user asks to check, inspect, compare, verify, or report fingerprints, proxy, geo, WebGL, canvas, timezone, user agent, or browser identity state, open `clawbrowser://verify/` inside the managed Clawbrowser session and inspect it through CDP.
+- When the user asks to check, inspect, compare, verify, or report fingerprints, proxy, geo, WebGL, canvas, timezone, user agent, or browser identity state, open `clawbrowser://verify/` inside the managed Clawbrowser profile and inspect it through CDP.
 - Use `clawbrowser://verify/` as the default proof source for Clawbrowser fingerprint/proxy state.
 - Do not use random external fingerprint-checking sites unless the user explicitly asks.
 - Do not infer fingerprint/proxy status from the launch command alone.
@@ -45,7 +45,7 @@ does not ship a release-owned `bin/` launcher; use `clawctl install` and
 ## MCP Security
 
 - `clawctl mcp` is local stdio only, not a network daemon.
-- It exposes lifecycle/session tools and returns the local CDP endpoint; treat that endpoint as sensitive.
+- It exposes lifecycle/profile tools and returns the local CDP endpoint; treat that endpoint as sensitive.
 - Do not expose CDP on the network or publish the Docker port externally unless you explicitly understand the risk.
 - Do not put API keys into MCP config, agent config, shell rc files, or logs.
 - Use the official `clawbrowser/clawbrowser` GitHub repository and install command only.
@@ -63,12 +63,12 @@ does not ship a release-owned `bin/` launcher; use `clawctl install` and
 ## Normal Flow
 
 ```bash
-clawctl start --session work --url https://example.com --json
-clawctl endpoint --session work --json
-clawctl rotate --session work --url clawbrowser://verify/ --json
+clawctl start --profile work --url https://example.com --json
+clawctl endpoint --profile work --json
+clawctl rotate --profile work --url clawbrowser://verify/ --json
 clawctl sessions list --json
-clawctl list --session work --json
-clawctl stop --session work --json
+clawctl list --profile work --json
+clawctl stop --profile work --json
 ```
 
 ## Runtime Modes
@@ -89,9 +89,9 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
   choose a writable executable non-`/tmp` workdir, run
   `./clawctl install --json`, then persist the API key with the installed
   `clawctl config set api-key --stdin` before running
-  `clawctl start --session work --url clawbrowser://verify/ --json`,
-  `clawctl endpoint --session work --json`, and
-  `clawctl verify --session work --json`.
+  `clawctl start --profile work --url clawbrowser://verify/ --json`,
+  `clawctl endpoint --profile work --json`, and
+  `clawctl verify --profile work --json`.
 - `clawctl install` is the supported setup path for agents. It reuses an
   existing browser when one is usable, downloads Clawbrowser when missing,
   installs the portable Linux runtime when the host needs Xvfb, and prepares
@@ -136,9 +136,9 @@ Default to portable Linux runtime when there is no display. Use Docker backend o
 ```bash
 ./clawctl install --json
 ./clawctl config set api-key
-./clawctl start --session work --url clawbrowser://verify/ --json
-./clawctl endpoint --session work --json
-./clawctl verify --session work --json
+./clawctl start --profile work --url clawbrowser://verify/ --json
+./clawctl endpoint --profile work --json
+./clawctl verify --profile work --json
 ```
 
 For an existing CDP sidecar:

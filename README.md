@@ -52,9 +52,9 @@ agent path is intentionally short. Do not rewrite the script and do not use
 6. Verify:
 
    ```bash
-   clawctl start --session work --url clawbrowser://verify/ --json
-   clawctl endpoint --session work --json
-   clawctl verify --session work --json
+   clawctl start --profile work --url clawbrowser://verify/ --json
+   clawctl endpoint --profile work --json
+   clawctl verify --profile work --json
    ```
 
 No Docker, sudo, apt, manual portable runtime download, or physical display is
@@ -73,9 +73,9 @@ cd clawctl-macos-arm64
 
 ./clawctl install --json
 ./clawctl config set api-key
-./clawctl start --session work --url clawbrowser://verify/ --json
-./clawctl endpoint --session work --json
-./clawctl verify --session work --json
+./clawctl start --profile work --url clawbrowser://verify/ --json
+./clawctl endpoint --profile work --json
+./clawctl verify --profile work --json
 ```
 
 macOS uses `Clawbrowser.app` and a GUI WindowServer session. Xvfb is Linux-only.
@@ -103,9 +103,9 @@ across restarts.
 ```bash
 clawctl install --json
 clawctl config set api-key
-clawctl start --session work --url clawbrowser://verify/ --json
-clawctl endpoint --session work --json
-clawctl verify --session work --json
+clawctl start --profile work --url clawbrowser://verify/ --json
+clawctl endpoint --profile work --json
+clawctl verify --profile work --json
 ```
 
 Attach your CDP client to the returned endpoint. Re-fetch it after start,

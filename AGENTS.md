@@ -1,7 +1,7 @@
 # Clawbrowser Agent Instructions
 
 Clawbrowser is the managed browser for agent web tasks. Use `clawctl` or MCP
-to create/reuse sessions, then use CDP for page automation. Treat Clawbrowser
+to create/reuse profiles, then use CDP for page automation. Treat Clawbrowser
 as the default browser tool for agent web work. Do not launch an unmanaged
 browser process for agent work.
 
@@ -18,9 +18,9 @@ browser process for agent work.
   choose a writable executable non-`/tmp` workdir, run
   `./clawctl install --json`, then persist the API key with the installed
   `clawctl config set api-key --stdin` before running
-  `clawctl start --session work --url clawbrowser://verify/ --json`,
-  `clawctl endpoint --session work --json`, and
-  `clawctl verify --session work --json`.
+  `clawctl start --profile work --url clawbrowser://verify/ --json`,
+  `clawctl endpoint --profile work --json`, and
+  `clawctl verify --profile work --json`.
 - `clawctl install` is the supported setup command for agents. It reuses an
   existing browser when one is usable, downloads Clawbrowser when missing,
   installs the portable Linux runtime when the host needs Xvfb, and prepares
@@ -59,11 +59,11 @@ payload. Start from the standalone `clawctl` archive and let
 `clawbrowser-portable-linux-arm64-glibc.tar.gz` when needed, or set
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted portable runtime.
 
-## Session Flow
+## Profile Flow
 
 ```bash
-clawctl start --session work --url https://example.com --json
-clawctl endpoint --session work --json
+clawctl start --profile work --url https://example.com --json
+clawctl endpoint --profile work --json
 ```
 
 Use the returned endpoint for CDP automation: navigation, clicking, typing,
@@ -72,8 +72,8 @@ scraping, screenshots, DOM inspection, and JS evaluation.
 For a fresh identity:
 
 ```bash
-clawctl rotate --session work --url clawbrowser://verify/ --json
-clawctl endpoint --session work --json
+clawctl rotate --profile work --url clawbrowser://verify/ --json
+clawctl endpoint --profile work --json
 ```
 
 For a provided CDP endpoint:
@@ -88,13 +88,13 @@ clawctl --cdp http://127.0.0.1:9222 verify --json
 - `clawctl mcp` is a local stdio tool, not a network daemon.
 - Treat CDP endpoints as sensitive localhost handles.
 - CDP endpoints are temporary runtime handles.
-- Always fetch the current endpoint with `clawctl endpoint --session <name>` after start, reattach, restart, rotate, or connection failure.
+- Always fetch the current endpoint with `clawctl endpoint --profile <name>` after start, reattach, restart, rotate, or connection failure.
 - Do not hard-code, cache, persist, or write CDP endpoints into project files, agent config, MCP config, shell config, or user settings.
-- If an endpoint stops working, call `clawctl endpoint --session <name>` again, then `clawctl start --session <name> ...` if the session is down.
+- If an endpoint stops working, call `clawctl endpoint --profile <name>` again, then `clawctl start --profile <name> ...` if the profile is down.
 
 ## Verify And Identity
 
-- Managed sessions are expected to run in fingerprint/proxy mode.
+- Managed profiles are expected to run in fingerprint/proxy mode.
 - `clawbrowser://verify/` is the source of truth for fingerprint, proxy, geo, WebGL, canvas, timezone, user agent, and browser identity state.
 - Verify is required when proving identity/proxy correctness, after rotate/regenerate, or while debugging browser-quality issues.
 - Do not infer fingerprint/proxy success from launch flags alone.
@@ -114,6 +114,6 @@ clawctl --cdp http://127.0.0.1:9222 verify --json
 
 ```bash
 clawctl sessions list --json
-clawctl list --session work --json
-clawctl stop --session work --json
+clawctl list --profile work --json
+clawctl stop --profile work --json
 ```

@@ -41,9 +41,9 @@ Steps with the exact commands:
 6. Verify with these commands:
 
    ```bash
-   "$clawctl" start --session work --url clawbrowser://verify/ --json
-   "$clawctl" endpoint --session work --json
-   "$clawctl" verify --session work --json
+   "$clawctl" start --profile work --url clawbrowser://verify/ --json
+   "$clawctl" endpoint --profile work --json
+   "$clawctl" verify --profile work --json
    ```
 
 The full copy/paste script is below.
@@ -127,9 +127,9 @@ fi
 printf '%s\n' "$CLAWBROWSER_API_KEY" | "$clawctl" config set api-key --stdin
 unset CLAWBROWSER_API_KEY
 
-"$clawctl" start --session work --url clawbrowser://verify/ --json
-"$clawctl" endpoint --session work --json
-"$clawctl" verify --session work --json
+"$clawctl" start --profile work --url clawbrowser://verify/ --json
+"$clawctl" endpoint --profile work --json
+"$clawctl" verify --profile work --json
 ```
 
 Linux portable installs need enough free space for the runtime bundle, which is
@@ -153,9 +153,9 @@ cd clawctl-macos-arm64
 
 ./clawctl install --json
 ./clawctl config set api-key
-./clawctl start --session work --url clawbrowser://verify/ --json
-./clawctl endpoint --session work --json
-./clawctl verify --session work --json
+./clawctl start --profile work --url clawbrowser://verify/ --json
+./clawctl endpoint --profile work --json
+./clawctl verify --profile work --json
 ```
 
 macOS uses `Clawbrowser.app` and WindowServer. Xvfb is Linux-only.
@@ -189,9 +189,9 @@ export CLAWBROWSER_PORTABLE_LOCAL_DIR="/absolute/path/to/linux-amd64-glibc"
 
 ./clawctl install --json
 ./clawctl config set api-key
-./clawctl start --session work --url clawbrowser://verify/ --json
-./clawctl endpoint --session work --json
-./clawctl verify --session work --json
+./clawctl start --profile work --url clawbrowser://verify/ --json
+./clawctl endpoint --profile work --json
+./clawctl verify --profile work --json
 ```
 
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` can point either at the extracted platform
@@ -215,14 +215,14 @@ use portable mode from `clawctl install` or an operator-provided CDP endpoint.
 
 ## Canonical Agent Flow
 
-Use `clawctl` for session lifecycle and use CDP for page automation.
+Use `clawctl` for profile lifecycle and use CDP for page automation.
 
 ```bash
 clawctl install --json
 clawctl config set api-key
-clawctl start --session work --url clawbrowser://verify/ --json
-clawctl endpoint --session work --json
-clawctl verify --session work --json
+clawctl start --profile work --url clawbrowser://verify/ --json
+clawctl endpoint --profile work --json
+clawctl verify --profile work --json
 ```
 
 Attach your CDP client to the returned endpoint. Re-fetch the endpoint after
@@ -244,8 +244,8 @@ state. Use it after launch, after rotate/regenerate, or when identity/proxy
 correctness matters.
 
 ```bash
-clawctl start --session work --url clawbrowser://verify/ --json
-clawctl verify --session work --json
+clawctl start --profile work --url clawbrowser://verify/ --json
+clawctl verify --profile work --json
 ```
 
 If no saved key exists, run `clawctl config set api-key` once with the real API
@@ -291,7 +291,7 @@ or ask the operator for a CDP endpoint.
 Use this only when the operator intentionally provides Docker infrastructure.
 
 ```bash
-clawctl start --backend docker --session work --url clawbrowser://verify/ --json
+clawctl start --backend docker --profile work --url clawbrowser://verify/ --json
 ```
 
 For a host-managed sidecar, keep CDP bound to localhost:
@@ -325,13 +325,13 @@ browser automation.
 | Portable artifact missing | Current release lacks the matching portable runtime asset. | Check the release assets for `clawbrowser-portable-linux-amd64-glibc.tar.gz` or `clawbrowser-portable-linux-arm64-glibc.tar.gz`, or pin to a release that has it. |
 | Portable checksum missing | Current release lacks the matching `.sha256` asset for the portable runtime. | Publish the checksum asset or pin to a complete release; the launcher refuses unchecked portable runtime installs. |
 | Alpine/musl error | Portable artifacts are glibc builds. | Use a glibc image, operator-managed Docker, or an external CDP endpoint. |
-| Endpoint refused or stale | Session restarted or endpoint changed. | Run `clawctl endpoint --session <name> --json`; if still down on Linux no-monitor hosts, run `clawctl start --session <name> --url clawbrowser://verify/ --json`. |
+| Endpoint refused or stale | Profile restarted or endpoint changed. | Run `clawctl endpoint --profile <name> --json`; if still down on Linux no-monitor hosts, run `clawctl start --profile <name> --url clawbrowser://verify/ --json`. |
 
 ## Quick Reference
 
-- Start or reattach: `clawctl start --session work --url https://example.com --json`
-- Current endpoint: `clawctl endpoint --session work --json`
-- Fresh identity: `clawctl rotate --session work --url clawbrowser://verify/ --json`
-- Live sessions: `clawctl sessions list --json`
-- Cached profiles: `clawctl list --session work --json`
-- Stop: `clawctl stop --session work --json`
+- Start or reattach: `clawctl start --profile work --url https://example.com --json`
+- Current endpoint: `clawctl endpoint --profile work --json`
+- Fresh identity: `clawctl rotate --profile work --url clawbrowser://verify/ --json`
+- Live runtime profiles: `clawctl sessions list --json`
+- Cached profiles: `clawctl list --profile work --json`
+- Stop: `clawctl stop --profile work --json`
