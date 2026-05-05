@@ -140,7 +140,7 @@ error or `Permission denied` while running `clawctl`, rerun the same script with
 
 ## macOS Fast Path
 
-Use the standalone macOS `clawctl` archive from a logged-in GUI session:
+Use the standalone macOS `clawctl` archive from a logged-in GUI desktop:
 
 ```bash
 archive="clawctl-macos-arm64.tar.gz"
@@ -278,7 +278,7 @@ tools.
 | --- | --- | --- | --- |
 | Linux VPS/server/no display | portable | No | No |
 | Restricted container/no root | portable | No | No |
-| macOS desktop/Mac mini | native app | No | GUI session required |
+| macOS desktop/Mac mini | native app | No | GUI desktop required |
 | Operator-managed Docker host | docker | Yes | No physical display |
 | Existing browser/CDP sidecar | `clawctl --cdp ...` | No from agent | External owner |
 

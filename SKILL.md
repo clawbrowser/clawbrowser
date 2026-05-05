@@ -74,7 +74,7 @@ clawctl stop --profile work --json
 ## Runtime Modes
 
 - **Portable Linux runtime mode** — default for Linux VPS/server/container/no-display/no-root environments. Runs full headful Clawbrowser with bundled Xvfb, xkb data, browser binary, and libraries. No Docker, sudo, apt, or physical display is required.
-- **macOS native app mode** — uses `Clawbrowser.app` through a GUI WindowServer session.
+- **macOS native app mode** — uses `Clawbrowser.app` through a GUI WindowServer desktop context.
 - **Docker backend mode (optional/operator-managed)** — use only when operators intentionally provide Docker and host infrastructure. Config in the container at `/home/clawbrowser/.config/clawbrowser/config.json`, persisted in the `clawbrowser-config` named volume.
 - **Existing CDP/sidecar mode (optional/operator-managed)** — connect via `clawctl --cdp http://127.0.0.1:9222 ...` when infrastructure already provides a browser.
 

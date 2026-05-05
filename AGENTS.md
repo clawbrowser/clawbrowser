@@ -48,7 +48,7 @@ browser process for agent work.
 | Environment | Use |
 | --- | --- |
 | Linux server/container/no display/no root | Portable runtime |
-| macOS desktop/Mac mini | Native `Clawbrowser.app` with GUI session |
+| macOS desktop/Mac mini | Native `Clawbrowser.app` with GUI desktop context |
 | Operator-provided browser/CDP | `clawctl --cdp http://127.0.0.1:9222 ...` |
 | Operator-managed Docker host | Docker backend only if explicitly provided |
 

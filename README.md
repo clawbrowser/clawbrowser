@@ -78,7 +78,7 @@ cd clawctl-macos-arm64
 ./clawctl verify --profile work --json
 ```
 
-macOS uses `Clawbrowser.app` and a GUI WindowServer session. Xvfb is Linux-only.
+macOS uses `Clawbrowser.app` and a GUI WindowServer desktop context. Xvfb is Linux-only.
 
 ## Archive Names
 
@@ -122,7 +122,7 @@ clawctl --cdp http://127.0.0.1:9222 verify --json
 
 - **Portable Linux runtime** - default for Linux servers, no-display hosts, and
   restricted containers. No Docker required.
-- **macOS native app** - default on macOS. Requires a GUI session.
+- **macOS native app** - default on macOS. Requires a GUI desktop context.
 - **Docker backend** - optional, operator-managed infrastructure only.
 - **Existing CDP endpoint** - explicit `clawctl --cdp http://127.0.0.1:9222 ...`
   mode for sidecars or externally provisioned browsers.
