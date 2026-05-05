@@ -24,7 +24,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  prepare:
+  resolve_publish_target:
+    name: Resolve Docker publish target
     runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.vars.outputs.image }}
@@ -82,27 +83,31 @@ jobs:
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
           echo "publish_latest=${publish_latest}" >> "${GITHUB_OUTPUT}"
 
-  build:
-    needs: prepare
+  publish_multiarch_image:
+    name: Build and publish multi-arch Docker image
+    needs: resolve_publish_target
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.repository.default_branch }}
+      - name: Checkout Docker build source
+        uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Enable arm64 emulation
+        uses: docker/setup-qemu-action@v3
 
-      - uses: docker/login-action@v3
+      - name: Create Docker Buildx builder
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
         with:
           registry: docker.io
           username: clawbrowser
           password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
 
-      - name: Download release artifact
+      - name: Download Linux release archives
         env:
-          ASSET_NAME: clawbrowser-linux-x64.tar.gz
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_TAG: ${{ needs.resolve_publish_target.outputs.tag }}
         run: |
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}/assets"
@@ -111,92 +116,110 @@ jobs:
             --paginate \
             --slurp)"
 
-          asset_url="$(printf '%s' "${releases_json}" | jq -r \
-            --arg tag "${RELEASE_TAG}" \
-            --arg asset "${ASSET_NAME}" '
-              map(.[]?) |
-              map(select(.tag_name == $tag)) |
-              map(select(any((.assets // [])[]; .name == $asset))) |
-              sort_by(.draft) |
-              first? |
-              (.assets // [])[] |
-              select(.name == $asset) |
-              .url // empty
-            ')"
-
-          if [[ -z "${asset_url}" ]]; then
-            echo "::error::asset ${ASSET_NAME} was not found in any release for tag ${RELEASE_TAG}"
-            printf '%s' "${releases_json}" | jq -r \
-              --arg tag "${RELEASE_TAG}" '
+          for asset_name in clawbrowser-linux-x64.tar.gz clawbrowser-linux-arm64.tar.gz; do
+            asset_url="$(printf '%s' "${releases_json}" | jq -r \
+              --arg tag "${RELEASE_TAG}" \
+              --arg asset "${asset_name}" '
                 map(.[]?) |
                 map(select(.tag_name == $tag)) |
-                .[] |
-                "- release=\(.name) draft=\(.draft) assets=\([(.assets // [])[].name] | join(", "))"
-              '
-            exit 1
-          fi
+                map(select(any((.assets // [])[]; .name == $asset))) |
+                sort_by(.draft) |
+                first? |
+                (.assets // [])[] |
+                select(.name == $asset) |
+                .url // empty
+              ')"
 
-          gh api "${asset_url}" \
-            -H "Accept: application/octet-stream" \
-            > "${RUNNER_TEMP}/assets/${ASSET_NAME}"
+            if [[ -z "${asset_url}" ]]; then
+              echo "::error::asset ${asset_name} was not found in any release for tag ${RELEASE_TAG}"
+              printf '%s' "${releases_json}" | jq -r \
+                --arg tag "${RELEASE_TAG}" '
+                  map(.[]?) |
+                  map(select(.tag_name == $tag)) |
+                  .[] |
+                  "- release=\(.name) draft=\(.draft) assets=\([(.assets // [])[].name] | join(", "))"
+                '
+              exit 1
+            fi
 
-      - name: Prepare build context
-        env:
-          ASSET_NAME: clawbrowser-linux-x64.tar.gz
+            gh api "${asset_url}" \
+              -H "Accept: application/octet-stream" \
+              > "${RUNNER_TEMP}/assets/${asset_name}"
+          done
+
+      - name: Assemble Docker build roots
         run: |
           set -euo pipefail
 
-          archive="${RUNNER_TEMP}/assets/${ASSET_NAME}"
-          extract_dir="${RUNNER_TEMP}/clawbrowser-dist-amd64"
+          rm -rf clawbrowser-dist-amd64 clawbrowser-dist-arm64
 
-          rm -rf clawbrowser-dist "${extract_dir}"
-          mkdir -p clawbrowser-dist "${extract_dir}"
+          prepare_dist() {
+            local arch="$1"
+            local asset_name="$2"
+            local archive="${RUNNER_TEMP}/assets/${asset_name}"
+            local extract_dir="${RUNNER_TEMP}/clawbrowser-dist-${arch}"
+            local dest_dir="clawbrowser-dist-${arch}"
+            local src
+            local real_path
+            local -a real_paths
 
-          tar -xzf "${archive}" -C "${extract_dir}"
+            rm -rf "${dest_dir}" "${extract_dir}"
+            mkdir -p "${dest_dir}" "${extract_dir}"
 
-          shopt -s dotglob nullglob
-          entries=("${extract_dir}"/*)
-          if [[ ${#entries[@]} -eq 1 && -d "${entries[0]}" ]]; then
-            src="${entries[0]}"
-          else
-            src="${extract_dir}"
-          fi
+            tar -xzf "${archive}" -C "${extract_dir}"
 
-          cp -a "${src}/." clawbrowser-dist/
+            real_paths=()
+            while IFS= read -r real_path; do
+              real_paths+=("${real_path}")
+            done < <(find "${extract_dir}" -type f -name clawbrowser.real | sort)
+            if [[ ${#real_paths[@]} -ne 1 ]]; then
+              echo "::error::expected exactly one clawbrowser.real in ${asset_name}, found ${#real_paths[@]}"
+              find "${extract_dir}" -maxdepth 3 -type f | sort | sed 's/^/- /'
+              exit 1
+            fi
 
-          if [[ ! -f clawbrowser-dist/clawbrowser.real ]]; then
-            echo "::error::expected clawbrowser-dist/clawbrowser.real in ${ASSET_NAME}"
-            exit 1
-          fi
+            src="$(dirname "${real_paths[0]}")"
 
-          chmod +x clawbrowser-dist/clawbrowser.real
+            cp -a "${src}/." "${dest_dir}/"
 
-      - id: meta
+            if [[ ! -f "${dest_dir}/clawbrowser.real" ]]; then
+              echo "::error::expected ${dest_dir}/clawbrowser.real in ${asset_name}"
+              exit 1
+            fi
+
+            chmod +x "${dest_dir}/clawbrowser.real"
+          }
+
+          prepare_dist amd64 clawbrowser-linux-x64.tar.gz
+          prepare_dist arm64 clawbrowser-linux-arm64.tar.gz
+
+      - name: Generate Docker image tags
+        id: meta
         uses: docker/metadata-action@v5
         with:
           flavor: |
             latest=false
-          images: ${{ needs.prepare.outputs.image }}
+          images: ${{ needs.resolve_publish_target.outputs.image }}
           tags: |
-            type=raw,value=${{ needs.prepare.outputs.tag }}
-            type=raw,value=latest,enable=${{ needs.prepare.outputs.publish_latest == 'true' }}
+            type=raw,value=${{ needs.resolve_publish_target.outputs.tag }}
+            type=raw,value=latest,enable=${{ needs.resolve_publish_target.outputs.publish_latest == 'true' }}
 
-      - name: Build and push image
+      - name: Build and publish amd64 and arm64 image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           sbom: false
 
-      - name: Inspect published image
+      - name: Verify published multi-arch manifest
         env:
-          IMAGE: ${{ needs.prepare.outputs.image }}
-          TAG: ${{ needs.prepare.outputs.tag }}
+          IMAGE: ${{ needs.resolve_publish_target.outputs.image }}
+          TAG: ${{ needs.resolve_publish_target.outputs.tag }}
         run: |
           set -euo pipefail
           docker buildx imagetools inspect "${IMAGE}:${TAG}"

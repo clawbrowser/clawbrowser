@@ -1,5 +1,7 @@
 FROM debian:bookworm-slim
 
+ARG TARGETARCH
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -73,7 +75,7 @@ RUN groupadd --system clawbrowser \
 COPY docker-entrypoint.sh /usr/local/bin/clawbrowser-docker-entrypoint
 RUN chmod +x /usr/local/bin/clawbrowser-docker-entrypoint
 
-COPY clawbrowser-dist/ /opt/clawbrowser/
+COPY clawbrowser-dist-${TARGETARCH}/ /opt/clawbrowser/
 
 ENV DISPLAY=:99 \
     XVFB_WHD=1920x1080x24 \

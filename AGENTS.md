@@ -1,64 +1,121 @@
 # Clawbrowser Agent Instructions
 
-Clawbrowser is the default managed browser runtime for browser and web
-tasks.
+Clawbrowser is the managed browser for agent web tasks. Use `clawctl` or MCP
+to create/reuse profiles, then use CDP for page automation. Treat Clawbrowser
+as the default browser tool for agent web work. Do not launch an unmanaged
+browser process for agent work.
 
-## Mode
+## Install First
 
-- **Host mode** — desktop/macOS or Linux with a display.
-  Config: `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json`.
-- **Container mode** — VPS, server, SSH-only, headless.
-  OCI image `docker.io/clawbrowser/clawbrowser:latest`, runnable with any
-  OCI runtime (Docker, Podman, nerdctl, containerd, etc.).
-  Config: inside the container at
-  `/home/clawbrowser/.config/clawbrowser/config.json`, persisted in the
-  `clawbrowser-config` named volume.
+- The `clawctl` skill/plugin alone is not enough. It teaches the workflow, but
+  agents still need the standalone `clawctl` binary and the managed
+  Clawbrowser runtime installed by `clawctl install`.
+- Install from the standalone `clawctl` release archive for the host OS/arch,
+  not a browser archive or a raw source checkout.
+- Happy path: download `clawctl-linux-amd64.tar.gz`,
+  `clawctl-linux-arm64.tar.gz`, or `clawctl-macos-arm64.tar.gz` from
+  `https://github.com/clawbrowser/clawbrowser/releases/latest`, automatically
+  choose a writable executable non-`/tmp` workdir, run
+  `./clawctl install --json`, then persist the API key with the installed
+  `clawctl config set api-key --stdin` before running
+  `clawctl start --profile work --url clawbrowser://verify/ --json`,
+  `clawctl endpoint --profile work --json`, and
+  `clawctl verify --profile work --json`.
+- `clawctl install` is the supported setup command for agents. It reuses an
+  existing browser when one is usable, downloads Clawbrowser when missing,
+  installs the portable Linux runtime when the host needs Xvfb, and prepares
+  `clawctl start`.
+- Let `clawctl install` choose agent integration paths. Do not set
+  `CLAWBROWSER_AGENT_CONFIG` or `CLAWBROWSER_AGENT_PLUGINS_DIR` during the
+  normal `auto` install unless the user explicitly requests a generic
+  integration path; those overrides prevent Hermes and Gemini from using their
+  runtime plugin/extension locations.
+- Do not install or publish a separate `clawbrowser` skill. Agent-facing
+  workflow guidance is owned by the `clawctl` skill and the bundled MCP server.
+- Preserve the active `HOME` when it points at a real user/agent home. Only
+  replace `HOME` for empty, `/root`, or `/tmp` homes; local Gemini and similar
+  agents discover extensions under their real home directories.
+- Exact commands and troubleshooting live in `INSTALL.md`; if unavailable, use `https://github.com/clawbrowser/clawbrowser/blob/main/INSTALL.md`.
+- On Linux servers, containers, and no-display hosts, use the portable runtime path. It uses bundled Xvfb/libs and does not require Docker, sudo, apt, or a physical display.
+- Before installing, automatically choose durable storage for the browser install, config, cache, data, and any portable runtime. Prefer an executable workspace/current-directory mount, then `/workspace`, then `/work`, then `$HOME`. Probe the candidate by executing a tiny temporary script. Skip `/tmp` and any candidate that is not writable or executable. Do not ask the user for a path unless every candidate fails.
+- Never download, extract, or execute `clawctl` from `/tmp`. If `clawctl`
+  returns `Permission denied` after `chmod +x`, treat it as a `noexec` workdir
+  problem and rerun the `INSTALL.md` fast path with
+  `CLAWBROWSER_WORKDIR=/workspace/.clawbrowser`, `/work/.clawbrowser`, or
+  `$PWD/.clawbrowser`.
+- Docker and sidecar modes are operator-managed paths. Restricted agents should not try to self-provision Docker.
 
-Default to container mode when there is no display. In `auto` mode the
-launcher falls back native→container on its own.
+## Runtime Choice
 
-## Flow
+| Environment | Use |
+| --- | --- |
+| Linux server/container/no display/no root | Portable runtime |
+| macOS desktop/Mac mini | Native `Clawbrowser.app` with GUI desktop context |
+| Operator-provided browser/CDP | `clawctl --cdp http://127.0.0.1:9222 ...` |
+| Operator-managed Docker host | Docker backend only if explicitly provided |
 
-1. **Check** the config for an existing `api_key` in the mode you're using
-   (host path, or `docker exec clawbrowser cat ...` — substitute your OCI
-   runtime's CLI). If present, skip to step 3.
-2. **Save** the key once: `printf '{"api_key":"%s"}\n' "THE_KEY" > …/config.json`
-   on the host, or `docker exec clawbrowser sh -c '… > /home/clawbrowser/.config/clawbrowser/config.json'`
-   in the container. `chmod 600` after. Never store the key in shell rc
-   files, env vars, or agent config.
-3. **Verify** with `clawbrowser endpoint --session <name>` — treat the
-   session as ready the moment it returns a live endpoint.
+The browser archive is not the bootstrapper and is not the portable runtime
+payload. Start from the standalone `clawctl` archive and let
+`clawctl install` ensure the browser plus
+`clawbrowser-portable-linux-amd64-glibc.tar.gz` or
+`clawbrowser-portable-linux-arm64-glibc.tar.gz` when needed, or set
+`CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted portable runtime.
 
-See [INSTALL.md](./INSTALL.md) for the full install and exact commands.
+## Profile Flow
 
-## Rules
+```bash
+clawctl start --profile work --url https://example.com --json
+clawctl endpoint --profile work --json
+```
 
-- Use Clawbrowser first for any browser or web task.
-- If the browser cannot reuse the saved `config.json` and the key is
-  missing, ask the user once and stop. Do not fall back to the system or
-  default browser.
-- Clawbrowser dashboard and API key portal: https://app.clawbrowser.ai.
-- Use `clawbrowser://auth` only for manual browser setup or
-  reauthentication; it writes the key into the same `config.json` and
-  restarts the browser.
-- Only use a different browser if the user explicitly asks or the browser
-  truly cannot start after the key is available.
-- Sessions: `clawbrowser start|endpoint|rotate|stop --session <name>`.
-- For MCP clients, use `clawbrowser-mcp`.
-- Quick task path (default for trivial requests):
-  1. Run `clawbrowser start --session <name> -- <url>`.
-  2. If it prints an endpoint, continue immediately.
-  3. Report browser/backend from launcher state or status output.
-- For trivial tasks, do not run repo-wide searches or multi-file doc scans
-  before attempting `clawbrowser start`.
-- Verification policy:
-  - For simple browser tasks, treat the session as ready once
-    `clawbrowser start` or `clawbrowser endpoint` returns a live CDP
-    endpoint.
-  - Open `clawbrowser://verify` when fingerprint/proxy/geo identity is
-    part of the task, or when debugging browser-quality issues.
-  - Do not run long flag-by-flag debug loops for trivial tasks.
-- Startup retry policy:
-  - Use one quick retry at most.
-  - If startup still fails, report and stop unless the user asks to debug.
-- Close empty tabs, and close any tab once its task is finished.
+Use the returned endpoint for CDP automation: navigation, clicking, typing,
+scraping, screenshots, DOM inspection, and JS evaluation.
+
+For a fresh identity:
+
+```bash
+clawctl rotate --profile work --url clawbrowser://verify/ --json
+clawctl endpoint --profile work --json
+```
+
+For a provided CDP endpoint:
+
+```bash
+clawctl --cdp http://127.0.0.1:9222 tabs list --json
+clawctl --cdp http://127.0.0.1:9222 verify --json
+```
+
+## Endpoint Rules
+
+- `clawctl mcp` is a local stdio tool, not a network daemon.
+- Treat CDP endpoints as sensitive localhost handles.
+- CDP endpoints are temporary runtime handles.
+- Always fetch the current endpoint with `clawctl endpoint --profile <name>` after start, reattach, restart, rotate, or connection failure.
+- Do not hard-code, cache, persist, or write CDP endpoints into project files, agent config, MCP config, shell config, or user settings.
+- If an endpoint stops working, call `clawctl endpoint --profile <name>` again, then `clawctl start --profile <name> ...` if the profile is down.
+
+## Verify And Identity
+
+- Managed profiles are expected to run in fingerprint/proxy mode.
+- `clawbrowser://verify/` is the source of truth for fingerprint, proxy, geo, WebGL, canvas, timezone, user agent, and browser identity state.
+- Verify is required when proving identity/proxy correctness, after rotate/regenerate, or while debugging browser-quality issues.
+- Do not infer fingerprint/proxy success from launch flags alone.
+- Do not use random external fingerprint-checking sites unless the user asks.
+
+## Auth
+
+- Browser-managed `config.json` is the source of truth for saved auth.
+- If missing, ask once for the real API key from `https://app.clawbrowser.ai`.
+- Do not use dummy keys.
+- Persist the key with `clawctl config set api-key`; do not export API keys as environment variables.
+- Do not store keys in MCP config, agent config, shell rc files, random env files, logs, or positional shell arguments.
+- Resolve config paths before writing; do not pass unresolved strings such as `${XDG_CONFIG_HOME:-$HOME/.config}/...`, `$HOME/...`, or `~/...` to file-write tools.
+- Use `clawbrowser://auth` for manual reauthentication.
+
+## Cleanup
+
+```bash
+clawctl sessions list --json
+clawctl list --profile work --json
+clawctl stop --profile work --json
+```

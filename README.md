@@ -1,119 +1,133 @@
 # Clawbrowser
 
-Browser built for AI agents. Fingerprints, proxies and rotating identities out of the box.
+Clawbrowser is a managed browser runtime for AI agents.
+
+Full agent contract: [AGENTS.md](./AGENTS.md)
+
+Install details and troubleshooting: [INSTALL.md](./INSTALL.md)
 
 ## Install
 
-Supported surfaces:
+Use the standalone `clawctl` release archive for the host OS/arch. The browser
+archive is not the bootstrapper. `clawctl install` owns browser and portable
+runtime download/install. The `clawctl` skill/plugin is not enough by itself;
+agents still need the standalone `clawctl` binary and the runtime installed by
+`clawctl install`. There is no separate `clawbrowser` skill to install; agent
+guidance is provided through `clawctl`.
 
-- Claude Code and Claude Desktop
-- Cursor
-- Codex app and plugin-capable Codex surfaces
-- Gemini CLI
-- Hermes Agent
-- OpenClaw
-- Other agents
+Agent-specific plugin, MCP, and extension templates are owned by `clawctl` and
+materialized by `clawctl install`. This includes enabling Hermes plugins and
+Gemini extensions in the agent locations those runtimes actually scan. This
+release repository does not publish a root `clawbrowser` skill, root `.mcp.json`,
+Claude, Codex, Gemini, Hermes, or OpenClaw plugin specs as a manual installation
+surface.
 
-### npx install
+Use a durable filesystem for the browser install, config, cache, data, and any
+portable runtime. The standalone `clawctl` archive is small and does not
+require a 2 GB preflight. The 2 GB free-space check applies only when fetching
+or unpacking portable runtime bundles, which are about 500 MB compressed and
+larger when unpacked. If a writable workspace mount is available, prefer it for
+the browser install. Do not use `/tmp` as the durable install location for
+`clawctl`, the portable runtime, config, cache, or agent plugins.
 
-Install directly from the GitHub repo without cloning:
+### Agent Install
 
-```bash
-npx --yes github:clawbrowser/clawbrowser <target>
-```
+Use the copy/paste flow in [INSTALL.md](./INSTALL.md#agent-fast-path). The
+agent path is intentionally short. Do not rewrite the script and do not use
+`/tmp`; many agent containers mount `/tmp` with `noexec`, which causes
+`Permission denied` even after `chmod +x`.
 
-Targets:
+1. Find a durable writable directory outside `/tmp`.
+2. Download the standalone `clawctl` archive:
+   `curl -fL -o "$archive" "$url" && tar -xzf "$archive"` from inside that
+   workdir, not `/tmp`.
+3. Install Clawbrowser:
+   `clawctl install --json`.
+   Do not set `CLAWBROWSER_AGENT_CONFIG` or
+   `CLAWBROWSER_AGENT_PLUGINS_DIR` unless you intentionally want a generic
+   integration path; those overrides bypass agent-specific auto-detection.
+   Preserve the active `HOME` unless it is empty, `/root`, or `/tmp`, because
+   local agents such as Gemini discover extensions under their real home.
+4. Ask once for the Clawbrowser API key from `https://app.clawbrowser.ai`.
+5. Save the API key:
+   `printf '%s\n' "$CLAWBROWSER_API_KEY" | clawctl config set api-key --stdin`.
+6. Verify:
 
-- `claude` for Claude Code and Claude Desktop (`claude-desktop` is an alias)
-- `codex` for Codex
-- `gemini` for Gemini CLI
-- `hermes` for Hermes Agent
-- `openclaw` for OpenClaw
-- `all` for other agents or multi-target installs
+   ```bash
+   clawctl start --profile work --url clawbrowser://verify/ --json
+   clawctl endpoint --profile work --json
+   clawctl verify --profile work --json
+   ```
 
-### Claude Code and Claude Desktop
+No Docker, sudo, apt, manual portable runtime download, or physical display is
+required for Linux server/container installs.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- claude
-```
-
-Claude copies the plugin bundle into `~/.claude/plugins/clawbrowser` and
-registers the MCP server in Claude Desktop config.
-
-### Cursor
-
-Use the `all` target for the shared bundle and every supported integration.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- all
-```
-
-### Codex app and plugin-capable Codex surfaces
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- codex
-```
-
-Codex copies the plugin into `~/.codex/plugins/clawbrowser` and marks it
-`INSTALLED_BY_DEFAULT` in `~/.agents/plugins/marketplace.json`. No manual
-`/plugin marketplace` step is needed.
-
-### Gemini CLI
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- gemini
-```
-
-### Hermes Agent
+### macOS
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- hermes
+archive="clawctl-macos-arm64.tar.gz"
+url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
+
+curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
+tar -tzf "$archive" >/dev/null
+tar -xzf "$archive"
+cd clawctl-macos-arm64
+
+./clawctl install --json
+./clawctl config set api-key
+./clawctl start --profile work --url clawbrowser://verify/ --json
+./clawctl endpoint --profile work --json
+./clawctl verify --profile work --json
 ```
 
-The installer copies the plugin into `~/.hermes/plugins/clawbrowser` and
-enables it in `~/.hermes/config.yaml`. The plugin registers five tools
-(`clawbrowser_start`, `clawbrowser_endpoint`, `clawbrowser_rotate`,
-`clawbrowser_stop`, `clawbrowser_status`), lifecycle hooks, and a bundled
-skill.
+macOS uses `Clawbrowser.app` and a GUI WindowServer desktop context. Xvfb is Linux-only.
 
-### OpenClaw
+## Archive Names
+
+| Archive | Purpose |
+| --- | --- |
+| `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-macos-arm64.tar.gz` | Standalone bootstrapper archives. Start here. |
+| `clawbrowser-linux-amd64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Browser payload archives. `clawctl install` downloads one when no usable browser exists. There is no release-owned public plugin-spec install surface; `clawctl install` and `clawctl start` own setup and launch. |
+| `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Portable Linux runtime payload with bundled Xvfb, libs, xkb data, and portable browser binary. Ensured by `clawctl install` when Linux needs portable mode. |
+
+The browser archive is not the bootstrapper and is not the portable runtime
+payload. Start with the standalone `clawctl` archive; let `clawctl install`
+fetch the browser and portable runtime when the host requires them unless you
+are building an offline image.
+The portable runtime is
+unpacked into the persistent runtime root, defaulting to the launcher cache
+root's `runtime` directory. Override it with
+`CLAWBROWSER_PORTABLE_RUNTIME_ROOT` when the default cache path is not durable
+across restarts.
+
+## Agent Flow
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- openclaw
+clawctl install --json
+clawctl config set api-key
+clawctl start --profile work --url clawbrowser://verify/ --json
+clawctl endpoint --profile work --json
+clawctl verify --profile work --json
 ```
 
-OpenClaw installs the bundle through `openclaw plugins install`, which
-registers it in OpenClaw's plugin registry and enables `clawbrowser`.
+Attach your CDP client to the returned endpoint. Re-fetch it after start,
+restart, rotate, or failure. Do not persist CDP endpoints in config files.
 
-### Other agents
+For an already-running browser/CDP sidecar:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/clawbrowser/clawbrowser/main/scripts/install.sh | bash -s -- all
+clawctl --cdp http://127.0.0.1:9222 tabs list --json
+clawctl --cdp http://127.0.0.1:9222 verify --json
 ```
 
-## Runtime modes
+## Runtime Modes
 
-- **Host mode** — desktop/macOS or Linux with a display. The launcher uses
-  `Clawbrowser.app` when present.
-- **Container mode** — VPS, server, SSH-only, headless. Use the
-  `docker.io/clawbrowser/clawbrowser:latest` OCI image with any OCI
-  runtime (Docker, Podman, nerdctl, containerd, etc.); the
-  `clawbrowser-config` named volume keeps the config across restarts.
+- **Portable Linux runtime** - default for Linux servers, no-display hosts, and
+  restricted containers. No Docker required.
+- **macOS native app** - default on macOS. Requires a GUI desktop context.
+- **Docker backend** - optional, operator-managed infrastructure only.
+- **Existing CDP endpoint** - explicit `clawctl --cdp http://127.0.0.1:9222 ...`
+  mode for sidecars or externally provisioned browsers.
 
-Default to container mode when there is no display. In `auto` mode the
-launcher also falls back native→container on its own.
-
-## What gets installed
-
-- `browser-user` agent that routes all browser and web tasks through Clawbrowser
-- `clawbrowser` skill with usage guidance for start, rotate, stop, and verify
-- `clawbrowser-mcp` MCP server for CDP session management
-
-## CLI usage
-
-```bash
-clawbrowser start --session <name> -- <url>    # start and open a URL
-clawbrowser endpoint --session <name>          # print live CDP endpoint
-clawbrowser rotate --session <name>            # fresh identity/fingerprint
-clawbrowser stop --session <name>              # clean up
-```
+Use Docker only when the operator intentionally provides it. Restricted agents
+should use portable mode or a provided CDP endpoint.
