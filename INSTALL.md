@@ -9,8 +9,9 @@ managed Clawbrowser runtime still need to be installed.
 ## Agent Fast Path
 
 Agent integration templates live in `clawctl` and are installed through
-`clawctl install`. This release repository must not be used as a source for
-manual `.mcp.json`, Claude, Codex, Gemini, Hermes, or OpenClaw plugin setup.
+`clawctl install`. This release repository must not be used as a source for a
+separate `clawbrowser` skill, manual `.mcp.json`, Claude, Codex, Gemini, Hermes,
+or OpenClaw plugin setup.
 
 This is the path agents should follow on Linux servers, restricted containers,
 CI-like hosts, and macOS GUI hosts. Do not start from a browser archive, raw

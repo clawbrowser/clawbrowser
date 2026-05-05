@@ -30,6 +30,8 @@ browser process for agent work.
   normal `auto` install unless the user explicitly requests a generic
   integration path; those overrides prevent Hermes and Gemini from using their
   runtime plugin/extension locations.
+- Do not install or publish a separate `clawbrowser` skill. Agent-facing
+  workflow guidance is owned by the `clawctl` skill and the bundled MCP server.
 - Preserve the active `HOME` when it points at a real user/agent home. Only
   replace `HOME` for empty, `/root`, or `/tmp` homes; local Gemini and similar
   agents discover extensions under their real home directories.

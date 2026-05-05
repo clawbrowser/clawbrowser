@@ -12,13 +12,15 @@ Use the standalone `clawctl` release archive for the host OS/arch. The browser
 archive is not the bootstrapper. `clawctl install` owns browser and portable
 runtime download/install. The `clawctl` skill/plugin is not enough by itself;
 agents still need the standalone `clawctl` binary and the runtime installed by
-`clawctl install`.
+`clawctl install`. There is no separate `clawbrowser` skill to install; agent
+guidance is provided through `clawctl`.
 
 Agent-specific plugin, MCP, and extension templates are owned by `clawctl` and
 materialized by `clawctl install`. This includes enabling Hermes plugins and
 Gemini extensions in the agent locations those runtimes actually scan. This
-release repository does not publish root `.mcp.json`, Claude, Codex, Gemini,
-Hermes, or OpenClaw plugin specs as a manual installation surface.
+release repository does not publish a root `clawbrowser` skill, root `.mcp.json`,
+Claude, Codex, Gemini, Hermes, or OpenClaw plugin specs as a manual installation
+surface.
 
 Use a durable filesystem for the browser install, config, cache, data, and any
 portable runtime. The standalone `clawctl` archive is small and does not
