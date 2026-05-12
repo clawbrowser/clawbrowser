@@ -113,6 +113,59 @@ clawctl verify --profile work --json
 Attach your CDP client to the returned endpoint. Re-fetch it after start,
 restart, rotate, or failure. Do not persist CDP endpoints in config files.
 
+## Remote Control Streaming
+
+Use Remote Control streaming when the user asks to watch, inspect, or control
+the browser remotely. For those requests, start streaming as soon as the target
+page is loaded instead of waiting for a separate confirmation. Remote Control
+creates a backend Remote Session and prints a `viewer_url`; it does not expose
+the local CDP endpoint to the viewer.
+
+The saved Clawbrowser API key is required. Agents should persist it once with
+`clawctl config set api-key`, then rely on the saved browser `config.json`.
+The production Remote Control API is `https://api.clawbrowser.ai`; if an older
+`clawctl` returns an HTML `404` from `app.clawbrowser.ai`, update `clawctl` or
+temporarily run with `CLAWBROWSER_API_BASE_URL=https://api.clawbrowser.ai`.
+
+Happy path:
+
+```bash
+clawctl start --profile work --url https://example.com --json
+clawctl wait --profile work --load --timeout 30s --json
+clawctl tabs list --profile work --json
+clawctl remote --profile work --target-url-contains example.com --json
+```
+
+If the task begins with identity rotation, rotate first, then open the target
+page again before starting the stream:
+
+```bash
+clawctl rotate --profile work --url clawbrowser://verify/ --verify --json
+clawctl open --profile work https://example.com --json
+clawctl wait --profile work --load --timeout 30s --json
+clawctl remote --profile work --target-url-contains example.com --json
+```
+
+`clawctl remote` stays attached while the stream is active. Keep that process
+running for as long as the viewer should have access; interrupting it closes the
+Remote Session, but leaves the browser profile itself running. Treat the printed
+`viewer_url` as a sensitive capability URL because it contains a viewer token.
+
+Target selection matters when the profile has multiple tabs, for example a
+`clawbrowser://verify/` tab and a website tab. Prefer
+`--target-url-contains <domain-or-path>` or
+`--target-title-contains <title-fragment>` so the stream attaches to the page
+the user expects.
+
+Common Remote Control failures:
+
+| Symptom | Action |
+| --- | --- |
+| HTML `404` mentioning the dashboard | Use a current `clawctl` release or set `CLAWBROWSER_API_BASE_URL=https://api.clawbrowser.ai`. |
+| JSON `401 missing_auth` or `invalid_auth` | Save a real API key with `clawctl config set api-key` and retry. |
+| No matching page target | Run `clawctl tabs list --profile work --json`, open the target page, then retry with a narrower `--target-url-contains` value. |
+| CDP endpoint refused or stale | Run `clawctl endpoint --profile work --json`; if the profile is stopped, run `clawctl start --profile work --url <url> --json`. |
+
 For an already-running browser/CDP sidecar:
 
 ```bash
