@@ -113,6 +113,20 @@ clawctl verify --profile work --json
 Attach your CDP client to the returned endpoint. Re-fetch it after start,
 restart, rotate, or failure. Do not persist CDP endpoints in config files.
 
+### Remote Viewing
+
+If the user asks for a stream, live view, remote browser, or remote control,
+open the requested page and start a remote session:
+
+```bash
+clawctl open --profile work https://example.com --json
+clawctl remote --profile work --wait=false --json
+```
+
+Share only the returned `viewer_url` with the requesting user. Treat it as a
+sensitive temporary control link. If multiple tabs are open, pass
+`--target-url-contains` or `--target-title-contains`.
+
 For an already-running browser/CDP sidecar:
 
 ```bash
