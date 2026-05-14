@@ -11,7 +11,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 function Resolve-DefaultJobs {
-  $FallbackJobs = 10
+  $FallbackJobs = 12
   try {
     $Computer = Get-CimInstance Win32_ComputerSystem
     $LogicalProcessors = [int]$Computer.NumberOfLogicalProcessors
@@ -20,7 +20,7 @@ function Resolve-DefaultJobs {
       return $FallbackJobs
     }
 
-    $MemoryLimitedJobs = [Math]::Max(10, [Math]::Floor($MemoryGb * 0.625))
+    $MemoryLimitedJobs = [Math]::Max(8, [Math]::Ceiling($MemoryGb * 0.75))
     return [Math]::Max(1, [Math]::Min($LogicalProcessors, $MemoryLimitedJobs))
   } catch {
     return $FallbackJobs
@@ -32,9 +32,9 @@ if ($ResolvedJobs -le 0) {
   $ResolvedJobs = Resolve-DefaultJobs
 }
 
-$BuildScript = Join-Path $PSScriptRoot "scripts\build_windows_prod_clawbrowser.ps1"
+$BuildScript = Join-Path $PSScriptRoot "build_windows_prod_clawbrowser.ps1"
 $BuildArguments = @{
-  BuildProfile = "Prod"
+  BuildProfile = "Fast"
   Jobs = $ResolvedJobs
   CompilerCacheRetries = $CompilerCacheRetries
   ResourceRetryJobs = $ResourceRetryJobs
@@ -43,5 +43,5 @@ $BuildArguments = @{
   SkipZip = $SkipZip
 }
 
-Write-Host "Building Clawbrowser for Windows (Prod, jobs=$ResolvedJobs, cache=$CompilerCache)"
+Write-Host "Building Clawbrowser for Windows (Fast, jobs=$ResolvedJobs, cache=$CompilerCache)"
 & $BuildScript @BuildArguments
