@@ -73,7 +73,7 @@ class TypeSpec:
 
 
 def load_artifact(path: pathlib.Path) -> dict[str, Any]:
-    with path.open() as f:
+    with path.open(encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -575,7 +575,7 @@ def emit_source(specs: list[TypeSpec]) -> str:
 
 
 def check_expected(path: pathlib.Path, content: str) -> bool:
-    return path.exists() and path.read_text() == content
+    return path.exists() and path.read_text(encoding="utf-8").replace("\r\n", "\n") == content
 
 
 def main() -> None:
@@ -605,12 +605,14 @@ def main() -> None:
     else:
         args.header.parent.mkdir(parents=True, exist_ok=True)
         args.source.parent.mkdir(parents=True, exist_ok=True)
-        args.header.write_text(header_content)
-        args.source.write_text(source_content)
+        with args.header.open("w", encoding="utf-8", newline="\n") as header:
+            header.write(header_content)
+        with args.source.open("w", encoding="utf-8", newline="\n") as source:
+            source.write(source_content)
 
     if args.stamp:
         args.stamp.parent.mkdir(parents=True, exist_ok=True)
-        args.stamp.write_text("ok\n")
+        args.stamp.write_text("ok\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

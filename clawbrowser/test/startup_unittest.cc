@@ -3,6 +3,7 @@
 #include "base/base_paths.h"
 #include "base/command_line.h"
 #include "base/environment.h"
+#include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/path_service.h"
@@ -23,6 +24,10 @@
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
 #include "services/network/test/test_url_loader_factory.h"
 #include "testing/gtest/include/gtest/gtest.h"
+
+#if BUILDFLAG(IS_WIN)
+#include "base/base_paths_win.h"
+#endif
 
 namespace clawbrowser {
 namespace {
@@ -46,16 +51,20 @@ class StartupTest : public testing::Test {
 
   void SetUp() override {
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
+#if BUILDFLAG(IS_WIN)
+    local_app_data_override_ =
+        std::make_unique<base::ScopedPathOverride>(base::DIR_LOCAL_APP_DATA,
+                                                   temp_dir_.GetPath());
+#else
     home_override_ =
         std::make_unique<base::ScopedPathOverride>(base::DIR_HOME,
                                                    temp_dir_.GetPath());
-    // Override HOME so ProfileManager uses our temp dir
+#endif
+    // Keep environment-based path fallbacks inside the test temp dir.
     env_ = base::Environment::Create();
     env_->SetVar("HOME", temp_dir_.GetPath().AsUTF8Unsafe());
     // Create config dir structure
-    base::FilePath config_dir =
-        temp_dir_.GetPath().AppendASCII(".config/clawbrowser");
-    base::CreateDirectory(config_dir);
+    base::CreateDirectory(GetConfigDir());
   }
 
   void TearDown() override {
@@ -78,7 +87,11 @@ class StartupTest : public testing::Test {
   }
 
   base::FilePath GetConfigDir() const {
-    return temp_dir_.GetPath().AppendASCII(".config/clawbrowser");
+#if BUILDFLAG(IS_WIN)
+    return temp_dir_.GetPath().AppendASCII("Clawbrowser");
+#else
+    return temp_dir_.GetPath().AppendASCII(".config").AppendASCII("clawbrowser");
+#endif
   }
 
   ProfileManager CreateProfileManager() const {
@@ -243,7 +256,11 @@ class StartupTest : public testing::Test {
 
   base::test::TaskEnvironment task_environment_;
   base::ScopedTempDir temp_dir_;
+#if BUILDFLAG(IS_WIN)
+  std::unique_ptr<base::ScopedPathOverride> local_app_data_override_;
+#else
   std::unique_ptr<base::ScopedPathOverride> home_override_;
+#endif
   std::unique_ptr<base::Environment> env_;
   network::TestURLLoaderFactory url_loader_factory_;
 };
@@ -256,7 +273,7 @@ TEST_F(StartupTest, VanillaMode) {
   ASSERT_TRUE(result.has_value());
   EXPECT_FALSE(result->should_exit);
   ASSERT_EQ(cmd.GetArgs().size(), 1u);
-  EXPECT_EQ(cmd.GetArgs()[0], "clawbrowser://auth/");
+  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://auth/"));
   EXPECT_FALSE(cmd.HasSwitch("restore-last-session"));
   EXPECT_FALSE(cmd.HasSwitch("no-startup-window"));
   EXPECT_TRUE(cmd.HasSwitch("user-data-dir"));
@@ -450,7 +467,7 @@ TEST_F(StartupTest, ConfigureEarlyStartupRoutesCachedProfileToAuthWithoutApiKey)
   EXPECT_FALSE(result->should_exit);
   EXPECT_EQ(cmd.GetSwitchValueASCII("fingerprint"), "existing_profile");
   ASSERT_EQ(cmd.GetArgs().size(), 1u);
-  EXPECT_EQ(cmd.GetArgs()[0], "clawbrowser://auth/");
+  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://auth/"));
   EXPECT_FALSE(cmd.HasSwitch("restore-last-session"));
   EXPECT_FALSE(cmd.HasSwitch("no-startup-window"));
   EXPECT_TRUE(cmd.HasSwitch("user-data-dir"));
@@ -485,7 +502,7 @@ TEST_F(StartupTest,
   EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Auth"),
             std::string::npos);
   ASSERT_EQ(cmd.GetArgs().size(), 1u);
-  EXPECT_EQ(cmd.GetArgs()[0], "clawbrowser://auth/");
+  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://auth/"));
 }
 
 TEST_F(StartupTest, ConfigureEarlyStartupEnablesMockKeychainOnMac) {
@@ -557,7 +574,7 @@ TEST_F(StartupTest, ConfigureEarlyStartupFallsBackToDefaultWithoutApiKey) {
   ASSERT_TRUE(result.has_value()) << result.error();
   EXPECT_FALSE(result->should_exit);
   ASSERT_EQ(cmd.GetArgs().size(), 1u);
-  EXPECT_EQ(cmd.GetArgs()[0], "clawbrowser://auth/");
+  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://auth/"));
   EXPECT_FALSE(cmd.HasSwitch("restore-last-session"));
   EXPECT_FALSE(cmd.HasSwitch("no-startup-window"));
   EXPECT_TRUE(cmd.HasSwitch("user-data-dir"));
@@ -581,7 +598,7 @@ TEST_F(StartupTest, FingerprintCachedProfileWithoutApiKey) {
   EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Auth"),
             std::string::npos);
   ASSERT_EQ(cmd.GetArgs().size(), 1u);
-  EXPECT_EQ(cmd.GetArgs()[0], "clawbrowser://auth/");
+  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://auth/"));
   EXPECT_FALSE(cmd.HasSwitch("restore-last-session"));
   EXPECT_FALSE(cmd.HasSwitch("no-startup-window"));
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
@@ -597,7 +614,7 @@ TEST_F(StartupTest, FingerprintNoApiKeyWithoutCachedProfileOpensAuth) {
   ASSERT_TRUE(result.has_value());
   EXPECT_FALSE(result->should_exit);
   ASSERT_EQ(cmd.GetArgs().size(), 1u);
-  EXPECT_EQ(cmd.GetArgs()[0], "clawbrowser://auth/");
+  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://auth/"));
   EXPECT_FALSE(cmd.HasSwitch("restore-last-session"));
   EXPECT_FALSE(cmd.HasSwitch("no-startup-window"));
   EXPECT_TRUE(cmd.HasSwitch("user-data-dir"));
@@ -680,7 +697,7 @@ TEST_F(StartupTest, FreshStartWithApiKeyRunsInImplicitFingerprintMode) {
             NormalizePathForComparison(
                 CreateProfileManager().GetUserDataDir("clawbrowser_default")));
   ASSERT_EQ(cmd.GetArgs().size(), 1u);
-  EXPECT_EQ(cmd.GetArgs()[0], "clawbrowser://verify/");
+  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://verify/"));
 }
 
 TEST_F(StartupTest, FingerprintApiCallSuccessWithPathLikeId) {
@@ -808,7 +825,7 @@ TEST_F(StartupTest, FingerprintApiCall401) {
   EXPECT_FALSE(cmd.HasSwitch("restore-last-session"));
   EXPECT_FALSE(cmd.HasSwitch("no-startup-window"));
   ASSERT_EQ(cmd.GetArgs().size(), 1u);
-  EXPECT_EQ(cmd.GetArgs()[0], "clawbrowser://auth/");
+  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://auth/"));
   EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Auth"),
             std::string::npos);
 }
@@ -834,7 +851,7 @@ TEST_F(StartupTest, FingerprintApiCall403OpensAuth) {
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
   ASSERT_EQ(cmd.GetArgs().size(), 1u);
-  EXPECT_EQ(cmd.GetArgs()[0], "clawbrowser://auth/");
+  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://auth/"));
   EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Auth"),
             std::string::npos);
 }

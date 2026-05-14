@@ -1,0 +1,216 @@
+diff --git a/chrome/app/chromium_strings.grd b/chrome/app/chromium_strings.grd
+index 88092d48fd..60840963ac 100644
+--- a/chrome/app/chromium_strings.grd
++++ b/chrome/app/chromium_strings.grd
+@@ -294,10 +294,10 @@ If you update this file, be sure also to update google_chrome_strings.grd. -->
+         </then>
+         <else>
+           <message name="IDS_PRODUCT_NAME" desc="The Chrome application name" translateable="false">
+-            Chromium
++            Clawbrowser
+           </message>
+           <message name="IDS_SHORT_PRODUCT_NAME" desc="The Chrome application short name." translateable="false">
+-            Chromium
++            Clawbrowser
+           </message>
+         </else>
+       </if>
+@@ -309,10 +309,10 @@ If you update this file, be sure also to update google_chrome_strings.grd. -->
+         <message name="IDS_SHORTCUT_NAME_DEV" desc="Unused in Chromium builds" translateable="false">
+         </message>
+         <message name="IDS_PRODUCT_DESCRIPTION" desc="Browser description">
+-          Chromium is a web browser that runs webpages and applications with lightning speed. It's fast, stable, and easy to use. Browse the web more safely with malware and phishing protection built into Chromium.
++          Clawbrowser is a web browser that runs webpages and applications with lightning speed. It's fast, stable, and easy to use. Browse the web more safely with malware and phishing protection built into Clawbrowser.
+         </message>
+         <message name="IDS_WELCOME_TO_CHROME" desc="Welcoming text announced via screen readers the first time Chrome is launched at the conclusion of installation.">
+-          Welcome to Chromium; new browser window opened
++          Welcome to Clawbrowser; new browser window opened
+         </message>
+       </if>
+       <if expr="is_macosx or is_linux">
+@@ -360,7 +360,7 @@ If you update this file, be sure also to update google_chrome_strings.grd. -->
+       </if>
+       <if expr="not is_macosx and not is_chromeos">
+         <message name="IDS_TASK_MANAGER_TITLE" desc="The title of the Task Manager window">
+-          Task Manager - Chromium
++          Task Manager - Clawbrowser
+         </message>
+       </if>
+       <message name="IDS_TASK_MANAGER_SEARCH_PLACEHOLDER" desc="The placeholder text for the Search bar in the Task Manager window">
+@@ -431,7 +431,7 @@
+           </then>
+           <else>
+             <message name="IDS_BROWSER_WINDOW_TITLE_FORMAT" desc="The format for titles displayed in tabs and popup windows">
+-              <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Chromium
++              <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Clawbrowser
+             </message>
+           </else>
+         </if>
+@@ -445,7 +445,7 @@
+       <if expr="not is_chromeos and not is_macosx">
+         <!-- Captive Portal Browser Window Title Format -->
+         <message name="IDS_CAPTIVE_PORTAL_BROWSER_WINDOW_TITLE_FORMAT" desc="The format for titles displayed in captive portal popup windows">
+-          <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Network Sign-in - Chromium
++          <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Network Sign-in - Clawbrowser
+         </message>
+       </if>
+       <if expr="is_chromeos">
+@@ -470,7 +470,7 @@
+         </then>
+         <else>
+           <message name="IDS_ACCESSIBLE_BROWSER_WINDOW_TITLE_FORMAT" desc="The format for the accessible name of a tabbed browser window">
+-            <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Chromium
++            <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Clawbrowser
+           </message>
+         </else>
+       </if>
+@@ -582,43 +582,43 @@
+       <!-- Uninstall messages -->
+       <if expr="is_win">
+         <message name="IDS_UNINSTALL_CLOSE_APP" desc="Message to user when uninstall detects other app instance running">
+-          Please close all Chromium windows and try again.
++          Please close all Clawbrowser windows and try again.
+         </message>
+         <message name="IDS_UNINSTALL_VERIFY" desc="Message to confirm user wants to uninstall">
+-          Are you sure you want to uninstall Chromium?
++          Are you sure you want to uninstall Clawbrowser?
+         </message>
+         <message name="IDS_UNINSTALL_CHROME" desc="The title of the Chromium uninstall dialog.">
+-          Uninstall Chromium
++          Uninstall Clawbrowser
+         </message>
+       </if>
+       <message name="IDS_FR_CUSTOMIZE_DEFAULT_BROWSER" desc="Default browser checkbox label">
+-        Make Chromium the default browser
++        Make Clawbrowser the default browser
+       </message>
+       <message name="IDS_DEFAULT_BROWSER_CHANGED_MESSAGE" desc="Body of the notification shown when Chrome is no longer the default browser.">
+-        Chromium is no longer your default browser. Make Chromium the default browser?
++        Clawbrowser is no longer your default browser. Make Clawbrowser the default browser?
+       </message>
+       <if expr="use_titlecase">
+         <message name="IDS_STATUS_TRAY_KEEP_CHROME_RUNNING_IN_BACKGROUND" desc="In Title Case: The checkbox in the status tray context menu that controls whether chrome keeps running in the background after the last window is closed">
+-          Let Chromium Run in the Background
++          Let Clawbrowser Run in the Background
+         </message>
+       </if>
+       <if expr="not use_titlecase">
+         <message name="IDS_STATUS_TRAY_KEEP_CHROME_RUNNING_IN_BACKGROUND" desc="The checkbox in the status tray context menu that controls whether chrome keeps running in the background after the last window is closed">
+-          Let Chromium run in the background
++          Let Clawbrowser run in the background
+         </message>
+       </if>
+       <if expr="use_titlecase">
+         <message name="IDS_STATUS_TRAY_KEEP_CHROME_RUNNING_IN_BACKGROUND_SETTING" desc="In Title Case: The checkbox in the status tray context menu that controls whether chrome keeps running in the background after the last window is closed">
+-          Disable Chromium Running in Background for Apps
++          Disable Clawbrowser Running in Background for Apps
+         </message>
+       </if>
+       <if expr="not use_titlecase">
+         <message name="IDS_STATUS_TRAY_KEEP_CHROME_RUNNING_IN_BACKGROUND_SETTING" desc="The checkbox in the status tray context menu that controls whether chrome keeps running in the background after the last window is closed">
+-          Disable Chromium running in background for apps
++          Disable Clawbrowser running in background for apps
+         </message>
+       </if>
+       <message name="IDS_CANT_WRITE_USER_DIRECTORY_SUMMARY" desc="Summary of problem displayed in dialog when we can't create a directory for this user.">
+-Chromium cannot read and write to its data directory:
++Clawbrowser cannot read and write to its data directory:
+ 
+ <ph name="USER_DATA_DIRECTORY">$1<ex>C:\Documents and Settings\devint\Local Settings\Application Data\Google\Chrome</ex></ph>
+       </message>
+@@ -690,37 +690,37 @@ Chromium is unable to recover your settings.
+           Chromium is trying to replace existing passwords. Type your Windows password to allow this.
+         </message>
+         <message name="IDS_INSTALL_HIGHER_VERSION" desc="Error displayed when higher version already exists.">
+-          This computer already has a more recent version of Chromium. If the software is not working, please uninstall Chromium and try again.
++          This computer already has a more recent version of Clawbrowser. If the software is not working, please uninstall Clawbrowser and try again.
+         </message>
+         <message name="IDS_INSTALL_FAILED" desc="Error displayed if installation fails due to some unknown error.">
+-          Installation failed due to unspecified error. If Chromium is currently running, please close it and try again.
++          Installation failed due to unspecified error. If Clawbrowser is currently running, please close it and try again.
+         </message>
+         <message name="IDS_SAME_VERSION_REPAIR_FAILED" desc="Error displayed if installation fails due to Chrome running.">
+-          Can not install the same Chromium version that is currently running. Please close Chromium and try again.
++          Can not install the same Clawbrowser version that is currently running. Please close Clawbrowser and try again.
+         </message>
+         <message name="IDS_INSTALL_OS_NOT_SUPPORTED" desc="Error displayed if OS is not supported">
+-          Chromium requires Windows 10 or higher.
++          Clawbrowser requires Windows 10 or higher.
+         </message>
+         <message name="IDS_INSTALL_OS_ERROR" desc="Error displayed when any Windows API call fails and we do not have more specific information.">
+-          An operating system error occurred during installation. Please download Chromium again.
++          An operating system error occurred during installation. Please download Clawbrowser again.
+         </message>
+         <message name="IDS_INSTALL_SINGLETON_ACQUISITION_FAILED" desc="Error displayed when the installer cannot run because another installer is already running.">
+-          Another operation on Chromium is in progress. Please try again later.
++          Another operation on Clawbrowser is in progress. Please try again later.
+         </message>
+         <message name="IDS_INSTALL_TEMP_DIR_FAILED" desc="Error displayed when we fail to create temporary directory during installation.">
+           The installer couldn't create a temporary directory. Please check for free disk space and permission to install software.
+         </message>
+         <message name="IDS_INSTALL_UNCOMPRESSION_FAILED" desc="Error when when we can not uncompress installation archive.">
+-          The installer failed to uncompress archive. Please download Chromium again.
++          The installer failed to uncompress archive. Please download Clawbrowser again.
+         </message>
+         <message name="IDS_INSTALL_INVALID_ARCHIVE" desc="Error displayed when we can not open the installation archive.">
+-          The installer archive is corrupted or invalid. Please download Chromium again.
++          The installer archive is corrupted or invalid. Please download Clawbrowser again.
+         </message>
+         <message name="IDS_INSTALL_INSUFFICIENT_RIGHTS" desc="Error displayed when a non admin user tries to attempt system level install/uninstall.">
+           You do not have appropriate rights for system-level install. Try running the installer again as Administrator.
+         </message>
+         <message name="IDS_INSTALL_EXISTING_VERSION_LAUNCHED" desc="A message shown to users who try to install Chrome in their user profile directory when their computer already has Chrome installed for all users. In this case, the installer silently launches the existing version of Chrome for all users rather than installing a second version of Chrome.">
+-          Chromium is already installed for all users on your computer.
++          Clawbrowser is already installed for all users on your computer.
+         </message>
+         <message name="IDS_ELEVATION_SERVICE_DESCRIPTION"
+                  desc="The description of the Windows elevation service. Displayed in the Windows Services management console.">
+@@ -751,10 +751,10 @@ Chromium is unable to recover your settings.
+           Uninstall
+         </message>
+         <message name="IDS_PIN_INFOBAR_TEXT" desc="Text to show in an infobar when Chromium is not pinned to the taskbar.">
+-          Pin Chromium to your taskbar to get to it quickly anytime
++          Pin Clawbrowser to your taskbar to get to it quickly anytime
+         </message>
+         <message name="IDS_PIN_INFOBAR_BUTTON" desc="Label for the button on an infobar offering to pin Chromium to the taskbar. Pins Chromium when clicked.">
+-          Pin Chromium
++          Pin Clawbrowser
+         </message>
+       </if>
+       <if expr="is_macosx">
+diff --git a/chrome/install_static/chromium_install_modes.h b/chrome/install_static/chromium_install_modes.h
+index ee62888f89..a8b3561290 100644
+--- a/chrome/install_static/chromium_install_modes.h
++++ b/chrome/install_static/chromium_install_modes.h
+@@ -21,7 +21,7 @@ inline constexpr wchar_t kCompanyPathName[] = L"";
+ 
+ // The brand-specific product name to be included as a component of the install
+ // and user data directory paths.
+-inline constexpr wchar_t kProductPathName[] = L"Chromium";
++inline constexpr wchar_t kProductPathName[] = L"Clawbrowser";
+ 
+ // The brand-specific safe browsing client name.
+ inline constexpr char kSafeBrowsingName[] = "chromium";
+@@ -45,15 +45,15 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
+         .logo_suffix = L"",  // No logo suffix for the primary install mode.
+         .app_guid =
+             L"",  // Empty app_guid since no integration with Google Update.
+-        .base_app_name = L"Chromium",              // A distinct base_app_name.
+-        .base_app_id = L"Chromium",                // A distinct base_app_id.
+-        .browser_prog_id_prefix = L"ChromiumHTM",  // Browser ProgID prefix.
++        .base_app_name = L"Clawbrowser",           // A distinct base_app_name.
++        .base_app_id = L"Clawbrowser",             // A distinct base_app_id.
++        .browser_prog_id_prefix = L"ClawHTM",      // Browser ProgID prefix.
+         .browser_prog_id_description =
+-            L"Chromium HTML Document",  // Browser ProgID description.
+-        .direct_launch_url_scheme = "chromium",
+-        .pdf_prog_id_prefix = L"ChromiumPDF",  // PDF ProgID prefix.
++            L"Clawbrowser HTML Document",  // Browser ProgID description.
++        .direct_launch_url_scheme = "clawbrowser",
++        .pdf_prog_id_prefix = L"ClawPDF",  // PDF ProgID prefix.
+         .pdf_prog_id_description =
+-            L"Chromium PDF Document",  // PDF ProgID description.
++            L"Clawbrowser PDF Document",  // PDF ProgID description.
+         .active_setup_guid =
+             L"{7D2B3E1D-D096-4594-9D8F-A6667F12E0AC}",  // Active Setup
+                                                         // GUID.

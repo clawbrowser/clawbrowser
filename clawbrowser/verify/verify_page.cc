@@ -1,10 +1,9 @@
 #include "clawbrowser/verify/verify_page.h"
 
 #include "base/command_line.h"
-#include "base/environment.h"
+#include "base/files/file_path.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
-#include "base/path_service.h"
 #include "base/process/process.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/thread_pool.h"
@@ -15,6 +14,7 @@
 #include "clawbrowser/cli/profile_manager.h"
 #include "clawbrowser/fingerprint_accessor.h"
 #include "clawbrowser/grit/clawbrowser_verify_resources.h"
+#include "clawbrowser/paths.h"
 #include "clawbrowser/verify/proxy_expectation.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/devtools_agent_host.h"
@@ -34,19 +34,6 @@ ProxyExpectation& ProxyExpectation::operator=(ProxyExpectation&&) = default;
 ProxyExpectation::~ProxyExpectation() = default;
 
 namespace {
-
-base::FilePath GetConfigDir() {
-  auto env = base::Environment::Create();
-  if (std::optional<std::string> override =
-          env->GetVar("CLAWBROWSER_CONFIG_DIR");
-      override.has_value() && !override->empty()) {
-    return base::FilePath::FromUTF8Unsafe(*override);
-  }
-
-  base::FilePath home_dir;
-  base::PathService::Get(base::DIR_HOME, &home_dir);
-  return home_dir.AppendASCII(".config/clawbrowser");
-}
 
 struct VerifyApiConfig {
   std::optional<std::string> api_key;
@@ -317,8 +304,8 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
     return;
   }
 
-  const ProxyExpectation expected =
-      LoadVerifyExpectedProxyLocation(GetConfigDir(), proxy->country);
+  const ProxyExpectation expected = LoadVerifyExpectedProxyLocation(
+      GetClawbrowserConfigDir(), proxy->country);
 
   if (!proxy->host.has_value() || !proxy->port.has_value() ||
       !proxy->country.has_value()) {
@@ -349,7 +336,7 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
 
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, {base::MayBlock()},
-      base::BindOnce(&LoadVerifyApiConfig, GetConfigDir()),
+      base::BindOnce(&LoadVerifyApiConfig, GetClawbrowserConfigDir()),
       base::BindOnce(
           [](base::WeakPtr<VerifyPageUI> self,
              VerifyProxyRequest request,

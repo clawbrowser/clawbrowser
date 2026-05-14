@@ -10,7 +10,6 @@
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
-#include "base/path_service.h"
 #include "base/process/launch.h"
 #include "base/strings/string_util.h"
 #include "base/task/single_thread_task_runner.h"
@@ -19,6 +18,7 @@
 #include "clawbrowser/defaults.h"
 #include "clawbrowser/cli/profile_manager.h"
 #include "clawbrowser/grit/clawbrowser_verify_resources.h"
+#include "clawbrowser/paths.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/page_navigator.h"
 #include "content/public/browser/web_contents.h"
@@ -35,19 +35,6 @@
 namespace clawbrowser {
 
 namespace {
-
-base::FilePath GetConfigDir() {
-  auto env = base::Environment::Create();
-  if (std::optional<std::string> override =
-          env->GetVar("CLAWBROWSER_CONFIG_DIR");
-      override.has_value() && !override->empty()) {
-    return base::FilePath::FromUTF8Unsafe(*override);
-  }
-
-  base::FilePath home_dir;
-  base::PathService::Get(base::DIR_HOME, &home_dir);
-  return home_dir.AppendASCII(".config/clawbrowser");
-}
 
 base::DictValue MakeSaveResult(bool success, const std::string& message,
                                bool restart = false) {
@@ -179,7 +166,7 @@ std::optional<std::string> ResolveDefaultFingerprintForAuthRelaunch(
     return default_fingerprint;
   }
 
-  ProfileManager profile_manager(GetConfigDir());
+  ProfileManager profile_manager(GetClawbrowserConfigDir());
   if (std::optional<std::string> cached_profile =
           profile_manager.FindBestCachedProfileId();
       cached_profile.has_value()) {
@@ -242,7 +229,7 @@ std::string_view GetAuthDashboardUrl() {
 #if defined(CLAWBROWSER_DEFAULT_DASHBOARD_URL)
   return CLAWBROWSER_DEFAULT_DASHBOARD_URL;
 #else
-  return "https://app.qa.clawbrowser.ai";
+  return "https://app.clawbrowser.ai";
 #endif
 }
 
@@ -348,7 +335,7 @@ void AuthPageUI::HandleSaveApiKey(const base::ListValue& args) {
     return;
   }
 
-  ProfileManager profile_manager(GetConfigDir());
+  ProfileManager profile_manager(GetClawbrowserConfigDir());
   auto save_result = profile_manager.SaveApiKey(api_key);
   if (!save_result.has_value()) {
     send_result(MakeSaveResult(false, save_result.error()));

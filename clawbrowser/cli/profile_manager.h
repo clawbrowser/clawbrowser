@@ -22,7 +22,7 @@ struct ProfileInfo {
 };
 
 // Manages fingerprint profiles on disk.
-// Root: ~/.config/clawbrowser/ (or overridden for testing).
+// Root is provided by GetClawbrowserConfigDir(), or overridden for testing.
 class ProfileManager {
  public:
   explicit ProfileManager(const base::FilePath& root_dir);

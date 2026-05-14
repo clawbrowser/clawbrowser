@@ -14,7 +14,7 @@ TEST(AuthPageTest, DashboardUrlMatchesBuildDefault) {
 #if defined(CLAWBROWSER_DEFAULT_DASHBOARD_URL)
   EXPECT_EQ(GetAuthDashboardUrl(), CLAWBROWSER_DEFAULT_DASHBOARD_URL);
 #else
-  EXPECT_EQ(GetAuthDashboardUrl(), "https://app.qa.clawbrowser.ai");
+  EXPECT_EQ(GetAuthDashboardUrl(), "https://app.clawbrowser.ai");
 #endif
 }
 
@@ -52,7 +52,8 @@ TEST(AuthPageTest,
   EXPECT_FALSE(relaunch_command_line.HasSwitch("restart"));
   EXPECT_FALSE(relaunch_command_line.HasSwitch("restore-last-session"));
   ASSERT_EQ(relaunch_command_line.GetArgs().size(), 1u);
-  EXPECT_EQ(relaunch_command_line.GetArgs()[0], "https://example.com/welcome");
+  EXPECT_EQ(relaunch_command_line.GetArgs()[0],
+            FILE_PATH_LITERAL("https://example.com/welcome"));
 }
 
 TEST(AuthPageTest, RelaunchCommandLineForcesRegenerateInFingerprintMode) {

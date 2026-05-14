@@ -4,9 +4,9 @@
 #include <utility>
 
 #include "base/environment.h"
+#include "base/files/file_path.h"
 #include "base/i18n/time_formatting.h"
 #include "base/json/json_writer.h"
-#include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/time/time.h"
 #include "base/values.h"
@@ -18,25 +18,13 @@
 #include "clawbrowser/fingerprint_accessor.h"
 #include "clawbrowser/fingerprint_loader.h"
 #include "clawbrowser/logging.h"
+#include "clawbrowser/paths.h"
 #include "clawbrowser/proxy/proxy_config.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
 namespace clawbrowser {
 
 namespace {
-
-base::FilePath GetConfigDir() {
-  auto env = base::Environment::Create();
-  if (std::optional<std::string> override =
-          env->GetVar("CLAWBROWSER_CONFIG_DIR");
-      override.has_value() && !override->empty()) {
-    return base::FilePath::FromUTF8Unsafe(*override);
-  }
-
-  base::FilePath home_dir;
-  base::PathService::Get(base::DIR_HOME, &home_dir);
-  return home_dir.AppendASCII(".config/clawbrowser");
-}
 
 void PrintError(const ClawArgs& args, const std::string& code,
                 const std::string& message) {
@@ -127,7 +115,7 @@ std::string UserAgentMetadataPlatform(const std::string& platform) {
 }
 
 bool HasStartupUrl(const base::CommandLine* command_line,
-                   std::string_view url) {
+                   base::CommandLine::StringViewType url) {
   for (const auto& arg : command_line->GetArgs()) {
     if (arg == url) {
       return true;
@@ -228,7 +216,8 @@ bool ShouldKeepAuthStartupSwitch(std::string_view switch_name) {
 void AppendAuthPage(base::CommandLine* command_line);
 
 void StripVerifyPage(base::CommandLine* command_line) {
-  if (!HasStartupUrl(command_line, "clawbrowser://verify/")) {
+  if (!HasStartupUrl(command_line,
+                     FILE_PATH_LITERAL("clawbrowser://verify/"))) {
     return;
   }
 
@@ -272,7 +261,7 @@ void ConfigureVanillaUserDataDir(base::CommandLine* command_line,
 }
 
 void AppendAuthPage(base::CommandLine* command_line) {
-  if (HasStartupUrl(command_line, "clawbrowser://auth/")) {
+  if (HasStartupUrl(command_line, FILE_PATH_LITERAL("clawbrowser://auth/"))) {
     return;
   }
   command_line->AppendArg("clawbrowser://auth/");
@@ -337,7 +326,7 @@ base::expected<std::optional<int>, std::string> HandleBasicStartupComplete(
     return base::ok(std::nullopt);
   }
 
-  ProfileManager profile_manager(GetConfigDir());
+  ProfileManager profile_manager(GetClawbrowserConfigDir());
   HandleListProfiles(args, &profile_manager);
   return base::ok(0);
 }
@@ -345,7 +334,7 @@ base::expected<std::optional<int>, std::string> HandleBasicStartupComplete(
 void ConfigureCommandLineBeforeUserDataDir(base::CommandLine* command_line) {
   ApplyMacAutomationSwitches(command_line);
 
-  ProfileManager profile_manager(GetConfigDir());
+  ProfileManager profile_manager(GetClawbrowserConfigDir());
   ApplyDefaultFingerprintSwitch(command_line, &profile_manager);
 
   ClawArgs args = ClawArgs::Parse(*command_line);
@@ -375,7 +364,7 @@ base::expected<StartupResult, std::string> RunStartup(
     base::CommandLine* command_line,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {
   ApplyMacAutomationSwitches(command_line);
-  ProfileManager profile_manager(GetConfigDir());
+  ProfileManager profile_manager(GetClawbrowserConfigDir());
   ApplyDefaultFingerprintSwitch(command_line, &profile_manager);
   StartupResult result;
 

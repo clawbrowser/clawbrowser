@@ -693,6 +693,42 @@ sync_project_overlay() {
   rsync -a "${PROJECT_DIR}/api/openapi.yaml" "${src_dir}/api/openapi.yaml"
   sync_chromium_branding_assets
   ensure_clawbrowser_resource_ids
+  disable_google_api_keys_infobar
+}
+
+disable_google_api_keys_infobar() {
+  local src_dir
+  local infobar_path
+
+  src_dir="$(chromium_src_dir)"
+  infobar_path="${src_dir}/chrome/browser/ui/startup/infobar_utils.cc"
+
+  [[ -f "${infobar_path}" ]] || \
+    die "Missing startup infobar source: ${infobar_path}"
+
+  python3 - "${infobar_path}" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+marker = "Clawbrowser intentionally ships without Google API keys"
+source = path.read_text()
+needle = """  if (!google_apis::HasAPIKeyConfigured()) {
+    GoogleApiKeysInfoBarDelegate::Create(infobar_manager);
+  }
+"""
+replacement = """  // Clawbrowser intentionally ships without Google API keys; avoid Chromium's missing-keys
+  // startup infobar while keeping those keys unset.
+"""
+
+if marker in source:
+    sys.exit(0)
+
+if needle not in source:
+    raise SystemExit(f"Could not find Google API keys infobar block in {path}")
+
+path.write_text(source.replace(needle, replacement))
+PY
 }
 
 collect_patch_manifests() {

@@ -12,6 +12,20 @@ import("//build/config/features.gni")
 import("//testing/test.gni")
 import("//tools/grit/grit_rule.gni")
 
+config("clawbrowser_backend_defaults") {
+  if (is_official_build) {
+    defines = [
+      "CLAWBROWSER_DEFAULT_API_BASE_URL=\"https://api.clawbrowser.ai\"",
+      "CLAWBROWSER_DEFAULT_DASHBOARD_URL=\"https://app.clawbrowser.ai\"",
+    ]
+  } else {
+    defines = [
+      "CLAWBROWSER_DEFAULT_API_BASE_URL=\"https://api.qa.clawbrowser.ai\"",
+      "CLAWBROWSER_DEFAULT_DASHBOARD_URL=\"https://app.qa.clawbrowser.ai\"",
+    ]
+  }
+}
+
 # ---------------------------------------------------------------------------
 # Grit-generated resources for clawbrowser://* pages.
 # ---------------------------------------------------------------------------
@@ -65,6 +79,8 @@ component("clawbrowser_runtime") {
 # pulling browser-facing code into the build.
 # ---------------------------------------------------------------------------
 source_set("clawbrowser_core") {
+  configs += [ ":clawbrowser_backend_defaults" ]
+
   sources = [
     # CLI modules
     "cli/api_client.cc",
@@ -79,6 +95,8 @@ source_set("clawbrowser_core") {
     "fingerprint_loader.h",
     "logging.cc",
     "logging.h",
+    "paths.cc",
+    "paths.h",
     "profile_envelope.cc",
     "profile_envelope.h",
     "startup.cc",
@@ -111,17 +129,6 @@ source_set("clawbrowser_core") {
     "//services/network/public/cpp",
   ]
 
-  if (is_official_build) {
-    defines = [
-      "CLAWBROWSER_DEFAULT_API_BASE_URL=\"https://api.clawbrowser.ai\"",
-      "CLAWBROWSER_DEFAULT_DASHBOARD_URL=\"https://app.clawbrowser.ai\"",
-    ]
-  } else {
-    defines = [
-      "CLAWBROWSER_DEFAULT_API_BASE_URL=\"https://api.qa.clawbrowser.ai\"",
-      "CLAWBROWSER_DEFAULT_DASHBOARD_URL=\"https://app.qa.clawbrowser.ai\"",
-    ]
-  }
 }
 
 # ---------------------------------------------------------------------------
@@ -150,6 +157,8 @@ source_set("clawbrowser_proxy_auth") {
 # clawbrowser — browser-facing layer used after real Chromium integration.
 # ---------------------------------------------------------------------------
 static_library("clawbrowser") {
+  configs += [ ":clawbrowser_backend_defaults" ]
+
   sources = [
     "auth/auth_page.cc",
     "auth/auth_page.h",
@@ -199,6 +208,8 @@ test("clawbrowser_unittests") {
 # Lightweight browser-adjacent unit tests that still avoid verify-page GRIT.
 # ---------------------------------------------------------------------------
 test("clawbrowser_browser_unittests") {
+  configs += [ ":clawbrowser_backend_defaults" ]
+
   sources = [
     "test/auth_page_unittest.cc",
     "test/run_all_unittests.cc",
