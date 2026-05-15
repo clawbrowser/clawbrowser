@@ -13,18 +13,20 @@ browser process for agent work.
 - Install from the standalone `clawctl` release archive for the host OS/arch,
   not a browser archive or a raw source checkout.
 - Happy path: download `clawctl-linux-amd64.tar.gz`,
-  `clawctl-linux-arm64.tar.gz`, or `clawctl-macos-arm64.tar.gz` from
+  `clawctl-linux-arm64.tar.gz`, `clawctl-macos-arm64.tar.gz`, or
+  `clawctl-win-amd64.zip` from
   `https://github.com/clawbrowser/clawbrowser/releases/latest`, automatically
-  choose a writable executable non-`/tmp` workdir, run
-  `./clawctl install --json`, then persist the API key with the installed
+  choose a durable install workdir, run `clawctl install --json` or
+  `.\clawctl.exe install --json`, then persist the API key with the installed
   `clawctl config set api-key --stdin` before running
   `clawctl start --profile work --url clawbrowser://verify/ --json`,
   `clawctl endpoint --profile work --json`, and
   `clawctl verify --profile work --json`.
 - `clawctl install` is the supported setup command for agents. It reuses an
   existing browser when one is usable, downloads Clawbrowser when missing,
-  installs the portable Linux runtime when the host needs Xvfb, and prepares
-  `clawctl start`.
+  runs the Windows `setup.exe` payload with `--clawbrowser-agent-install` when
+  present, installs the portable Linux runtime when the host needs Xvfb, and
+  prepares `clawctl start`.
 - Let `clawctl install` choose agent integration paths. Do not set
   `CLAWBROWSER_AGENT_CONFIG` or `CLAWBROWSER_AGENT_PLUGINS_DIR` during the
   normal `auto` install unless the user explicitly requests a generic
@@ -51,12 +53,13 @@ browser process for agent work.
 | --- | --- |
 | Linux server/container/no display/no root | Portable runtime |
 | macOS desktop/Mac mini | Native `Clawbrowser.app` with GUI desktop context |
+| Windows desktop/host | Native Windows install |
 | Operator-provided browser/CDP | `clawctl --cdp http://127.0.0.1:9222 ...` |
 | Operator-managed Docker host | Docker backend only if explicitly provided |
 
 The browser archive is not the bootstrapper and is not the portable runtime
 payload. Start from the standalone `clawctl` archive and let
-`clawctl install` ensure the browser plus
+`clawctl install` ensure the browser plus the matching Windows payload or
 `clawbrowser-portable-linux-amd64-glibc.tar.gz` or
 `clawbrowser-portable-linux-arm64-glibc.tar.gz` when needed, or set
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted portable runtime.

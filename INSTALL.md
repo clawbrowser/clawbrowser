@@ -139,6 +139,73 @@ error or `Permission denied` while running `clawctl`, rerun the same script with
 `CLAWBROWSER_WORKDIR` set to a larger durable executable path such as
 `/workspace/.clawbrowser`, `/work/.clawbrowser`, or `$PWD/.clawbrowser`.
 
+## Windows Fast Path
+
+Use Windows PowerShell on 64-bit Windows. The standalone `clawctl` archive is
+the bootstrapper; the browser zip is a payload that `clawctl install` downloads
+when no usable Windows install exists. This path requires the selected GitHub
+release to include `clawctl-win-amd64.zip` and `clawbrowser-win-amd64.zip`.
+
+```powershell
+$ErrorActionPreference = "Stop"
+
+$root = Join-Path $env:LOCALAPPDATA "Clawbrowser"
+$bin = Join-Path $root "bin"
+New-Item -ItemType Directory -Force $root, $bin | Out-Null
+Set-Location $root
+
+$archive = "clawctl-win-amd64.zip"
+$url = "https://github.com/clawbrowser/clawbrowser/releases/latest/download/$archive"
+
+Invoke-WebRequest -Uri $url -OutFile $archive
+Remove-Item -Recurse -Force ".\clawctl-win-amd64" -ErrorAction SilentlyContinue
+Expand-Archive -Force $archive .
+$clawctl = Join-Path $root "clawctl-win-amd64\clawctl.exe"
+if (!(Test-Path $clawctl -PathType Leaf)) {
+  throw "missing clawctl.exe in extracted archive"
+}
+
+& $clawctl install --json
+
+if (!$env:CLAWBROWSER_API_KEY) {
+  $env:CLAWBROWSER_API_KEY = Read-Host "Clawbrowser API key from https://app.clawbrowser.ai"
+}
+if (!$env:CLAWBROWSER_API_KEY) {
+  throw "Clawbrowser API key is required"
+}
+$env:CLAWBROWSER_API_KEY | & $clawctl config set api-key --stdin
+Remove-Item Env:\CLAWBROWSER_API_KEY -ErrorAction SilentlyContinue
+
+& $clawctl start --profile work --url clawbrowser://verify/ --json
+& $clawctl endpoint --profile work --json
+& $clawctl verify --profile work --json
+```
+
+During install, `clawctl` looks for `clawbrowser-win-amd64.zip` in the selected
+release. If the browser payload contains `setup.exe`, `clawctl` requests
+administrator approval and runs:
+
+```powershell
+.\setup.exe --clawbrowser-agent-install
+```
+
+That flag bypasses the interactive setup window and prevents the browser UI
+from launching after setup. Human users can double-click `setup.exe` for the
+interactive installer. Agents should prefer `clawctl install`; use the direct
+`setup.exe --clawbrowser-agent-install` form only when intentionally testing an
+extracted browser payload.
+
+To test a local Windows browser payload before it is uploaded to GitHub
+Releases, point `clawctl install` at the zip:
+
+```powershell
+.\clawctl.exe install --clawbrowser-release-archive C:\path\to\clawbrowser-win-amd64.zip --json
+```
+
+The local archive must contain either `setup.exe` or
+`Clawbrowser\clawbrowser.exe`. Release builds should upload the browser payload
+as `clawbrowser-win-amd64.zip` so the default latest-release install URL works.
+
 ## macOS Fast Path
 
 Use the standalone macOS `clawctl` archive from a logged-in GUI desktop:
@@ -165,8 +232,8 @@ macOS uses `Clawbrowser.app` and WindowServer. Xvfb is Linux-only.
 
 | Thing | Use it for | Notes |
 | --- | --- | --- |
-| `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-macos-arm64.tar.gz` | Bootstrap install | Standalone `clawctl` archives. Start here. |
-| `clawbrowser-linux-amd64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Browser payload | `clawctl install` downloads one when no usable browser exists. Agent integrations are materialized by `clawctl install`; do not install plugin specs from this repository manually. |
+| `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-macos-arm64.tar.gz`, `clawctl-win-amd64.zip` | Bootstrap install | Standalone `clawctl` archives. Start here. |
+| `clawbrowser-linux-amd64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz`, `clawbrowser-win-amd64.zip` | Browser payload | `clawctl install` downloads one when no usable browser exists. Windows payloads may contain `setup.exe` or `Clawbrowser\clawbrowser.exe`. Agent integrations are materialized by `clawctl install`; do not install plugin specs from this repository manually. |
 | `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Linux portable runtime | Contains the bundled Xvfb, libraries, xkb data, and portable browser binary. `clawctl install` ensures it when Linux needs portable mode unless you prefetch it. |
 | Raw source checkout | Development only | Does not represent the installed agent runtime. Use `go run ./cmd/clawctl ...` only while developing the CLI. |
 | Docker image | Operator-managed runtime | Optional. Use only when infrastructure intentionally provides Docker or a CDP sidecar. |
@@ -280,6 +347,7 @@ tools.
 | Linux VPS/server/no display | portable | No | No |
 | Restricted container/no root | portable | No | No |
 | macOS desktop/Mac mini | native app | No | GUI desktop required |
+| Windows desktop/host | native install | No | Windows desktop session; UAC may be required |
 | Operator-managed Docker host | docker | Yes | No physical display |
 | Existing browser/CDP sidecar | `clawctl --cdp ...` | No from agent | External owner |
 
@@ -323,6 +391,8 @@ browser automation.
 | `Required command not found: docker` | Docker backend was selected, or an old/source launcher path is being used. | Rerun `clawctl install` and `clawctl start` with the release `clawctl`; use `--backend portable` only when explicitly forcing portable mode. |
 | Docker socket or permission error | Restricted container cannot self-provision Docker. | Use portable mode, or ask the operator for `clawctl --cdp http://127.0.0.1:9222 ...`. |
 | `portable runtime not found; set CLAWBROWSER_PORTABLE_LOCAL_DIR or run clawctl install` | The self-contained launcher could not find an installed portable runtime. | Set `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted runtime, or rerun `clawctl install` with writable cache/data paths. |
+| Windows browser asset missing | The selected release does not include `clawbrowser-win-amd64.zip`, or the local zip was built with a non-release name. | Upload/rename the payload as `clawbrowser-win-amd64.zip`, or pass `--clawbrowser-release-archive C:\path\to\payload.zip` while testing. |
+| Windows UAC prompt declined | `setup.exe` needs administrator approval for the native install. | Approve the prompt, or use a browser payload that contains `Clawbrowser\clawbrowser.exe` for copy-based install testing. |
 | Portable artifact missing | Current release lacks the matching portable runtime asset. | Check the release assets for `clawbrowser-portable-linux-amd64-glibc.tar.gz` or `clawbrowser-portable-linux-arm64-glibc.tar.gz`, or pin to a release that has it. |
 | Portable checksum missing | Current release lacks the matching `.sha256` asset for the portable runtime. | Publish the checksum asset or pin to a complete release; the launcher refuses unchecked portable runtime installs. |
 | Alpine/musl error | Portable artifacts are glibc builds. | Use a glibc image, operator-managed Docker, or an external CDP endpoint. |
