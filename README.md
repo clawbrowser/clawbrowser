@@ -62,6 +62,35 @@ agent path is intentionally short. Do not rewrite the script and do not use
 No Docker, sudo, apt, manual portable runtime download, or physical display is
 required for Linux server/container installs.
 
+### Windows
+
+Use PowerShell on 64-bit Windows. Start with the standalone `clawctl` archive;
+do not start from the browser zip. This path requires the selected GitHub
+release to include `clawctl-win-amd64.zip` and `clawbrowser-win-amd64.zip`.
+
+```powershell
+$archive = "clawctl-win-amd64.zip"
+$url = "https://github.com/clawbrowser/clawbrowser/releases/latest/download/$archive"
+
+Invoke-WebRequest -Uri $url -OutFile $archive
+Expand-Archive -Force $archive .
+Set-Location .\clawctl-win-amd64
+
+.\clawctl.exe install --json
+.\clawctl.exe config set api-key
+.\clawctl.exe start --profile work --url clawbrowser://verify/ --json
+.\clawctl.exe endpoint --profile work --json
+.\clawctl.exe verify --profile work --json
+```
+
+`clawctl install` downloads the matching `clawbrowser-win-amd64.zip` browser
+payload when no usable Windows install exists. If that payload contains
+`setup.exe`, `clawctl` runs it with the agent install flag and Windows may show
+an administrator approval prompt. Human users can also extract the browser
+payload and double-click `setup.exe`; agents should run setup through
+`clawctl install` or pass `--clawbrowser-agent-install` when invoking
+`setup.exe` directly.
+
 ### macOS
 
 ```bash
@@ -86,8 +115,8 @@ macOS uses `Clawbrowser.app` and a GUI WindowServer desktop context. Xvfb is Lin
 
 | Archive | Purpose |
 | --- | --- |
-| `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-macos-arm64.tar.gz` | Standalone bootstrapper archives. Start here. |
-| `clawbrowser-linux-amd64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz` | Browser payload archives. `clawctl install` downloads one when no usable browser exists. There is no release-owned public plugin-spec install surface; `clawctl install` and `clawctl start` own setup and launch. |
+| `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-macos-arm64.tar.gz`, `clawctl-win-amd64.zip` | Standalone bootstrapper archives. Start here. |
+| `clawbrowser-linux-amd64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz`, `clawbrowser-win-amd64.zip` | Browser payload archives. `clawctl install` downloads one when no usable browser exists. Windows payloads may contain `setup.exe` or `Clawbrowser\clawbrowser.exe`; there is no release-owned public plugin-spec install surface. `clawctl install` and `clawctl start` own setup and launch. |
 | `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Portable Linux runtime payload with bundled Xvfb, libs, xkb data, and portable browser binary. Ensured by `clawctl install` when Linux needs portable mode. |
 
 The browser archive is not the bootstrapper and is not the portable runtime
@@ -139,6 +168,9 @@ clawctl --cdp http://127.0.0.1:9222 verify --json
 - **Portable Linux runtime** - default for Linux servers, no-display hosts, and
   restricted containers. No Docker required.
 - **macOS native app** - default on macOS. Requires a GUI desktop context.
+- **Windows native install** - default on 64-bit Windows. Uses the Windows
+  browser payload and may require an administrator approval prompt when
+  `setup.exe` is present.
 - **Docker backend** - optional, operator-managed infrastructure only.
 - **Existing CDP endpoint** - explicit `clawctl --cdp http://127.0.0.1:9222 ...`
   mode for sidecars or externally provisioned browsers.
