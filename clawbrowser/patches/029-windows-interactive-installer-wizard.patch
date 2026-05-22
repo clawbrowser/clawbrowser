@@ -84,7 +84,7 @@ diff --git a/chrome/installer/mini_installer/configuration_test.cc b/chrome/inst
 index 744340a2fe..b8c7ca9d77 100644
 --- a/chrome/installer/mini_installer/configuration_test.cc
 +++ b/chrome/installer/mini_installer/configuration_test.cc
-@@ -99,6 +99,18 @@ TEST_F(MiniInstallerConfigurationTest, CommandLine) {
+@@ -99,6 +99,17 @@ TEST_F(MiniInstallerConfigurationTest, CommandLine) {
    }
  }
  
@@ -106,7 +106,7 @@ diff --git a/chrome/installer/mini_installer/mini_installer.cc b/chrome/installe
 index 6d913151bf..aaae73afde 100644
 --- a/chrome/installer/mini_installer/mini_installer.cc
 +++ b/chrome/installer/mini_installer/mini_installer.cc
-@@ -53,11 +53,61 @@
+@@ -53,11 +53,58 @@
  #include "chrome/installer/mini_installer/memory_range.h"
  #include "chrome/installer/mini_installer/mini_file.h"
  #include "chrome/installer/mini_installer/mini_installer_constants.h"

@@ -515,17 +515,38 @@ function Apply-ChromiumPatch($PatchPath) {
     throw "Chromium patch not found: $PatchPath"
   }
 
-  $CheckOutput = & git -C $ChromiumSrc apply --check $PatchPath 2>&1
-  if ($LASTEXITCODE -eq 0) {
-    & git -C $ChromiumSrc apply $PatchPath
-    if ($LASTEXITCODE -ne 0) {
+  $ApplyArgs = @("--recount", "--ignore-space-change", "--ignore-whitespace")
+  $PreviousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    $CheckOutput = & git -C $ChromiumSrc apply @ApplyArgs --check $PatchPath 2>&1
+    $CheckExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+  }
+
+  if ($CheckExitCode -eq 0) {
+    try {
+      $ErrorActionPreference = "Continue"
+      & git -C $ChromiumSrc apply @ApplyArgs $PatchPath
+      $ApplyExitCode = $LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $PreviousErrorActionPreference
+    }
+    if ($ApplyExitCode -ne 0) {
       throw "Failed to apply Chromium patch: $PatchPath"
     }
     return
   }
 
-  & git -C $ChromiumSrc apply --reverse --check $PatchPath *> $null
-  if ($LASTEXITCODE -eq 0) {
+  try {
+    $ErrorActionPreference = "Continue"
+    & git -C $ChromiumSrc apply @ApplyArgs --reverse --check $PatchPath *> $null
+    $ReverseCheckExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+  }
+  if ($ReverseCheckExitCode -eq 0) {
     return
   }
 
