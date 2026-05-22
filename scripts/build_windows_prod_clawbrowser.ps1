@@ -16,6 +16,7 @@ param(
   [string]$ArtifactRoot = "",
   [int]$Jobs = 0,
   [switch]$SkipBuild,
+  [switch]$StageExistingArtifacts,
   [switch]$SkipZip
 )
 
@@ -934,6 +935,42 @@ extern const char kClawbrowserAgentInstall[];
   }
 }
 
+function Enable-ClawbrowserWindowsExecutableName {
+  $UtilConstantsCcPath = Join-Path $ChromiumSrc "chrome\installer\util\util_constants.cc"
+  $ReleasePath = Join-Path $ChromiumSrc "chrome\installer\mini_installer\chrome.release"
+
+  foreach ($Path in @($UtilConstantsCcPath, $ReleasePath)) {
+    if (!(Test-Path $Path -PathType Leaf)) {
+      throw "Chromium installer source not found: $Path"
+    }
+  }
+
+  $Text = Get-Content $UtilConstantsCcPath -Raw
+  $Constants = @(
+    @('const wchar_t kChromeExe[] = L"chrome.exe";', 'const wchar_t kChromeExe[] = L"clawbrowser.exe";'),
+    @('const wchar_t kChromeNewExe[] = L"new_chrome.exe";', 'const wchar_t kChromeNewExe[] = L"new_clawbrowser.exe";'),
+    @('const wchar_t kChromeOldExe[] = L"old_chrome.exe";', 'const wchar_t kChromeOldExe[] = L"old_clawbrowser.exe";')
+  )
+  foreach ($Pair in $Constants) {
+    if ($Text.Contains($Pair[0])) {
+      $Text = $Text.Replace($Pair[0], $Pair[1])
+    } elseif (!$Text.Contains($Pair[1])) {
+      throw "Could not find Windows executable constant in $UtilConstantsCcPath`: $($Pair[0])"
+    }
+  }
+  Write-FileAscii $UtilConstantsCcPath $Text
+
+  $Text = Get-Content $ReleasePath -Raw
+  $OldEntry = "chrome.exe: %(ChromeDir)s\"
+  $NewEntry = "clawbrowser.exe: %(ChromeDir)s\"
+  if ($Text.Contains($OldEntry)) {
+    $Text = $Text.Replace($OldEntry, $NewEntry)
+  } elseif (!$Text.Contains($NewEntry)) {
+    throw "Could not find Windows mini installer browser entry in $ReleasePath"
+  }
+  Write-FileAscii $ReleasePath $Text
+}
+
 function Write-BuildArgs($Profile, $OutputDir) {
   $ArgsPath = Join-Path $ChromiumSrc "$OutputDir\args.gn"
   $Lines = @("is_debug = false")
@@ -972,6 +1009,18 @@ function Copy-WithParents($Source, $StageDir, $RelativePath) {
   $Destination = Join-Path $StageDir $RelativePath
   New-Item -ItemType Directory -Force (Split-Path -Parent $Destination) | Out-Null
   Copy-Item $Source $Destination -Force
+}
+
+function Prepare-WindowsInstallerInputs($OutputDir) {
+  $OutDir = Join-Path $ChromiumSrc $OutputDir
+  $ChromeExe = Join-Path $OutDir "chrome.exe"
+  $ClawbrowserExe = Join-Path $OutDir "clawbrowser.exe"
+  if (!(Test-Path $ChromeExe -PathType Leaf)) {
+    throw "Built browser not found: $ChromeExe"
+  }
+
+  Copy-Item $ChromeExe $ClawbrowserExe -Force
+  Write-Host "WINDOWS_INSTALLER_EXE=$ClawbrowserExe"
 }
 
 function Stage-Clawbrowser($OutputDir, $ArtifactName) {
@@ -1040,12 +1089,46 @@ function Stage-Clawbrowser($OutputDir, $ArtifactName) {
     Copy-Item (Join-Path $IconDir "product_logo_$Size.png") (Join-Path $StageDir "product_logo_$Size.png") -Force
   }
 
+  if (Test-Path (Join-Path $StageDir "chrome.exe")) {
+    throw "Packaged Clawbrowser must expose clawbrowser.exe only; unexpected chrome.exe in $StageDir"
+  }
+
   if (!$SkipZip) {
     Compress-Archive -Path $StageDir -DestinationPath $ZipPath -Force
     Write-Host "ZIP=$ZipPath"
   }
   Write-Host "STAGE=$StageDir"
   Write-Host "EXE=$(Join-Path $StageDir 'clawbrowser.exe')"
+}
+
+function Stage-WindowsSetupArchive($OutputDir) {
+  $OutDir = Join-Path $ChromiumSrc $OutputDir
+  $MiniInstaller = Join-Path $OutDir "mini_installer.exe"
+  if (!(Test-Path $MiniInstaller -PathType Leaf)) {
+    throw "Built Windows installer not found: $MiniInstaller"
+  }
+
+  $ZipPath = Join-Path $ArtifactRoot "clawbrowser-win-amd64.zip"
+  $TempDir = Join-Path $ArtifactRoot "__clawbrowser-win-amd64-$PID"
+  Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item $ZipPath -Force -ErrorAction SilentlyContinue
+  New-Item -ItemType Directory -Force $TempDir | Out-Null
+  try {
+    $SetupPath = Join-Path $TempDir "setup.exe"
+    Copy-Item $MiniInstaller $SetupPath -Force
+
+    if (Test-Path (Join-Path $TempDir "chrome.exe")) {
+      throw "Windows release archive must expose setup.exe only; unexpected chrome.exe in $TempDir"
+    }
+
+    if (!$SkipZip) {
+      Compress-Archive -Path $SetupPath -DestinationPath $ZipPath -Force
+      Write-Host "WINDOWS_RELEASE_ZIP=$ZipPath"
+      Write-Host "WINDOWS_RELEASE_SETUP=setup.exe"
+    }
+  } finally {
+    Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+  }
 }
 
 Set-Location $ChromiumSrc
@@ -1055,6 +1138,7 @@ Sync-ClawbrowserBranding
 Ensure-ClawbrowserResourceIds
 Disable-GoogleApiKeysInfobar
 Enable-ClawbrowserAgentInstallerMode
+Enable-ClawbrowserWindowsExecutableName
 Apply-ChromiumPatch (Join-Path $ProjectRoot "clawbrowser\patches\030-windows-clawbrowser-install-branding.patch")
 Apply-ChromiumPatch (Join-Path $ProjectRoot "clawbrowser\patches\029-windows-interactive-installer-wizard.patch")
 Initialize-CompilerCacheServer -Restart
@@ -1069,6 +1153,18 @@ foreach ($Spec in $BuildSpecs) {
   Write-BuildArgs $Spec.Profile $Spec.BuildDir
   Invoke-Checked (Join-Path $DepotTools "gn.bat") @("gen", $Spec.BuildDir)
 
+  if ($StageExistingArtifacts) {
+    Write-Host "Generated $($Spec.BuildDir). Staging existing artifacts without building."
+    if ($Spec.Profile -eq "Prod") {
+      Prepare-WindowsInstallerInputs $Spec.BuildDir
+    }
+    Stage-Clawbrowser $Spec.BuildDir $Spec.ArtifactName
+    if ($Spec.Profile -eq "Prod") {
+      Stage-WindowsSetupArchive $Spec.BuildDir
+    }
+    continue
+  }
+
   if ($SkipBuild) {
     Write-Host "Generated $($Spec.BuildDir). Build skipped."
     continue
@@ -1080,7 +1176,19 @@ foreach ($Spec in $BuildSpecs) {
   }
   $BuildArgs += "chrome"
   Invoke-AutoninjaWithCacheRetry $Spec.BuildDir $BuildArgs
+  if ($Spec.Profile -eq "Prod") {
+    Prepare-WindowsInstallerInputs $Spec.BuildDir
+    $InstallerBuildArgs = @("-C", $Spec.BuildDir)
+    if ($Jobs -gt 0) {
+      $InstallerBuildArgs += @("-j", "$Jobs")
+    }
+    $InstallerBuildArgs += "mini_installer"
+    Invoke-AutoninjaWithCacheRetry $Spec.BuildDir $InstallerBuildArgs
+  }
   Stage-Clawbrowser $Spec.BuildDir $Spec.ArtifactName
+  if ($Spec.Profile -eq "Prod") {
+    Stage-WindowsSetupArchive $Spec.BuildDir
+  }
 }
 
 if (!$SkipBuild -and $CompilerCacheWrapper) {
