@@ -90,13 +90,12 @@ index 744340a2fe..b8c7ca9d77 100644
  
 +TEST_F(MiniInstallerConfigurationTest, HasSwitch) {
 +  TestConfiguration config(
-+      L"spam.exe --clawbrowser-agent-install --log-file=c:\\setup.log "
++      L"spam.exe --log-file=c:\\setup.log "
 +      L"/silent");
 +
-+  EXPECT_TRUE(config.HasSwitch(L"clawbrowser-agent-install"));
 +  EXPECT_TRUE(config.HasSwitch(L"log-file"));
 +  EXPECT_TRUE(config.HasSwitch(L"silent"));
-+  EXPECT_FALSE(config.HasSwitch(L"clawbrowser-agent"));
++  EXPECT_FALSE(config.HasSwitch(L"missing-prefix"));
 +  EXPECT_FALSE(config.HasSwitch(L"missing"));
 +}
 +
@@ -119,8 +118,6 @@ index 6d913151bf..aaae73afde 100644
  
 +namespace {
 +
-+constexpr wchar_t kClawbrowserAgentInstallSwitch[] =
-+    L"clawbrowser-agent-install";
 +constexpr wchar_t kDoNotLaunchChromeSwitch[] = L"do-not-launch-chrome";
 +constexpr wchar_t kDoNotRegisterForUpdateLaunchSwitch[] =
 +    L"do-not-register-for-update-launch";
@@ -135,8 +132,7 @@ index 6d913151bf..aaae73afde 100644
 +constexpr int kClawbrowserSetupIconSize = 48;
 +
 +bool ShouldShowClawbrowserSetupWizard(const Configuration& configuration) {
-+  return !configuration.HasSwitch(kClawbrowserAgentInstallSwitch) &&
-+         !configuration.HasSwitch(kDoNotLaunchChromeSwitch) &&
++  return !configuration.HasSwitch(kDoNotLaunchChromeSwitch) &&
 +         !configuration.HasSwitch(kDoNotRegisterForUpdateLaunchSwitch) &&
 +         !configuration.HasSwitch(kSilentSwitch) &&
 +         !configuration.HasSwitch(kQuietSwitch);
@@ -435,7 +431,7 @@ index 6d913151bf..aaae73afde 100644
 +          compressed_archive);
 +    } else {
 +      exit_code = RunSetup(configuration, archive_path.get(), setup_path.get(),
-+                           compressed_archive, false);
++                           compressed_archive, true);
 +    }
    }
  

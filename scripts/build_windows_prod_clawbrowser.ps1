@@ -877,64 +877,6 @@ function Disable-GoogleApiKeysInfobar {
   Write-FileAscii $InfobarPath ($Text.Replace($Pattern, $Replacement))
 }
 
-function Enable-ClawbrowserAgentInstallerMode {
-  $UtilConstantsCcPath = Join-Path $ChromiumSrc "chrome\installer\util\util_constants.cc"
-  $UtilConstantsHPath = Join-Path $ChromiumSrc "chrome\installer\util\util_constants.h"
-  $InitialPreferencesPath = Join-Path $ChromiumSrc "chrome\installer\util\initial_preferences.cc"
-
-  foreach ($Path in @($UtilConstantsCcPath, $UtilConstantsHPath, $InitialPreferencesPath)) {
-    if (!(Test-Path $Path -PathType Leaf)) {
-      throw "Chromium installer source not found: $Path"
-    }
-  }
-
-  $Text = Get-Content $UtilConstantsCcPath -Raw
-  if (!$Text.Contains('const char kClawbrowserAgentInstall[]')) {
-    $Pattern = 'const char kDoNotLaunchChrome\[\] = "do-not-launch-chrome";\r?\n\r?\n'
-    $Replacement = @"
-const char kDoNotLaunchChrome[] = "do-not-launch-chrome";
-
-// Clawbrowser agent install mode: install without any post-install browser UI.
-const char kClawbrowserAgentInstall[] = "clawbrowser-agent-install";
-
-"@
-    $Regex = [regex]::new($Pattern)
-    if (!$Regex.IsMatch($Text)) {
-      throw "Could not find installer launch switch anchor in $UtilConstantsCcPath"
-    }
-    Write-FileAscii $UtilConstantsCcPath ($Regex.Replace($Text, $Replacement, 1))
-  }
-
-  $Text = Get-Content $UtilConstantsHPath -Raw
-  if (!$Text.Contains('extern const char kClawbrowserAgentInstall[];')) {
-    $Needle = 'extern const char kDoNotLaunchChrome[];'
-    if (!$Text.Contains($Needle)) {
-      throw "Could not find installer launch switch declaration anchor in $UtilConstantsHPath"
-    }
-    $Replacement = @"
-extern const char kDoNotLaunchChrome[];
-extern const char kClawbrowserAgentInstall[];
-"@.TrimEnd()
-    Write-FileAscii $UtilConstantsHPath ($Text.Replace($Needle, $Replacement))
-  }
-
-  $Text = Get-Content $InitialPreferencesPath -Raw
-  if (!$Text.Contains('installer::switches::kClawbrowserAgentInstall')) {
-    $Needle = '      {installer::switches::kMsi, installer::initial_preferences::kMsi},'
-    if (!$Text.Contains($Needle)) {
-      throw "Could not find installer preferences switch map anchor in $InitialPreferencesPath"
-    }
-    $Replacement = @"
-      {installer::switches::kMsi, installer::initial_preferences::kMsi},
-      {installer::switches::kClawbrowserAgentInstall,
-       installer::initial_preferences::kDoNotRegisterForUpdateLaunch},
-      {installer::switches::kClawbrowserAgentInstall,
-       installer::initial_preferences::kDoNotLaunchChrome},
-"@.TrimEnd()
-    Write-FileAscii $InitialPreferencesPath ($Text.Replace($Needle, $Replacement))
-  }
-}
-
 function Enable-ClawbrowserWindowsExecutableName {
   $UtilConstantsCcPath = Join-Path $ChromiumSrc "chrome\installer\util\util_constants.cc"
   $ReleasePath = Join-Path $ChromiumSrc "chrome\installer\mini_installer\chrome.release"
@@ -1009,6 +951,26 @@ function Copy-WithParents($Source, $StageDir, $RelativePath) {
   $Destination = Join-Path $StageDir $RelativePath
   New-Item -ItemType Directory -Force (Split-Path -Parent $Destination) | Out-Null
   Copy-Item $Source $Destination -Force
+}
+
+function Ensure-WindowsPrivateAssemblyLayout($ApplicationDir) {
+  $Manifest = Get-ChildItem $ApplicationDir -File -Filter "*.manifest" -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+\.manifest$' } |
+      Select-Object -First 1
+  if (!$Manifest) {
+    return
+  }
+
+  $ChromeElf = Join-Path $ApplicationDir "chrome_elf.dll"
+  if (!(Test-Path $ChromeElf -PathType Leaf)) {
+    throw "Windows private assembly manifest exists but chrome_elf.dll is missing: $ApplicationDir"
+  }
+
+  $AssemblyName = [System.IO.Path]::GetFileNameWithoutExtension($Manifest.Name)
+  $AssemblyDir = Join-Path $ApplicationDir $AssemblyName
+  New-Item -ItemType Directory -Force $AssemblyDir | Out-Null
+  Copy-Item $Manifest.FullName (Join-Path $AssemblyDir $Manifest.Name) -Force
+  Copy-Item $ChromeElf (Join-Path $AssemblyDir "chrome_elf.dll") -Force
 }
 
 function Prepare-WindowsInstallerInputs($OutputDir) {
@@ -1089,6 +1051,8 @@ function Stage-Clawbrowser($OutputDir, $ArtifactName) {
     Copy-Item (Join-Path $IconDir "product_logo_$Size.png") (Join-Path $StageDir "product_logo_$Size.png") -Force
   }
 
+  Ensure-WindowsPrivateAssemblyLayout $StageDir
+
   if (Test-Path (Join-Path $StageDir "chrome.exe")) {
     throw "Packaged Clawbrowser must expose clawbrowser.exe only; unexpected chrome.exe in $StageDir"
   }
@@ -1137,7 +1101,6 @@ Sync-ProjectOverlay
 Sync-ClawbrowserBranding
 Ensure-ClawbrowserResourceIds
 Disable-GoogleApiKeysInfobar
-Enable-ClawbrowserAgentInstallerMode
 Enable-ClawbrowserWindowsExecutableName
 Apply-ChromiumPatch (Join-Path $ProjectRoot "clawbrowser\patches\030-windows-clawbrowser-install-branding.patch")
 Apply-ChromiumPatch (Join-Path $ProjectRoot "clawbrowser\patches\029-windows-interactive-installer-wizard.patch")
