@@ -181,19 +181,30 @@ Remove-Item Env:\CLAWBROWSER_API_KEY -ErrorAction SilentlyContinue
 & $clawctl verify --profile work --json
 ```
 
+### Windows Agent Install
+
 During install, `clawctl` looks for `clawbrowser-win-amd64.zip` in the selected
 release. If the browser payload contains `setup.exe`, `clawctl` requests
 administrator approval and runs:
 
 ```powershell
-.\setup.exe --clawbrowser-agent-install
+.\setup.exe /silent
 ```
 
-That flag bypasses the interactive setup window and prevents the browser UI
-from launching after setup. Human users can double-click `setup.exe` for the
-interactive installer. Agents should prefer `clawctl install`; use the direct
-`setup.exe --clawbrowser-agent-install` form only when intentionally testing an
-extracted browser payload.
+Human users can double-click `setup.exe` and get the interactive Clawbrowser
+Setup window with Install, Cancel, install status, and Close controls.
+
+AI agents on Windows should run the Clawbrowser installer with the normal
+silent installer switch:
+
+```powershell
+.\setup.exe /silent
+```
+
+This bypasses the interactive window and installs Clawbrowser without launching
+browser UI after setup. Agents should prefer `clawctl install`; use the direct
+`setup.exe /silent` form only when intentionally testing an extracted browser
+payload.
 
 To test a local Windows browser payload before it is uploaded to GitHub
 Releases, point `clawctl install` at the zip:

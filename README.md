@@ -83,13 +83,24 @@ Set-Location .\clawctl-win-amd64
 .\clawctl.exe verify --profile work --json
 ```
 
+#### Windows Agent Install
+
 `clawctl install` downloads the matching `clawbrowser-win-amd64.zip` browser
 payload when no usable Windows install exists. If that payload contains
-`setup.exe`, `clawctl` runs it with the agent install flag and Windows may show
-an administrator approval prompt. Human users can also extract the browser
-payload and double-click `setup.exe`; agents should run setup through
-`clawctl install` or pass `--clawbrowser-agent-install` when invoking
-`setup.exe` directly.
+`setup.exe`, `clawctl` runs it with the normal `/silent` installer switch and
+Windows may show an administrator approval prompt.
+
+Human users can double-click `setup.exe` and get the interactive Clawbrowser
+Setup window with Install, Cancel, install status, and Close controls. AI
+agents should run setup through `clawctl install` or invoke the extracted
+installer directly with:
+
+```powershell
+.\setup.exe /silent
+```
+
+This bypasses the interactive window and installs Clawbrowser without launching
+browser UI after setup.
 
 ### macOS
 

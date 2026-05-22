@@ -24,9 +24,9 @@ browser process for agent work.
   `clawctl verify --profile work --json`.
 - `clawctl install` is the supported setup command for agents. It reuses an
   existing browser when one is usable, downloads Clawbrowser when missing,
-  runs the Windows `setup.exe` payload with `--clawbrowser-agent-install` when
-  present, installs the portable Linux runtime when the host needs Xvfb, and
-  prepares `clawctl start`.
+  runs the Windows `setup.exe` payload with `/silent` when present, installs
+  the portable Linux runtime when the host needs Xvfb, and prepares
+  `clawctl start`.
 - Let `clawctl install` choose agent integration paths. Do not set
   `CLAWBROWSER_AGENT_CONFIG` or `CLAWBROWSER_AGENT_PLUGINS_DIR` during the
   normal `auto` install unless the user explicitly requests a generic
