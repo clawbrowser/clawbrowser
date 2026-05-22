@@ -297,6 +297,15 @@ Attach your CDP client to the returned endpoint. Re-fetch the endpoint after
 start, reattach, restart, rotate, or any connection failure. Do not persist
 `ws://127.0.0.1/...` or `http://127.0.0.1:...` endpoints in config files.
 
+After the API key is saved and validates successfully, managed `clawctl start`
+and MCP `start` request browser fingerprint/proxy mode automatically. Do not
+add your own `--fingerprint` value for the normal agent path. Use
+`--skip-verify` only when intentionally bypassing browser verification.
+
+Managed launch owns profile and CDP wiring. Do not pass `--user-data-dir`,
+`--remote-debugging-port`, or `--remote-debugging-address` through browser
+arguments; use `--profile`, `--port`, or an explicit `--cdp` endpoint instead.
+
 If a browser is already running and exposes CDP, connect explicitly:
 
 ```bash
@@ -310,6 +319,11 @@ clawctl --cdp http://127.0.0.1:9222 open https://example.com
 `clawbrowser://verify/` is the proof page for fingerprint, proxy, and geo
 state. Use it after launch, after rotate/regenerate, or when identity/proxy
 correctness matters.
+
+With a saved, validated API key, managed starts default to fingerprint/proxy
+mode. `clawctl start --url clawbrowser://verify/` opens the proof page after
+the runtime is ready; `--verify` additionally asks the browser launcher to run
+its verification flow. Both are acceptable for the agent happy path.
 
 ```bash
 clawctl start --profile work --url clawbrowser://verify/ --json

@@ -74,6 +74,17 @@ clawctl endpoint --profile work --json
 Use the returned endpoint for CDP automation: navigation, clicking, typing,
 scraping, screenshots, DOM inspection, and JS evaluation.
 
+After `clawctl config set api-key` saves a key and the key validates,
+managed `start` and MCP `start` automatically request browser
+fingerprint/proxy mode. Do not manually invent or persist fingerprint IDs for
+the normal agent path, and use `--skip-verify` only when intentionally
+bypassing browser verification.
+
+Managed launch owns the browser profile and CDP binding. Do not pass
+`--user-data-dir`, `--remote-debugging-port`, or
+`--remote-debugging-address` as browser arguments; use `--profile`, `--port`,
+or an explicit `--cdp` endpoint instead.
+
 For a fresh identity:
 
 ```bash
