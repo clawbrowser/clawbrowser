@@ -46,6 +46,11 @@ browser process for agent work.
   `CLAWBROWSER_WORKDIR=/workspace/.clawbrowser`, `/work/.clawbrowser`, or
   `$PWD/.clawbrowser`.
 - Docker and sidecar modes are operator-managed paths. Restricted agents should not try to self-provision Docker.
+- For operator-managed Docker, mount the browser config directory on durable
+  storage before saving auth. The Docker image runs as `clawbrowser` with
+  `HOME=/home/clawbrowser`, so the default saved auth path is
+  `/home/clawbrowser/.config/clawbrowser/config.json` unless
+  `CLAWBROWSER_CONFIG_DIR` or `XDG_CONFIG_HOME` is explicitly set.
 
 ## Runtime Choice
 
@@ -123,7 +128,14 @@ clawctl --cdp http://127.0.0.1:9222 verify --json
 - Do not use dummy keys.
 - Persist the key with `clawctl config set api-key`; do not export API keys as environment variables.
 - Do not store keys in MCP config, agent config, shell rc files, random env files, logs, or positional shell arguments.
-- Resolve config paths before writing; do not pass unresolved strings such as `${XDG_CONFIG_HOME:-$HOME/.config}/...`, `$HOME/...`, or `~/...` to file-write tools.
+- Saved auth lives at `<config-dir>/config.json`. `clawctl` resolves
+  `<config-dir>` from `CLAWBROWSER_CONFIG_DIR`, then
+  `$XDG_CONFIG_HOME/clawbrowser` on Linux/macOS when set, then
+  `$HOME/.config/clawbrowser`; Windows defaults to
+  `%LOCALAPPDATA%\Clawbrowser`.
+- In restricted containers, set `CLAWBROWSER_CONFIG_DIR` or `HOME` to a
+  durable writable agent mount before running `clawctl`.
+- Resolve config paths before writing; do not pass unresolved strings such as `$HOME/...` or `~/...` to file-write tools.
 - Use `clawbrowser://auth` for manual reauthentication.
 
 ## Cleanup

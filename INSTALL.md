@@ -80,17 +80,24 @@ done
 [ -n "$selected_workdir" ] || { echo "no writable executable Clawbrowser workdir found" >&2; exit 1; }
 export CLAWBROWSER_WORKDIR="$selected_workdir"
 
-mkdir -p "$CLAWBROWSER_WORKDIR/home" "$CLAWBROWSER_WORKDIR/config" "$CLAWBROWSER_WORKDIR/cache" "$CLAWBROWSER_WORKDIR/data" "$CLAWBROWSER_WORKDIR/bin"
+mkdir -p \
+  "$CLAWBROWSER_WORKDIR/home" \
+  "$CLAWBROWSER_WORKDIR/config" \
+  "$CLAWBROWSER_WORKDIR/cache" \
+  "$CLAWBROWSER_WORKDIR/data" \
+  "$CLAWBROWSER_WORKDIR/bin"
 case "${original_home:-}" in
   ""|/root|/root/*|/tmp|/tmp/*) export HOME="$CLAWBROWSER_WORKDIR/home" ;;
   *) export HOME="$original_home" ;;
 esac
-export XDG_CONFIG_HOME="$CLAWBROWSER_WORKDIR/config"
+# clawctl stores persistent auth config in the explicit config dir below.
+export CLAWBROWSER_CONFIG_DIR="$CLAWBROWSER_WORKDIR/config"
 export XDG_CACHE_HOME="$CLAWBROWSER_WORKDIR/cache"
 export XDG_DATA_HOME="$CLAWBROWSER_WORKDIR/data"
 export CLAWBROWSER_BIN_DIR="$CLAWBROWSER_WORKDIR/bin"
 export CLAWBROWSER_PORTABLE_RUNTIME_ROOT="$XDG_CACHE_HOME/clawbrowser/runtime"
 mkdir -p \
+  "$CLAWBROWSER_CONFIG_DIR" \
   "$CLAWBROWSER_BIN_DIR" \
   "$CLAWBROWSER_PORTABLE_RUNTIME_ROOT"
 cd "$CLAWBROWSER_WORKDIR"
@@ -352,18 +359,18 @@ The key is written to the browser-managed `config.json`. Do not put API keys in
 MCP config, agent config, shell rc files, env files, logs, or positional shell
 arguments.
 
-On regular hosts, the default config path resolves like this:
+On Linux and macOS, `clawctl` resolves the config directory in this order:
+`CLAWBROWSER_CONFIG_DIR`, then `$XDG_CONFIG_HOME/clawbrowser` when set, then
+`$HOME/.config/clawbrowser`. Windows defaults to
+`%LOCALAPPDATA%\Clawbrowser`. The fast path above sets
+`CLAWBROWSER_CONFIG_DIR="$CLAWBROWSER_WORKDIR/config"` so saved auth stays on
+the selected durable workdir.
 
-```bash
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser"
-```
-
-In restricted containers, set `XDG_CONFIG_HOME` to a writable directory as shown
-above instead of relying on `$HOME`.
+In restricted containers, set `CLAWBROWSER_CONFIG_DIR` or `HOME` to a durable
+writable agent mount before running `clawctl`.
 
 Resolve that path before writing. Do not pass literal strings such as
-`${XDG_CONFIG_HOME:-$HOME/.config}/...`, `$HOME/...`, or `~/...` to file-write
-tools.
+`$HOME/...` or `~/...` to file-write tools.
 
 ## Setup Modes
 
@@ -387,6 +394,13 @@ Use this only when the operator intentionally provides Docker infrastructure.
 ```bash
 clawctl start --backend docker --profile work --url clawbrowser://verify/ --json
 ```
+
+The Docker image runs as the `clawbrowser` user with `HOME=/home/clawbrowser`.
+Unless the operator sets `CLAWBROWSER_CONFIG_DIR` or `XDG_CONFIG_HOME`, saved
+auth lives at `/home/clawbrowser/.config/clawbrowser/config.json`. Mount that
+directory, or the explicit `CLAWBROWSER_CONFIG_DIR`, to durable storage before
+running `clawctl config set api-key`; otherwise container recreation loses the
+saved key.
 
 For a host-managed sidecar, keep CDP bound to localhost:
 

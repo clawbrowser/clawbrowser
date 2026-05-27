@@ -187,4 +187,7 @@ clawctl --cdp http://127.0.0.1:9222 verify --json
   mode for sidecars or externally provisioned browsers.
 
 Use Docker only when the operator intentionally provides it. Restricted agents
-should use portable mode or a provided CDP endpoint.
+should use portable mode or a provided CDP endpoint. For the Docker image,
+mount `/home/clawbrowser/.config/clawbrowser` or the explicit
+`CLAWBROWSER_CONFIG_DIR` on durable storage so saved auth survives container
+restarts and recreation.
