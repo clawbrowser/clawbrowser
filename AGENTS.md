@@ -123,7 +123,9 @@ clawctl --cdp http://127.0.0.1:9222 verify --json
 - Do not use dummy keys.
 - Persist the key with `clawctl config set api-key`; do not export API keys as environment variables.
 - Do not store keys in MCP config, agent config, shell rc files, random env files, logs, or positional shell arguments.
-- Resolve config paths before writing; do not pass unresolved strings such as `${XDG_CONFIG_HOME:-$HOME/.config}/...`, `$HOME/...`, or `~/...` to file-write tools.
+- On Linux and macOS, persistent auth config is fixed at `$HOME/.config/clawbrowser/config.json`; `XDG_CONFIG_HOME` does not override it.
+- In restricted containers, set `HOME` to a durable writable agent home before running `clawctl`.
+- Resolve config paths before writing; do not pass unresolved strings such as `$HOME/...` or `~/...` to file-write tools.
 - Use `clawbrowser://auth` for manual reauthentication.
 
 ## Cleanup

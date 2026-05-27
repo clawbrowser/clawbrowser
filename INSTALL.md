@@ -85,6 +85,8 @@ case "${original_home:-}" in
   ""|/root|/root/*|/tmp|/tmp/*) export HOME="$CLAWBROWSER_WORKDIR/home" ;;
   *) export HOME="$original_home" ;;
 esac
+# clawctl stores persistent auth config at $HOME/.config/clawbrowser/config.json.
+# XDG paths below isolate cache/data/runtime only.
 export XDG_CONFIG_HOME="$CLAWBROWSER_WORKDIR/config"
 export XDG_CACHE_HOME="$CLAWBROWSER_WORKDIR/cache"
 export XDG_DATA_HOME="$CLAWBROWSER_WORKDIR/data"
@@ -352,18 +354,18 @@ The key is written to the browser-managed `config.json`. Do not put API keys in
 MCP config, agent config, shell rc files, env files, logs, or positional shell
 arguments.
 
-On regular hosts, the default config path resolves like this:
+On Linux and macOS, the config path is fixed under `HOME`:
 
 ```bash
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser"
+CONFIG_DIR="$HOME/.config/clawbrowser"
 ```
 
-In restricted containers, set `XDG_CONFIG_HOME` to a writable directory as shown
-above instead of relying on `$HOME`.
+In restricted containers, set `HOME` to a durable writable agent home before
+running `clawctl`. `XDG_CONFIG_HOME` does not change the saved auth config path;
+it is used by the install layout for cache/data/runtime isolation.
 
 Resolve that path before writing. Do not pass literal strings such as
-`${XDG_CONFIG_HOME:-$HOME/.config}/...`, `$HOME/...`, or `~/...` to file-write
-tools.
+`$HOME/...` or `~/...` to file-write tools.
 
 ## Setup Modes
 
