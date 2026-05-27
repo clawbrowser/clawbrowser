@@ -55,9 +55,13 @@ agent path is intentionally short. Do not rewrite the script and do not use
 
    ```bash
    clawctl start --profile work --url clawbrowser://verify/ --json
+   clawctl proxy-traffic --json
    clawctl endpoint --profile work --json
    clawctl verify --profile work --json
    ```
+
+   If `proxy-traffic` reports `state: "exhausted"`, stop proxy-backed browser
+   work until the user tops up traffic in the dashboard.
 
 No Docker, sudo, apt, manual portable runtime download, or physical display is
 required for Linux server/container installs.
