@@ -80,14 +80,13 @@ done
 [ -n "$selected_workdir" ] || { echo "no writable executable Clawbrowser workdir found" >&2; exit 1; }
 export CLAWBROWSER_WORKDIR="$selected_workdir"
 
-mkdir -p "$CLAWBROWSER_WORKDIR/home" "$CLAWBROWSER_WORKDIR/config" "$CLAWBROWSER_WORKDIR/cache" "$CLAWBROWSER_WORKDIR/data" "$CLAWBROWSER_WORKDIR/bin"
+mkdir -p "$CLAWBROWSER_WORKDIR/home" "$CLAWBROWSER_WORKDIR/cache" "$CLAWBROWSER_WORKDIR/data" "$CLAWBROWSER_WORKDIR/bin"
 case "${original_home:-}" in
   ""|/root|/root/*|/tmp|/tmp/*) export HOME="$CLAWBROWSER_WORKDIR/home" ;;
   *) export HOME="$original_home" ;;
 esac
 # clawctl stores persistent auth config at $HOME/.config/clawbrowser/config.json.
-# XDG paths below isolate cache/data/runtime only.
-export XDG_CONFIG_HOME="$CLAWBROWSER_WORKDIR/config"
+# XDG paths below isolate cache/data/runtime only; XDG_CONFIG_HOME is not used.
 export XDG_CACHE_HOME="$CLAWBROWSER_WORKDIR/cache"
 export XDG_DATA_HOME="$CLAWBROWSER_WORKDIR/data"
 export CLAWBROWSER_BIN_DIR="$CLAWBROWSER_WORKDIR/bin"
@@ -361,8 +360,8 @@ CONFIG_DIR="$HOME/.config/clawbrowser"
 ```
 
 In restricted containers, set `HOME` to a durable writable agent home before
-running `clawctl`. `XDG_CONFIG_HOME` does not change the saved auth config path;
-it is used by the install layout for cache/data/runtime isolation.
+running `clawctl`. `XDG_CONFIG_HOME` does not change the saved auth config path
+and is not required for the agent fast path.
 
 Resolve that path before writing. Do not pass literal strings such as
 `$HOME/...` or `~/...` to file-write tools.
