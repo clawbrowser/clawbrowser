@@ -43,6 +43,7 @@ Steps with the exact commands:
 
    ```bash
    "$clawctl" start --profile work --url clawbrowser://verify/ --json
+   "$clawctl" proxy-traffic --json
    "$clawctl" endpoint --profile work --json
    "$clawctl" verify --profile work --json
    ```
@@ -338,8 +339,13 @@ its verification flow. Both are acceptable for the agent happy path.
 
 ```bash
 clawctl start --profile work --url clawbrowser://verify/ --json
+clawctl proxy-traffic --json
 clawctl verify --profile work --json
 ```
+
+If `proxy-traffic` reports `state: "exhausted"`, stop proxy-backed browser
+work until the user tops up traffic in the dashboard, then rerun
+`clawctl proxy-traffic --json` before continuing.
 
 If no saved key exists, run `clawctl config set api-key` once with the real API
 key from `https://app.clawbrowser.ai`:

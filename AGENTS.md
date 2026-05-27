@@ -20,6 +20,7 @@ browser process for agent work.
   `.\clawctl.exe install --json`, then persist the API key with the installed
   `clawctl config set api-key --stdin` before running
   `clawctl start --profile work --url clawbrowser://verify/ --json`,
+  `clawctl proxy-traffic --json`,
   `clawctl endpoint --profile work --json`, and
   `clawctl verify --profile work --json`.
 - `clawctl install` is the supported setup command for agents. It reuses an
@@ -112,6 +113,10 @@ clawctl --cdp http://127.0.0.1:9222 verify --json
 
 - Managed profiles are expected to run in fingerprint/proxy mode.
 - `clawbrowser://verify/` is the source of truth for fingerprint, proxy, geo, WebGL, canvas, timezone, user agent, and browser identity state.
+- Run `clawctl proxy-traffic --json` before proxy-backed browser work. If the
+  state is `exhausted`, stop launching/rotating/retrying proxy work, tell the
+  user to top up traffic in the dashboard, and rerun `proxy-traffic` before
+  continuing.
 - Verify is required when proving identity/proxy correctness, after rotate/regenerate, or while debugging browser-quality issues.
 - Do not infer fingerprint/proxy success from launch flags alone.
 - Do not use random external fingerprint-checking sites unless the user asks.
