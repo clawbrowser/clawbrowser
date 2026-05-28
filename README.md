@@ -50,7 +50,7 @@ agent path is intentionally short. Do not rewrite the script and do not use
    local agents such as Gemini discover extensions under their real home.
 4. Ask once for the Clawbrowser API key from `https://app.clawbrowser.ai`.
 5. Save the API key:
-   `printf '%s\n' "$CLAWBROWSER_API_KEY" | clawctl config set api-key --stdin`.
+   `clawctl config set --api-key "$CLAWBROWSER_API_KEY"`.
 6. Verify:
 
    ```bash
@@ -81,7 +81,8 @@ Expand-Archive -Force $archive .
 Set-Location .\clawctl-win-amd64
 
 .\clawctl.exe install --json
-.\clawctl.exe config set api-key
+$clawbrowserApiKey = Read-Host "Clawbrowser API key from https://app.clawbrowser.ai"
+.\clawctl.exe config set --api-key "$clawbrowserApiKey"
 .\clawctl.exe start --profile work --url clawbrowser://verify/ --json
 .\clawctl.exe endpoint --profile work --json
 .\clawctl.exe verify --profile work --json
@@ -118,7 +119,7 @@ tar -xzf "$archive"
 cd clawctl-macos-arm64
 
 ./clawctl install --json
-./clawctl config set api-key
+./clawctl config set --api-key "$CLAWBROWSER_API_KEY"
 ./clawctl start --profile work --url clawbrowser://verify/ --json
 ./clawctl endpoint --profile work --json
 ./clawctl verify --profile work --json
@@ -148,7 +149,7 @@ across restarts.
 
 ```bash
 clawctl install --json
-clawctl config set api-key
+clawctl config set --api-key "$CLAWBROWSER_API_KEY"
 clawctl start --profile work --url clawbrowser://verify/ --json
 clawctl endpoint --profile work --json
 clawctl verify --profile work --json
