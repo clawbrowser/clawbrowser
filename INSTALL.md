@@ -38,7 +38,7 @@ Steps with the exact commands:
    `"$clawctl_bootstrap" install --json`.
 4. Ask once for the Clawbrowser API key from `https://app.clawbrowser.ai`.
 5. Save the API key:
-   `printf '%s\n' "$CLAWBROWSER_API_KEY" | "$clawctl" config set api-key --stdin`.
+   `"$clawctl" config set --api-key "$CLAWBROWSER_API_KEY"`.
 6. Verify with these commands:
 
    ```bash
@@ -133,7 +133,7 @@ if [ -z "${CLAWBROWSER_API_KEY:-}" ]; then
   printf "\n" >&2
 fi
 [ -n "$CLAWBROWSER_API_KEY" ] || { echo "Clawbrowser API key is required" >&2; exit 1; }
-printf '%s\n' "$CLAWBROWSER_API_KEY" | "$clawctl" config set api-key --stdin
+"$clawctl" config set --api-key "$CLAWBROWSER_API_KEY"
 unset CLAWBROWSER_API_KEY
 
 "$clawctl" start --profile work --url clawbrowser://verify/ --json
@@ -175,14 +175,14 @@ if (!(Test-Path $clawctl -PathType Leaf)) {
 
 & $clawctl install --json
 
-if (!$env:CLAWBROWSER_API_KEY) {
-  $env:CLAWBROWSER_API_KEY = Read-Host "Clawbrowser API key from https://app.clawbrowser.ai"
+if (!$clawbrowserApiKey) {
+  $clawbrowserApiKey = Read-Host "Clawbrowser API key from https://app.clawbrowser.ai"
 }
-if (!$env:CLAWBROWSER_API_KEY) {
+if (!$clawbrowserApiKey) {
   throw "Clawbrowser API key is required"
 }
-$env:CLAWBROWSER_API_KEY | & $clawctl config set api-key --stdin
-Remove-Item Env:\CLAWBROWSER_API_KEY -ErrorAction SilentlyContinue
+& $clawctl config set --api-key "$clawbrowserApiKey"
+Remove-Variable clawbrowserApiKey -ErrorAction SilentlyContinue
 
 & $clawctl start --profile work --url clawbrowser://verify/ --json
 & $clawctl endpoint --profile work --json
@@ -239,7 +239,7 @@ tar -xzf "$archive"
 cd clawctl-macos-arm64
 
 ./clawctl install --json
-./clawctl config set api-key
+./clawctl config set --api-key "$CLAWBROWSER_API_KEY"
 ./clawctl start --profile work --url clawbrowser://verify/ --json
 ./clawctl endpoint --profile work --json
 ./clawctl verify --profile work --json
@@ -275,7 +275,7 @@ export CLAWBROWSER_PORTABLE_LOCAL_DIR="/absolute/path/to/linux-amd64-glibc"
 # or: /absolute/path/to/linux-arm64-glibc
 
 ./clawctl install --json
-./clawctl config set api-key
+./clawctl config set --api-key "$CLAWBROWSER_API_KEY"
 ./clawctl start --profile work --url clawbrowser://verify/ --json
 ./clawctl endpoint --profile work --json
 ./clawctl verify --profile work --json
@@ -306,7 +306,7 @@ Use `clawctl` for profile lifecycle and use CDP for page automation.
 
 ```bash
 clawctl install --json
-clawctl config set api-key
+clawctl config set --api-key "$CLAWBROWSER_API_KEY"
 clawctl start --profile work --url clawbrowser://verify/ --json
 clawctl endpoint --profile work --json
 clawctl verify --profile work --json
@@ -354,11 +354,11 @@ If `proxy-traffic` reports `state: "exhausted"`, stop proxy-backed browser
 work until the user tops up traffic in the dashboard, then rerun
 `clawctl proxy-traffic --json` before continuing.
 
-If no saved key exists, run `clawctl config set api-key` once with the real API
+If no saved key exists, run `clawctl config set --api-key "$CLAWBROWSER_API_KEY"` once with the real API
 key from `https://app.clawbrowser.ai`:
 
 ```bash
-clawctl config set api-key
+clawctl config set --api-key "$CLAWBROWSER_API_KEY"
 ```
 
 The key is written to the browser-managed `config.json`. Do not put API keys in
@@ -405,7 +405,7 @@ The Docker image runs as the `clawbrowser` user with `HOME=/home/clawbrowser`.
 Unless the operator sets `CLAWBROWSER_CONFIG_DIR` or `XDG_CONFIG_HOME`, saved
 auth lives at `/home/clawbrowser/.config/clawbrowser/config.json`. Mount that
 directory, or the explicit `CLAWBROWSER_CONFIG_DIR`, to durable storage before
-running `clawctl config set api-key`; otherwise container recreation loses the
+running `clawctl config set --api-key "$CLAWBROWSER_API_KEY"`; otherwise container recreation loses the
 saved key.
 
 For a host-managed sidecar, keep CDP bound to localhost:

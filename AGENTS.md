@@ -18,7 +18,7 @@ browser process for agent work.
   `https://github.com/clawbrowser/clawbrowser/releases/latest`, automatically
   choose a durable install workdir, run `clawctl install --json` or
   `.\clawctl.exe install --json`, then persist the API key with the installed
-  `clawctl config set api-key --stdin` before running
+  `clawctl config set --api-key "$CLAWBROWSER_API_KEY"` before running
   `clawctl start --profile work --url clawbrowser://verify/ --json`,
   `clawctl proxy-traffic --json`,
   `clawctl endpoint --profile work --json`, and
@@ -80,7 +80,7 @@ clawctl endpoint --profile work --json
 Use the returned endpoint for CDP automation: navigation, clicking, typing,
 scraping, screenshots, DOM inspection, and JS evaluation.
 
-After `clawctl config set api-key` saves a key and the key validates,
+After `clawctl config set --api-key "$CLAWBROWSER_API_KEY"` saves a key and the key validates,
 managed `start` and MCP `start` automatically request browser
 fingerprint/proxy mode. Do not manually invent or persist fingerprint IDs for
 the normal agent path, and use `--skip-verify` only when intentionally
@@ -131,8 +131,8 @@ clawctl --cdp http://127.0.0.1:9222 verify --json
 - Browser-managed `config.json` is the source of truth for saved auth.
 - If missing, ask once for the real API key from `https://app.clawbrowser.ai`.
 - Do not use dummy keys.
-- Persist the key with `clawctl config set api-key`; do not export API keys as environment variables.
-- Do not store keys in MCP config, agent config, shell rc files, random env files, logs, or positional shell arguments.
+- Persist the key with `clawctl config set --api-key <key>`; do not export API keys as environment variables.
+- Do not store keys in MCP config, agent config, shell rc files, random env files, or logs.
 - Saved auth lives at `<config-dir>/config.json`. `clawctl` resolves
   `<config-dir>` from `CLAWBROWSER_CONFIG_DIR`, then
   `$XDG_CONFIG_HOME/clawbrowser` on Linux/macOS when set, then
