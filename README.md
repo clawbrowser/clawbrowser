@@ -139,6 +139,12 @@ The browser archive is not the bootstrapper and is not the portable runtime
 payload. Start with the standalone `clawctl` archive; let `clawctl install`
 fetch the browser and portable runtime when the host requires them unless you
 are building an offline image.
+
+Use `clawctl update` to replace the current `clawctl` binary when the latest
+GitHub release tag differs from the installed version. Use
+`clawctl force-update` when the latest release tag did not change but a
+`clawctl-*` release asset was rebuilt or replaced.
+
 The portable runtime is
 unpacked into the persistent runtime root, defaulting to the launcher cache
 root's `runtime` directory. Override it with

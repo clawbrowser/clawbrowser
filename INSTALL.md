@@ -261,6 +261,12 @@ The browser archive is not the bootstrapper and is not the portable runtime
 payload. Start with the standalone `clawctl` archive so `clawctl install` can
 ensure the browser and portable Xvfb runtime, or set
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted portable runtime.
+
+Use `clawctl update` to replace the current `clawctl` binary when the latest
+GitHub release tag differs from the installed version. Use
+`clawctl force-update` when the latest release tag did not change but a
+`clawctl-*` release asset was rebuilt or replaced.
+
 Downloaded portable runtimes are unpacked into the persistent runtime root,
 defaulting to the launcher cache root's `runtime` directory. Set
 `CLAWBROWSER_PORTABLE_RUNTIME_ROOT` to place it on a durable mounted path.
