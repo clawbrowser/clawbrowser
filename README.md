@@ -14,6 +14,9 @@ runtime download/install. The `clawctl` skill/plugin is not enough by itself;
 agents still need the standalone `clawctl` binary and the runtime installed by
 `clawctl install`. There is no separate `clawbrowser` skill to install; agent
 guidance is provided through `clawctl`.
+Standalone `clawctl` archives are published in
+`https://github.com/clawbrowser/clawctl/releases/latest`; browser and portable
+runtime payloads remain in this `clawbrowser/clawbrowser` release repository.
 
 Agent-specific plugin, MCP, and extension templates are owned by `clawctl` and
 materialized by `clawctl install`. This includes enabling Hermes plugins and
@@ -69,12 +72,13 @@ required for Linux server/container installs.
 ### Windows
 
 Use PowerShell on 64-bit Windows. Start with the standalone `clawctl` archive;
-do not start from the browser zip. This path requires the selected GitHub
-release to include `clawctl-win-amd64.zip` and `clawbrowser-win-amd64.zip`.
+do not start from the browser zip. The `clawctl` archive comes from
+`clawbrowser/clawctl`; `clawctl install` downloads the Windows browser payload
+from `clawbrowser/clawbrowser`.
 
 ```powershell
 $archive = "clawctl-win-amd64.zip"
-$url = "https://github.com/clawbrowser/clawbrowser/releases/latest/download/$archive"
+$url = "https://github.com/clawbrowser/clawctl/releases/latest/download/$archive"
 
 Invoke-WebRequest -Uri $url -OutFile $archive
 Expand-Archive -Force $archive .
@@ -111,7 +115,7 @@ browser UI after setup.
 
 ```bash
 archive="clawctl-macos-arm64.tar.gz"
-url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
+url="https://github.com/clawbrowser/clawctl/releases/latest/download/${archive}"
 
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
@@ -131,7 +135,7 @@ macOS uses `Clawbrowser.app` and a GUI WindowServer desktop context. Xvfb is Lin
 
 | Archive | Purpose |
 | --- | --- |
-| `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-macos-arm64.tar.gz`, `clawctl-win-amd64.zip` | Standalone bootstrapper archives. Start here. |
+| `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-macos-arm64.tar.gz`, `clawctl-win-amd64.zip` | Standalone bootstrapper archives published in `clawbrowser/clawctl`. Start here. |
 | `clawbrowser-linux-amd64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz`, `clawbrowser-win-amd64.zip` | Browser payload archives. `clawctl install` downloads one when no usable browser exists. Windows payloads may contain `setup.exe` or `Clawbrowser\clawbrowser.exe`; there is no release-owned public plugin-spec install surface. `clawctl install` and `clawctl start` own setup and launch. |
 | `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Portable Linux runtime payload with bundled Xvfb, libs, xkb data, and portable browser binary. Ensured by `clawctl install` when Linux needs portable mode. |
 
@@ -141,7 +145,7 @@ fetch the browser and portable runtime when the host requires them unless you
 are building an offline image.
 
 Use `clawctl update` to replace the current `clawctl` binary when the latest
-GitHub release tag differs from the installed version. Use
+`clawbrowser/clawctl` GitHub release tag differs from the installed version. Use
 `clawctl force-update` when the latest release tag did not change but a
 `clawctl-*` release asset was rebuilt or replaced.
 

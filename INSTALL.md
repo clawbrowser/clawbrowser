@@ -5,6 +5,9 @@ archive is not the bootstrapper. `clawctl install` owns browser and portable
 runtime download/install. Installing only the `clawctl` agent skill or plugin is
 not enough; the skill teaches commands, but the standalone `clawctl` binary and
 managed Clawbrowser runtime still need to be installed.
+Standalone `clawctl` archives are published in
+`https://github.com/clawbrowser/clawctl/releases/latest`; browser and portable
+runtime payloads remain in this `clawbrowser/clawbrowser` release repository.
 
 ## Agent Fast Path
 
@@ -111,7 +114,7 @@ case "$(uname -s):$(uname -m)" in
 esac
 
 archive="clawctl-${platform}.tar.gz"
-url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
+url="https://github.com/clawbrowser/clawctl/releases/latest/download/${archive}"
 
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
@@ -151,8 +154,8 @@ error or `Permission denied` while running `clawctl`, rerun the same script with
 
 Use Windows PowerShell on 64-bit Windows. The standalone `clawctl` archive is
 the bootstrapper; the browser zip is a payload that `clawctl install` downloads
-when no usable Windows install exists. This path requires the selected GitHub
-release to include `clawctl-win-amd64.zip` and `clawbrowser-win-amd64.zip`.
+when no usable Windows install exists. The `clawctl` archive comes from
+`clawbrowser/clawctl`; the browser payload comes from `clawbrowser/clawbrowser`.
 
 ```powershell
 $ErrorActionPreference = "Stop"
@@ -163,7 +166,7 @@ New-Item -ItemType Directory -Force $root, $bin | Out-Null
 Set-Location $root
 
 $archive = "clawctl-win-amd64.zip"
-$url = "https://github.com/clawbrowser/clawbrowser/releases/latest/download/$archive"
+$url = "https://github.com/clawbrowser/clawctl/releases/latest/download/$archive"
 
 Invoke-WebRequest -Uri $url -OutFile $archive
 Remove-Item -Recurse -Force ".\clawctl-win-amd64" -ErrorAction SilentlyContinue
@@ -231,7 +234,7 @@ Use the standalone macOS `clawctl` archive from a logged-in GUI desktop:
 
 ```bash
 archive="clawctl-macos-arm64.tar.gz"
-url="https://github.com/clawbrowser/clawbrowser/releases/latest/download/${archive}"
+url="https://github.com/clawbrowser/clawctl/releases/latest/download/${archive}"
 
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 tar -tzf "$archive" >/dev/null
@@ -251,7 +254,7 @@ macOS uses `Clawbrowser.app` and WindowServer. Xvfb is Linux-only.
 
 | Thing | Use it for | Notes |
 | --- | --- | --- |
-| `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-macos-arm64.tar.gz`, `clawctl-win-amd64.zip` | Bootstrap install | Standalone `clawctl` archives. Start here. |
+| `clawctl-linux-amd64.tar.gz`, `clawctl-linux-arm64.tar.gz`, `clawctl-macos-arm64.tar.gz`, `clawctl-win-amd64.zip` | Bootstrap install | Standalone `clawctl` archives published in `clawbrowser/clawctl`. Start here. |
 | `clawbrowser-linux-amd64.tar.gz`, `clawbrowser-linux-arm64.tar.gz`, `clawbrowser-macos-arm64.tar.gz`, `clawbrowser-win-amd64.zip` | Browser payload | `clawctl install` downloads one when no usable browser exists. Windows payloads may contain `setup.exe` or `Clawbrowser\clawbrowser.exe`. Agent integrations are materialized by `clawctl install`; do not install plugin specs from this repository manually. |
 | `clawbrowser-portable-linux-amd64-glibc.tar.gz`, `clawbrowser-portable-linux-arm64-glibc.tar.gz` | Linux portable runtime | Contains the bundled Xvfb, libraries, xkb data, and portable browser binary. `clawctl install` ensures it when Linux needs portable mode unless you prefetch it. |
 | Raw source checkout | Development only | Does not represent the installed agent runtime. Use `go run ./cmd/clawctl ...` only while developing the CLI. |
@@ -263,7 +266,7 @@ ensure the browser and portable Xvfb runtime, or set
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted portable runtime.
 
 Use `clawctl update` to replace the current `clawctl` binary when the latest
-GitHub release tag differs from the installed version. Use
+`clawbrowser/clawctl` GitHub release tag differs from the installed version. Use
 `clawctl force-update` when the latest release tag did not change but a
 `clawctl-*` release asset was rebuilt or replaced.
 
