@@ -266,9 +266,9 @@ ensure the browser and portable Xvfb runtime, or set
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` to a pre-extracted portable runtime.
 
 Use `clawctl update` to replace the current `clawctl` binary when the latest
-`clawbrowser/clawctl` GitHub release tag differs from the installed version. Use
-`clawctl force-update` when the latest release tag did not change but a
-`clawctl-*` release asset was rebuilt or replaced.
+`clawbrowser/clawctl` GitHub release tag differs from the installed version. It
+also checks `clawbrowser/clawbrowser` and updates the local Clawbrowser
+browser/runtime only when the matching release asset is not already installed.
 
 Downloaded portable runtimes are unpacked into the persistent runtime root,
 defaulting to the launcher cache root's `runtime` directory. Set

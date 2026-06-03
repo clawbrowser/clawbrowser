@@ -145,9 +145,9 @@ fetch the browser and portable runtime when the host requires them unless you
 are building an offline image.
 
 Use `clawctl update` to replace the current `clawctl` binary when the latest
-`clawbrowser/clawctl` GitHub release tag differs from the installed version. Use
-`clawctl force-update` when the latest release tag did not change but a
-`clawctl-*` release asset was rebuilt or replaced.
+`clawbrowser/clawctl` GitHub release tag differs from the installed version. It
+also checks `clawbrowser/clawbrowser` and updates the local Clawbrowser
+browser/runtime only when the matching release asset is not already installed.
 
 The portable runtime is
 unpacked into the persistent runtime root, defaulting to the launcher cache
