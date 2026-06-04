@@ -2,7 +2,7 @@
   <img src="https://clawbrowser.ai/side-bite.svg" alt="Clawbrowser" width="110" />
 </p>
 
-<h1 align="center">🐾 Clawbrowser</h1>
+<h1 align="center">🦞 Clawbrowser</h1>
 
 <p align="center">
   <strong>The managed browser runtime for AI agents.</strong><br/>
