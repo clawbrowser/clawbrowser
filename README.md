@@ -51,6 +51,7 @@ Clawbrowser is a Chromium build that manages the **identity layer** for you — 
 > ⭐ **If Clawbrowser saves your agents from getting blocked, give us a star** — it helps other builders find the project and shapes what we ship next.
 
 ```mermaid
+%%{init: {'theme':'dark', 'themeVariables': {'background':'#0d1117','primaryColor':'#161b22','primaryTextColor':'#e6edf3','primaryBorderColor':'#30363d','lineColor':'#7d8590','clusterBkg':'#161b22','clusterBorder':'#30363d'}}}%%
 flowchart LR
     Agent["🤖 AI agent / script<br/>Playwright · Puppeteer"]
     Browser["🐾 Clawbrowser<br/>(managed Chromium)"]
@@ -261,6 +262,7 @@ Ship browser-automation features without building the identity stack yourself; p
 ## ⚙️ How it works
 
 ```mermaid
+%%{init: {'theme':'dark', 'themeVariables': {'background':'#0d1117','primaryColor':'#161b22','primaryTextColor':'#e6edf3','primaryBorderColor':'#30363d','lineColor':'#7d8590'}}}%%
 flowchart LR
     Install["clawctl install"] --> Key["clawctl config set --api-key"]
     Key --> Start["clawctl start --profile work"]
