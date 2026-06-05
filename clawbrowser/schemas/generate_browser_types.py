@@ -19,6 +19,11 @@ SCHEMA_ORDER = [
     "MediaDevice",
     "Plugin",
     "Battery",
+    "ClientHintBrand",
+    "UserAgentData",
+    "SurfacePolicyRule",
+    "SurfacePolicy",
+    "GeneratorProvenance",
     "ProxyConfig",
     "Fingerprint",
     "GenerateResponse",
@@ -51,6 +56,8 @@ class FieldSpec:
             return "std::vector<std::string>"
         if self.kind == "vector_ref":
             return f"std::vector<{self.type_name}>"
+        if self.kind == "string_map":
+            return "std::map<std::string, std::string>"
         raise ValueError(f"unsupported field kind: {self.kind}")
 
     @property
@@ -103,6 +110,11 @@ def parse_field(type_name: str, field_name: str, field_schema: dict[str, Any], r
             return FieldSpec(field_name, "vector_ref", required, ref_name(items["$ref"]))
         if items.get("type") == "string":
             return FieldSpec(field_name, "vector_string", required)
+    if (
+        schema_type == "object"
+        and field_schema.get("additionalProperties", {}).get("type") == "string"
+    ):
+        return FieldSpec(field_name, "string_map", required)
     raise ValueError(f"unsupported field schema for {type_name}.{field_name}: {field_schema}")
 
 
@@ -130,7 +142,7 @@ def build_specs(artifact: dict[str, Any]) -> list[TypeSpec]:
     def is_field_complex(field: FieldSpec) -> bool:
         if not field.required:
             return True
-        if field.kind in {"string", "vector_string", "vector_ref"}:
+        if field.kind in {"string", "vector_string", "vector_ref", "string_map"}:
             return True
         if field.kind == "ref":
             return is_type_complex(specs_by_name[field.type_name])
@@ -195,6 +207,7 @@ def emit_header(specs: list[TypeSpec]) -> str:
         "#define CLAWBROWSER_GENERATED_FINGERPRINT_TYPES_H_",
         "",
         "#include <optional>",
+        "#include <map>",
         "#include <string>",
         "#include <vector>",
         "",
@@ -311,6 +324,19 @@ def emit_required_parse(field: FieldSpec) -> list[str]:
                 "  }",
             ]
         )
+    elif field.kind == "string_map":
+        lines.extend(
+            [
+                f'  auto {field.name}_dict = RequireDict(dict, "{field.name}");',
+                f"  if (!{field.name}_dict.has_value()) return base::unexpected({field.name}_dict.error());",
+                f"  for (auto [key, item] : **{field.name}_dict) {{",
+                "    if (!item.is_string()) {",
+                f'      return base::unexpected("{field.name} object contains non-string value");',
+                "    }",
+                f"    value.{field.name}[key] = item.GetString();",
+                "  }",
+            ]
+        )
     else:
         raise ValueError(field.kind)
     return lines
@@ -364,6 +390,19 @@ def emit_optional_parse(field: FieldSpec) -> list[str]:
                 "  }",
             ]
         )
+    elif field.kind == "string_map":
+        lines.extend(
+            [
+                f'  if (const base::DictValue* parsed_dict = dict.FindDict("{field.name}")) {{',
+                "    for (auto [key, item] : *parsed_dict) {",
+                "      if (!item.is_string()) {",
+                f'        return base::unexpected("{field.name} object contains non-string value");',
+                "      }",
+                f"      value.{field.name}[key] = item.GetString();",
+                "    }",
+                "  }",
+            ]
+        )
     else:
         raise ValueError(field.kind)
     return lines
@@ -408,6 +447,18 @@ def emit_to_dict(field: FieldSpec) -> list[str]:
                     f"    if (!{field.name}.empty()) dict.Set(\"{field.name}\", std::move(list));",
                 ]
             )
+        lines.append("  }")
+        return lines
+    if field.kind == "string_map":
+        lines = [
+            "  {",
+            "    base::DictValue object;",
+            f"    for (const auto& [key, item] : {field.name}) object.Set(key, item);",
+        ]
+        if field.required:
+            lines.append(f'    dict.Set("{field.name}", std::move(object));')
+        else:
+            lines.append(f'    if (!{field.name}.empty()) dict.Set("{field.name}", std::move(object));')
         lines.append("  }")
         return lines
     raise ValueError(field.kind)

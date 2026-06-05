@@ -18,18 +18,12 @@ render_png() {
   local size="$1"
   local out_path="$2"
 
-  if command -v rsvg-convert >/dev/null 2>&1; then
-    rsvg-convert -w "${size}" -h "${size}" "${SOURCE_SVG}" -o "${out_path}"
-    return 0
+  if ! command -v rsvg-convert >/dev/null 2>&1; then
+    printf 'need rsvg-convert to render deterministic Side Bite assets: %s\n' "${out_path}" >&2
+    return 1
   fi
 
-  if command -v sips >/dev/null 2>&1; then
-    sips -s format png -z "${size}" "${size}" "${SOURCE_SVG}" --out "${out_path}" >/dev/null
-    return 0
-  fi
-
-  printf 'need rsvg-convert or sips to render %s\n' "${out_path}" >&2
-  return 1
+  rsvg-convert -w "${size}" -h "${size}" "${SOURCE_SVG}" -o "${out_path}"
 }
 
 render_png 16 "${SCRIPT_DIR}/product_logo_16.png"

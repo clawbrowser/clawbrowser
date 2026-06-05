@@ -50,6 +50,11 @@ python3 "${GENERATOR}" \
   --header "${HEADER_PATH}" \
   --source "${SOURCE_PATH}"
 
+if grep -nE 'for \(const auto& \[key, item\] : \*' "${SOURCE_PATH}" >&2; then
+  echo "ERROR: generated DictValue string-map loops must not bind iterator pairs by reference" >&2
+  exit 1
+fi
+
 if python3 -c "import yaml" >/dev/null 2>&1; then
   python3 "${EXTRACTOR}" --openapi "${OPENAPI}" --output "${TMP_DIR}/browser_schema.json" >/dev/null
   if ! cmp -s "${SCHEMA_ARTIFACT}" "${TMP_DIR}/browser_schema.json"; then

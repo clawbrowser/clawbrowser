@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SIDE_BITE_SVG="${REPO_ROOT}/clawbrowser/resources/side_bite.svg"
 ICON_DIR="${REPO_ROOT}/branding/icons/app/side-bite"
+ICON_GENERATOR="${ICON_DIR}/generate_assets.sh"
 ARTIFACT_TAR="${REPO_ROOT}/site-bite-artifacts.tar.gz"
 AUTH_HTML="${REPO_ROOT}/clawbrowser/auth/resources/auth.html"
 VERIFY_HTML="${REPO_ROOT}/clawbrowser/verify/resources/verify.html"
@@ -53,6 +54,8 @@ assert_not_contains "${SIDE_BITE_SVG}" '<mask id="clawbrowser-side-bite"'
 assert_not_contains "${SIDE_BITE_SVG}" 'mask="url(#clawbrowser-side-bite)"'
 assert_not_contains "${SIDE_BITE_SVG}" '#6B3C72'
 assert_not_contains "${SIDE_BITE_SVG}" '#18001E'
+assert_contains "${ICON_GENERATOR}" 'rsvg-convert -w "${size}" -h "${size}"'
+assert_not_contains "${ICON_GENERATOR}" 'sips -s format png'
 
 for asset in app.icns \
              product_logo_16.png product_logo_22.png product_logo_24.png \

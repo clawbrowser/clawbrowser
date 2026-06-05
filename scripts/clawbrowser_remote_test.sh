@@ -456,6 +456,56 @@ EOF
   rm -rf "${tmp_dir}"
 }
 
+test_reset_patch_targets_restores_nested_v8_paths() {
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  local chromium_dir="${tmp_dir}/chromium"
+  local src_dir="${chromium_dir}/src"
+  local v8_dir="${src_dir}/v8"
+  local project_dir="${tmp_dir}/project"
+  mkdir -p "${src_dir}" "${v8_dir}/src/inspector" \
+           "${project_dir}/clawbrowser/patches"
+
+  git -C "${src_dir}" init -q
+  git -C "${src_dir}" config user.email test@example.com
+  git -C "${src_dir}" config user.name Test
+  : >"${src_dir}/README.md"
+  git -C "${src_dir}" add README.md
+  git -C "${src_dir}" commit -q -m init
+
+  git -C "${v8_dir}" init -q
+  git -C "${v8_dir}" config user.email test@example.com
+  git -C "${v8_dir}" config user.name Test
+  printf 'clean\n' >"${v8_dir}/src/inspector/value-mirror.cc"
+  git -C "${v8_dir}" add src/inspector/value-mirror.cc
+  git -C "${v8_dir}" commit -q -m init
+
+  cat >"${project_dir}/clawbrowser/patches/033-v8.patch" <<'EOF'
+diff --git a/v8/src/inspector/value-mirror.cc b/v8/src/inspector/value-mirror.cc
+--- a/v8/src/inspector/value-mirror.cc
++++ b/v8/src/inspector/value-mirror.cc
+@@ -1 +1 @@
+-clean
++patched
+EOF
+  printf 'dirty\n' >"${v8_dir}/src/inspector/value-mirror.cc"
+
+  (
+    CHROMIUM_DIR="${chromium_dir}"
+    CHROMIUM_REVISION="$(git -C "${src_dir}" rev-parse HEAD)"
+    CHROMIUM_VERSION_LABEL="test"
+    PROJECT_DIR="${project_dir}"
+    load_remote_functions
+    reset_patch_targets_to_pin
+  )
+
+  local restored
+  restored="$(cat "${v8_dir}/src/inspector/value-mirror.cc")"
+  assert_equals "${restored}" "clean"
+
+  rm -rf "${tmp_dir}"
+}
+
 test_prefers_existing_clawbrowser_bundle
 test_errors_when_only_chromium_bundle_exists
 test_supports_clawbrowser_linux_binary
@@ -465,5 +515,6 @@ test_stages_dev_macos_notification_helper_branding
 test_stages_dev_macos_bundle_resigns_after_rewrite
 test_stages_dev_linux_clawbrowser_bundle
 test_linux_patch_prereqs_installs_appimagetool
+test_reset_patch_targets_restores_nested_v8_paths
 
 printf 'PASS\n'

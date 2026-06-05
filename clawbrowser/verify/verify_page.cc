@@ -308,7 +308,8 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
       GetClawbrowserConfigDir(), proxy->country);
 
   if (!proxy->host.has_value() || !proxy->port.has_value() ||
-      !proxy->country.has_value()) {
+      !proxy->country.has_value() || !proxy->username.has_value() ||
+      !proxy->password.has_value()) {
     base::DictValue result;
     result.Set("match", true);
     result.Set("actual_country", proxy->country.value_or("N/A"));
@@ -322,11 +323,10 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
   }
 
   VerifyProxyRequest request;
-  request.proxy.scheme = proxy->scheme;
   request.proxy.host = *proxy->host;
   request.proxy.port = *proxy->port;
-  request.proxy.username = proxy->username;
-  request.proxy.password = proxy->password;
+  request.proxy.username = *proxy->username;
+  request.proxy.password = *proxy->password;
   request.expected_country = expected.country.value_or(*proxy->country);
   if (expected.city.has_value())
     request.expected_city = *expected.city;

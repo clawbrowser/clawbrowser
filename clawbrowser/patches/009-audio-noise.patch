@@ -22,7 +22,7 @@
        return;
      }
      channel_data_array->AsSpan().copy_from(bus->Channel(i)->Span());
-+    if (fp) {
++    if (fp && fp->surface_policy.audio == "override") {
 +      clawbrowser::Prng prng(static_cast<uint64_t>(fp->audio_seed) + i);
 +      for (float& sample : channel_data_array->AsSpan())
 +        sample += prng.AudioNoise();
@@ -46,7 +46,7 @@
    GetAnalyserHandler().GetFloatFrequencyData(array.Get(),
                                               context()->currentTime());
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+      fp && array.Get()) {
++      fp && fp->surface_policy.audio == "override" && array.Get()) {
 +    clawbrowser::Prng prng(fp->audio_seed);
 +    for (float& sample : array->AsSpan())
 +      sample += prng.AudioNoise();

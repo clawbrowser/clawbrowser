@@ -37,7 +37,6 @@ GenerateResponse MakeResponseWithProxy(const std::string& username,
                                       const std::string& password) {
   GenerateResponse response = MakeMinimalResponse();
   response.proxy.emplace();
-  response.proxy->scheme = "http";
   response.proxy->host = "proxy.example.com";
   response.proxy->port = 3128;
   response.proxy->country = "US";

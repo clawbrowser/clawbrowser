@@ -1,19 +1,8 @@
 """Integration tests: verify fingerprint surfaces via CDP."""
 
 import json
-import re
 
 import pytest
-
-
-def _expected_ua_full_version(user_agent: str) -> str:
-    match = re.search(r"Clawbrowser/([0-9.]+)", user_agent)
-    assert match, f"Could not parse Clawbrowser version from {user_agent!r}"
-    return match.group(1)
-
-
-def _expected_ua_major_version(user_agent: str) -> str:
-    return _expected_ua_full_version(user_agent).split(".")[0]
 
 
 async def _echo_request_headers(page):
@@ -77,7 +66,7 @@ async def test_network_user_agent_header(browser_with_fingerprint):
 async def test_navigator_user_agent_data(browser_with_fingerprint):
     page, data = browser_with_fingerprint
     fp = data["response"]["fingerprint"]
-    expected_full_version = _expected_ua_full_version(fp["user_agent"])
+    expected = fp["user_agent_data"]
 
     actual = await page.evaluate("""async () => {
         if (!navigator.userAgentData) {
@@ -95,24 +84,21 @@ async def test_navigator_user_agent_data(browser_with_fingerprint):
     }""")
 
     assert actual is not None
-    assert actual["mobile"] is False
-    assert actual["platform"] == "macOS"
-    assert any(
-        brand["version"] == expected_full_version
-        for brand in actual["fullVersionList"]
-    ), actual
+    assert actual["mobile"] == expected["mobile"]
+    assert actual["platform"] == expected["platform"]
+    assert actual["brands"] == expected["brands"]
+    assert actual["fullVersionList"] == expected["fullVersionList"]
 
 
 @pytest.mark.asyncio
 async def test_sec_ch_ua_headers(browser_with_fingerprint):
     page, data = browser_with_fingerprint
     fp = data["response"]["fingerprint"]
-    expected_major_version = _expected_ua_major_version(fp["user_agent"])
 
     headers = await _echo_request_headers(page)
-    assert headers["sec-ch-ua-mobile"] == "?0"
-    assert headers["sec-ch-ua-platform"] == '"macOS"'
-    assert expected_major_version in headers["sec-ch-ua"]
+    assert headers["sec-ch-ua-mobile"] == fp["headers"]["Sec-CH-UA-Mobile"]
+    assert headers["sec-ch-ua-platform"] == fp["headers"]["Sec-CH-UA-Platform"]
+    assert headers["sec-ch-ua"] == fp["headers"]["Sec-CH-UA"]
 
 
 @pytest.mark.asyncio
@@ -194,6 +180,25 @@ async def test_webgl_vendor_renderer(browser_with_fingerprint):
 
 
 @pytest.mark.asyncio
+async def test_native_canvas_policy_does_not_apply_seed_noise(browser_with_fingerprint):
+    page, data = browser_with_fingerprint
+    fp = data["response"]["fingerprint"]
+    if fp["surface_policy"]["canvas"]["mode"] != "native":
+        pytest.skip("fixture does not use native canvas policy")
+
+    pixel = await page.evaluate("""() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'rgb(255, 0, 0)';
+        ctx.fillRect(0, 0, 1, 1);
+        return Array.from(ctx.getImageData(0, 0, 1, 1).data);
+    }""")
+    assert pixel == [255, 0, 0, 255]
+
+
+@pytest.mark.asyncio
 async def test_canvas_determinism(browser_with_fingerprint):
     page, _ = browser_with_fingerprint
     script = """async () => {
@@ -240,6 +245,21 @@ async def test_audio_determinism(browser_with_fingerprint):
 
 
 @pytest.mark.asyncio
+async def test_native_audio_policy_does_not_apply_seed_noise(browser_with_fingerprint):
+    page, data = browser_with_fingerprint
+    fp = data["response"]["fingerprint"]
+    if fp["surface_policy"]["audio"]["mode"] != "native":
+        pytest.skip("fixture does not use native audio policy")
+
+    samples = await page.evaluate("""async () => {
+        const ctx = new OfflineAudioContext(1, 16, 44100);
+        const rendered = await ctx.startRendering();
+        return Array.from(rendered.getChannelData(0).slice(0, 8));
+    }""")
+    assert samples == [0, 0, 0, 0, 0, 0, 0, 0]
+
+
+@pytest.mark.asyncio
 async def test_client_rects_stability(browser_with_fingerprint):
     page, _ = browser_with_fingerprint
     script = """() => {
@@ -253,6 +273,44 @@ async def test_client_rects_stability(browser_with_fingerprint):
                r1.width === r2.width && r1.height === r2.height;
     }"""
     assert await page.evaluate(script) is True
+
+
+@pytest.mark.asyncio
+async def test_native_client_rects_policy_does_not_apply_seed_noise(
+    browser_with_fingerprint,
+):
+    page, data = browser_with_fingerprint
+    fp = data["response"]["fingerprint"]
+    if fp["surface_policy"]["client_rects"]["mode"] != "native":
+        pytest.skip("fixture does not use native client rects policy")
+
+    rect = await page.evaluate("""() => {
+        const el = document.createElement('div');
+        el.style.cssText = 'position:absolute;top:10px;left:10px;width:100px;height:50px;';
+        document.body.appendChild(el);
+        const r = el.getBoundingClientRect();
+        document.body.removeChild(el);
+        return {x: r.x, y: r.y, width: r.width, height: r.height};
+    }""")
+    assert rect == {"x": 10, "y": 10, "width": 100, "height": 50}
+
+
+@pytest.mark.asyncio
+async def test_media_codecs_follow_backend_config(browser_with_fingerprint):
+    page, data = browser_with_fingerprint
+    fp = data["response"]["fingerprint"]
+
+    result = await page.evaluate("""() => {
+        const audio = document.createElement('audio');
+        const video = document.createElement('video');
+        return {
+            mp3: audio.canPlayType('audio/mpeg'),
+            h264: video.canPlayType('video/mp4; codecs="avc1.42E01E"')
+        };
+    }""")
+
+    assert result["mp3"] == fp["audio_codecs"]["mp3"]
+    assert result["h264"] == fp["video_codecs"]["h264"]
 
 
 @pytest.mark.asyncio

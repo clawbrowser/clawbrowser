@@ -40,7 +40,6 @@ GenerateResponse MakeResponseWithProxy(const std::string& username,
   response.fingerprint.language = {"en-US"};
   response.fingerprint.fonts = {"Arial"};
   response.proxy.emplace();
-  response.proxy->scheme = "http";
   response.proxy->host = "proxy.example.com";
   response.proxy->port = 3128;
   response.proxy->country = "US";
@@ -58,7 +57,7 @@ TEST(ProfileEnvelopeTest, ParseValidEnvelope) {
   auto result = ProfileEnvelope::Parse(json);
   ASSERT_TRUE(result.has_value()) << result.error();
 
-  EXPECT_EQ(result->schema_version, 1);
+  EXPECT_EQ(result->schema_version, 2);
   EXPECT_EQ(result->created_at, "2026-03-23T10:00:00Z");
   EXPECT_EQ(result->request.platform, "macos");
   EXPECT_EQ(result->request.browser, "chrome");
@@ -66,7 +65,7 @@ TEST(ProfileEnvelopeTest, ParseValidEnvelope) {
   EXPECT_EQ(result->response.fingerprint.user_agent,
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Clawbrowser/120.0.0.0 Safari/537.36");
+            "Chrome/120.0.0.0 Safari/537.36");
   EXPECT_EQ(result->response.fingerprint.timezone, "America/New_York");
   EXPECT_EQ(result->response.fingerprint.screen.width, 1920);
   EXPECT_EQ(result->response.proxy->host, "proxy.example.com");
@@ -80,7 +79,7 @@ TEST(ProfileEnvelopeTest, ParseMinimalEnvelope) {
   auto result = ProfileEnvelope::Parse(json);
   ASSERT_TRUE(result.has_value()) << result.error();
 
-  EXPECT_EQ(result->schema_version, 1);
+  EXPECT_EQ(result->schema_version, 2);
   // No proxy in minimal
   EXPECT_FALSE(result->response.proxy.has_value());
   // No optional fields

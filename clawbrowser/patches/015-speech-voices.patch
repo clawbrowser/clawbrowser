@@ -43,12 +43,13 @@
  const char SpeechSynthesis::kSupplementName[] = "SpeechSynthesis";
  
  SpeechSynthesisBase* SpeechSynthesis::Create(LocalDOMWindow& window) {
-@@ -87,6 +115,13 @@
+@@ -87,6 +115,14 @@
  
  void SpeechSynthesis::OnSetVoiceList(
      Vector<mojom::blink::SpeechSynthesisVoicePtr> mojom_voices) {
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+      fp && !fp->speech_voices.empty()) {
++      fp && fp->surface_policy.speech_voices == "override" &&
++      !fp->speech_voices.empty()) {
 +    voice_list_ = BuildSpoofedVoiceList(*fp);
 +    VoicesDidChange();
 +    return;
@@ -57,12 +58,13 @@
    voice_list_.clear();
    for (auto& mojom_voice : mojom_voices) {
      voice_list_.push_back(
-@@ -96,6 +131,14 @@
+@@ -96,6 +131,15 @@
  }
  
  const HeapVector<Member<SpeechSynthesisVoice>>& SpeechSynthesis::getVoices() {
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+      fp && !fp->speech_voices.empty()) {
++      fp && fp->surface_policy.speech_voices == "override" &&
++      !fp->speech_voices.empty()) {
 +    if (voice_list_.empty()) {
 +      voice_list_ = BuildSpoofedVoiceList(*fp);
 +    }

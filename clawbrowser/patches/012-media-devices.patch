@@ -49,12 +49,13 @@
  void LogDevicesEnumerated(
      ScriptPromiseResolverWithTracker<EnumerateDevicesResult,
                                       IDLSequence<MediaDeviceInfo>>*
-@@ -525,6 +552,14 @@
+@@ -525,6 +552,15 @@
        kEnumerateDevicesTimeout);
    const auto promise = result_tracker->Promise();
  
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+      fp && !fp->media_devices.empty()) {
++      fp && fp->surface_policy.media_devices == "override" &&
++      !fp->media_devices.empty()) {
 +    ReportCompletedEnumerateDevices(true);
 +    result_tracker->Resolve(BuildSpoofedMediaDevices(*fp));
 +    tracer->End();

@@ -1,0 +1,88 @@
+# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+diff --git a/v8/src/inspector/value-mirror.cc b/v8/src/inspector/value-mirror.cc
+index 85d7fdba86f..b0d3bb0a1d1 100644
+--- a/v8/src/inspector/value-mirror.cc
++++ b/v8/src/inspector/value-mirror.cc
+@@ -1470,43 +1470,6 @@ std::unique_ptr<ValueMirror> createNativeSetter(v8::Local<v8::Context> context,
+   return ValueMirror::create(context, function);
+ }
+ 
+-bool doesAttributeHaveObservableSideEffectOnGet(v8::Local<v8::Context> context,
+-                                                v8::Local<v8::Object> object,
+-                                                v8::Local<v8::Name> name) {
+-  // TODO(dgozman): we should remove this, annotate more embedder properties as
+-  // side-effect free, and call all getters which do not produce side effects.
+-  if (!name->IsString()) return false;
+-  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+-  if (!name.As<v8::String>()->StringEquals(toV8String(isolate, "body"))) {
+-    return false;
+-  }
+-
+-  v8::TryCatch tryCatch(isolate);
+-  v8::Local<v8::Value> request;
+-  if (context->Global()
+-          ->GetRealNamedProperty(context, toV8String(isolate, "Request"))
+-          .ToLocal(&request)) {
+-    if (request->IsObject() &&
+-        object->InstanceOf(context, request.As<v8::Object>())
+-            .FromMaybe(false)) {
+-      return true;
+-    }
+-  }
+-  if (tryCatch.HasCaught()) tryCatch.Reset();
+-
+-  v8::Local<v8::Value> response;
+-  if (context->Global()
+-          ->GetRealNamedProperty(context, toV8String(isolate, "Response"))
+-          .ToLocal(&response)) {
+-    if (response->IsObject() &&
+-        object->InstanceOf(context, response.As<v8::Object>())
+-            .FromMaybe(false)) {
+-      return true;
+-    }
+-  }
+-  return false;
+-}
+-
+ }  // anonymous namespace
+ 
+ ValueMirror::~ValueMirror() = default;
+@@ -1610,10 +1573,8 @@ bool ValueMirror::getProperties(v8::Local<v8::Context> context,
+             valueMirror = ValueMirror::create(context, descriptor.value);
+           }
+-          v8::Local<v8::Function> getterFunction;
+           if (!descriptor.get.IsEmpty()) {
+             v8::Local<v8::Value> get = descriptor.get;
+             getterMirror = ValueMirror::create(context, get);
+-            if (get->IsFunction()) getterFunction = get.As<v8::Function>();
+           }
+           if (!descriptor.set.IsEmpty()) {
+             setterMirror = ValueMirror::create(context, descriptor.set);
+@@ -1621,22 +1582,9 @@ bool ValueMirror::getProperties(v8::Local<v8::Context> context,
+           isAccessorProperty = getterMirror || setterMirror;
+-          if (name != "__proto__" && !getterFunction.IsEmpty() &&
+-              deepBoundFunction(getterFunction)->ScriptId() ==
+-                  v8::UnboundScript::kNoScriptId &&
+-              !doesAttributeHaveObservableSideEffectOnGet(context, object,
+-                                                          v8Name)) {
+-            v8::TryCatch tryCatchFunction(isolate);
+-            v8::Local<v8::Value> value;
+-            if (object->Get(context, v8Name).ToLocal(&value)) {
+-              if (value->IsPromise() &&
+-                  value.As<v8::Promise>()->State() == v8::Promise::kRejected) {
+-                value.As<v8::Promise>()->MarkAsHandled();
+-              } else {
+-                valueMirror = ValueMirror::create(context, value);
+-                setterMirror = nullptr;
+-                getterMirror = nullptr;
+-              }
+-            }
+-          }
++          // Clawbrowser does not invoke page getters while building CDP previews.
++          // Preview-time getter execution is observable from page JavaScript and
++          // is used by CDP detection probes. Keep accessors as accessors; the
++          // page should only run a getter when the operator explicitly requests
++          // that property value.
+         }
+       }
+     }

@@ -515,7 +515,7 @@ function Apply-ChromiumPatch($PatchPath) {
     throw "Chromium patch not found: $PatchPath"
   }
 
-  $ApplyArgs = @("--recount", "--ignore-space-change", "--ignore-whitespace")
+  $ApplyArgs = @("--ignore-space-change", "--ignore-whitespace")
   $PreviousErrorActionPreference = $ErrorActionPreference
   try {
     $ErrorActionPreference = "Continue"
@@ -761,7 +761,7 @@ function Write-IcoFromPngSet($IconDir, $OutputPath) {
     if (!(Test-Path $Path)) {
       throw "Missing icon PNG: $Path"
     }
-    $Bytes = [System.IO.File]::ReadAllBytes($Path)
+    [byte[]]$Bytes = Get-WindowsIconPngBytes $Path $Size
     if ($Bytes.Length -lt 8 -or $Bytes[0] -ne 0x89 -or $Bytes[1] -ne 0x50) {
       throw "Not a PNG: $Path"
     }
@@ -797,6 +797,74 @@ function Write-IcoFromPngSet($IconDir, $OutputPath) {
   [System.IO.File]::WriteAllBytes($OutputPath, $Stream.ToArray())
   $Writer.Dispose()
   $Stream.Dispose()
+}
+
+function Get-WindowsIconPngBytes($Path, $Size) {
+  Add-Type -AssemblyName System.Drawing
+
+  $Source = [System.Drawing.Bitmap]::FromFile($Path)
+  try {
+    $MinX = $Source.Width
+    $MinY = $Source.Height
+    $MaxX = -1
+    $MaxY = -1
+
+    for ($Y = 0; $Y -lt $Source.Height; $Y++) {
+      for ($X = 0; $X -lt $Source.Width; $X++) {
+        if ($Source.GetPixel($X, $Y).A -gt 0) {
+          if ($X -lt $MinX) { $MinX = $X }
+          if ($Y -lt $MinY) { $MinY = $Y }
+          if ($X -gt $MaxX) { $MaxX = $X }
+          if ($Y -gt $MaxY) { $MaxY = $Y }
+        }
+      }
+    }
+
+    if ($MaxX -lt $MinX -or $MaxY -lt $MinY) {
+      return ,[System.IO.File]::ReadAllBytes($Path)
+    }
+
+    $BoundsWidth = $MaxX - $MinX + 1
+    $BoundsHeight = $MaxY - $MinY + 1
+    $Inset = if ($Size -le 32) { 0 } elseif ($Size -le 64) { 1 } else { 2 }
+    $TargetSize = $Size - (2 * $Inset)
+    $Scale = [Math]::Min($TargetSize / $BoundsWidth, $TargetSize / $BoundsHeight)
+    $DrawWidth = [Math]::Max(1, [int][Math]::Round($BoundsWidth * $Scale))
+    $DrawHeight = [Math]::Max(1, [int][Math]::Round($BoundsHeight * $Scale))
+    $DrawX = [int][Math]::Floor(($Size - $DrawWidth) / 2)
+    $DrawY = [int][Math]::Floor(($Size - $DrawHeight) / 2)
+
+    $Canvas = New-Object System.Drawing.Bitmap($Size, $Size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    try {
+      $Graphics = [System.Drawing.Graphics]::FromImage($Canvas)
+      try {
+        $Graphics.Clear([System.Drawing.Color]::Transparent)
+        $Graphics.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
+        $Graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+        $Graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $Graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::Half
+        $Graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+
+        $SourceRect = New-Object System.Drawing.Rectangle($MinX, $MinY, $BoundsWidth, $BoundsHeight)
+        $DestRect = New-Object System.Drawing.Rectangle($DrawX, $DrawY, $DrawWidth, $DrawHeight)
+        $Graphics.DrawImage($Source, $DestRect, $SourceRect, [System.Drawing.GraphicsUnit]::Pixel)
+      } finally {
+        $Graphics.Dispose()
+      }
+
+      $PngStream = New-Object System.IO.MemoryStream
+      try {
+        $Canvas.Save($PngStream, [System.Drawing.Imaging.ImageFormat]::Png)
+        return ,$PngStream.ToArray()
+      } finally {
+        $PngStream.Dispose()
+      }
+    } finally {
+      $Canvas.Dispose()
+    }
+  } finally {
+    $Source.Dispose()
+  }
 }
 
 function Sync-ClawbrowserBranding {
@@ -1123,8 +1191,9 @@ Sync-ClawbrowserBranding
 Ensure-ClawbrowserResourceIds
 Disable-GoogleApiKeysInfobar
 Enable-ClawbrowserWindowsExecutableName
-Apply-ChromiumPatch (Join-Path $ProjectRoot "clawbrowser\patches\030-windows-clawbrowser-install-branding.patch")
-Apply-ChromiumPatch (Join-Path $ProjectRoot "clawbrowser\patches\029-windows-interactive-installer-wizard.patch")
+Get-ChildItem -Path (Join-Path $ProjectRoot "clawbrowser\patches") -Filter "*.patch" |
+  Sort-Object Name |
+  ForEach-Object { Apply-ChromiumPatch $_.FullName }
 Initialize-CompilerCacheServer -Restart
 
 $BuildSpecs = Get-BuildSpecs

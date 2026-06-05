@@ -13,7 +13,7 @@
  #include "third_party/blink/public/common/font_access/font_enumeration_table.pb.h"
 +#include "clawbrowser/fingerprint_accessor.h"
  #include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
-@@ -30,8 +32,27 @@
+@@ -30,8 +32,34 @@
  namespace {
  
  const char kFeaturePolicyBlocked[] =
@@ -38,6 +38,13 @@
 +  return false;
 +}
 +
++bool ShouldApplyFingerprintFontPolicy(
++    const clawbrowser::RuntimeFingerprint& fp) {
++  return !fp.fonts.empty() &&
++         (fp.surface_policy.fonts == "native_or_allowlist" ||
++          fp.surface_policy.fonts == "override");
++}
++
 +}  // namespace
  
  // static
@@ -47,9 +54,9 @@
                         base::checked_cast<int>(mapped_mem.size()));
    for (const auto& element : table.fonts()) {
 +    if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+        fp && !IsFingerprintFontAllowed(*fp, element.postscript_name(),
-+                                        element.full_name(),
-+                                        element.family())) {
++        fp && ShouldApplyFingerprintFontPolicy(*fp) &&
++        !IsFingerprintFontAllowed(*fp, element.postscript_name(),
++                                  element.full_name(), element.family())) {
 +      continue;
 +    }
 +

@@ -10,6 +10,7 @@
 #define CLAWBROWSER_GENERATED_FINGERPRINT_TYPES_H_
 
 #include <optional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,11 @@ struct GenerateRequest {
   std::string country;
   std::optional<std::string> city;
   std::optional<std::string> connection_type;
+  std::optional<std::string> runtime_browser_version;
+  std::optional<std::string> runtime_os;
+  std::optional<std::string> runtime_arch;
+  std::optional<std::string> runtime_gpu;
+  std::optional<bool> runtime_headless;
 
   static base::expected<GenerateRequest, std::string> FromDict(
       const base::DictValue& dict);
@@ -146,6 +152,114 @@ struct Battery {
   std::string ToJson() const;
 };
 
+struct ClientHintBrand {
+  ClientHintBrand();
+  ClientHintBrand(const ClientHintBrand&);
+  ClientHintBrand& operator=(const ClientHintBrand&);
+  ClientHintBrand(ClientHintBrand&&);
+  ClientHintBrand& operator=(ClientHintBrand&&);
+  ~ClientHintBrand();
+
+  std::string brand;
+  std::string version;
+
+  static base::expected<ClientHintBrand, std::string> FromDict(
+      const base::DictValue& dict);
+  static base::expected<ClientHintBrand, std::string> FromJson(
+      const std::string& json);
+  base::DictValue ToDict() const;
+  std::string ToJson() const;
+};
+
+struct UserAgentData {
+  UserAgentData();
+  UserAgentData(const UserAgentData&);
+  UserAgentData& operator=(const UserAgentData&);
+  UserAgentData(UserAgentData&&);
+  UserAgentData& operator=(UserAgentData&&);
+  ~UserAgentData();
+
+  std::vector<ClientHintBrand> brands;
+  std::vector<ClientHintBrand> fullVersionList;
+  std::string platform;
+  std::string platformVersion;
+  std::string architecture;
+  std::string bitness;
+  bool mobile = false;
+  std::string model;
+  std::optional<std::string> uaFullVersion;
+
+  static base::expected<UserAgentData, std::string> FromDict(
+      const base::DictValue& dict);
+  static base::expected<UserAgentData, std::string> FromJson(
+      const std::string& json);
+  base::DictValue ToDict() const;
+  std::string ToJson() const;
+};
+
+struct SurfacePolicyRule {
+  SurfacePolicyRule();
+  SurfacePolicyRule(const SurfacePolicyRule&);
+  SurfacePolicyRule& operator=(const SurfacePolicyRule&);
+  SurfacePolicyRule(SurfacePolicyRule&&);
+  SurfacePolicyRule& operator=(SurfacePolicyRule&&);
+  ~SurfacePolicyRule();
+
+  std::string mode;
+
+  static base::expected<SurfacePolicyRule, std::string> FromDict(
+      const base::DictValue& dict);
+  static base::expected<SurfacePolicyRule, std::string> FromJson(
+      const std::string& json);
+  base::DictValue ToDict() const;
+  std::string ToJson() const;
+};
+
+struct SurfacePolicy {
+  SurfacePolicy();
+  SurfacePolicy(const SurfacePolicy&);
+  SurfacePolicy& operator=(const SurfacePolicy&);
+  SurfacePolicy(SurfacePolicy&&);
+  SurfacePolicy& operator=(SurfacePolicy&&);
+  ~SurfacePolicy();
+
+  SurfacePolicyRule canvas;
+  SurfacePolicyRule audio;
+  SurfacePolicyRule client_rects;
+  SurfacePolicyRule webgl;
+  SurfacePolicyRule fonts;
+  SurfacePolicyRule plugins;
+  SurfacePolicyRule media_devices;
+  SurfacePolicyRule speech_voices;
+
+  static base::expected<SurfacePolicy, std::string> FromDict(
+      const base::DictValue& dict);
+  static base::expected<SurfacePolicy, std::string> FromJson(
+      const std::string& json);
+  base::DictValue ToDict() const;
+  std::string ToJson() const;
+};
+
+struct GeneratorProvenance {
+  GeneratorProvenance();
+  GeneratorProvenance(const GeneratorProvenance&);
+  GeneratorProvenance& operator=(const GeneratorProvenance&);
+  GeneratorProvenance(GeneratorProvenance&&);
+  GeneratorProvenance& operator=(GeneratorProvenance&&);
+  ~GeneratorProvenance();
+
+  std::string provider;
+  std::string version;
+  int schema_version = 0;
+
+  static base::expected<GeneratorProvenance, std::string> FromDict(
+      const base::DictValue& dict);
+  static base::expected<GeneratorProvenance, std::string> FromJson(
+      const std::string& json);
+  base::DictValue ToDict() const;
+  std::string ToJson() const;
+};
+
 struct ProxyConfig {
   ProxyConfig();
   ProxyConfig(const ProxyConfig&);
@@ -154,7 +268,6 @@ struct ProxyConfig {
   ProxyConfig& operator=(ProxyConfig&&);
   ~ProxyConfig();
 
-  std::optional<std::string> scheme;
   std::optional<std::string> country;
   std::optional<std::string> city;
   std::optional<std::string> connection_type;
@@ -179,8 +292,16 @@ struct Fingerprint {
   Fingerprint& operator=(Fingerprint&&);
   ~Fingerprint();
 
+  std::string browser_family;
+  std::string browser_version;
+  std::string engine;
+  std::string os;
+  std::string os_version;
+  std::string architecture;
+  std::string device_class;
   std::string user_agent;
   std::string platform;
+  UserAgentData user_agent_data;
   Screen screen;
   Hardware hardware;
   WebGL webgl;
@@ -194,6 +315,10 @@ struct Fingerprint {
   std::vector<Plugin> plugins;
   std::optional<Battery> battery;
   std::vector<std::string> speech_voices;
+  std::map<std::string, std::string> audio_codecs;
+  std::map<std::string, std::string> video_codecs;
+  std::map<std::string, std::string> headers;
+  SurfacePolicy surface_policy;
 
   static base::expected<Fingerprint, std::string> FromDict(
       const base::DictValue& dict);
@@ -212,6 +337,7 @@ struct GenerateResponse {
   ~GenerateResponse();
 
   Fingerprint fingerprint;
+  GeneratorProvenance generator;
   std::optional<ProxyConfig> proxy;
 
   static base::expected<GenerateResponse, std::string> FromDict(
@@ -230,11 +356,10 @@ struct ProxyCredentials {
   ProxyCredentials& operator=(ProxyCredentials&&);
   ~ProxyCredentials();
 
-  std::optional<std::string> scheme;
   std::string host;
   int port = 0;
-  std::optional<std::string> username;
-  std::optional<std::string> password;
+  std::string username;
+  std::string password;
 
   static base::expected<ProxyCredentials, std::string> FromDict(
       const base::DictValue& dict);

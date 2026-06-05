@@ -1,8 +1,8 @@
 #ifndef CLAWBROWSER_USER_AGENT_METADATA_H_
 #define CLAWBROWSER_USER_AGENT_METADATA_H_
 
-#include <algorithm>
 #include <string>
+#include <vector>
 
 #include "clawbrowser/fingerprint_accessor.h"
 #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
@@ -34,34 +34,26 @@ inline std::string ExtractDelimitedToken(const std::string& input,
   return input.substr(start, end - start);
 }
 
-inline std::string ClawbrowserFullVersion(const RuntimeFingerprint& fingerprint) {
-  std::string version =
-      ExtractDelimitedToken(fingerprint.user_agent, "Clawbrowser/", false);
-  if (!version.empty()) {
-    return version;
+inline std::string RuntimeFullVersion(const RuntimeFingerprint& fingerprint) {
+  if (fingerprint.user_agent_data.ua_full_version.has_value() &&
+      !fingerprint.user_agent_data.ua_full_version->empty()) {
+    return *fingerprint.user_agent_data.ua_full_version;
   }
-  return "0.0.0.0";
-}
-
-inline std::string ClawbrowserMajorVersion(const RuntimeFingerprint& fingerprint) {
-  const std::string full_version = ClawbrowserFullVersion(fingerprint);
-  const size_t dot = full_version.find('.');
-  return dot == std::string::npos ? full_version
-                                  : full_version.substr(0, dot);
-}
-
-inline std::string PlatformName(const RuntimeFingerprint& fingerprint) {
-  if (fingerprint.platform == "MacIntel") {
-    return "macOS";
+  if (!fingerprint.browser_version.empty()) {
+    return fingerprint.browser_version;
   }
-  return fingerprint.platform;
+  return ExtractDelimitedToken(fingerprint.user_agent, "Chrome/", false);
 }
 
-inline std::string PlatformVersion(const RuntimeFingerprint& fingerprint) {
-  std::string version =
-      ExtractDelimitedToken(fingerprint.user_agent, "Mac OS X ", true);
-  std::replace(version.begin(), version.end(), '_', '.');
-  return version;
+inline void AppendBrands(
+    const std::vector<RuntimeClientHintBrand>& source,
+    std::vector<blink::UserAgentBrandVersion>* destination) {
+  for (const auto& brand : source) {
+    if (brand.brand.empty() || brand.version.empty()) {
+      continue;
+    }
+    destination->emplace_back(brand.brand, brand.version);
+  }
 }
 
 }  // namespace internal
@@ -69,20 +61,25 @@ inline std::string PlatformVersion(const RuntimeFingerprint& fingerprint) {
 inline blink::UserAgentMetadata BuildUserAgentMetadata(
     const RuntimeFingerprint& fingerprint) {
   blink::UserAgentMetadata metadata;
-  const std::string full_version =
-      internal::ClawbrowserFullVersion(fingerprint);
-  const std::string major_version =
-      internal::ClawbrowserMajorVersion(fingerprint);
 
-  metadata.brand_version_list.emplace_back("Clawbrowser", major_version);
-  metadata.brand_full_version_list.emplace_back("Clawbrowser", full_version);
-  metadata.full_version = full_version;
-  metadata.platform = internal::PlatformName(fingerprint);
-  metadata.platform_version = internal::PlatformVersion(fingerprint);
-  metadata.architecture = fingerprint.platform == "MacIntel" ? "x86" : "";
-  metadata.model = "";
-  metadata.mobile = false;
-  metadata.bitness = "64";
+  internal::AppendBrands(fingerprint.user_agent_data.brands,
+                         &metadata.brand_version_list);
+  internal::AppendBrands(fingerprint.user_agent_data.full_version_list,
+                         &metadata.brand_full_version_list);
+  metadata.full_version = internal::RuntimeFullVersion(fingerprint);
+  metadata.platform = fingerprint.user_agent_data.platform.empty()
+                          ? fingerprint.platform
+                          : fingerprint.user_agent_data.platform;
+  metadata.platform_version =
+      fingerprint.user_agent_data.platform_version.empty()
+          ? fingerprint.os_version
+          : fingerprint.user_agent_data.platform_version;
+  metadata.architecture = fingerprint.user_agent_data.architecture.empty()
+                              ? fingerprint.architecture
+                              : fingerprint.user_agent_data.architecture;
+  metadata.model = fingerprint.user_agent_data.model;
+  metadata.mobile = fingerprint.user_agent_data.mobile;
+  metadata.bitness = fingerprint.user_agent_data.bitness;
   metadata.wow64 = false;
   return metadata;
 }

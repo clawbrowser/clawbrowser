@@ -21,8 +21,6 @@ bool HasPersistableProxyCredentials(const ProxyConfig& proxy) {
 
 base::DictValue SerializePersistedProxyConfig(const ProxyConfig& proxy) {
   base::DictValue dict;
-  if (proxy.scheme.has_value())
-    dict.Set("scheme", *proxy.scheme);
   if (proxy.country.has_value())
     dict.Set("country", *proxy.country);
   if (proxy.city.has_value())

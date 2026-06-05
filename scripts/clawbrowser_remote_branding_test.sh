@@ -54,16 +54,8 @@ run_branding_sync() {
   cat >"${icon_dir}/generate_assets.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-touch "${script_dir}/generate.called"
-for icon in app.icns \
-            product_logo_16.png product_logo_22.png product_logo_24.png \
-            product_logo_32.png product_logo_48.png product_logo_64.png \
-            product_logo_128.png product_logo_256.png product_logo_512.png \
-            product_logo_1024.png; do
-  printf 'generated %s\n' "${icon}" >"${script_dir}/${icon}"
-done
+printf 'build branding sync must not regenerate committed icon assets\n' >&2
+exit 42
 EOF
   chmod +x "${icon_dir}/generate_assets.sh"
 
@@ -90,13 +82,12 @@ PY
   assert_exists "${chromium_dir}/src/chrome/app/theme/chromium/mac/Assets.xcassets/AppIcon.appiconset/appicon_1024.png"
   assert_exists "${chromium_dir}/src/chrome/app/theme/chromium/mac/Assets.xcassets/Icon.iconset/icon_256x256.png"
   assert_exists "${compile_record}"
-  assert_exists "${icon_dir}/generate.called"
 
   grep -Fq 'chrome/app/theme/chromium/mac/Assets.xcassets' "${compile_record}" || \
     fail "expected compile_car.py to receive the Chromium asset catalog path"
-  grep -Fq 'generated product_logo_256.png' \
+  grep -Fq 'old product_logo_256.png' \
     "${chromium_dir}/src/chrome/app/theme/chromium/product_logo_256.png" || \
-    fail "expected Chromium branding sync to use regenerated product_logo_256.png"
+    fail "expected Chromium branding sync to use committed product_logo_256.png"
 }
 
 run_branding_sync

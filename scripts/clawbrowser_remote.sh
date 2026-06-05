@@ -586,8 +586,6 @@ sync_chromium_branding_assets() {
   chromium_iconset_dir="${chromium_asset_catalog_dir}/Icon.iconset"
   chromium_default_100_dir="${src_dir}/chrome/app/theme/default_100_percent/chromium"
 
-  refresh_side_bite_icon_assets
-
   [[ -f "${icon_dir}/app.icns" ]] || die "Missing branding icon: ${icon_dir}/app.icns"
   for asset in 16 22 24 32 48 64 128 256 512 1024; do
     [[ -f "${icon_dir}/product_logo_${asset}.png" ]] || \
@@ -663,19 +661,6 @@ EOF
   fi
 
   log "Synced Clawbrowser branding into Chromium app theme assets"
-}
-
-refresh_side_bite_icon_assets() {
-  local icon_dir="${PROJECT_DIR}/branding/icons/app/side-bite"
-  local source_svg="${PROJECT_DIR}/clawbrowser/resources/side_bite.svg"
-  local generator="${icon_dir}/generate_assets.sh"
-
-  [[ -f "${source_svg}" ]] || \
-    die "Missing Side Bite source SVG: ${source_svg}"
-  [[ -f "${generator}" ]] || \
-    die "Missing Side Bite icon generator: ${generator}"
-
-  bash "${generator}"
 }
 
 sync_project_overlay() {
@@ -798,6 +783,8 @@ reset_patch_targets_to_pin() {
   local path
   local -a restore_paths=()
   local -a remove_paths=()
+  local -a restore_v8_paths=()
+  local -a remove_v8_paths=()
 
   src_dir="$(chromium_src_dir)"
 
@@ -809,6 +796,16 @@ reset_patch_targets_to_pin() {
 
   while IFS= read -r path; do
     [[ -n "${path}" ]] || continue
+    if [[ "${path}" == v8/* && -d "${src_dir}/v8/.git" ]]; then
+      local v8_path="${path#v8/}"
+      if git -C "${src_dir}/v8" cat-file -e "HEAD:${v8_path}" >/dev/null 2>&1; then
+        restore_v8_paths+=("${v8_path}")
+      else
+        remove_v8_paths+=("${v8_path}")
+      fi
+      continue
+    fi
+
     if git -C "${src_dir}" cat-file -e "${CHROMIUM_REVISION}:${path}" >/dev/null 2>&1; then
       restore_paths+=("${path}")
     else
@@ -826,6 +823,19 @@ reset_patch_targets_to_pin() {
     (
       cd "${src_dir}"
       rm -f -- "${remove_paths[@]}"
+    )
+  fi
+
+  if ((${#restore_v8_paths[@]} > 0)); then
+    log "Resetting ${#restore_v8_paths[@]} V8 patch-owned paths to nested V8 HEAD"
+    git -C "${src_dir}/v8" restore --source HEAD --worktree -- "${restore_v8_paths[@]}"
+  fi
+
+  if ((${#remove_v8_paths[@]} > 0)); then
+    log "Removing ${#remove_v8_paths[@]} V8 patch-owned paths absent from nested V8 HEAD"
+    (
+      cd "${src_dir}/v8"
+      rm -f -- "${remove_v8_paths[@]}"
     )
   fi
 }

@@ -8,7 +8,7 @@
   },
   "response": {
     "fingerprint": {
-      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Clawbrowser/333.7.6.5 Safari/537.36",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/333.7.6.5 Safari/537.36",
       "platform": "MacIntel",
       "screen": {
         "width": 1111,
@@ -72,15 +72,115 @@
         "Narrator Zero",
         "Captain Whimsy",
         "Orbit"
-      ]
+      ],
+      "browser_family": "chrome",
+      "browser_version": "333.7.6.5",
+      "engine": "blink",
+      "os": "macos",
+      "os_version": "10.15.7",
+      "architecture": "arm64",
+      "device_class": "desktop",
+      "user_agent_data": {
+        "brands": [
+          {
+            "brand": "Chromium",
+            "version": "333"
+          },
+          {
+            "brand": "Google Chrome",
+            "version": "333"
+          },
+          {
+            "brand": "Not/A)Brand",
+            "version": "99"
+          }
+        ],
+        "fullVersionList": [
+          {
+            "brand": "Chromium",
+            "version": "333.7.6.5"
+          },
+          {
+            "brand": "Google Chrome",
+            "version": "333.7.6.5"
+          },
+          {
+            "brand": "Not/A)Brand",
+            "version": "99.0.0.0"
+          }
+        ],
+        "platform": "macOS",
+        "platformVersion": "10.15.7",
+        "architecture": "arm",
+        "bitness": "64",
+        "mobile": false,
+        "model": "",
+        "uaFullVersion": "333.7.6.5"
+      },
+      "audio_codecs": {
+        "mp3": "",
+        "aac": "probably",
+        "opus": "probably"
+      },
+      "video_codecs": {
+        "h264": "",
+        "vp9": "probably",
+        "av1": "probably"
+      },
+      "headers": {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/333.7.6.5 Safari/537.36",
+        "Accept-Language": "en-US,ga-IE;q=0.9,eo;q=0.8",
+        "Sec-CH-UA": "\"Chromium\";v=\"333\", \"Google Chrome\";v=\"333\", \"Not/A)Brand\";v=\"99\"",
+        "Sec-CH-UA-Mobile": "?0",
+        "Sec-CH-UA-Platform": "\"macOS\"",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br, zstd",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1"
+      },
+      "surface_policy": {
+        "canvas": {
+          "mode": "native"
+        },
+        "audio": {
+          "mode": "native"
+        },
+        "client_rects": {
+          "mode": "native"
+        },
+        "webgl": {
+          "mode": "native"
+        },
+        "fonts": {
+          "mode": "native_or_allowlist"
+        },
+        "plugins": {
+          "mode": "override"
+        },
+        "media_devices": {
+          "mode": "override"
+        },
+        "speech_voices": {
+          "mode": "override"
+        }
+      }
     },
     "proxy": {
-      "scheme": "http",
       "country": "US",
       "city": "New York",
       "connection_type": "residential",
       "host": "proxy.example.com",
-      "port": 8080
+      "port": 8080,
+      "username": "user",
+      "password": "pass"
+    },
+    "generator": {
+      "provider": "browserforge",
+      "version": "test",
+      "schema_version": 2
     }
   }
 }

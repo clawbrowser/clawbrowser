@@ -11,7 +11,7 @@
  #include "third_party/blink/public/common/features.h"
  #include "third_party/blink/renderer/core/frame/local_dom_window.h"
  #include "third_party/blink/renderer/core/frame/local_frame.h"
-@@ -35,24 +38,46 @@
+@@ -35,24 +38,47 @@
  namespace blink {
  
  namespace {
@@ -49,7 +49,8 @@
  
  DOMPluginArray::DOMPluginArray(LocalDOMWindow* window) : window_(window) {
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+      fp && !fp->plugins.empty()) {
++      fp && fp->surface_policy.plugins == "override" &&
++      !fp->plugins.empty()) {
 +    for (const auto& plugin : fp->plugins) {
 +      dom_plugins_.push_back(MakePlugin(
 +          String::FromUtf8(plugin.name.value_or(std::string())),

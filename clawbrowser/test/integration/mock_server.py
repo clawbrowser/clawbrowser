@@ -17,6 +17,12 @@ def _load_fixture(path: Path):
         return json.load(handle)
 
 
+def _request_matches_fixture(path: str, actual: dict, expected: dict) -> bool:
+    if path != "/v1/fingerprints/generate":
+        return actual == expected
+    return all(actual.get(key) == value for key, value in expected.items())
+
+
 class MockHandler(BaseHTTPRequestHandler):
     server_version = "ClawbrowserMock/1.0"
 
@@ -101,7 +107,7 @@ class MockHandler(BaseHTTPRequestHandler):
             return
 
         fixture = _load_fixture(fixture_path)
-        if body != fixture["request"]:
+        if not _request_matches_fixture(self.path, body, fixture["request"]):
             self._write_json(
                 400,
                 {

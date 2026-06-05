@@ -16,6 +16,7 @@ REMOTE_LOG_DIR="${REMOTE_LOG_DIR:-}"
 ARTIFACT_BASENAME="${ARTIFACT_BASENAME:-clawbrowser-prod}"
 FINGERPRINT_ID="${FINGERPRINT_ID:-clawbrowser_default}"
 APPIMAGE_RELEASE_NAME="${APPIMAGE_RELEASE_NAME:-}"
+EMPTY_REMOTE_ARG_SENTINEL="__CLAWBROWSER_EMPTY_REMOTE_ARG__"
 SKIP_RSYNC=0
 SIDE_BITE_ICON_DIR_RELATIVE="branding/icons/app/side-bite"
 SIDE_BITE_SVG_RELATIVE="clawbrowser/resources/side_bite.svg"
@@ -453,6 +454,10 @@ resolve_ccache_bin() {
   fi
   if [[ -x "/usr/local/bin/ccache" ]]; then
     printf '%s\n' "/usr/local/bin/ccache"
+    return 0
+  fi
+  if [[ -x "${HOME}/opt/ccache/bin/ccache" ]]; then
+    printf '%s\n' "${HOME}/opt/ccache/bin/ccache"
     return 0
   fi
   return 1
@@ -1124,6 +1129,17 @@ build_remote_launcher_body() {
   cat <<'EOF'
 set -euo pipefail
 
+decode_optional_arg() {
+  case "$1" in
+    __CLAWBROWSER_EMPTY_REMOTE_ARG__)
+      printf ''
+      ;;
+    *)
+      printf '%s\n' "$1"
+      ;;
+  esac
+}
+
 remote_os="$1"
 repo_dir="$2"
 chromium_dir="$3"
@@ -1131,9 +1147,9 @@ build_root="$4"
 artifact_dir="$5"
 log_root="$6"
 artifact_basename="$7"
-fingerprint_id="$8"
-appimage_release_name="$9"
-runner_b64="${10}"
+fingerprint_id="$(decode_optional_arg "$8")"
+appimage_release_name="$(decode_optional_arg "$9")"
+runner_b64="${10:?missing runner payload}"
 
 timestamp="$(date '+%Y%m%d-%H%M%S-%Z')"
 run_id="${timestamp}-$$"
@@ -1409,6 +1425,14 @@ printf 'LATEST=%s\n' "${latest_link}"
 EOF
 }
 
+remote_optional_arg() {
+  if [[ -n "$1" ]]; then
+    printf '%s\n' "$1"
+  else
+    printf '%s\n' "${EMPTY_REMOTE_ARG_SENTINEL}"
+  fi
+}
+
 launch_remote_artifacts() {
   local remote_output
   local remote_status
@@ -1430,8 +1454,8 @@ launch_remote_artifacts() {
       "${REMOTE_ARTIFACT_DIR}" \
       "${REMOTE_LOG_DIR}" \
       "${ARTIFACT_BASENAME}" \
-      "${FINGERPRINT_ID}" \
-      "${APPIMAGE_RELEASE_NAME}" \
+      "$(remote_optional_arg "${FINGERPRINT_ID}")" \
+      "$(remote_optional_arg "${APPIMAGE_RELEASE_NAME}")" \
       "${runner_b64}"
   )"
   remote_status=$?

@@ -45,7 +45,6 @@ GenerateResponse MakeResponseWithProxy(const std::string& username,
   response.fingerprint.language = {"en-US"};
   response.fingerprint.fonts = {"Arial"};
   response.proxy.emplace();
-  response.proxy->scheme = "http";
   response.proxy->host = "proxy.example.com";
   response.proxy->port = 3128;
   response.proxy->country = "US";
@@ -74,7 +73,7 @@ TEST_F(FingerprintLoaderTest, LoadValidFile) {
   EXPECT_EQ(fp->user_agent,
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Clawbrowser/120.0.0.0 Safari/537.36");
+            "Chrome/120.0.0.0 Safari/537.36");
   EXPECT_EQ(fp->screen.width, 1920);
   EXPECT_EQ(fp->canvas_seed, 1234567890);
 }
@@ -120,6 +119,42 @@ TEST_F(FingerprintLoaderTest, LoadEnvelopeWithoutSchemaVersion) {
   const auto* fp = FingerprintAccessor::Get();
   ASSERT_NE(fp, nullptr);
   EXPECT_EQ(fp->user_agent, "missing-schema-ua");
+}
+
+TEST_F(FingerprintLoaderTest, CurrentSchemaRejectsIncompleteDynamicSurfaceData) {
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+
+  base::FilePath path =
+      temp_dir.GetPath().AppendASCII("incomplete_fingerprint.json");
+  std::string json = R"({
+    "schema_version": 2,
+    "created_at": "2026-01-01T00:00:00Z",
+    "response": {
+      "fingerprint": {
+        "browser_family": "chrome",
+        "browser_version": "148.0.7769.0",
+        "engine": "blink",
+        "os": "macos",
+        "os_version": "10.15.7",
+        "architecture": "arm64",
+        "device_class": "desktop",
+        "user_agent": "incomplete-ua",
+        "platform": "MacIntel",
+        "screen": {"width": 1, "height": 1, "avail_width": 1, "avail_height": 1, "color_depth": 24, "pixel_ratio": 1.0},
+        "hardware": {"concurrency": 1, "memory": 1},
+        "webgl": {"vendor": "backend-vendor", "renderer": "backend-renderer"},
+        "canvas_seed": 1, "audio_seed": 1, "client_rects_seed": 1,
+        "timezone": "UTC", "language": ["en"], "fonts": ["Arial"]
+      }
+    }
+  })";
+  ASSERT_TRUE(base::WriteFile(path, json));
+
+  auto result = LoadFingerprint(path);
+  ASSERT_FALSE(result.has_value());
+  EXPECT_NE(result.error().find("user_agent_data"), std::string::npos);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
 }
 
 TEST_F(FingerprintLoaderTest, LoadMissingFile) {
@@ -229,8 +264,8 @@ TEST_F(FingerprintLoaderTest, ChildPayloadPreservesProxyConfig) {
   EXPECT_EQ(FingerprintAccessor::GetProxy()->host.value_or(""),
             "proxy.example.com");
   EXPECT_EQ(FingerprintAccessor::GetProxy()->country.value_or(""), "US");
-  EXPECT_FALSE(FingerprintAccessor::GetProxy()->username.has_value());
-  EXPECT_FALSE(FingerprintAccessor::GetProxy()->password.has_value());
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->username.value_or(""), "user");
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->password.value_or(""), "pass");
 }
 
 TEST_F(FingerprintLoaderTest, LoadEncryptedProxyCredentialsFromProfileCache) {

@@ -1,6 +1,7 @@
 #ifndef CLAWBROWSER_FINGERPRINT_ACCESSOR_H_
 #define CLAWBROWSER_FINGERPRINT_ACCESSOR_H_
 
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -73,6 +74,55 @@ struct COMPONENT_EXPORT(CLAWBROWSER_RUNTIME) RuntimeBattery {
   std::optional<double> level;
 };
 
+struct COMPONENT_EXPORT(CLAWBROWSER_RUNTIME) RuntimeClientHintBrand {
+  RuntimeClientHintBrand();
+  RuntimeClientHintBrand(const RuntimeClientHintBrand&);
+  RuntimeClientHintBrand& operator=(const RuntimeClientHintBrand&);
+  RuntimeClientHintBrand(RuntimeClientHintBrand&&);
+  RuntimeClientHintBrand& operator=(RuntimeClientHintBrand&&);
+  ~RuntimeClientHintBrand();
+
+  std::string brand;
+  std::string version;
+};
+
+struct COMPONENT_EXPORT(CLAWBROWSER_RUNTIME) RuntimeUserAgentData {
+  RuntimeUserAgentData();
+  RuntimeUserAgentData(const RuntimeUserAgentData&);
+  RuntimeUserAgentData& operator=(const RuntimeUserAgentData&);
+  RuntimeUserAgentData(RuntimeUserAgentData&&);
+  RuntimeUserAgentData& operator=(RuntimeUserAgentData&&);
+  ~RuntimeUserAgentData();
+
+  std::vector<RuntimeClientHintBrand> brands;
+  std::vector<RuntimeClientHintBrand> full_version_list;
+  std::string platform;
+  std::string platform_version;
+  std::string architecture;
+  std::string bitness;
+  bool mobile = false;
+  std::string model;
+  std::optional<std::string> ua_full_version;
+};
+
+struct COMPONENT_EXPORT(CLAWBROWSER_RUNTIME) RuntimeSurfacePolicy {
+  RuntimeSurfacePolicy();
+  RuntimeSurfacePolicy(const RuntimeSurfacePolicy&);
+  RuntimeSurfacePolicy& operator=(const RuntimeSurfacePolicy&);
+  RuntimeSurfacePolicy(RuntimeSurfacePolicy&&);
+  RuntimeSurfacePolicy& operator=(RuntimeSurfacePolicy&&);
+  ~RuntimeSurfacePolicy();
+
+  std::string canvas;
+  std::string audio;
+  std::string client_rects;
+  std::string webgl;
+  std::string fonts;
+  std::string plugins;
+  std::string media_devices;
+  std::string speech_voices;
+};
+
 struct COMPONENT_EXPORT(CLAWBROWSER_RUNTIME) RuntimeProxyConfig {
   RuntimeProxyConfig();
   RuntimeProxyConfig(const RuntimeProxyConfig&);
@@ -99,8 +149,16 @@ struct COMPONENT_EXPORT(CLAWBROWSER_RUNTIME) RuntimeFingerprint {
   RuntimeFingerprint& operator=(RuntimeFingerprint&&);
   ~RuntimeFingerprint();
 
+  std::string browser_family;
+  std::string browser_version;
+  std::string engine;
+  std::string os;
+  std::string os_version;
+  std::string architecture;
+  std::string device_class;
   std::string user_agent;
   std::string platform;
+  RuntimeUserAgentData user_agent_data;
   RuntimeScreen screen;
   RuntimeHardware hardware;
   RuntimeWebGL webgl;
@@ -114,6 +172,10 @@ struct COMPONENT_EXPORT(CLAWBROWSER_RUNTIME) RuntimeFingerprint {
   std::vector<RuntimePlugin> plugins;
   std::optional<RuntimeBattery> battery;
   std::vector<std::string> speech_voices;
+  std::map<std::string, std::string> audio_codecs;
+  std::map<std::string, std::string> video_codecs;
+  std::map<std::string, std::string> headers;
+  RuntimeSurfacePolicy surface_policy;
 };
 
 // Process-global singleton providing read-only access to the loaded runtime

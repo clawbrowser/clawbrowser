@@ -27,6 +27,56 @@ async def test_cdp_json_version():
 
 
 @pytest.mark.asyncio
+async def test_webdriver_hidden_without_faking_scripted_events():
+    async with _launch_browser(
+        fixture_name="valid_fingerprint.json",
+        skip_verify=True,
+    ) as (page, _):
+        result = await page.evaluate("""() => {
+            const event = new MouseEvent('click');
+            return {
+                webdriver: navigator.webdriver,
+                scriptedTrusted: event.isTrusted
+            };
+        }""")
+
+        assert result["webdriver"] is False
+        assert result["scriptedTrusted"] is False
+
+
+@pytest.mark.asyncio
+async def test_cdp_click_is_trusted_and_sets_user_activation():
+    async with _launch_browser(
+        fixture_name="valid_fingerprint.json",
+        skip_verify=True,
+    ) as (page, _):
+        await page.set_content("""<!doctype html>
+            <button id="target" style="position:absolute;left:20px;top:20px;width:120px;height:40px">Click</button>
+            <script>
+              window.__clawClick = null;
+              document.getElementById('target').addEventListener('click', event => {
+                window.__clawClick = {
+                  trusted: event.isTrusted,
+                  active: navigator.userActivation.isActive,
+                  hasBeenActive: navigator.userActivation.hasBeenActive
+                };
+              });
+            </script>
+        """)
+
+        box = await page.locator("#target").bounding_box()
+        assert box is not None
+        await page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        result = await page.evaluate("window.__clawClick")
+
+        assert result == {
+            "trusted": True,
+            "active": True,
+            "hasBeenActive": True,
+        }
+
+
+@pytest.mark.asyncio
 async def test_fingerprint_stability_across_tabs():
     """Verify that fingerprinted values remain identical across multiple tabs."""
     async with _launch_browser(

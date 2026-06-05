@@ -114,6 +114,9 @@ log_root="${FAKE_REMOTE_HOME}/dev/clawbrowser-build-logs/prod-artifacts"
 artifact_dir="${FAKE_REMOTE_HOME}/dev/clawbrowser-artifacts"
 run_dir="${log_root}/prod-artifacts-20260410-200000-CEST-4242"
 appimage_release_name="${@: -2:1}"
+if [[ "${appimage_release_name}" == "__CLAWBROWSER_EMPTY_REMOTE_ARG__" ]]; then
+  appimage_release_name=""
+fi
 if [[ -n "${appimage_release_name}" ]]; then
   case "${appimage_release_name}" in
     clawbrowser-*)

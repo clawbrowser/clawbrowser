@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "created_at": "2026-03-23T10:00:00Z",
   "request": {
     "platform": "macos",
@@ -8,7 +8,7 @@
   },
   "response": {
     "fingerprint": {
-      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Clawbrowser/120.0.0.0 Safari/537.36",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "platform": "MacIntel",
       "screen": {
         "width": 1280,
@@ -16,7 +16,7 @@
         "avail_width": 1280,
         "avail_height": 775,
         "color_depth": 24,
-        "pixel_ratio": 1.0
+        "pixel_ratio": 1
       },
       "hardware": {
         "concurrency": 4,
@@ -30,8 +30,111 @@
       "audio_seed": 99,
       "client_rects_seed": 7,
       "timezone": "UTC",
-      "language": ["en-US"],
-      "fonts": ["Arial"]
+      "language": [
+        "en-US"
+      ],
+      "fonts": [
+        "Arial"
+      ],
+      "browser_family": "chrome",
+      "browser_version": "120.0.0.0",
+      "engine": "blink",
+      "os": "macos",
+      "os_version": "10.15.7",
+      "architecture": "arm64",
+      "device_class": "desktop",
+      "user_agent_data": {
+        "brands": [
+          {
+            "brand": "Chromium",
+            "version": "120"
+          },
+          {
+            "brand": "Google Chrome",
+            "version": "120"
+          },
+          {
+            "brand": "Not/A)Brand",
+            "version": "99"
+          }
+        ],
+        "fullVersionList": [
+          {
+            "brand": "Chromium",
+            "version": "120.0.0.0"
+          },
+          {
+            "brand": "Google Chrome",
+            "version": "120.0.0.0"
+          },
+          {
+            "brand": "Not/A)Brand",
+            "version": "99.0.0.0"
+          }
+        ],
+        "platform": "macOS",
+        "platformVersion": "10.15.7",
+        "architecture": "arm",
+        "bitness": "64",
+        "mobile": false,
+        "model": "",
+        "uaFullVersion": "120.0.0.0"
+      },
+      "audio_codecs": {
+        "mp3": "",
+        "aac": "probably",
+        "opus": "probably"
+      },
+      "video_codecs": {
+        "h264": "",
+        "vp9": "probably",
+        "av1": "probably"
+      },
+      "headers": {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US",
+        "Sec-CH-UA": "\"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\", \"Not/A)Brand\";v=\"99\"",
+        "Sec-CH-UA-Mobile": "?0",
+        "Sec-CH-UA-Platform": "\"macOS\"",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br, zstd",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1"
+      },
+      "surface_policy": {
+        "canvas": {
+          "mode": "native"
+        },
+        "audio": {
+          "mode": "native"
+        },
+        "client_rects": {
+          "mode": "native"
+        },
+        "webgl": {
+          "mode": "native"
+        },
+        "fonts": {
+          "mode": "native_or_allowlist"
+        },
+        "plugins": {
+          "mode": "override"
+        },
+        "media_devices": {
+          "mode": "override"
+        },
+        "speech_voices": {
+          "mode": "override"
+        }
+      }
+    },
+    "generator": {
+      "provider": "browserforge",
+      "version": "test",
+      "schema_version": 2
     }
   }
 }

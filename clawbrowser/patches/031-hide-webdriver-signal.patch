@@ -1,0 +1,21 @@
+# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+#
+# Do not expose the WebDriver automation bit to web content. Browser input still
+# flows through Chromium's normal trusted-event paths; this patch deliberately
+# does not change Event.isTrusted or scripted event behavior.
+--- a/third_party/blink/renderer/core/frame/navigator.cc
++++ b/third_party/blink/renderer/core/frame/navigator.cc
+@@ -100,12 +100,7 @@ bool Navigator::cookieEnabled() const {
+ }
+ 
+ bool Navigator::webdriver() const {
+-  if (RuntimeEnabledFeatures::AutomationControlledEnabled())
+-    return true;
+-
+-  bool automation_enabled = false;
+-  probe::ApplyAutomationOverride(GetExecutionContext(), automation_enabled);
+-  return automation_enabled;
++  return false;
+ }
+ 
+ String Navigator::GetAcceptLanguages() {

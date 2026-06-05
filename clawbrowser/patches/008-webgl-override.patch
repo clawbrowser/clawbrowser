@@ -66,11 +66,12 @@ index a35f78dde3..3f338fb1d5 100644
          return WebGLAny(script_state,
                          String(ContextGL()->GetString(GL_VENDOR)));
        }
-@@ -5155,6 +5176,15 @@ void WebGLRenderingContextBase::ReadPixelsHelper(GLint x,
+@@ -5155,6 +5176,16 @@ void WebGLRenderingContextBase::ReadPixelsHelper(GLint x,
      }
      ContextGL()->ReadPixels(x, y, width, height, format, type, data);
    }
-+  if (const auto* fp = clawbrowser::FingerprintAccessor::Get()) {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->surface_policy.canvas == "override") {
 +    clawbrowser::Prng prng(fp->canvas_seed);
 +    base::span<uint8_t> pixel_bytes =
 +        UNSAFE_BUFFERS(base::span(data, buffer_size.ValueOrDie()));

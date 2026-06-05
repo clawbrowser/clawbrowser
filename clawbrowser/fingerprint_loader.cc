@@ -42,8 +42,42 @@ void ApplyTimezoneOverride(const Fingerprint& fingerprint) {
 
 RuntimeFingerprint ToRuntimeFingerprint(const Fingerprint& fingerprint) {
   RuntimeFingerprint runtime;
+  runtime.browser_family = fingerprint.browser_family;
+  runtime.browser_version = fingerprint.browser_version;
+  runtime.engine = fingerprint.engine;
+  runtime.os = fingerprint.os;
+  runtime.os_version = fingerprint.os_version;
+  runtime.architecture = fingerprint.architecture;
+  runtime.device_class = fingerprint.device_class;
   runtime.user_agent = fingerprint.user_agent;
   runtime.platform = fingerprint.platform;
+  runtime.user_agent_data.platform = fingerprint.user_agent_data.platform;
+  runtime.user_agent_data.platform_version =
+      fingerprint.user_agent_data.platformVersion;
+  runtime.user_agent_data.architecture =
+      fingerprint.user_agent_data.architecture;
+  runtime.user_agent_data.bitness = fingerprint.user_agent_data.bitness;
+  runtime.user_agent_data.mobile = fingerprint.user_agent_data.mobile;
+  runtime.user_agent_data.model = fingerprint.user_agent_data.model;
+  runtime.user_agent_data.ua_full_version =
+      fingerprint.user_agent_data.uaFullVersion;
+  runtime.user_agent_data.brands.reserve(
+      fingerprint.user_agent_data.brands.size());
+  for (const auto& brand : fingerprint.user_agent_data.brands) {
+    RuntimeClientHintBrand runtime_brand;
+    runtime_brand.brand = brand.brand;
+    runtime_brand.version = brand.version;
+    runtime.user_agent_data.brands.push_back(std::move(runtime_brand));
+  }
+  runtime.user_agent_data.full_version_list.reserve(
+      fingerprint.user_agent_data.fullVersionList.size());
+  for (const auto& brand : fingerprint.user_agent_data.fullVersionList) {
+    RuntimeClientHintBrand runtime_brand;
+    runtime_brand.brand = brand.brand;
+    runtime_brand.version = brand.version;
+    runtime.user_agent_data.full_version_list.push_back(
+        std::move(runtime_brand));
+  }
   runtime.screen = {
       .width = fingerprint.screen.width,
       .height = fingerprint.screen.height,
@@ -91,6 +125,21 @@ RuntimeFingerprint ToRuntimeFingerprint(const Fingerprint& fingerprint) {
     runtime.battery = std::move(runtime_battery);
   }
 
+  runtime.audio_codecs = fingerprint.audio_codecs;
+  runtime.video_codecs = fingerprint.video_codecs;
+  runtime.headers = fingerprint.headers;
+  runtime.surface_policy.canvas = fingerprint.surface_policy.canvas.mode;
+  runtime.surface_policy.audio = fingerprint.surface_policy.audio.mode;
+  runtime.surface_policy.client_rects =
+      fingerprint.surface_policy.client_rects.mode;
+  runtime.surface_policy.webgl = fingerprint.surface_policy.webgl.mode;
+  runtime.surface_policy.fonts = fingerprint.surface_policy.fonts.mode;
+  runtime.surface_policy.plugins = fingerprint.surface_policy.plugins.mode;
+  runtime.surface_policy.media_devices =
+      fingerprint.surface_policy.media_devices.mode;
+  runtime.surface_policy.speech_voices =
+      fingerprint.surface_policy.speech_voices.mode;
+
   return runtime;
 }
 
@@ -101,7 +150,7 @@ std::optional<RuntimeProxyConfig> ToRuntimeProxyConfig(
   }
 
   RuntimeProxyConfig runtime_proxy;
-  runtime_proxy.scheme = proxy->scheme;
+  runtime_proxy.scheme = "http";
   runtime_proxy.country = proxy->country;
   runtime_proxy.city = proxy->city;
   runtime_proxy.connection_type = proxy->connection_type;

@@ -8,6 +8,7 @@
 #include "base/i18n/time_formatting.h"
 #include "base/json/json_writer.h"
 #include "base/run_loop.h"
+#include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "build/build_config.h"
@@ -20,6 +21,7 @@
 #include "clawbrowser/logging.h"
 #include "clawbrowser/paths.h"
 #include "clawbrowser/proxy/proxy_config.h"
+#include "components/version_info/version_info.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
 namespace clawbrowser {
@@ -67,51 +69,6 @@ StartupResult HandleListProfiles(const ClawArgs& args,
   StartupResult result;
   result.should_exit = true;
   return result;
-}
-
-inline constexpr char kUserAgentMajorVersionSwitch[] =
-    "clawbrowser-ua-major-version";
-inline constexpr char kUserAgentFullVersionSwitch[] =
-    "clawbrowser-ua-full-version";
-inline constexpr char kUserAgentPlatformSwitch[] =
-    "clawbrowser-ua-platform";
-
-std::optional<std::string> ExtractClawbrowserFullVersion(
-    const std::string& user_agent) {
-  constexpr char kClawbrowserToken[] = "Clawbrowser/";
-  const size_t token = user_agent.find(kClawbrowserToken);
-  if (token == std::string::npos) {
-    return std::nullopt;
-  }
-
-  const size_t start =
-      token + std::char_traits<char>::length(kClawbrowserToken);
-  const size_t end = user_agent.find_first_of(" )", start);
-  const std::string version = user_agent.substr(start, end - start);
-  if (version.empty()) {
-    return std::nullopt;
-  }
-
-  return version;
-}
-
-std::optional<std::string> ExtractClawbrowserMajorVersion(
-    const std::string& user_agent) {
-  std::optional<std::string> full_version =
-      ExtractClawbrowserFullVersion(user_agent);
-  if (!full_version.has_value()) {
-    return std::nullopt;
-  }
-
-  const size_t dot = full_version->find('.');
-  return full_version->substr(0, dot);
-}
-
-std::string UserAgentMetadataPlatform(const std::string& platform) {
-  if (platform == "MacIntel") {
-    return "macOS";
-  }
-  return platform;
 }
 
 bool HasStartupUrl(const base::CommandLine* command_line,
@@ -286,6 +243,61 @@ void PrintWarning(const std::string& message) {
 
 constexpr char kBackendBrowserName[] = "chrome";
 
+std::string DefaultProfilePlatform() {
+#if BUILDFLAG(IS_WIN)
+  return "windows";
+#else
+  return "macos";
+#endif
+}
+
+std::string RuntimeOS() {
+#if BUILDFLAG(IS_MAC)
+  return "macos";
+#elif BUILDFLAG(IS_WIN)
+  return "windows";
+#elif BUILDFLAG(IS_LINUX)
+  return "linux";
+#else
+  return std::string();
+#endif
+}
+
+std::string RuntimeArch() {
+#if defined(ARCH_CPU_ARM64)
+  return "arm64";
+#elif defined(ARCH_CPU_X86_64)
+  return "amd64";
+#elif defined(ARCH_CPU_X86)
+  return "x86";
+#else
+  return std::string();
+#endif
+}
+
+std::optional<std::string> RuntimeGPUHint(
+    const base::CommandLine& command_line) {
+  auto env = base::Environment::Create();
+  if (std::optional<std::string> runtime_gpu =
+          env->GetVar("CLAWBROWSER_RUNTIME_GPU");
+      runtime_gpu.has_value() && !runtime_gpu->empty()) {
+    return runtime_gpu;
+  }
+  if (command_line.HasSwitch("disable-gpu")) {
+    return "swiftshader";
+  }
+  const std::string use_gl = command_line.GetSwitchValueASCII("use-gl");
+  const std::string use_angle = command_line.GetSwitchValueASCII("use-angle");
+  if (use_gl == "swiftshader" || use_angle == "swiftshader") {
+    return "swiftshader";
+  }
+  return std::nullopt;
+}
+
+bool RuntimeHeadless(const base::CommandLine& command_line) {
+  return command_line.HasSwitch("headless");
+}
+
 void ApplyGenerateRequestOverrides(const ClawArgs& args,
                                    GenerateRequest* request) {
   if (args.has_location_overrides()) {
@@ -305,7 +317,7 @@ void ApplyGenerateRequestOverrides(const ClawArgs& args,
   }
 
   if (request->platform.empty()) {
-    request->platform = "macos";
+    request->platform = DefaultProfilePlatform();
   }
   if (request->browser.empty()) {
     request->browser = kBackendBrowserName;
@@ -313,6 +325,58 @@ void ApplyGenerateRequestOverrides(const ClawArgs& args,
   if (request->country.empty() && !args.has_location_overrides()) {
     request->country = "US";
   }
+}
+
+void ApplyRuntimeRequestHints(const base::CommandLine& command_line,
+                              GenerateRequest* request) {
+  if (!request->runtime_browser_version.has_value() ||
+      request->runtime_browser_version->empty()) {
+    request->runtime_browser_version = version_info::GetVersionNumber();
+  }
+  if (!request->runtime_os.has_value() || request->runtime_os->empty()) {
+    std::string os = RuntimeOS();
+    if (!os.empty()) {
+      request->runtime_os = std::move(os);
+    }
+  }
+  if (!request->runtime_arch.has_value() || request->runtime_arch->empty()) {
+    std::string arch = RuntimeArch();
+    if (!arch.empty()) {
+      request->runtime_arch = std::move(arch);
+    }
+  }
+  if (!request->runtime_gpu.has_value() || request->runtime_gpu->empty()) {
+    request->runtime_gpu = RuntimeGPUHint(command_line);
+  }
+  request->runtime_headless = RuntimeHeadless(command_line);
+}
+
+std::string HeaderOrValue(const RuntimeFingerprint& fp,
+                          const std::string& header,
+                          const std::string& fallback) {
+  for (const auto& [name, value] : fp.headers) {
+    if (base::EqualsCaseInsensitiveASCII(name, header) && !value.empty()) {
+      return value;
+    }
+  }
+  return fallback;
+}
+
+std::string AcceptLanguageFromFingerprint(const RuntimeFingerprint& fp) {
+  for (const auto& [name, value] : fp.headers) {
+    if (base::EqualsCaseInsensitiveASCII(name, "Accept-Language") &&
+        !value.empty()) {
+      return value;
+    }
+  }
+
+  std::string accept_lang;
+  for (size_t i = 0; i < fp.language.size(); ++i) {
+    if (i > 0)
+      accept_lang += ",";
+    accept_lang += fp.language[i];
+  }
+  return accept_lang;
 }
 
 }  // namespace
@@ -419,7 +483,7 @@ base::expected<StartupResult, std::string> RunStartup(
 
     // Build request params (replay from cached profile if --regenerate)
     GenerateRequest params;
-    params.platform = "macos";
+    params.platform = DefaultProfilePlatform();
     params.browser = kBackendBrowserName;
     params.country = "US";
     if (args.regenerate() && profile_manager.HasCachedProfile(fp_id)) {
@@ -429,6 +493,7 @@ base::expected<StartupResult, std::string> RunStartup(
       }
     }
     ApplyGenerateRequestOverrides(args, &params);
+    ApplyRuntimeRequestHints(*command_line, &params);
 
     // Synchronous API call (blocking — acceptable for pre-launch)
     base::RunLoop run_loop;
@@ -521,30 +586,15 @@ base::expected<StartupResult, std::string> RunStartup(
   // Set language flags from fingerprint (Accept-Language header alignment)
   const auto* fp = FingerprintAccessor::Get();
   if (fp && !fp->user_agent.empty()) {
-    command_line->AppendSwitchASCII("user-agent", fp->user_agent);
-    std::optional<std::string> major_version =
-        ExtractClawbrowserMajorVersion(fp->user_agent);
-    std::optional<std::string> full_version =
-        ExtractClawbrowserFullVersion(fp->user_agent);
-    if (major_version.has_value() && full_version.has_value()) {
-      command_line->AppendSwitchASCII(kUserAgentMajorVersionSwitch,
-                                      *major_version);
-      command_line->AppendSwitchASCII(kUserAgentFullVersionSwitch,
-                                      *full_version);
-      command_line->AppendSwitchASCII(kUserAgentPlatformSwitch,
-                                      UserAgentMetadataPlatform(fp->platform));
-    }
+    command_line->AppendSwitchASCII(
+        "user-agent", HeaderOrValue(*fp, "User-Agent", fp->user_agent));
   }
   if (fp && !fp->language.empty()) {
     // --lang sets the UI language
     command_line->AppendSwitchASCII("lang", fp->language[0]);
     // --accept-lang sets the Accept-Language HTTP header
-    std::string accept_lang;
-    for (size_t i = 0; i < fp->language.size(); ++i) {
-      if (i > 0) accept_lang += ",";
-      accept_lang += fp->language[i];
-    }
-    command_line->AppendSwitchASCII("accept-lang", accept_lang);
+    command_line->AppendSwitchASCII("accept-lang",
+                                    AcceptLanguageFromFingerprint(*fp));
   }
 
   // Navigate to verify page on startup (unless --skip-verify)

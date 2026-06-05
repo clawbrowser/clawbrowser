@@ -178,7 +178,6 @@ class StartupTest : public testing::Test {
     envelope.response.fingerprint.language = {"en-US"};
     envelope.response.fingerprint.fonts = {"Arial"};
     envelope.response.proxy.emplace();
-    envelope.response.proxy->scheme = "http";
     envelope.response.proxy->host = "proxy.example.com";
     envelope.response.proxy->port = 3128;
     envelope.response.proxy->country = "US";
@@ -225,33 +224,89 @@ class StartupTest : public testing::Test {
         std::move(head), body, network::URLLoaderCompletionStatus(net::OK));
   }
 
+  std::string GenerateSuccessResponseJson(
+      const std::string& user_agent,
+      const std::string& proxy_json = "") const {
+    std::string proxy_field;
+    if (!proxy_json.empty()) {
+      proxy_field = ",\"proxy\":" + proxy_json;
+    }
+    return base::StringPrintf(R"json({
+      "fingerprint": {
+        "browser_family": "chrome",
+        "browser_version": "120.0.0.0",
+        "engine": "blink",
+        "os": "macos",
+        "os_version": "10.15.7",
+        "architecture": "arm64",
+        "device_class": "desktop",
+        "user_agent": "%s",
+        "platform": "MacIntel",
+        "user_agent_data": {
+          "brands": [
+            {"brand": "Chromium", "version": "120"},
+            {"brand": "Google Chrome", "version": "120"},
+            {"brand": "Not/A)Brand", "version": "99"}
+          ],
+          "fullVersionList": [
+            {"brand": "Chromium", "version": "120.0.0.0"},
+            {"brand": "Google Chrome", "version": "120.0.0.0"},
+            {"brand": "Not/A)Brand", "version": "99.0.0.0"}
+          ],
+          "platform": "macOS",
+          "platformVersion": "10.15.7",
+          "architecture": "arm",
+          "bitness": "64",
+          "mobile": false,
+          "model": "",
+          "uaFullVersion": "120.0.0.0"
+        },
+        "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
+                   "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
+        "hardware": {"concurrency": 8, "memory": 8},
+        "webgl": {"vendor": "v", "renderer": "r"},
+        "canvas_seed": 1, "audio_seed": 2, "client_rects_seed": 3,
+        "timezone": "UTC",
+        "language": ["en"],
+        "fonts": ["Arial"],
+        "headers": {
+          "User-Agent": "%s",
+          "Accept-Language": "en"
+        },
+        "surface_policy": {
+          "canvas": {"mode": "native"},
+          "audio": {"mode": "native"},
+          "client_rects": {"mode": "native"},
+          "webgl": {"mode": "native"},
+          "fonts": {"mode": "native_or_allowlist"},
+          "plugins": {"mode": "override"},
+          "media_devices": {"mode": "override"},
+          "speech_voices": {"mode": "override"}
+        }
+      },
+      "generator": {"provider": "test", "version": "test", "schema_version": 2}
+      %s
+    })json",
+                              user_agent.c_str(), user_agent.c_str(),
+                              proxy_field.c_str());
+  }
+
   void AddGenerateSuccessResponseWithProxy(const std::string& user_agent,
                                            const std::string& username,
                                            const std::string& password) {
+    std::string proxy_json = base::StringPrintf(R"json({
+      "host": "proxy.example.com",
+      "port": 3128,
+      "country": "US",
+      "city": "New York",
+      "username": "%s",
+      "password": "%s"
+    })json",
+                                                username.c_str(),
+                                                password.c_str());
     url_loader_factory_.AddResponse(
         std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
-        base::StringPrintf(R"({
-          "fingerprint": {
-            "user_agent": "%s", "platform": "MacIntel",
-            "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
-                       "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
-            "hardware": {"concurrency": 8, "memory": 8},
-            "webgl": {"vendor": "v", "renderer": "r"},
-            "canvas_seed": 1, "audio_seed": 2, "client_rects_seed": 3,
-            "timezone": "UTC", "language": ["en"], "fonts": ["Arial"]
-          },
-          "proxy": {
-            "scheme": "http",
-            "host": "proxy.example.com",
-            "port": 3128,
-            "country": "US",
-            "city": "New York",
-            "username": "%s",
-            "password": "%s"
-          }
-        })",
-                           user_agent.c_str(), username.c_str(),
-                           password.c_str()));
+        GenerateSuccessResponseJson(user_agent, proxy_json));
   }
 
   base::test::TaskEnvironment task_environment_;
@@ -1043,6 +1098,40 @@ TEST_F(StartupTest, FingerprintApiCallUsesLocationOverrides) {
   EXPECT_EQ(*saved.request.city, "Berlin");
   ASSERT_TRUE(saved.request.connection_type.has_value());
   EXPECT_EQ(*saved.request.connection_type, "mobile");
+}
+
+TEST_F(StartupTest, FingerprintApiCallSendsRuntimeHintsFromLaunchFlags) {
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+
+  const std::string user_agent =
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+      "AppleWebKit/537.36 (KHTML, like Gecko) "
+      "Chrome/120.0.0.0 Safari/537.36";
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson(user_agent));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "runtime_profile");
+  cmd.AppendSwitch("disable-gpu");
+  cmd.AppendSwitchASCII("headless", "new");
+
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+
+  ProfileEnvelope saved = ReadSavedProfile("runtime_profile");
+  ASSERT_TRUE(saved.request.runtime_browser_version.has_value());
+  EXPECT_FALSE(saved.request.runtime_browser_version->empty());
+  ASSERT_TRUE(saved.request.runtime_os.has_value());
+  EXPECT_FALSE(saved.request.runtime_os->empty());
+  ASSERT_TRUE(saved.request.runtime_arch.has_value());
+  EXPECT_FALSE(saved.request.runtime_arch->empty());
+  ASSERT_TRUE(saved.request.runtime_gpu.has_value());
+  EXPECT_EQ(*saved.request.runtime_gpu, "swiftshader");
+  ASSERT_TRUE(saved.request.runtime_headless.has_value());
+  EXPECT_TRUE(*saved.request.runtime_headless);
 }
 
 TEST_F(StartupTest, FingerprintApiCallAllowsCityOnlyOverrides) {

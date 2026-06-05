@@ -10,12 +10,13 @@
  #include "cc/input/snap_selection_strategy.h"
  #include "third_party/blink/public/common/features.h"
  #include "third_party/blink/public/mojom/scroll/scroll_enums.mojom-blink.h"
-@@ -3450,6 +3452,15 @@
+@@ -3450,6 +3452,16 @@
    for (auto& rect : rects) {
      GetDocument().AdjustRectForScrollAndAbsoluteZoom(rect,
                                                       *element_layout_object);
 +  }
-+  if (const auto* fp = clawbrowser::FingerprintAccessor::Get()) {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->surface_policy.client_rects == "override") {
 +    clawbrowser::Prng prng(fp->client_rects_seed);
 +    for (auto& rect : rects) {
 +      rect.set_x(rect.x() + prng.SubPixelNoise());
@@ -26,11 +27,12 @@
    }
    return MakeGarbageCollected<DOMRectList>(rects);
  }
-@@ -3497,6 +3508,13 @@
+@@ -3497,6 +3508,14 @@
    DCHECK(element_layout_object);
    GetDocument().AdjustRectForScrollAndAbsoluteZoom(result,
                                                     *element_layout_object);
-+  if (const auto* fp = clawbrowser::FingerprintAccessor::Get()) {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->surface_policy.client_rects == "override") {
 +    clawbrowser::Prng prng(fp->client_rects_seed);
 +    result.set_x(result.x() + prng.SubPixelNoise());
 +    result.set_y(result.y() + prng.SubPixelNoise());

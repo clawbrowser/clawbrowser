@@ -51,6 +51,37 @@ RuntimeBattery::RuntimeBattery(RuntimeBattery&&) = default;
 RuntimeBattery& RuntimeBattery::operator=(RuntimeBattery&&) = default;
 RuntimeBattery::~RuntimeBattery() = default;
 
+RuntimeClientHintBrand::RuntimeClientHintBrand() = default;
+RuntimeClientHintBrand::RuntimeClientHintBrand(
+    const RuntimeClientHintBrand&) = default;
+RuntimeClientHintBrand& RuntimeClientHintBrand::operator=(
+    const RuntimeClientHintBrand&) = default;
+RuntimeClientHintBrand::RuntimeClientHintBrand(
+    RuntimeClientHintBrand&&) = default;
+RuntimeClientHintBrand& RuntimeClientHintBrand::operator=(
+    RuntimeClientHintBrand&&) = default;
+RuntimeClientHintBrand::~RuntimeClientHintBrand() = default;
+
+RuntimeUserAgentData::RuntimeUserAgentData() = default;
+RuntimeUserAgentData::RuntimeUserAgentData(
+    const RuntimeUserAgentData&) = default;
+RuntimeUserAgentData& RuntimeUserAgentData::operator=(
+    const RuntimeUserAgentData&) = default;
+RuntimeUserAgentData::RuntimeUserAgentData(RuntimeUserAgentData&&) = default;
+RuntimeUserAgentData& RuntimeUserAgentData::operator=(
+    RuntimeUserAgentData&&) = default;
+RuntimeUserAgentData::~RuntimeUserAgentData() = default;
+
+RuntimeSurfacePolicy::RuntimeSurfacePolicy() = default;
+RuntimeSurfacePolicy::RuntimeSurfacePolicy(
+    const RuntimeSurfacePolicy&) = default;
+RuntimeSurfacePolicy& RuntimeSurfacePolicy::operator=(
+    const RuntimeSurfacePolicy&) = default;
+RuntimeSurfacePolicy::RuntimeSurfacePolicy(RuntimeSurfacePolicy&&) = default;
+RuntimeSurfacePolicy& RuntimeSurfacePolicy::operator=(
+    RuntimeSurfacePolicy&&) = default;
+RuntimeSurfacePolicy::~RuntimeSurfacePolicy() = default;
+
 RuntimeProxyConfig::RuntimeProxyConfig() = default;
 RuntimeProxyConfig::RuntimeProxyConfig(const RuntimeProxyConfig&) = default;
 RuntimeProxyConfig& RuntimeProxyConfig::operator=(const RuntimeProxyConfig&) =

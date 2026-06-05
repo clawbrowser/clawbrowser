@@ -21,15 +21,14 @@
         "platform": {
           "type": "string",
           "enum": [
-            "macos"
+            "macos",
+            "windows"
           ]
         },
         "browser": {
           "type": "string",
-          "description": "Browser name. `clawbrowser` is accepted as an alias of `chrome`.",
           "enum": [
-            "chrome",
-            "clawbrowser"
+            "chrome"
           ]
         },
         "country": {
@@ -46,17 +45,47 @@
             "datacenter",
             "mobile"
           ]
+        },
+        "runtime_browser_version": {
+          "type": "string",
+          "description": "Full Chromium/Chrome runtime version that will apply the fingerprint"
+        },
+        "runtime_os": {
+          "type": "string",
+          "enum": [
+            "macos",
+            "windows",
+            "linux"
+          ]
+        },
+        "runtime_arch": {
+          "type": "string",
+          "enum": [
+            "amd64",
+            "arm64"
+          ]
+        },
+        "runtime_gpu": {
+          "type": "string",
+          "description": "Runtime GPU backend hint, for example apple-metal, d3d11-nvidia, or swiftshader"
+        },
+        "runtime_headless": {
+          "type": "boolean"
         }
       }
     },
     "GenerateResponse": {
       "type": "object",
       "required": [
-        "fingerprint"
+        "fingerprint",
+        "generator"
       ],
       "properties": {
         "fingerprint": {
           "$ref": "#/components/schemas/Fingerprint"
+        },
+        "generator": {
+          "$ref": "#/components/schemas/GeneratorProvenance"
         },
         "proxy": {
           "$ref": "#/components/schemas/ProxyConfig"
@@ -66,8 +95,16 @@
     "Fingerprint": {
       "type": "object",
       "required": [
+        "browser_family",
+        "browser_version",
+        "engine",
+        "os",
+        "os_version",
+        "architecture",
+        "device_class",
         "user_agent",
         "platform",
+        "user_agent_data",
         "screen",
         "hardware",
         "webgl",
@@ -76,14 +113,55 @@
         "client_rects_seed",
         "timezone",
         "language",
-        "fonts"
+        "fonts",
+        "headers",
+        "surface_policy"
       ],
       "properties": {
+        "browser_family": {
+          "type": "string",
+          "enum": [
+            "chrome"
+          ]
+        },
+        "browser_version": {
+          "type": "string"
+        },
+        "engine": {
+          "type": "string",
+          "enum": [
+            "blink"
+          ]
+        },
+        "os": {
+          "type": "string",
+          "enum": [
+            "macos",
+            "windows",
+            "linux"
+          ]
+        },
+        "os_version": {
+          "type": "string"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "device_class": {
+          "type": "string",
+          "enum": [
+            "desktop",
+            "mobile"
+          ]
+        },
         "user_agent": {
           "type": "string"
         },
         "platform": {
           "type": "string"
+        },
+        "user_agent_data": {
+          "$ref": "#/components/schemas/UserAgentData"
         },
         "screen": {
           "$ref": "#/components/schemas/Screen"
@@ -95,13 +173,22 @@
           "$ref": "#/components/schemas/WebGL"
         },
         "canvas_seed": {
-          "type": "integer"
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1,
+          "maximum": 2147483647
         },
         "audio_seed": {
-          "type": "integer"
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1,
+          "maximum": 2147483647
         },
         "client_rects_seed": {
-          "type": "integer"
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1,
+          "maximum": 2147483647
         },
         "timezone": {
           "type": "string"
@@ -138,6 +225,164 @@
           "items": {
             "type": "string"
           }
+        },
+        "audio_codecs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "video_codecs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "surface_policy": {
+          "$ref": "#/components/schemas/SurfacePolicy"
+        }
+      }
+    },
+    "UserAgentData": {
+      "type": "object",
+      "required": [
+        "brands",
+        "fullVersionList",
+        "platform",
+        "platformVersion",
+        "architecture",
+        "bitness",
+        "mobile",
+        "model"
+      ],
+      "properties": {
+        "brands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ClientHintBrand"
+          }
+        },
+        "fullVersionList": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ClientHintBrand"
+          }
+        },
+        "platform": {
+          "type": "string"
+        },
+        "platformVersion": {
+          "type": "string"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "bitness": {
+          "type": "string"
+        },
+        "mobile": {
+          "type": "boolean"
+        },
+        "model": {
+          "type": "string"
+        },
+        "uaFullVersion": {
+          "type": "string"
+        }
+      }
+    },
+    "ClientHintBrand": {
+      "type": "object",
+      "required": [
+        "brand",
+        "version"
+      ],
+      "properties": {
+        "brand": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "SurfacePolicy": {
+      "type": "object",
+      "required": [
+        "canvas",
+        "audio",
+        "client_rects",
+        "webgl",
+        "fonts",
+        "plugins",
+        "media_devices",
+        "speech_voices"
+      ],
+      "properties": {
+        "canvas": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "audio": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "client_rects": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "webgl": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "fonts": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "plugins": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "media_devices": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "speech_voices": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        }
+      }
+    },
+    "SurfacePolicyRule": {
+      "type": "object",
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "native",
+            "native_or_allowlist",
+            "override"
+          ]
+        }
+      }
+    },
+    "GeneratorProvenance": {
+      "type": "object",
+      "required": [
+        "provider",
+        "version",
+        "schema_version"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "integer"
         }
       }
     },
@@ -249,13 +494,6 @@
     "ProxyConfig": {
       "type": "object",
       "properties": {
-        "scheme": {
-          "type": "string",
-          "enum": [
-            "http",
-            "socks5"
-          ]
-        },
         "country": {
           "type": "string"
         },
@@ -290,16 +528,11 @@
           "type": "object",
           "required": [
             "host",
-            "port"
+            "port",
+            "username",
+            "password"
           ],
           "properties": {
-            "scheme": {
-              "type": "string",
-              "enum": [
-                "http",
-                "socks5"
-              ]
-            },
             "host": {
               "type": "string"
             },

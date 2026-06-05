@@ -129,6 +129,16 @@ base::expected<GenerateRequest, std::string> GenerateRequest::FromDict(
 
   if (const std::string* parsed = dict.FindString("connection_type")) value.connection_type = *parsed;
 
+  if (const std::string* parsed = dict.FindString("runtime_browser_version")) value.runtime_browser_version = *parsed;
+
+  if (const std::string* parsed = dict.FindString("runtime_os")) value.runtime_os = *parsed;
+
+  if (const std::string* parsed = dict.FindString("runtime_arch")) value.runtime_arch = *parsed;
+
+  if (const std::string* parsed = dict.FindString("runtime_gpu")) value.runtime_gpu = *parsed;
+
+  if (std::optional<bool> parsed = dict.FindBool("runtime_headless")) value.runtime_headless = *parsed;
+
   return base::ok(std::move(value));
 }
 
@@ -146,6 +156,11 @@ base::DictValue GenerateRequest::ToDict() const {
   dict.Set("country", country);
   if (city.has_value()) dict.Set("city", *city);
   if (connection_type.has_value()) dict.Set("connection_type", *connection_type);
+  if (runtime_browser_version.has_value()) dict.Set("runtime_browser_version", *runtime_browser_version);
+  if (runtime_os.has_value()) dict.Set("runtime_os", *runtime_os);
+  if (runtime_arch.has_value()) dict.Set("runtime_arch", *runtime_arch);
+  if (runtime_gpu.has_value()) dict.Set("runtime_gpu", *runtime_gpu);
+  if (runtime_headless.has_value()) dict.Set("runtime_headless", *runtime_headless);
   return dict;
 }
 
@@ -393,6 +408,307 @@ std::string Battery::ToJson() const {
   return DictToJson(ToDict());
 }
 
+ClientHintBrand::ClientHintBrand() = default;
+ClientHintBrand::ClientHintBrand(const ClientHintBrand&) = default;
+ClientHintBrand& ClientHintBrand::operator=(const ClientHintBrand&) = default;
+ClientHintBrand::ClientHintBrand(ClientHintBrand&&) = default;
+ClientHintBrand& ClientHintBrand::operator=(ClientHintBrand&&) = default;
+ClientHintBrand::~ClientHintBrand() = default;
+
+base::expected<ClientHintBrand, std::string> ClientHintBrand::FromDict(
+    const base::DictValue& dict) {
+  ClientHintBrand value;
+
+  auto brand = RequireString(dict, "brand");
+  if (!brand.has_value()) return base::unexpected(brand.error());
+  value.brand = *brand;
+
+  auto version = RequireString(dict, "version");
+  if (!version.has_value()) return base::unexpected(version.error());
+  value.version = *version;
+
+  return base::ok(std::move(value));
+}
+
+base::expected<ClientHintBrand, std::string> ClientHintBrand::FromJson(
+    const std::string& json) {
+  auto dict = ParseJsonToDict(json);
+  if (!dict.has_value()) return base::unexpected(dict.error());
+  return FromDict(*dict);
+}
+
+base::DictValue ClientHintBrand::ToDict() const {
+  base::DictValue dict;
+  dict.Set("brand", brand);
+  dict.Set("version", version);
+  return dict;
+}
+
+std::string ClientHintBrand::ToJson() const {
+  return DictToJson(ToDict());
+}
+
+UserAgentData::UserAgentData() = default;
+UserAgentData::UserAgentData(const UserAgentData&) = default;
+UserAgentData& UserAgentData::operator=(const UserAgentData&) = default;
+UserAgentData::UserAgentData(UserAgentData&&) = default;
+UserAgentData& UserAgentData::operator=(UserAgentData&&) = default;
+UserAgentData::~UserAgentData() = default;
+
+base::expected<UserAgentData, std::string> UserAgentData::FromDict(
+    const base::DictValue& dict) {
+  UserAgentData value;
+
+  const base::ListValue* brands_list = dict.FindList("brands");
+  if (!brands_list) return base::unexpected("missing required array field: brands");
+  for (const base::Value& item : *brands_list) {
+    if (!item.is_dict()) {
+      return base::unexpected("brands array contains non-object element");
+    }
+    auto parsed_item = ClientHintBrand::FromDict(item.GetDict());
+    if (!parsed_item.has_value()) return base::unexpected(parsed_item.error());
+    value.brands.push_back(std::move(*parsed_item));
+  }
+
+  const base::ListValue* fullVersionList_list = dict.FindList("fullVersionList");
+  if (!fullVersionList_list) return base::unexpected("missing required array field: fullVersionList");
+  for (const base::Value& item : *fullVersionList_list) {
+    if (!item.is_dict()) {
+      return base::unexpected("fullVersionList array contains non-object element");
+    }
+    auto parsed_item = ClientHintBrand::FromDict(item.GetDict());
+    if (!parsed_item.has_value()) return base::unexpected(parsed_item.error());
+    value.fullVersionList.push_back(std::move(*parsed_item));
+  }
+
+  auto platform = RequireString(dict, "platform");
+  if (!platform.has_value()) return base::unexpected(platform.error());
+  value.platform = *platform;
+
+  auto platformVersion = RequireString(dict, "platformVersion");
+  if (!platformVersion.has_value()) return base::unexpected(platformVersion.error());
+  value.platformVersion = *platformVersion;
+
+  auto architecture = RequireString(dict, "architecture");
+  if (!architecture.has_value()) return base::unexpected(architecture.error());
+  value.architecture = *architecture;
+
+  auto bitness = RequireString(dict, "bitness");
+  if (!bitness.has_value()) return base::unexpected(bitness.error());
+  value.bitness = *bitness;
+
+  auto mobile = RequireBool(dict, "mobile");
+  if (!mobile.has_value()) return base::unexpected(mobile.error());
+  value.mobile = *mobile;
+
+  auto model = RequireString(dict, "model");
+  if (!model.has_value()) return base::unexpected(model.error());
+  value.model = *model;
+
+  if (const std::string* parsed = dict.FindString("uaFullVersion")) value.uaFullVersion = *parsed;
+
+  return base::ok(std::move(value));
+}
+
+base::expected<UserAgentData, std::string> UserAgentData::FromJson(
+    const std::string& json) {
+  auto dict = ParseJsonToDict(json);
+  if (!dict.has_value()) return base::unexpected(dict.error());
+  return FromDict(*dict);
+}
+
+base::DictValue UserAgentData::ToDict() const {
+  base::DictValue dict;
+  {
+    base::ListValue list;
+    for (const auto& item : brands) list.Append(item.ToDict());
+    dict.Set("brands", std::move(list));
+  }
+  {
+    base::ListValue list;
+    for (const auto& item : fullVersionList) list.Append(item.ToDict());
+    dict.Set("fullVersionList", std::move(list));
+  }
+  dict.Set("platform", platform);
+  dict.Set("platformVersion", platformVersion);
+  dict.Set("architecture", architecture);
+  dict.Set("bitness", bitness);
+  dict.Set("mobile", mobile);
+  dict.Set("model", model);
+  if (uaFullVersion.has_value()) dict.Set("uaFullVersion", *uaFullVersion);
+  return dict;
+}
+
+std::string UserAgentData::ToJson() const {
+  return DictToJson(ToDict());
+}
+
+SurfacePolicyRule::SurfacePolicyRule() = default;
+SurfacePolicyRule::SurfacePolicyRule(const SurfacePolicyRule&) = default;
+SurfacePolicyRule& SurfacePolicyRule::operator=(const SurfacePolicyRule&) = default;
+SurfacePolicyRule::SurfacePolicyRule(SurfacePolicyRule&&) = default;
+SurfacePolicyRule& SurfacePolicyRule::operator=(SurfacePolicyRule&&) = default;
+SurfacePolicyRule::~SurfacePolicyRule() = default;
+
+base::expected<SurfacePolicyRule, std::string> SurfacePolicyRule::FromDict(
+    const base::DictValue& dict) {
+  SurfacePolicyRule value;
+
+  auto mode = RequireString(dict, "mode");
+  if (!mode.has_value()) return base::unexpected(mode.error());
+  value.mode = *mode;
+
+  return base::ok(std::move(value));
+}
+
+base::expected<SurfacePolicyRule, std::string> SurfacePolicyRule::FromJson(
+    const std::string& json) {
+  auto dict = ParseJsonToDict(json);
+  if (!dict.has_value()) return base::unexpected(dict.error());
+  return FromDict(*dict);
+}
+
+base::DictValue SurfacePolicyRule::ToDict() const {
+  base::DictValue dict;
+  dict.Set("mode", mode);
+  return dict;
+}
+
+std::string SurfacePolicyRule::ToJson() const {
+  return DictToJson(ToDict());
+}
+
+SurfacePolicy::SurfacePolicy() = default;
+SurfacePolicy::SurfacePolicy(const SurfacePolicy&) = default;
+SurfacePolicy& SurfacePolicy::operator=(const SurfacePolicy&) = default;
+SurfacePolicy::SurfacePolicy(SurfacePolicy&&) = default;
+SurfacePolicy& SurfacePolicy::operator=(SurfacePolicy&&) = default;
+SurfacePolicy::~SurfacePolicy() = default;
+
+base::expected<SurfacePolicy, std::string> SurfacePolicy::FromDict(
+    const base::DictValue& dict) {
+  SurfacePolicy value;
+
+  auto canvas_dict = RequireDict(dict, "canvas");
+  if (!canvas_dict.has_value()) return base::unexpected(canvas_dict.error());
+  auto canvas = SurfacePolicyRule::FromDict(**canvas_dict);
+  if (!canvas.has_value()) return base::unexpected(canvas.error());
+  value.canvas = std::move(*canvas);
+
+  auto audio_dict = RequireDict(dict, "audio");
+  if (!audio_dict.has_value()) return base::unexpected(audio_dict.error());
+  auto audio = SurfacePolicyRule::FromDict(**audio_dict);
+  if (!audio.has_value()) return base::unexpected(audio.error());
+  value.audio = std::move(*audio);
+
+  auto client_rects_dict = RequireDict(dict, "client_rects");
+  if (!client_rects_dict.has_value()) return base::unexpected(client_rects_dict.error());
+  auto client_rects = SurfacePolicyRule::FromDict(**client_rects_dict);
+  if (!client_rects.has_value()) return base::unexpected(client_rects.error());
+  value.client_rects = std::move(*client_rects);
+
+  auto webgl_dict = RequireDict(dict, "webgl");
+  if (!webgl_dict.has_value()) return base::unexpected(webgl_dict.error());
+  auto webgl = SurfacePolicyRule::FromDict(**webgl_dict);
+  if (!webgl.has_value()) return base::unexpected(webgl.error());
+  value.webgl = std::move(*webgl);
+
+  auto fonts_dict = RequireDict(dict, "fonts");
+  if (!fonts_dict.has_value()) return base::unexpected(fonts_dict.error());
+  auto fonts = SurfacePolicyRule::FromDict(**fonts_dict);
+  if (!fonts.has_value()) return base::unexpected(fonts.error());
+  value.fonts = std::move(*fonts);
+
+  auto plugins_dict = RequireDict(dict, "plugins");
+  if (!plugins_dict.has_value()) return base::unexpected(plugins_dict.error());
+  auto plugins = SurfacePolicyRule::FromDict(**plugins_dict);
+  if (!plugins.has_value()) return base::unexpected(plugins.error());
+  value.plugins = std::move(*plugins);
+
+  auto media_devices_dict = RequireDict(dict, "media_devices");
+  if (!media_devices_dict.has_value()) return base::unexpected(media_devices_dict.error());
+  auto media_devices = SurfacePolicyRule::FromDict(**media_devices_dict);
+  if (!media_devices.has_value()) return base::unexpected(media_devices.error());
+  value.media_devices = std::move(*media_devices);
+
+  auto speech_voices_dict = RequireDict(dict, "speech_voices");
+  if (!speech_voices_dict.has_value()) return base::unexpected(speech_voices_dict.error());
+  auto speech_voices = SurfacePolicyRule::FromDict(**speech_voices_dict);
+  if (!speech_voices.has_value()) return base::unexpected(speech_voices.error());
+  value.speech_voices = std::move(*speech_voices);
+
+  return base::ok(std::move(value));
+}
+
+base::expected<SurfacePolicy, std::string> SurfacePolicy::FromJson(
+    const std::string& json) {
+  auto dict = ParseJsonToDict(json);
+  if (!dict.has_value()) return base::unexpected(dict.error());
+  return FromDict(*dict);
+}
+
+base::DictValue SurfacePolicy::ToDict() const {
+  base::DictValue dict;
+  dict.Set("canvas", canvas.ToDict());
+  dict.Set("audio", audio.ToDict());
+  dict.Set("client_rects", client_rects.ToDict());
+  dict.Set("webgl", webgl.ToDict());
+  dict.Set("fonts", fonts.ToDict());
+  dict.Set("plugins", plugins.ToDict());
+  dict.Set("media_devices", media_devices.ToDict());
+  dict.Set("speech_voices", speech_voices.ToDict());
+  return dict;
+}
+
+std::string SurfacePolicy::ToJson() const {
+  return DictToJson(ToDict());
+}
+
+GeneratorProvenance::GeneratorProvenance() = default;
+GeneratorProvenance::GeneratorProvenance(const GeneratorProvenance&) = default;
+GeneratorProvenance& GeneratorProvenance::operator=(const GeneratorProvenance&) = default;
+GeneratorProvenance::GeneratorProvenance(GeneratorProvenance&&) = default;
+GeneratorProvenance& GeneratorProvenance::operator=(GeneratorProvenance&&) = default;
+GeneratorProvenance::~GeneratorProvenance() = default;
+
+base::expected<GeneratorProvenance, std::string> GeneratorProvenance::FromDict(
+    const base::DictValue& dict) {
+  GeneratorProvenance value;
+
+  auto provider = RequireString(dict, "provider");
+  if (!provider.has_value()) return base::unexpected(provider.error());
+  value.provider = *provider;
+
+  auto version = RequireString(dict, "version");
+  if (!version.has_value()) return base::unexpected(version.error());
+  value.version = *version;
+
+  auto schema_version = RequireInt(dict, "schema_version");
+  if (!schema_version.has_value()) return base::unexpected(schema_version.error());
+  value.schema_version = *schema_version;
+
+  return base::ok(std::move(value));
+}
+
+base::expected<GeneratorProvenance, std::string> GeneratorProvenance::FromJson(
+    const std::string& json) {
+  auto dict = ParseJsonToDict(json);
+  if (!dict.has_value()) return base::unexpected(dict.error());
+  return FromDict(*dict);
+}
+
+base::DictValue GeneratorProvenance::ToDict() const {
+  base::DictValue dict;
+  dict.Set("provider", provider);
+  dict.Set("version", version);
+  dict.Set("schema_version", schema_version);
+  return dict;
+}
+
+std::string GeneratorProvenance::ToJson() const {
+  return DictToJson(ToDict());
+}
+
 ProxyConfig::ProxyConfig() = default;
 ProxyConfig::ProxyConfig(const ProxyConfig&) = default;
 ProxyConfig& ProxyConfig::operator=(const ProxyConfig&) = default;
@@ -403,8 +719,6 @@ ProxyConfig::~ProxyConfig() = default;
 base::expected<ProxyConfig, std::string> ProxyConfig::FromDict(
     const base::DictValue& dict) {
   ProxyConfig value;
-
-  if (const std::string* parsed = dict.FindString("scheme")) value.scheme = *parsed;
 
   if (const std::string* parsed = dict.FindString("country")) value.country = *parsed;
 
@@ -432,7 +746,6 @@ base::expected<ProxyConfig, std::string> ProxyConfig::FromJson(
 
 base::DictValue ProxyConfig::ToDict() const {
   base::DictValue dict;
-  if (scheme.has_value()) dict.Set("scheme", *scheme);
   if (country.has_value()) dict.Set("country", *country);
   if (city.has_value()) dict.Set("city", *city);
   if (connection_type.has_value()) dict.Set("connection_type", *connection_type);
@@ -458,6 +771,34 @@ base::expected<Fingerprint, std::string> Fingerprint::FromDict(
     const base::DictValue& dict) {
   Fingerprint value;
 
+  auto browser_family = RequireString(dict, "browser_family");
+  if (!browser_family.has_value()) return base::unexpected(browser_family.error());
+  value.browser_family = *browser_family;
+
+  auto browser_version = RequireString(dict, "browser_version");
+  if (!browser_version.has_value()) return base::unexpected(browser_version.error());
+  value.browser_version = *browser_version;
+
+  auto engine = RequireString(dict, "engine");
+  if (!engine.has_value()) return base::unexpected(engine.error());
+  value.engine = *engine;
+
+  auto os = RequireString(dict, "os");
+  if (!os.has_value()) return base::unexpected(os.error());
+  value.os = *os;
+
+  auto os_version = RequireString(dict, "os_version");
+  if (!os_version.has_value()) return base::unexpected(os_version.error());
+  value.os_version = *os_version;
+
+  auto architecture = RequireString(dict, "architecture");
+  if (!architecture.has_value()) return base::unexpected(architecture.error());
+  value.architecture = *architecture;
+
+  auto device_class = RequireString(dict, "device_class");
+  if (!device_class.has_value()) return base::unexpected(device_class.error());
+  value.device_class = *device_class;
+
   auto user_agent = RequireString(dict, "user_agent");
   if (!user_agent.has_value()) return base::unexpected(user_agent.error());
   value.user_agent = *user_agent;
@@ -465,6 +806,12 @@ base::expected<Fingerprint, std::string> Fingerprint::FromDict(
   auto platform = RequireString(dict, "platform");
   if (!platform.has_value()) return base::unexpected(platform.error());
   value.platform = *platform;
+
+  auto user_agent_data_dict = RequireDict(dict, "user_agent_data");
+  if (!user_agent_data_dict.has_value()) return base::unexpected(user_agent_data_dict.error());
+  auto user_agent_data = UserAgentData::FromDict(**user_agent_data_dict);
+  if (!user_agent_data.has_value()) return base::unexpected(user_agent_data.error());
+  value.user_agent_data = std::move(*user_agent_data);
 
   auto screen_dict = RequireDict(dict, "screen");
   if (!screen_dict.has_value()) return base::unexpected(screen_dict.error());
@@ -555,6 +902,39 @@ base::expected<Fingerprint, std::string> Fingerprint::FromDict(
     }
   }
 
+  if (const base::DictValue* parsed_dict = dict.FindDict("audio_codecs")) {
+    for (auto [key, item] : *parsed_dict) {
+      if (!item.is_string()) {
+        return base::unexpected("audio_codecs object contains non-string value");
+      }
+      value.audio_codecs[key] = item.GetString();
+    }
+  }
+
+  if (const base::DictValue* parsed_dict = dict.FindDict("video_codecs")) {
+    for (auto [key, item] : *parsed_dict) {
+      if (!item.is_string()) {
+        return base::unexpected("video_codecs object contains non-string value");
+      }
+      value.video_codecs[key] = item.GetString();
+    }
+  }
+
+  auto headers_dict = RequireDict(dict, "headers");
+  if (!headers_dict.has_value()) return base::unexpected(headers_dict.error());
+  for (auto [key, item] : **headers_dict) {
+    if (!item.is_string()) {
+      return base::unexpected("headers object contains non-string value");
+    }
+    value.headers[key] = item.GetString();
+  }
+
+  auto surface_policy_dict = RequireDict(dict, "surface_policy");
+  if (!surface_policy_dict.has_value()) return base::unexpected(surface_policy_dict.error());
+  auto surface_policy = SurfacePolicy::FromDict(**surface_policy_dict);
+  if (!surface_policy.has_value()) return base::unexpected(surface_policy.error());
+  value.surface_policy = std::move(*surface_policy);
+
   return base::ok(std::move(value));
 }
 
@@ -567,8 +947,16 @@ base::expected<Fingerprint, std::string> Fingerprint::FromJson(
 
 base::DictValue Fingerprint::ToDict() const {
   base::DictValue dict;
+  dict.Set("browser_family", browser_family);
+  dict.Set("browser_version", browser_version);
+  dict.Set("engine", engine);
+  dict.Set("os", os);
+  dict.Set("os_version", os_version);
+  dict.Set("architecture", architecture);
+  dict.Set("device_class", device_class);
   dict.Set("user_agent", user_agent);
   dict.Set("platform", platform);
+  dict.Set("user_agent_data", user_agent_data.ToDict());
   dict.Set("screen", screen.ToDict());
   dict.Set("hardware", hardware.ToDict());
   dict.Set("webgl", webgl.ToDict());
@@ -602,6 +990,22 @@ base::DictValue Fingerprint::ToDict() const {
     for (const auto& item : speech_voices) list.Append(item);
     if (!speech_voices.empty()) dict.Set("speech_voices", std::move(list));
   }
+  {
+    base::DictValue object;
+    for (const auto& [key, item] : audio_codecs) object.Set(key, item);
+    if (!audio_codecs.empty()) dict.Set("audio_codecs", std::move(object));
+  }
+  {
+    base::DictValue object;
+    for (const auto& [key, item] : video_codecs) object.Set(key, item);
+    if (!video_codecs.empty()) dict.Set("video_codecs", std::move(object));
+  }
+  {
+    base::DictValue object;
+    for (const auto& [key, item] : headers) object.Set(key, item);
+    dict.Set("headers", std::move(object));
+  }
+  dict.Set("surface_policy", surface_policy.ToDict());
   return dict;
 }
 
@@ -626,6 +1030,12 @@ base::expected<GenerateResponse, std::string> GenerateResponse::FromDict(
   if (!fingerprint.has_value()) return base::unexpected(fingerprint.error());
   value.fingerprint = std::move(*fingerprint);
 
+  auto generator_dict = RequireDict(dict, "generator");
+  if (!generator_dict.has_value()) return base::unexpected(generator_dict.error());
+  auto generator = GeneratorProvenance::FromDict(**generator_dict);
+  if (!generator.has_value()) return base::unexpected(generator.error());
+  value.generator = std::move(*generator);
+
   if (const base::DictValue* parsed_dict = dict.FindDict("proxy")) {
     auto parsed = ProxyConfig::FromDict(*parsed_dict);
     if (!parsed.has_value()) return base::unexpected(parsed.error());
@@ -645,6 +1055,7 @@ base::expected<GenerateResponse, std::string> GenerateResponse::FromJson(
 base::DictValue GenerateResponse::ToDict() const {
   base::DictValue dict;
   dict.Set("fingerprint", fingerprint.ToDict());
+  dict.Set("generator", generator.ToDict());
   if (proxy.has_value()) dict.Set("proxy", proxy->ToDict());
   return dict;
 }
@@ -664,8 +1075,6 @@ base::expected<ProxyCredentials, std::string> ProxyCredentials::FromDict(
     const base::DictValue& dict) {
   ProxyCredentials value;
 
-  if (const std::string* parsed = dict.FindString("scheme")) value.scheme = *parsed;
-
   auto host = RequireString(dict, "host");
   if (!host.has_value()) return base::unexpected(host.error());
   value.host = *host;
@@ -674,9 +1083,13 @@ base::expected<ProxyCredentials, std::string> ProxyCredentials::FromDict(
   if (!port.has_value()) return base::unexpected(port.error());
   value.port = *port;
 
-  if (const std::string* parsed = dict.FindString("username")) value.username = *parsed;
+  auto username = RequireString(dict, "username");
+  if (!username.has_value()) return base::unexpected(username.error());
+  value.username = *username;
 
-  if (const std::string* parsed = dict.FindString("password")) value.password = *parsed;
+  auto password = RequireString(dict, "password");
+  if (!password.has_value()) return base::unexpected(password.error());
+  value.password = *password;
 
   return base::ok(std::move(value));
 }
@@ -690,11 +1103,10 @@ base::expected<ProxyCredentials, std::string> ProxyCredentials::FromJson(
 
 base::DictValue ProxyCredentials::ToDict() const {
   base::DictValue dict;
-  if (scheme.has_value()) dict.Set("scheme", *scheme);
   dict.Set("host", host);
   dict.Set("port", port);
-  if (username.has_value()) dict.Set("username", *username);
-  if (password.has_value()) dict.Set("password", *password);
+  dict.Set("username", username);
+  dict.Set("password", password);
   return dict;
 }
 
