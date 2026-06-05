@@ -71,7 +71,6 @@ Clawbrowser is a Chromium build that manages the **identity layer** for you — 
 - [🧬 Multi-profile management](#-multi-profile-management)
 - [💻 Platform support](#-platform-support)
 - [🛟 Troubleshooting](#-troubleshooting)
-- [🤝 Contributing](#-contributing)
 - [📄 License](#-license)
 
 </details>
@@ -96,7 +95,7 @@ Instructions:
 8. Use the documented target/integration selection from INSTALL.md.
 9. After installation, verify the browser using the verification steps documented in INSTALL.md.
 API key:
-- First check ${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json.
+- First check $HOME/.config/clawbrowser/config.json on Linux/macOS or %LOCALAPPDATA%\Clawbrowser\config.json on Windows.
 - If api_key already exists, do not ask again.
 - If api_key is missing, ask once for the real API key from https://app.clawbrowser.ai.
 - Save it using the documented clawctl config command.
@@ -256,7 +255,7 @@ Ship browser-automation features without building the identity stack yourself; p
 </p>
 
 1. **Install once.** `clawctl install` pulls Clawbrowser, the portable Linux runtime (when the host needs it), and the integration templates for the agents on the box.
-2. **Save your API key.** `clawctl config set --api-key …` writes it to `~/.config/clawbrowser/config.json`. `clawctl install` and `clawctl start` use it automatically from then on.
+2. **Save your API key.** `clawctl config set --api-key …` writes it to `$HOME/.config/clawbrowser/config.json` on Linux/macOS or `%LOCALAPPDATA%\Clawbrowser\config.json` on Windows. `clawctl install` and `clawctl start` use it automatically from then on.
 3. **Start the browser.** `clawctl start --profile <name>` boots a managed Chromium with a generated or reused profile and prints a local CDP endpoint when it's ready.
 4. **Identity stays consistent.** The same profile propagates into the renderer and GPU processes at startup, so user agent, platform, fonts, timezone, locale, screen, and proxy geo all line up.
 5. **Your agent connects over CDP.** Fingerprint patching and proxy routing are invisible to the automation client — re-fetch the endpoint with `clawctl endpoint` after any restart or failure; don't cache it.
@@ -321,7 +320,7 @@ await page.goto('https://example.com');
 # Install / reuse the browser and the portable runtime when needed
 clawctl install --json
 
-# Save your API key (persisted to ~/.config/clawbrowser/config.json)
+# Save your API key (Linux/macOS: $HOME/.config/clawbrowser/config.json; Windows: %LOCALAPPDATA%\Clawbrowser\config.json)
 clawctl config set --api-key "$CLAWBROWSER_API_KEY"
 
 # Start (or reattach to) a managed session, optionally opening a URL
@@ -348,7 +347,7 @@ clawctl --cdp http://127.0.0.1:9222 verify --json
 ```
 
 > [!IMPORTANT]
-> **API key.** Get one at [app.clawbrowser.ai](https://app.clawbrowser.ai). Save it with `clawctl config set --api-key …` — that writes it to `${XDG_CONFIG_HOME:-$HOME/.config}/clawbrowser/config.json` and every subsequent `clawctl` call picks it up. Never store the key in shell rc files, env files, MCP/agent config, project files, or logs.
+> **API key.** Get one at [app.clawbrowser.ai](https://app.clawbrowser.ai). Save it with `clawctl config set --api-key …` — that writes it to `$HOME/.config/clawbrowser/config.json` on Linux/macOS or `%LOCALAPPDATA%\Clawbrowser\config.json` on Windows, and every subsequent `clawctl` call picks it up. Never store the key in shell rc files, env files, MCP/agent config, project files, or logs.
 
 ## 📺 Remote viewing
 
@@ -393,17 +392,11 @@ clawctl endpoint --profile agent-uk --json
 | :--- | :--- | :--- |
 | `clawctl: command not found` | Standalone archive not extracted, or extract dir not on `PATH`. | Run `./clawctl …` from the unpacked archive, or add the install bin dir to `PATH`. |
 | `Permission denied` after `chmod +x` | Extracted under `/tmp` or another `noexec` filesystem. | Re-extract into a durable executable workdir (e.g. `~/clawbrowser-install` or a workspace mount), then rerun. |
-| API key prompts every time | Key wasn't saved via `clawctl config set`. | Run `clawctl config set --api-key "$CLAWBROWSER_API_KEY"` once; future calls pick it up from `~/.config/clawbrowser/config.json`. |
+| API key prompts every time | Key wasn't saved via `clawctl config set`. | Run `clawctl config set --api-key "$CLAWBROWSER_API_KEY"` once; future calls pick it up from `$HOME/.config/clawbrowser/config.json` on Linux/macOS or `%LOCALAPPDATA%\Clawbrowser\config.json` on Windows. |
 | `Timed out waiting for CDP on port …` | Browser startup failed or is slow. | Retry; inspect startup logs; for already-running sessions use `--cdp <url>` sidecar mode. |
 | `invalid API key` / API unreachable | Wrong key or network/backend issue. | Re-check the key from app.clawbrowser.ai and your egress connectivity. |
 | Endpoint refused or stale | Profile restarted or endpoint changed. | Re-run `clawctl endpoint --profile <name> --json` after every start/restart/failure; never persist the endpoint in config. |
 | `proxy-traffic` reports `state: "exhausted"` | Account proxy quota used up. | Top up traffic in the dashboard and rerun; pause proxy-backed runs until then. |
-
-## 🤝 Contributing
-
-<!-- If you accept PRs, add a CONTRIBUTING.md (dev setup, PR conventions, DCO/CLA)
-     and link it here. If the repo is release-only, state that instead. -->
-Contributions, issues, and feature requests are welcome. Please open an issue to discuss substantial changes first. See `CONTRIBUTING.md` for development setup and guidelines.
 
 ## 📄 License
 
