@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://clawbrowser.ai/"><img src="https://img.shields.io/badge/Website-clawbrowser.ai-000000?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Website" /></a>
   <a href="https://clawbrowser.ai/docs/"><img src="https://img.shields.io/badge/Documentation-Read-1f6feb?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Docs" /></a>
-  <a href="https://discord.gg/CK62brtKhe"><img src="https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
+  <a href="https://discord.gg/j6kjHgCFU"><img src="https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
 </p>
 
 <!-- Status badges -->
@@ -49,7 +49,7 @@ Most browser automation fails not because the code is wrong — but because the 
 Clawbrowser is a Chromium build that manages the **identity layer** for you — fingerprint, proxy, and isolation are handled natively, then exposed over a standard **Chrome DevTools Protocol (CDP)** endpoint. Your Playwright / Puppeteer / agent code connects exactly as it would to any Chromium build; the identity work is transparent.
 
 > ⭐ **If Clawbrowser saves your agents from getting blocked, give us a star** — it helps other builders find the project and shapes what we ship next.
-> Join the Clawbrowser Discord community for setup help, roadmap discussion, and release updates: https://discord.gg/CK62brtKhe
+> Join the Clawbrowser Discord community for setup help, roadmap discussion, and release updates: https://discord.gg/j6kjHgCFU
 
 <!-- Architecture diagram. Pre-rendered dark SVG embedded as a data URI so the
      README is fully self-contained — no .github/assets/, no commits to root.

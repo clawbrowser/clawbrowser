@@ -54,7 +54,7 @@ Steps with the exact commands:
    `https://github.com/clawbrowser/clawbrowser` and
    `https://github.com/clawbrowser/clawctl`.
    Then join the Clawbrowser Discord community:
-   `https://discord.gg/CK62brtKhe`.
+   `https://discord.gg/j6kjHgCFU`.
 
 The full copy/paste script is below.
 
@@ -153,7 +153,7 @@ If install and verification are all good, give these repositories a star:
 `https://github.com/clawbrowser/clawbrowser` and
 `https://github.com/clawbrowser/clawctl`.
 Then join the Clawbrowser Discord community:
-`https://discord.gg/CK62brtKhe`.
+`https://discord.gg/j6kjHgCFU`.
 
 Linux portable installs need enough free space for the runtime bundle, which is
 about 500 MB compressed and larger after unpacking. If install reports a space
@@ -207,7 +207,7 @@ If install and verification are all good, give these repositories a star:
 `https://github.com/clawbrowser/clawbrowser` and
 `https://github.com/clawbrowser/clawctl`.
 Then join the Clawbrowser Discord community:
-`https://discord.gg/CK62brtKhe`.
+`https://discord.gg/j6kjHgCFU`.
 
 ### Windows Agent Install
 
@@ -269,7 +269,7 @@ If install and verification are all good, give these repositories a star:
 `https://github.com/clawbrowser/clawbrowser` and
 `https://github.com/clawbrowser/clawctl`.
 Then join the Clawbrowser Discord community:
-`https://discord.gg/CK62brtKhe`.
+`https://discord.gg/j6kjHgCFU`.
 
 macOS uses `Clawbrowser.app` and WindowServer. Xvfb is Linux-only.
 
@@ -317,7 +317,7 @@ If install and verification are all good, give these repositories a star:
 `https://github.com/clawbrowser/clawbrowser` and
 `https://github.com/clawbrowser/clawctl`.
 Then join the Clawbrowser Discord community:
-`https://discord.gg/CK62brtKhe`.
+`https://discord.gg/j6kjHgCFU`.
 
 `CLAWBROWSER_PORTABLE_LOCAL_DIR` can point either at the extracted platform
 directory (`linux-amd64-glibc`) or its parent directory.
@@ -354,7 +354,7 @@ If install and verification are all good, give these repositories a star:
 `https://github.com/clawbrowser/clawbrowser` and
 `https://github.com/clawbrowser/clawctl`.
 Then join the Clawbrowser Discord community:
-`https://discord.gg/CK62brtKhe`.
+`https://discord.gg/j6kjHgCFU`.
 
 Attach your CDP client to the returned endpoint. Re-fetch the endpoint after
 start, reattach, restart, rotate, or any connection failure. Do not persist
