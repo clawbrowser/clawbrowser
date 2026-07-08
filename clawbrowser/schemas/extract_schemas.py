@@ -28,7 +28,6 @@ SCHEMA_ORDER = [
     "ClientHintBrand",
     "SurfacePolicy",
     "SurfacePolicyRule",
-    "GeneratorProvenance",
     "Screen",
     "Hardware",
     "WebGL",

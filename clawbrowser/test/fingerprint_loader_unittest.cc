@@ -7,6 +7,7 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/path_service.h"
+#include "clawbrowser/cli/args.h"
 #include "clawbrowser/fingerprint_accessor.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "clawbrowser/profile_envelope.h"
@@ -45,6 +46,7 @@ GenerateResponse MakeResponseWithProxy(const std::string& username,
   response.fingerprint.language = {"en-US"};
   response.fingerprint.fonts = {"Arial"};
   response.proxy.emplace();
+  response.proxy->scheme = "http";
   response.proxy->host = "proxy.example.com";
   response.proxy->port = 3128;
   response.proxy->country = "US";
@@ -248,6 +250,23 @@ TEST_F(FingerprintLoaderTest, LoadFromChildPayloadPrefersChildData) {
   EXPECT_EQ(FingerprintAccessor::Get()->timezone, "Etc/GMT-14");
 }
 
+TEST_F(FingerprintLoaderTest, CommandLineSpoofingFlagsApplyToChildPayload) {
+  auto child_payload = BuildChildFingerprintPayload(
+      GetFixturePath("valid_fingerprint.json"));
+  ASSERT_TRUE(child_payload.has_value()) << child_payload.error();
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII(kFingerprintChildDataSwitch, *child_payload);
+  cmd.AppendSwitch(kEnableCanvasSpoofingSwitch);
+  cmd.AppendSwitch(kEnableWebGLSpoofingSwitch);
+
+  auto result = LoadFingerprintFromCommandLine(cmd);
+  ASSERT_TRUE(result.has_value()) << result.error();
+  ASSERT_NE(FingerprintAccessor::Get(), nullptr);
+  EXPECT_TRUE(FingerprintAccessor::Get()->canvas_spoofing_enabled);
+  EXPECT_TRUE(FingerprintAccessor::Get()->webgl_spoofing_enabled);
+}
+
 TEST_F(FingerprintLoaderTest, ChildPayloadPreservesProxyConfig) {
   auto child_payload = BuildChildFingerprintPayload(
       GetFixturePath("valid_fingerprint.json"));
@@ -264,8 +283,8 @@ TEST_F(FingerprintLoaderTest, ChildPayloadPreservesProxyConfig) {
   EXPECT_EQ(FingerprintAccessor::GetProxy()->host.value_or(""),
             "proxy.example.com");
   EXPECT_EQ(FingerprintAccessor::GetProxy()->country.value_or(""), "US");
-  EXPECT_EQ(FingerprintAccessor::GetProxy()->username.value_or(""), "user");
-  EXPECT_EQ(FingerprintAccessor::GetProxy()->password.value_or(""), "pass");
+  EXPECT_FALSE(FingerprintAccessor::GetProxy()->username.has_value());
+  EXPECT_FALSE(FingerprintAccessor::GetProxy()->password.has_value());
 }
 
 TEST_F(FingerprintLoaderTest, LoadEncryptedProxyCredentialsFromProfileCache) {
@@ -292,8 +311,7 @@ TEST_F(FingerprintLoaderTest, LoadEncryptedProxyCredentialsFromProfileCache) {
             "pass_xyz");
 }
 
-TEST_F(FingerprintLoaderTest,
-       BuildChildPayloadFromEncryptedCachePreservesProxyCredentials) {
+TEST_F(FingerprintLoaderTest, LoadEncryptedProxyCachePreservesProxyScheme) {
   base::ScopedTempDir temp_dir;
   ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
 
@@ -304,12 +322,46 @@ TEST_F(FingerprintLoaderTest,
   envelope.request.browser = "chrome";
   envelope.request.country = "US";
   envelope.response = MakeResponseWithProxy("user_abc", "pass_xyz");
+  envelope.response.proxy->scheme = "socks5";
+
+  base::FilePath path = temp_dir.GetPath().AppendASCII("fingerprint.json");
+  ASSERT_TRUE(base::WriteFile(path, envelope.Serialize()));
+
+  auto result = LoadFingerprint(path);
+  ASSERT_TRUE(result.has_value()) << result.error();
+  ASSERT_NE(FingerprintAccessor::GetProxy(), nullptr);
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->scheme.value_or(""), "socks5");
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->host.value_or(""),
+            "proxy.example.com");
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->username.value_or(""),
+            "user_abc");
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->password.value_or(""),
+            "pass_xyz");
+}
+
+TEST_F(FingerprintLoaderTest,
+       BuildChildPayloadFromEncryptedCacheStripsProxyCredentials) {
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+
+  ProfileEnvelope envelope;
+  envelope.schema_version = ProfileEnvelope::kCurrentSchemaVersion;
+  envelope.created_at = "2026-04-09T12:00:00Z";
+  envelope.request.platform = "macos";
+  envelope.request.browser = "chrome";
+  envelope.request.country = "US";
+  envelope.response = MakeResponseWithProxy("user_abc", "pass_xyz");
+  envelope.response.proxy->scheme = "socks5";
 
   base::FilePath path = temp_dir.GetPath().AppendASCII("fingerprint.json");
   ASSERT_TRUE(base::WriteFile(path, envelope.Serialize()));
 
   auto child_payload = BuildChildFingerprintPayload(path);
   ASSERT_TRUE(child_payload.has_value()) << child_payload.error();
+  std::string child_json;
+  ASSERT_TRUE(base::Base64Decode(*child_payload, &child_json));
+  EXPECT_EQ(child_json.find("user_abc"), std::string::npos);
+  EXPECT_EQ(child_json.find("pass_xyz"), std::string::npos);
 
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
   cmd.AppendSwitchASCII(kFingerprintChildDataSwitch, *child_payload);
@@ -317,8 +369,9 @@ TEST_F(FingerprintLoaderTest,
   auto result = LoadFingerprintFromCommandLine(cmd);
   ASSERT_TRUE(result.has_value()) << result.error();
   ASSERT_NE(FingerprintAccessor::GetProxy(), nullptr);
-  EXPECT_EQ(FingerprintAccessor::GetProxy()->username.value_or(""), "user_abc");
-  EXPECT_EQ(FingerprintAccessor::GetProxy()->password.value_or(""), "pass_xyz");
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->scheme.value_or(""), "socks5");
+  EXPECT_FALSE(FingerprintAccessor::GetProxy()->username.has_value());
+  EXPECT_FALSE(FingerprintAccessor::GetProxy()->password.has_value());
 }
 
 TEST_F(FingerprintLoaderTest, LoadFromCommandLineNoFlag) {

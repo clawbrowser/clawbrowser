@@ -40,6 +40,7 @@ GenerateResponse MakeResponseWithProxy(const std::string& username,
   response.fingerprint.language = {"en-US"};
   response.fingerprint.fonts = {"Arial"};
   response.proxy.emplace();
+  response.proxy->scheme = "http";
   response.proxy->host = "proxy.example.com";
   response.proxy->port = 3128;
   response.proxy->country = "US";
@@ -187,6 +188,29 @@ TEST(ProfileEnvelopeTest, SerializeEncryptsProxyCredentials) {
   ASSERT_TRUE(reparsed->response.proxy.has_value());
   EXPECT_EQ(reparsed->schema_version, ProfileEnvelope::kCurrentSchemaVersion);
   EXPECT_EQ(reparsed->response.proxy->host.value_or(""), "proxy.example.com");
+  EXPECT_EQ(reparsed->response.proxy->username.value_or(""), "user_abc");
+  EXPECT_EQ(reparsed->response.proxy->password.value_or(""), "pass_xyz");
+}
+
+TEST(ProfileEnvelopeTest, SerializePreservesProxySchemeWithoutPlaintextSecrets) {
+  ProfileEnvelope envelope;
+  envelope.schema_version = ProfileEnvelope::kCurrentSchemaVersion;
+  envelope.created_at = "2026-04-09T12:00:00Z";
+  envelope.request.platform = "macos";
+  envelope.request.browser = "chrome";
+  envelope.request.country = "US";
+  envelope.response = MakeResponseWithProxy("user_abc", "pass_xyz");
+  envelope.response.proxy->scheme = "socks5";
+
+  std::string serialized = envelope.Serialize();
+  EXPECT_NE(serialized.find("\"scheme\": \"socks5\""), std::string::npos);
+  EXPECT_EQ(serialized.find("user_abc"), std::string::npos);
+  EXPECT_EQ(serialized.find("pass_xyz"), std::string::npos);
+
+  auto reparsed = ProfileEnvelope::Parse(serialized);
+  ASSERT_TRUE(reparsed.has_value()) << reparsed.error();
+  ASSERT_TRUE(reparsed->response.proxy.has_value());
+  EXPECT_EQ(reparsed->response.proxy->scheme.value_or(""), "socks5");
   EXPECT_EQ(reparsed->response.proxy->username.value_or(""), "user_abc");
   EXPECT_EQ(reparsed->response.proxy->password.value_or(""), "pass_xyz");
 }

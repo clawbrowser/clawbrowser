@@ -61,6 +61,7 @@ run_launcher() {
   local behavior="$2"
   local skip_rsync="${3:-1}"
   local appimage_release_name="${4:-}"
+  local bundle_version="${5:-}"
   local tmp_dir
   local remote_home
   local -a launcher_args=()
@@ -205,6 +206,10 @@ EOF
     launcher_args+=(--appimage-release-name "${appimage_release_name}")
   fi
 
+  if [[ -n "${bundle_version}" ]]; then
+    launcher_args+=(--bundle-version "${bundle_version}")
+  fi
+
   set +e
   if ((${#launcher_args[@]} > 0)); then
     SCENARIO_OUTPUT="$(
@@ -262,7 +267,7 @@ assert_common_success_contract() {
   assert_contains "${SCENARIO_RECORD}" 'local icon_assets_dir="${repo_dir}/branding/icons/app/side-bite"'
   assert_contains "${SCENARIO_RECORD}" 'clawbrowser/resources/side_bite.svg'
   assert_contains "${SCENARIO_RECORD}" 'app.icns'
-  assert_contains "${SCENARIO_RUNNER_BODY}" 'build_lock_a="${11}"'
+  assert_contains "${SCENARIO_RUNNER_BODY}" 'build_lock_a="${12}"'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'release_build_locks'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'refusing to reuse existing run dir'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'else'
@@ -290,6 +295,7 @@ assert_common_success_contract() {
 run_darwin_success_scenario() {
   run_launcher Darwin success
   assert_common_success_contract Darwin
+  assert_contains "${SCENARIO_RECORD}" 'clawbrowser-prod clawbrowser_default 1.0.0'
   assert_contains "${SCENARIO_OUTPUT}" 'ARTIFACT_COUNT=1'
   assert_contains "${SCENARIO_OUTPUT}" "ARTIFACT_1=${SCENARIO_HOME}/dev/clawbrowser-artifacts/clawbrowser-prod-macos-arm64-20260410-200000-CEST.tar.gz"
   assert_contains "${SCENARIO_RUNNER_BODY}" 'CBProdMacArm64'
@@ -304,7 +310,8 @@ run_darwin_success_scenario() {
   assert_contains "${SCENARIO_RUNNER_BODY}" 'rewrite_macos_bundle_metadata "${staged_app}"'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'APP_NAME = "Clawbrowser"'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'SOURCE_APP_NAME = "Chromium"'
-  assert_contains "${SCENARIO_RUNNER_BODY}" 'BUNDLE_VERSION = "1.0.0"'
+  assert_contains "${SCENARIO_RUNNER_BODY}" 'clawbrowser_bundle_version="${10}"'
+  assert_contains "${SCENARIO_RUNNER_BODY}" 'BUNDLE_VERSION = sys.argv[2]'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'DIRECT_LAUNCH_SCHEME = "clawbrowser"'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'bundle["CFBundleExecutable"] = APP_NAME'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'bundle["CFBundleShortVersionString"] = BUNDLE_VERSION'
@@ -331,6 +338,15 @@ run_darwin_success_scenario() {
   assert_not_contains "${SCENARIO_RUNNER_BODY}" 'universalizer.py'
 }
 
+run_darwin_custom_bundle_version_scenario() {
+  run_launcher Darwin success 1 "" "1.2.3"
+  assert_common_success_contract Darwin
+  assert_contains "${SCENARIO_RECORD}" 'clawbrowser_bundle_version="$(decode_optional_arg "$9")"'
+  assert_contains "${SCENARIO_RECORD}" 'clawbrowser-prod clawbrowser_default 1.2.3'
+  assert_contains "${SCENARIO_RUNNER_BODY}" 'clawbrowser_bundle_version="${10}"'
+  assert_contains "${SCENARIO_RUNNER_BODY}" 'BUNDLE_VERSION = sys.argv[2]'
+}
+
 run_darwin_icon_sync_scenario() {
   run_launcher Darwin success 0
   assert_common_success_contract Darwin
@@ -343,7 +359,7 @@ run_linux_success_scenario() {
   run_launcher Linux success
   assert_common_success_contract Linux
   assert_contains "${SCENARIO_RECORD}" 'build_lock_b="${build_dir_b}.lock"'
-  assert_contains "${SCENARIO_RUNNER_BODY}" 'build_lock_b="${12}"'
+  assert_contains "${SCENARIO_RUNNER_BODY}" 'build_lock_b="${13}"'
   assert_contains "${SCENARIO_OUTPUT}" 'ARTIFACT_COUNT=2'
   assert_contains "${SCENARIO_OUTPUT}" "ARTIFACT_1=${SCENARIO_HOME}/dev/clawbrowser-artifacts/clawbrowser-prod-linux-x64-20260410-200000-CEST.tar.gz"
   assert_contains "${SCENARIO_OUTPUT}" "ARTIFACT_2=${SCENARIO_HOME}/dev/clawbrowser-artifacts/clawbrowser-prod-linux-arm64-20260410-200000-CEST.tar.gz"
@@ -434,6 +450,7 @@ run_start_failure_scenario() {
 trap cleanup_scenario EXIT
 
 run_darwin_success_scenario
+run_darwin_custom_bundle_version_scenario
 run_darwin_icon_sync_scenario
 run_linux_success_scenario
 run_linux_appimage_success_scenario

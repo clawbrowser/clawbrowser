@@ -21,6 +21,7 @@
         "platform": {
           "type": "string",
           "enum": [
+            "linux",
             "macos",
             "windows"
           ]
@@ -46,6 +47,14 @@
             "mobile"
           ]
         },
+        "proxy_scheme": {
+          "type": "string",
+          "enum": [
+            "http",
+            "socks5"
+          ],
+          "default": "http"
+        },
         "runtime_browser_version": {
           "type": "string",
           "description": "Full Chromium/Chrome runtime version that will apply the fingerprint"
@@ -57,6 +66,10 @@
             "windows",
             "linux"
           ]
+        },
+        "runtime_os_version": {
+          "type": "string",
+          "description": "Optional browser host OS version. When absent, the generator derives os_version from the generated user agent instead of inventing a host version."
         },
         "runtime_arch": {
           "type": "string",
@@ -77,15 +90,11 @@
     "GenerateResponse": {
       "type": "object",
       "required": [
-        "fingerprint",
-        "generator"
+        "fingerprint"
       ],
       "properties": {
         "fingerprint": {
           "$ref": "#/components/schemas/Fingerprint"
-        },
-        "generator": {
-          "$ref": "#/components/schemas/GeneratorProvenance"
         },
         "proxy": {
           "$ref": "#/components/schemas/ProxyConfig"
@@ -367,25 +376,6 @@
         }
       }
     },
-    "GeneratorProvenance": {
-      "type": "object",
-      "required": [
-        "provider",
-        "version",
-        "schema_version"
-      ],
-      "properties": {
-        "provider": {
-          "type": "string"
-        },
-        "version": {
-          "type": "string"
-        },
-        "schema_version": {
-          "type": "integer"
-        }
-      }
-    },
     "Screen": {
       "type": "object",
       "required": [
@@ -494,6 +484,14 @@
     "ProxyConfig": {
       "type": "object",
       "properties": {
+        "scheme": {
+          "type": "string",
+          "enum": [
+            "http",
+            "socks5"
+          ],
+          "default": "http"
+        },
         "country": {
           "type": "string"
         },
@@ -533,6 +531,14 @@
             "password"
           ],
           "properties": {
+            "scheme": {
+              "type": "string",
+              "enum": [
+                "http",
+                "socks5"
+              ],
+              "default": "http"
+            },
             "host": {
               "type": "string"
             },

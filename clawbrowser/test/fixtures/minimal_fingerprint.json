@@ -130,11 +130,6 @@
           "mode": "override"
         }
       }
-    },
-    "generator": {
-      "provider": "browserforge",
-      "version": "test",
-      "schema_version": 2
     }
   }
 }

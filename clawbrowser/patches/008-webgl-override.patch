@@ -21,57 +21,62 @@ index a35f78dde3..3f338fb1d5 100644
  #include "device/vr/buildflags/buildflags.h"
  #include "device/vr/public/mojom/vr_service.mojom-blink-forward.h"
  #include "gpu/GLES2/gl2extchromium.h"
-@@ -3903,6 +3907,10 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+@@ -3903,6 +3907,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
      case GL_RENDERBUFFER_BINDING:
        return WebGLAny(script_state, renderbuffer_binding_.Get());
      case GL_RENDERER:
 +      if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+          fp && !fp->webgl.renderer.empty()) {
++          fp && fp->webgl_spoofing_enabled &&
++          !fp->webgl.renderer.empty()) {
 +        return WebGLAny(script_state, String::FromUtf8(fp->webgl.renderer));
 +      }
        return WebGLAny(script_state, String("WebKit WebGL"));
      case GL_SAMPLE_ALPHA_TO_COVERAGE:
        return GetBooleanParameter(script_state, pname);
-@@ -3981,6 +3989,10 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+@@ -3981,6 +3989,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
      case GC3D_UNPACK_COLORSPACE_CONVERSION_WEBGL:
        return WebGLAny(script_state, unpack_colorspace_conversion_);
      case GL_VENDOR:
 +      if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+          fp && !fp->webgl.vendor.empty()) {
++          fp && fp->webgl_spoofing_enabled &&
++          !fp->webgl.vendor.empty()) {
 +        return WebGLAny(script_state, String::FromUtf8(fp->webgl.vendor));
 +      }
        return WebGLAny(script_state, String("WebKit"));
      case GL_VERSION:
        return WebGLAny(
-@@ -3999,6 +4011,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+@@ -3999,6 +4011,12 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
        return ScriptValue::CreateNull(script_state->GetIsolate());
      case WebGLDebugRendererInfo::kUnmaskedRendererWebgl:
        if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
 +        if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+            fp && !fp->webgl.renderer.empty()) {
++            fp && fp->webgl_spoofing_enabled &&
++            !fp->webgl.renderer.empty()) {
 +          return WebGLAny(script_state,
 +                          String::FromUtf8(fp->webgl.renderer));
 +        }
          return WebGLAny(script_state,
                          String(ContextGL()->GetString(GL_RENDERER)));
        }
-@@ -4008,6 +4025,10 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+@@ -4008,6 +4025,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
        return ScriptValue::CreateNull(script_state->GetIsolate());
      case WebGLDebugRendererInfo::kUnmaskedVendorWebgl:
        if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
 +        if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+            fp && !fp->webgl.vendor.empty()) {
++            fp && fp->webgl_spoofing_enabled &&
++            !fp->webgl.vendor.empty()) {
 +          return WebGLAny(script_state, String::FromUtf8(fp->webgl.vendor));
 +        }
          return WebGLAny(script_state,
                          String(ContextGL()->GetString(GL_VENDOR)));
        }
-@@ -5155,6 +5176,16 @@ void WebGLRenderingContextBase::ReadPixelsHelper(GLint x,
+@@ -5155,6 +5176,17 @@ void WebGLRenderingContextBase::ReadPixelsHelper(GLint x,
      }
      ContextGL()->ReadPixels(x, y, width, height, format, type, data);
    }
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+      fp && fp->surface_policy.canvas == "override") {
++      fp && fp->webgl_spoofing_enabled &&
++      fp->surface_policy.canvas == "override") {
 +    clawbrowser::Prng prng(fp->canvas_seed);
 +    base::span<uint8_t> pixel_bytes =
 +        UNSAFE_BUFFERS(base::span(data, buffer_size.ValueOrDie()));

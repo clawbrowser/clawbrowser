@@ -11,6 +11,7 @@
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "build/build_config.h"
+#include "clawbrowser/cli/args.h"
 #include "clawbrowser/fingerprint_accessor.h"
 #include "clawbrowser/profile_envelope.h"
 #include "third_party/icu/source/common/unicode/unistr.h"
@@ -150,7 +151,10 @@ std::optional<RuntimeProxyConfig> ToRuntimeProxyConfig(
   }
 
   RuntimeProxyConfig runtime_proxy;
-  runtime_proxy.scheme = "http";
+  runtime_proxy.scheme = proxy->scheme;
+  if (!runtime_proxy.scheme.has_value() || runtime_proxy.scheme->empty()) {
+    runtime_proxy.scheme = "http";
+  }
   runtime_proxy.country = proxy->country;
   runtime_proxy.city = proxy->city;
   runtime_proxy.connection_type = proxy->connection_type;
@@ -159,6 +163,33 @@ std::optional<RuntimeProxyConfig> ToRuntimeProxyConfig(
   runtime_proxy.username = proxy->username;
   runtime_proxy.password = proxy->password;
   return runtime_proxy;
+}
+
+ProxyConfig ToChildProxyConfig(const RuntimeProxyConfig& runtime_proxy) {
+  ProxyConfig child_proxy;
+  child_proxy.scheme = runtime_proxy.scheme;
+  child_proxy.country = runtime_proxy.country;
+  child_proxy.city = runtime_proxy.city;
+  child_proxy.connection_type = runtime_proxy.connection_type;
+  child_proxy.host = runtime_proxy.host;
+  child_proxy.port = runtime_proxy.port;
+  return child_proxy;
+}
+
+ProxyConfig ToChildProxyConfig(const ProxyConfig& proxy) {
+  ProxyConfig child_proxy = proxy;
+  child_proxy.username.reset();
+  child_proxy.password.reset();
+  return child_proxy;
+}
+
+void ApplySpoofingPolicyFromCommandLine(
+    const base::CommandLine& command_line) {
+  FingerprintAccessor::SetSpoofingPolicy(
+      command_line.HasSwitch(kEnableCanvasSpoofingSwitch) &&
+          !command_line.HasSwitch(kDisableCanvasSpoofingSwitch),
+      command_line.HasSwitch(kEnableWebGLSpoofingSwitch) &&
+          !command_line.HasSwitch(kDisableWebGLSpoofingSwitch));
 }
 
 base::expected<void, std::string> LoadFingerprintContents(
@@ -236,8 +267,9 @@ base::expected<void, std::string> LoadFingerprint(
   return LoadFingerprintContents(contents);
 }
 
-base::expected<std::string, std::string> BuildChildFingerprintPayload(
-    const base::FilePath& path) {
+base::expected<std::string, std::string> BuildChildFingerprintPayloadInternal(
+    const base::FilePath& path,
+    const RuntimeProxyConfig* proxy_override) {
   std::string contents;
   if (!base::ReadFileToString(path, &contents)) {
     return base::unexpected(
@@ -251,8 +283,11 @@ base::expected<std::string, std::string> BuildChildFingerprintPayload(
 
   base::DictValue payload_dict;
   payload_dict.Set("fingerprint", envelope->response.fingerprint.ToDict());
-  if (envelope->response.proxy.has_value()) {
-    payload_dict.Set("proxy", envelope->response.proxy->ToDict());
+  if (proxy_override) {
+    payload_dict.Set("proxy", ToChildProxyConfig(*proxy_override).ToDict());
+  } else if (envelope->response.proxy.has_value()) {
+    ProxyConfig child_proxy = ToChildProxyConfig(*envelope->response.proxy);
+    payload_dict.Set("proxy", child_proxy.ToDict());
   }
 
   std::string payload_json;
@@ -265,12 +300,24 @@ base::expected<std::string, std::string> BuildChildFingerprintPayload(
   return base::ok(std::move(payload));
 }
 
+base::expected<std::string, std::string> BuildChildFingerprintPayload(
+    const base::FilePath& path) {
+  return BuildChildFingerprintPayloadInternal(path, nullptr);
+}
+
+base::expected<std::string, std::string> BuildChildFingerprintPayload(
+    const base::FilePath& path,
+    const RuntimeProxyConfig& proxy_override) {
+  return BuildChildFingerprintPayloadInternal(path, &proxy_override);
+}
+
 base::expected<void, std::string> LoadFingerprintFromCommandLine(
     const base::CommandLine& command_line) {
   if (command_line.HasSwitch(kFingerprintChildDataSwitch)) {
     auto child_result = LoadFingerprintFromChildPayload(
         command_line.GetSwitchValueASCII(kFingerprintChildDataSwitch));
     if (child_result.has_value()) {
+      ApplySpoofingPolicyFromCommandLine(command_line);
       return base::ok();
     }
     if (!command_line.HasSwitch(kFingerprintPathSwitch)) {
@@ -284,7 +331,11 @@ base::expected<void, std::string> LoadFingerprintFromCommandLine(
 
   base::FilePath path =
       command_line.GetSwitchValuePath(kFingerprintPathSwitch);
-  return LoadFingerprint(path);
+  auto result = LoadFingerprint(path);
+  if (result.has_value()) {
+    ApplySpoofingPolicyFromCommandLine(command_line);
+  }
+  return result;
 }
 
 }  // namespace clawbrowser

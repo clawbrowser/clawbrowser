@@ -269,6 +269,8 @@ async def _launch_browser(
     fingerprints_fixture_path=DEFAULT_FINGERPRINTS_FIXTURE_PATH,
     proxy_fixture_path=DEFAULT_PROXY_FIXTURE_PATH,
     extra_browser_args=(),
+    extra_env=None,
+    headless=True,
 ):
     async with _launch_browser_with_details(
         fixture_name=fixture_name,
@@ -280,6 +282,8 @@ async def _launch_browser(
         fingerprints_fixture_path=fingerprints_fixture_path,
         proxy_fixture_path=proxy_fixture_path,
         extra_browser_args=extra_browser_args,
+        extra_env=extra_env,
+        headless=headless,
     ) as launch:
         yield launch["page"], launch["fingerprint_data"]
 
@@ -296,6 +300,8 @@ async def _launch_browser_with_details(
     fingerprints_fixture_path=DEFAULT_FINGERPRINTS_FIXTURE_PATH,
     proxy_fixture_path=DEFAULT_PROXY_FIXTURE_PATH,
     extra_browser_args=(),
+    extra_env=None,
+    headless=True,
 ):
     if expect_verify and skip_verify:
         raise ValueError("expect_verify and skip_verify are mutually exclusive")
@@ -357,10 +363,15 @@ async def _launch_browser_with_details(
 
             try:
                 with browser_log_path.open("w", encoding="utf-8") as browser_log_file:
+                    default_browser_args = [
+                        arg
+                        for arg in DEFAULT_BROWSER_ARGS
+                        if headless or not arg.startswith("--headless")
+                    ]
                     args = [
                         binary,
                         f"--remote-debugging-port={browser_port}",
-                        *DEFAULT_BROWSER_ARGS,
+                        *default_browser_args,
                         *extra_browser_args,
                     ]
                     if effective_fingerprint_id is not None:
@@ -380,6 +391,8 @@ async def _launch_browser_with_details(
                     }
                     if backend["api_key"]:
                         browser_env["CLAWBROWSER_API_KEY"] = backend["api_key"]
+                    if extra_env:
+                        browser_env.update(extra_env)
 
                     browser_process = subprocess.Popen(
                         args,

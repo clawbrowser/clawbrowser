@@ -15,6 +15,7 @@ REMOTE_ARTIFACT_DIR="${REMOTE_ARTIFACT_DIR:-}"
 REMOTE_LOG_DIR="${REMOTE_LOG_DIR:-}"
 ARTIFACT_BASENAME="${ARTIFACT_BASENAME:-clawbrowser-prod}"
 FINGERPRINT_ID="${FINGERPRINT_ID:-clawbrowser_default}"
+CLAWBROWSER_BUNDLE_VERSION="${CLAWBROWSER_BUNDLE_VERSION:-1.0.0}"
 APPIMAGE_RELEASE_NAME="${APPIMAGE_RELEASE_NAME:-}"
 EMPTY_REMOTE_ARG_SENTINEL="__CLAWBROWSER_EMPTY_REMOTE_ARG__"
 SKIP_RSYNC=0
@@ -72,6 +73,7 @@ Options:
   --remote-log-dir PATH      Default: remote-home-derived
   --artifact-basename NAME   Default: ${ARTIFACT_BASENAME}
   --fingerprint-id ID        Default: ${FINGERPRINT_ID}
+  --bundle-version VERSION   macOS bundle CFBundleShortVersionString/CFBundleVersion. Default: ${CLAWBROWSER_BUNDLE_VERSION}
   --appimage-release-name NAME Optional Linux AppImage release label. When set, Linux also emits human-friendly AppImage artifacts such as clawbrowser-human-release-x64.AppImage.
   --help                     Show this help
 EOF
@@ -130,6 +132,10 @@ parse_args() {
         ;;
       --fingerprint-id)
         FINGERPRINT_ID="$2"
+        shift 2
+        ;;
+      --bundle-version)
+        CLAWBROWSER_BUNDLE_VERSION="$2"
         shift 2
         ;;
       --appimage-release-name)
@@ -253,9 +259,10 @@ build_root="$6"
 artifact_dir="$7"
 artifact_basename="$8"
 fingerprint_id="$9"
-appimage_release_name="${10}"
-build_lock_a="${11}"
-build_lock_b="${12}"
+clawbrowser_bundle_version="${10}"
+appimage_release_name="${11}"
+build_lock_a="${12}"
+build_lock_b="${13}"
 
 source_app_name="Chromium.app"
 app_name="Clawbrowser.app"
@@ -686,7 +693,7 @@ rewrite_macos_bundle_metadata() {
   local plist_path="${staged_app}/Contents/Info.plist"
 
   [[ -f "${plist_path}" ]] || return 1
-  python3 - "${staged_app}" <<'PY'
+  python3 - "${staged_app}" "${clawbrowser_bundle_version}" <<'PY'
 from pathlib import Path
 import plistlib
 import sys
@@ -694,7 +701,7 @@ import sys
 APP_NAME = "Clawbrowser"
 SOURCE_APP_NAME = "Chromium"
 BUNDLE_ID = "ai.clawbrowser.Clawbrowser"
-BUNDLE_VERSION = "1.0.0"
+BUNDLE_VERSION = sys.argv[2]
 DIRECT_LAUNCH_NAME = "Direct launch URL"
 DIRECT_LAUNCH_SCHEME = "clawbrowser"
 
@@ -1148,8 +1155,9 @@ artifact_dir="$5"
 log_root="$6"
 artifact_basename="$7"
 fingerprint_id="$(decode_optional_arg "$8")"
-appimage_release_name="$(decode_optional_arg "$9")"
-runner_b64="${10:?missing runner payload}"
+clawbrowser_bundle_version="$(decode_optional_arg "$9")"
+appimage_release_name="$(decode_optional_arg "${10}")"
+runner_b64="${11:?missing runner payload}"
 
 timestamp="$(date '+%Y%m%d-%H%M%S-%Z')"
 run_id="${timestamp}-$$"
@@ -1343,6 +1351,7 @@ chmod +x "${runner_path}"
   printf 'log_root=%s\n' "${log_root}"
   printf 'artifact_basename=%s\n' "${artifact_basename}"
   printf 'fingerprint_id=%s\n' "${fingerprint_id}"
+  printf 'clawbrowser_bundle_version=%s\n' "${clawbrowser_bundle_version}"
   printf 'appimage_release_name=%s\n' "${appimage_release_name}"
   printf 'run_dir=%s\n' "${run_dir}"
   printf 'runner_path=%s\n' "${runner_path}"
@@ -1366,6 +1375,7 @@ nohup "${runner_path}" \
   "${artifact_dir}" \
   "${artifact_basename}" \
   "${fingerprint_id}" \
+  "${clawbrowser_bundle_version}" \
   "${appimage_release_name}" \
   "${build_lock_a}" \
   "${build_lock_b}" >>"${nohup_path}" 2>&1 </dev/null &
@@ -1455,6 +1465,7 @@ launch_remote_artifacts() {
       "${REMOTE_LOG_DIR}" \
       "${ARTIFACT_BASENAME}" \
       "$(remote_optional_arg "${FINGERPRINT_ID}")" \
+      "$(remote_optional_arg "${CLAWBROWSER_BUNDLE_VERSION}")" \
       "$(remote_optional_arg "${APPIMAGE_RELEASE_NAME}")" \
       "${runner_b64}"
   )"
@@ -1479,6 +1490,7 @@ main() {
   assert_no_spaces "${REMOTE_LOG_DIR}" "Remote log path"
   assert_no_spaces "${ARTIFACT_BASENAME}" "Artifact basename"
   assert_no_spaces "${FINGERPRINT_ID}" "Fingerprint ID"
+  assert_no_spaces "${CLAWBROWSER_BUNDLE_VERSION}" "Clawbrowser bundle version"
   if [[ -n "${APPIMAGE_RELEASE_NAME}" ]]; then
     assert_no_spaces "${APPIMAGE_RELEASE_NAME}" "AppImage release name"
   fi

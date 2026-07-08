@@ -171,6 +171,7 @@
       }
     },
     "proxy": {
+      "scheme": "http",
       "country": "US",
       "city": "New York",
       "connection_type": "residential",
@@ -178,11 +179,6 @@
       "port": 8080,
       "username": "user",
       "password": "pass"
-    },
-    "generator": {
-      "provider": "browserforge",
-      "version": "test",
-      "schema_version": 2
     }
   }
 }

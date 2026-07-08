@@ -1,7 +1,7 @@
 # Pinned against Chromium revision 25a94a5662bc
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -2833,6 +2833,18 @@
+@@ -2833,6 +2833,30 @@
        command_line->GetSwitchValueASCII(switches::kProcessType);
    const base::CommandLine& browser_command_line =
        *base::CommandLine::ForCurrentProcess();
@@ -16,6 +16,18 @@
 +        "clawbrowser-fp-child-data",
 +        browser_command_line.GetSwitchValueASCII(
 +            "clawbrowser-fp-child-data"));
++  }
++  if (browser_command_line.HasSwitch("enable-canvas-spoofing")) {
++    command_line->AppendSwitch("enable-canvas-spoofing");
++  }
++  if (browser_command_line.HasSwitch("disable-canvas-spoofing")) {
++    command_line->AppendSwitch("disable-canvas-spoofing");
++  }
++  if (browser_command_line.HasSwitch("enable-webgl-spoofing")) {
++    command_line->AppendSwitch("enable-webgl-spoofing");
++  }
++  if (browser_command_line.HasSwitch("disable-webgl-spoofing")) {
++    command_line->AppendSwitch("disable-webgl-spoofing");
 +  }
  
    static const char* const kCommonSwitchNames[] = {

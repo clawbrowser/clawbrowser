@@ -165,6 +165,10 @@ tbody tr:last-child td {
   color: #f44336;
 }
 
+.check-skip {
+  color: var(--text-muted);
+}
+
 #proxy-status {
   margin-top: 16px;
   padding: 12px 14px;

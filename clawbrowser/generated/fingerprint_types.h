@@ -32,8 +32,10 @@ struct GenerateRequest {
   std::string country;
   std::optional<std::string> city;
   std::optional<std::string> connection_type;
+  std::optional<std::string> proxy_scheme;
   std::optional<std::string> runtime_browser_version;
   std::optional<std::string> runtime_os;
+  std::optional<std::string> runtime_os_version;
   std::optional<std::string> runtime_arch;
   std::optional<std::string> runtime_gpu;
   std::optional<bool> runtime_headless;
@@ -240,26 +242,6 @@ struct SurfacePolicy {
   std::string ToJson() const;
 };
 
-struct GeneratorProvenance {
-  GeneratorProvenance();
-  GeneratorProvenance(const GeneratorProvenance&);
-  GeneratorProvenance& operator=(const GeneratorProvenance&);
-  GeneratorProvenance(GeneratorProvenance&&);
-  GeneratorProvenance& operator=(GeneratorProvenance&&);
-  ~GeneratorProvenance();
-
-  std::string provider;
-  std::string version;
-  int schema_version = 0;
-
-  static base::expected<GeneratorProvenance, std::string> FromDict(
-      const base::DictValue& dict);
-  static base::expected<GeneratorProvenance, std::string> FromJson(
-      const std::string& json);
-  base::DictValue ToDict() const;
-  std::string ToJson() const;
-};
-
 struct ProxyConfig {
   ProxyConfig();
   ProxyConfig(const ProxyConfig&);
@@ -268,6 +250,7 @@ struct ProxyConfig {
   ProxyConfig& operator=(ProxyConfig&&);
   ~ProxyConfig();
 
+  std::optional<std::string> scheme;
   std::optional<std::string> country;
   std::optional<std::string> city;
   std::optional<std::string> connection_type;
@@ -337,7 +320,6 @@ struct GenerateResponse {
   ~GenerateResponse();
 
   Fingerprint fingerprint;
-  GeneratorProvenance generator;
   std::optional<ProxyConfig> proxy;
 
   static base::expected<GenerateResponse, std::string> FromDict(
@@ -356,6 +338,7 @@ struct ProxyCredentials {
   ProxyCredentials& operator=(ProxyCredentials&&);
   ~ProxyCredentials();
 
+  std::optional<std::string> scheme;
   std::string host;
   int port = 0;
   std::string username;

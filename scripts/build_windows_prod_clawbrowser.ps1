@@ -15,6 +15,7 @@ param(
   [string]$BuildDir = "out\CBProd",
   [string]$ArtifactRoot = "",
   [int]$Jobs = 0,
+  [string]$BundleVersion = "",
   [switch]$SkipBuild,
   [switch]$StageExistingArtifacts,
   [switch]$SkipZip
@@ -508,6 +509,64 @@ function Write-FileAscii($Path, $Text) {
     New-Item -ItemType Directory -Force $Parent | Out-Null
   }
   Set-Content -Encoding ASCII -Path $Path -Value $Text
+}
+
+function Resolve-BundleVersion($Value) {
+  if (!$Value -and $env:CLAWBROWSER_BUNDLE_VERSION) {
+    $Value = $env:CLAWBROWSER_BUNDLE_VERSION
+  }
+  if (!$Value) {
+    return ""
+  }
+
+  $Trimmed = $Value.Trim()
+  if (!$Trimmed) {
+    return ""
+  }
+  if ($Trimmed -match "\s") {
+    throw "BundleVersion must not contain whitespace: $Trimmed"
+  }
+  if ($Trimmed -notmatch "^\d+(\.\d+){1,3}$") {
+    throw "BundleVersion must be a numeric dotted version such as 1.0.3: $Trimmed"
+  }
+  return $Trimmed
+}
+
+function Get-ChromiumVersionString {
+  $VersionPath = Join-Path $ChromiumSrc "chrome\VERSION"
+  if (!(Test-Path $VersionPath -PathType Leaf)) {
+    return ""
+  }
+
+  $Values = @{}
+  foreach ($Line in Get-Content $VersionPath) {
+    if ($Line -match "^([A-Z]+)=(\d+)$") {
+      $Values[$Matches[1]] = $Matches[2]
+    }
+  }
+
+  foreach ($Key in @("MAJOR", "MINOR", "BUILD", "PATCH")) {
+    if (!$Values.ContainsKey($Key)) {
+      return ""
+    }
+  }
+  return "$($Values["MAJOR"]).$($Values["MINOR"]).$($Values["BUILD"]).$($Values["PATCH"])"
+}
+
+function Write-BundleVersionManifest($Path, $ArtifactName) {
+  if (!$BundleVersion) {
+    return
+  }
+
+  $Data = [ordered]@{
+    bundle_version = $BundleVersion
+    chromium_version = Get-ChromiumVersionString
+    artifact_name = $ArtifactName
+  }
+  $Json = $Data | ConvertTo-Json
+  Write-FileAscii $Path ($Json + "`r`n")
+  Write-Host "BUNDLE_VERSION=$BundleVersion"
+  Write-Host "BUNDLE_VERSION_MANIFEST=$Path"
 }
 
 function Apply-ChromiumPatch($PatchPath) {
@@ -1141,6 +1200,8 @@ function Stage-Clawbrowser($OutputDir, $ArtifactName) {
   }
 
   Ensure-WindowsPrivateAssemblyLayout $StageDir
+  Write-BundleVersionManifest (Join-Path $StageDir "clawbrowser-release.json") $ArtifactName
+  Write-BundleVersionManifest (Join-Path $ArtifactRoot "$ArtifactName.release.json") $ArtifactName
 
   if (Test-Path (Join-Path $StageDir "chrome.exe")) {
     throw "Packaged Clawbrowser must expose clawbrowser.exe only; unexpected chrome.exe in $StageDir"
@@ -1179,9 +1240,15 @@ function Stage-WindowsSetupArchive($OutputDir) {
       Write-Host "WINDOWS_RELEASE_ZIP=$ZipPath"
       Write-Host "WINDOWS_RELEASE_SETUP=setup.exe"
     }
+    Write-BundleVersionManifest (Join-Path $ArtifactRoot "clawbrowser-win-amd64.release.json") "clawbrowser-win-amd64"
   } finally {
     Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
   }
+}
+
+$BundleVersion = Resolve-BundleVersion $BundleVersion
+if ($BundleVersion) {
+  Write-Host "Windows bundle version: $BundleVersion"
 }
 
 Set-Location $ChromiumSrc

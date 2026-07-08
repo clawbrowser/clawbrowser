@@ -166,6 +166,7 @@ EOF
     CHROMIUM_DIR="${tmp_dir}/chromium"
     BUILD_DIR="${build_dir}"
     FINGERPRINT_ID="clawbrowser_default"
+    CLAWBROWSER_BUNDLE_VERSION="1.2.3"
     load_remote_functions
     stage_dev_browser_bundle Darwin
   )
@@ -208,7 +209,7 @@ print(data.get("LSEnvironment", {}).get("CLAWBROWSER_DEFAULT_FINGERPRINT_ID"))
 PY
   )"
   case "${plist_summary}" in
-    $'Clawbrowser\nClawbrowser\nai.clawbrowser.Clawbrowser\napp\nNone\n1.0.0\n1.0.0\nclawbrowser\nNone') ;;
+    $'Clawbrowser\nClawbrowser\nai.clawbrowser.Clawbrowser\napp\nNone\n1.2.3\n1.2.3\nclawbrowser\nNone') ;;
     *) fail "unexpected Info.plist summary: ${plist_summary}" ;;
   esac
 
@@ -506,6 +507,44 @@ EOF
   rm -rf "${tmp_dir}"
 }
 
+test_collect_patch_targets_includes_legacy_cleanup_targets() {
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  local project_dir="${tmp_dir}/project"
+  mkdir -p "${project_dir}/clawbrowser/patches"
+
+  cat >"${project_dir}/clawbrowser/patches/001-current.patch" <<'EOF'
+diff --git a/current/file.cc b/current/file.cc
+--- a/current/file.cc
++++ b/current/file.cc
+@@ -1 +1 @@
+-old
++new
+EOF
+  cat >"${project_dir}/clawbrowser/patches/legacy_cleanup_targets.txt" <<'EOF'
+# Targets from removed historical patches that must be reset before applying
+# the current patch set.
+stale/old_patch.cc
+EOF
+
+  local targets
+  targets="$(
+    PROJECT_DIR="${project_dir}"
+    load_remote_functions
+    collect_patch_targets
+  )"
+
+  case "${targets}" in
+    *$'current/file.cc'*$'stale/old_patch.cc'*)
+      ;;
+    *)
+      fail "expected current and legacy cleanup targets, got: ${targets}"
+      ;;
+  esac
+
+  rm -rf "${tmp_dir}"
+}
+
 test_prefers_existing_clawbrowser_bundle
 test_errors_when_only_chromium_bundle_exists
 test_supports_clawbrowser_linux_binary
@@ -516,5 +555,6 @@ test_stages_dev_macos_bundle_resigns_after_rewrite
 test_stages_dev_linux_clawbrowser_bundle
 test_linux_patch_prereqs_installs_appimagetool
 test_reset_patch_targets_restores_nested_v8_paths
+test_collect_patch_targets_includes_legacy_cleanup_targets
 
 printf 'PASS\n'

@@ -1,5 +1,6 @@
 #include "clawbrowser/startup.h"
 
+#include "base/base64.h"
 #include "base/base_paths.h"
 #include "base/command_line.h"
 #include "base/environment.h"
@@ -73,6 +74,7 @@ class StartupTest : public testing::Test {
     env_->UnSetVar("CLAWBROWSER_API_KEY");
     env_->UnSetVar("CLAWBROWSER_API_BASE_URL");
     env_->UnSetVar("CLAWBROWSER_DEFAULT_FINGERPRINT_ID");
+    env_->UnSetVar("CLAWBROWSER_DEV_PROXY_URL");
   }
 
   void WriteConfigJson(const std::string& api_key,
@@ -283,8 +285,7 @@ class StartupTest : public testing::Test {
           "media_devices": {"mode": "override"},
           "speech_voices": {"mode": "override"}
         }
-      },
-      "generator": {"provider": "test", "version": "test", "schema_version": 2}
+      }
       %s
     })json",
                               user_agent.c_str(), user_agent.c_str(),
@@ -394,6 +395,69 @@ TEST_F(StartupTest, FingerprintWithCachedProfile) {
   EXPECT_TRUE(cmd.HasSwitch(kFingerprintChildDataSwitch));
 #else
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintChildDataSwitch));
+#endif
+}
+
+TEST_F(StartupTest, SpoofingFlagsApplyToLoadedBrowserFingerprint) {
+  WriteCachedProfile("cached_profile");
+  WriteConfigJson("test_key");
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "cached_profile");
+  cmd.AppendSwitch(kEnableCanvasSpoofingSwitch);
+  cmd.AppendSwitch(kEnableWebGLSpoofingSwitch);
+
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+  ASSERT_NE(FingerprintAccessor::Get(), nullptr);
+  EXPECT_TRUE(FingerprintAccessor::Get()->canvas_spoofing_enabled);
+  EXPECT_TRUE(FingerprintAccessor::Get()->webgl_spoofing_enabled);
+}
+
+TEST_F(StartupTest,
+       DevProxyUrlOverrideUsesSocks5AuthBridgeWithoutLeakingSecrets) {
+#if defined(CLAWBROWSER_ENABLE_DEV_PROXY_URL_OVERRIDE) && \
+    CLAWBROWSER_ENABLE_DEV_PROXY_URL_OVERRIDE
+  WriteCachedProfile("cached_profile");
+  WriteConfigJson("test_key");
+  env_->SetVar("CLAWBROWSER_DEV_PROXY_URL",
+               "socks5://dev_user:dev_pass@gate.nodemaven.com:1080");
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "cached_profile");
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+  ASSERT_NE(FingerprintAccessor::GetProxy(), nullptr);
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->scheme.value_or(""), "socks5");
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->host.value_or(""),
+            "gate.nodemaven.com");
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->port.value_or(0), 1080);
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->username.value_or(""),
+            "dev_user");
+  EXPECT_EQ(FingerprintAccessor::GetProxy()->password.value_or(""),
+            "dev_pass");
+  ASSERT_TRUE(cmd.HasSwitch("proxy-server"));
+  EXPECT_TRUE(base::StartsWith(cmd.GetSwitchValueASCII("proxy-server"),
+                               "http://127.0.0.1:",
+                               base::CompareCase::SENSITIVE));
+  EXPECT_EQ(cmd.GetSwitchValueASCII("proxy-server").find("dev_user"),
+            std::string::npos);
+  EXPECT_EQ(cmd.GetSwitchValueASCII("proxy-server").find("dev_pass"),
+            std::string::npos);
+
+#if BUILDFLAG(IS_MAC)
+  ASSERT_TRUE(cmd.HasSwitch(kFingerprintChildDataSwitch));
+  std::string child_json;
+  ASSERT_TRUE(base::Base64Decode(
+      cmd.GetSwitchValueASCII(kFingerprintChildDataSwitch), &child_json));
+  EXPECT_NE(child_json.find("\"scheme\":\"socks5\""), std::string::npos);
+  EXPECT_NE(child_json.find("gate.nodemaven.com"), std::string::npos);
+  EXPECT_EQ(child_json.find("dev_user"), std::string::npos);
+  EXPECT_EQ(child_json.find("dev_pass"), std::string::npos);
+#endif
 #endif
 }
 
@@ -1087,6 +1151,7 @@ TEST_F(StartupTest, FingerprintApiCallUsesLocationOverrides) {
   cmd.AppendSwitchASCII("country", "DE");
   cmd.AppendSwitchASCII("city", "Berlin");
   cmd.AppendSwitchASCII("connection-type", "mobile");
+  cmd.AppendSwitchASCII("proxy-scheme", "socks5");
 
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value()) << result.error();
@@ -1098,6 +1163,8 @@ TEST_F(StartupTest, FingerprintApiCallUsesLocationOverrides) {
   EXPECT_EQ(*saved.request.city, "Berlin");
   ASSERT_TRUE(saved.request.connection_type.has_value());
   EXPECT_EQ(*saved.request.connection_type, "mobile");
+  ASSERT_TRUE(saved.request.proxy_scheme.has_value());
+  EXPECT_EQ(*saved.request.proxy_scheme, "socks5");
 }
 
 TEST_F(StartupTest, FingerprintApiCallSendsRuntimeHintsFromLaunchFlags) {
@@ -1126,6 +1193,7 @@ TEST_F(StartupTest, FingerprintApiCallSendsRuntimeHintsFromLaunchFlags) {
   EXPECT_FALSE(saved.request.runtime_browser_version->empty());
   ASSERT_TRUE(saved.request.runtime_os.has_value());
   EXPECT_FALSE(saved.request.runtime_os->empty());
+  EXPECT_FALSE(saved.request.runtime_os_version.has_value());
   ASSERT_TRUE(saved.request.runtime_arch.has_value());
   EXPECT_FALSE(saved.request.runtime_arch->empty());
   ASSERT_TRUE(saved.request.runtime_gpu.has_value());

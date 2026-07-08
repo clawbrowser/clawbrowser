@@ -7,7 +7,83 @@ function formatProxyLocation(country, city) {
   return city ? `${normalizedCountry} (${city})` : normalizedCountry;
 }
 
+function formatProxyScheme(scheme) {
+  return scheme || 'N/A';
+}
+
+function isProxyPingFailure(result) {
+  const code = String(result.error_code || '').toLowerCase();
+  const detail = String(result.detail || '').toLowerCase();
+  if (code === 'network_error' ||
+      code === 'proxy_ping_failed' ||
+      code === 'proxy_unreachable' ||
+      code === 'proxy_timeout' ||
+      code === 'upstream_timeout') {
+    return true;
+  }
+
+  return /proxy/.test(detail) &&
+    /(ping|reach|unreachable|timeout|timed out|connection|connect|context canceled|request exit ip)/.test(detail);
+}
+
+function shouldRetryProxyResult(result) {
+  if (!result || result.match) {
+    return false;
+  }
+
+  const code = String(result.error_code || '').toLowerCase();
+  if (code === 'invalid_api_key' ||
+      code === 'forbidden' ||
+      code === 'rate_limited' ||
+      code === 'parse_error') {
+    return false;
+  }
+
+  return isProxyPingFailure(result);
+}
+
+function nextProxyRetryAction(result, attempts, maxAttempts) {
+  if (!shouldRetryProxyResult(result)) {
+    return 'resolve';
+  }
+  return attempts < maxAttempts ? 'retry' : 'exhaust';
+}
+
+function exhaustedProxyRetryMessage(scheme, attempts) {
+  return `Scheme: ${formatProxyScheme(scheme)}, Proxy ping failed after ${attempts} attempts. ` +
+    'Rotate this profile proxy and retry verification. ' +
+    'Agents: rotate this profile before continuing.';
+}
+
+function exhaustProxyRetries(result, attempts) {
+  const attemptCount = attempts || 1;
+  const scheme = result.scheme || '';
+  const detail = `proxy ping failed after ${attemptCount} attempts`;
+  const message = exhaustedProxyRetryMessage(scheme, attemptCount);
+  return {
+    check: {
+      surface: 'proxy',
+      pass: false,
+      expected: 'proxy ping reachable',
+      actual: detail,
+      actual_country: result.actual_country || '',
+      actual_city: result.actual_city || '',
+      scheme,
+      detail,
+      retryable: true,
+      attempts: attemptCount,
+      status_message: message,
+    },
+    status: {
+      pass: false,
+      message,
+    }
+  };
+}
+
 function summarizeProxyResult(result) {
+  const scheme = result.scheme || '';
+  const schemeText = `Scheme: ${formatProxyScheme(scheme)}`;
   const expectedValue = result.expected_country
     ? formatProxyLocation(result.expected_country, result.expected_city)
     : (result.detail || 'N/A');
@@ -24,23 +100,56 @@ function summarizeProxyResult(result) {
       actual: actualValue,
       actual_country: result.actual_country || '',
       actual_city: result.actual_city || '',
+      scheme,
       detail: result.detail || ''
     },
     status: result.match
       ? {
           pass: true,
-          message: `IP: ${result.ipv4 || 'N/A'}, Country: ${result.actual_country || 'N/A'}`
+          message: `${schemeText}, IP: ${result.ipv4 || 'N/A'}, Country: ${result.actual_country || 'N/A'}`
         }
       : {
           pass: false,
-          message: `Expected: ${expectedValue}, Got: ${actualValue}`
+          message: result.detail && actualValue === 'N/A'
+            ? `${schemeText}, ${result.detail}`
+            : `${schemeText}, Expected: ${expectedValue}, Got: ${actualValue}`
         }
+  };
+}
+
+function normalizeSurfacePolicy(policyMode) {
+  return policyMode || 'native';
+}
+
+function shouldValidateSurface(policyMode, spoofingEnabled) {
+  return Boolean(spoofingEnabled) &&
+    normalizeSurfacePolicy(policyMode) === 'override';
+}
+
+function surfaceSkipCheck(surface, policyMode, spoofingEnabled) {
+  const normalizedPolicy = normalizeSurfacePolicy(policyMode);
+  const enabled = Boolean(spoofingEnabled);
+  return {
+    surface,
+    pass: true,
+    skipped: true,
+    expected: normalizedPolicy,
+    actual: enabled ? 'enabled' : 'disabled',
+    detail: enabled
+      ? `surface policy ${normalizedPolicy}`
+      : 'spoofing disabled',
   };
 }
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    exhaustProxyRetries,
     formatProxyLocation,
+    formatProxyScheme,
+    nextProxyRetryAction,
+    shouldRetryProxyResult,
+    shouldValidateSurface,
+    surfaceSkipCheck,
     summarizeProxyResult
   };
 }
@@ -64,6 +173,10 @@ if (typeof document !== 'undefined') {
         screen_color_depth: data.dataset.screenColorDepth || '0',
         pixel_ratio: data.dataset.pixelRatio || '0',
         timezone: data.dataset.timezone || '',
+        canvas_policy: data.dataset.canvasPolicy || 'native',
+        canvas_spoofing_enabled: data.dataset.canvasSpoofingEnabled === 'true',
+        webgl_policy: data.dataset.webglPolicy || 'native',
+        webgl_spoofing_enabled: data.dataset.webglSpoofingEnabled === 'true',
         webgl_vendor: data.dataset.webglVendor || '',
         webgl_renderer: data.dataset.webglRenderer || '',
         fonts: data.dataset.fonts || '[]',
@@ -86,10 +199,13 @@ if (typeof document !== 'undefined') {
   const pendingAsyncChecks = new Set();
   let syncChecksComplete = false;
   let finalizationDone = false;
+  let proxyVerifyAttempts = 0;
   let proxyStatus = {
     pass: true,
     message: 'skipped'
   };
+
+  const maxProxyVerifyAttempts = 3;
 
   function createCell(text, className) {
     const cell = document.createElement('td');
@@ -221,12 +337,15 @@ if (typeof document !== 'undefined') {
 
     for (const checkResult of finalChecks) {
       const row = document.createElement('tr');
+      const statusText = checkResult.skipped
+        ? 'SKIP'
+        : (checkResult.pass ? 'PASS' : 'FAIL');
+      const statusClass = checkResult.skipped
+        ? 'check-skip'
+        : (checkResult.pass ? 'check-pass' : 'check-fail');
       row.append(
         createCell(checkResult.surface),
-        createCell(
-          checkResult.pass ? 'PASS' : 'FAIL',
-          checkResult.pass ? 'check-pass' : 'check-fail'
-        ),
+        createCell(statusText, statusClass),
         createCell(checkResult.expected || checkResult.detail || ''),
         createCell(checkResult.actual || '')
       );
@@ -234,8 +353,16 @@ if (typeof document !== 'undefined') {
     }
 
     const allPass = finalChecks.every(checkResult => checkResult.pass);
+    const hasSkipped = finalChecks.some(checkResult => checkResult.skipped);
+    const proxyFailure = finalChecks.find(checkResult =>
+      checkResult.surface === 'proxy' &&
+      !checkResult.pass &&
+      checkResult.status_message
+    );
     const statusEl = document.getElementById('status');
-    statusEl.textContent = allPass ? 'All checks passed' : 'Some checks failed';
+    statusEl.textContent = allPass
+      ? (hasSkipped ? 'All active checks passed' : 'All checks passed')
+      : (proxyFailure ? proxyFailure.status_message : 'Some checks failed');
     statusEl.className = allPass ? 'pass' : 'fail';
 
     renderProxyStatus();
@@ -254,7 +381,9 @@ if (typeof document !== 'undefined') {
   }
 
   function resolveProxyResult(result) {
-    const summary = summarizeProxyResult(result);
+    const summary = result && result.__exhausted_proxy_retries
+      ? exhaustProxyRetries(result, result.attempts)
+      : summarizeProxyResult(result);
     setCheck(summary.check);
     proxyStatus = summary.status;
 
@@ -262,8 +391,47 @@ if (typeof document !== 'undefined') {
   }
 
   window.onProxyVerifyResult = result => {
-    resolveProxyResult(result);
+    const normalizedResult = {
+      ...(result || {}),
+      attempts: proxyVerifyAttempts
+    };
+    const retryAction = nextProxyRetryAction(
+      normalizedResult,
+      proxyVerifyAttempts,
+      maxProxyVerifyAttempts
+    );
+    if (retryAction === 'retry') {
+      setTimeout(requestProxyVerification, proxyRetryDelayMs(proxyVerifyAttempts));
+      return;
+    }
+
+    if (retryAction === 'exhaust') {
+      resolveProxyResult({
+        ...normalizedResult,
+        __exhausted_proxy_retries: true
+      });
+      return;
+    }
+
+    resolveProxyResult(normalizedResult);
   };
+
+  function proxyRetryDelayMs(attempt) {
+    return Math.min(Math.max(attempt, 1) * 1000, 2000);
+  }
+
+  function requestProxyVerification() {
+    proxyVerifyAttempts += 1;
+    try {
+      chrome.send('verifyProxy');
+    } catch (e) {
+      resolveProxyResult({
+        match: true,
+        actual_country: 'N/A',
+        detail: 'proxy verification unavailable',
+      });
+    }
+  }
 
   // Navigator
   check('navigator.userAgent', expected.user_agent, navigator.userAgent);
@@ -327,7 +495,16 @@ if (typeof document !== 'undefined') {
     ctx.fillText('Clawbrowser test', 4, 17);
     return hashArrayBuffer(new TextEncoder().encode(canvas.toDataURL()));
   }
-  await deterministicCheck('canvas', canvasHash);
+  if (shouldValidateSurface(
+      expected.canvas_policy,
+      expected.canvas_spoofing_enabled)) {
+    await deterministicCheck('canvas', canvasHash);
+  } else {
+    setCheck(surfaceSkipCheck(
+      'canvas',
+      expected.canvas_policy,
+      expected.canvas_spoofing_enabled));
+  }
 
   async function webglHash() {
     const canvas = document.createElement('canvas');
@@ -344,18 +521,35 @@ if (typeof document !== 'undefined') {
     gl.readPixels(0, 0, 64, 64, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
     return hashArrayBuffer(pixels.buffer);
   }
-  await deterministicCheck('webgl.readPixels', webglHash);
+  if (shouldValidateSurface(
+      expected.webgl_policy,
+      expected.webgl_spoofing_enabled)) {
+    await deterministicCheck('webgl.readPixels', webglHash);
 
-  const glCanvas = document.createElement('canvas');
-  const gl = glCanvas.getContext('webgl');
-  if (gl) {
-    const debugExt = gl.getExtension('WEBGL_debug_renderer_info');
-    if (debugExt) {
-      check('webgl.vendor', expected.webgl_vendor,
-        gl.getParameter(debugExt.UNMASKED_VENDOR_WEBGL));
-      check('webgl.renderer', expected.webgl_renderer,
-        gl.getParameter(debugExt.UNMASKED_RENDERER_WEBGL));
+    const glCanvas = document.createElement('canvas');
+    const gl = glCanvas.getContext('webgl');
+    if (gl) {
+      const debugExt = gl.getExtension('WEBGL_debug_renderer_info');
+      if (debugExt) {
+        check('webgl.vendor', expected.webgl_vendor,
+          gl.getParameter(debugExt.UNMASKED_VENDOR_WEBGL));
+        check('webgl.renderer', expected.webgl_renderer,
+          gl.getParameter(debugExt.UNMASKED_RENDERER_WEBGL));
+      }
     }
+  } else {
+    setCheck(surfaceSkipCheck(
+      'webgl.readPixels',
+      expected.webgl_policy,
+      expected.webgl_spoofing_enabled));
+    setCheck(surfaceSkipCheck(
+      'webgl.vendor',
+      expected.webgl_policy,
+      expected.webgl_spoofing_enabled));
+    setCheck(surfaceSkipCheck(
+      'webgl.renderer',
+      expected.webgl_policy,
+      expected.webgl_spoofing_enabled));
   }
 
   async function audioHash() {
@@ -500,15 +694,7 @@ if (typeof document !== 'undefined') {
   }
 
   beginAsyncCheck('proxy');
-  try {
-    chrome.send('verifyProxy');
-  } catch (e) {
-    resolveProxyResult({
-      match: true,
-      actual_country: 'N/A',
-      detail: 'proxy verification unavailable'
-    });
-  }
+  requestProxyVerification();
 
   syncChecksComplete = true;
   finalizeIfReady();

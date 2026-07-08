@@ -79,6 +79,36 @@ TEST(ArgsTest, ParseVerifyAutomation) {
   EXPECT_TRUE(args.verify_automation());
 }
 
+TEST(ArgsTest, SpoofingFlagsDefaultOff) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+
+  ClawArgs args = ClawArgs::Parse(cmd);
+  EXPECT_FALSE(args.canvas_spoofing_enabled());
+  EXPECT_FALSE(args.webgl_spoofing_enabled());
+}
+
+TEST(ArgsTest, ParseEnableSpoofingFlags) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitch(kEnableCanvasSpoofingSwitch);
+  cmd.AppendSwitch(kEnableWebGLSpoofingSwitch);
+
+  ClawArgs args = ClawArgs::Parse(cmd);
+  EXPECT_TRUE(args.canvas_spoofing_enabled());
+  EXPECT_TRUE(args.webgl_spoofing_enabled());
+}
+
+TEST(ArgsTest, DisableSpoofingFlagsWinOverEnableFlags) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitch(kEnableCanvasSpoofingSwitch);
+  cmd.AppendSwitch(kDisableCanvasSpoofingSwitch);
+  cmd.AppendSwitch(kEnableWebGLSpoofingSwitch);
+  cmd.AppendSwitch(kDisableWebGLSpoofingSwitch);
+
+  ClawArgs args = ClawArgs::Parse(cmd);
+  EXPECT_FALSE(args.canvas_spoofing_enabled());
+  EXPECT_FALSE(args.webgl_spoofing_enabled());
+}
+
 TEST(ArgsTest, ParseLocationOverrides) {
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
   cmd.AppendSwitchASCII("country", "DE");
@@ -95,6 +125,17 @@ TEST(ArgsTest, ParseLocationOverrides) {
   EXPECT_EQ(*args.city(), "Berlin");
   ASSERT_TRUE(args.connection_type().has_value());
   EXPECT_EQ(*args.connection_type(), "mobile");
+}
+
+TEST(ArgsTest, ParseProxySchemeOverride) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("proxy-scheme", "socks5");
+
+  ClawArgs args = ClawArgs::Parse(cmd);
+  EXPECT_TRUE(args.has_proxy_scheme_override());
+  ASSERT_TRUE(args.proxy_scheme().has_value());
+  EXPECT_EQ(*args.proxy_scheme(), "socks5");
+  EXPECT_FALSE(args.has_location_overrides());
 }
 
 TEST(ArgsTest, ParseCityOnlyOverride) {

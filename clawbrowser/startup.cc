@@ -1,5 +1,6 @@
 #include "clawbrowser/startup.h"
 
+#include <memory>
 #include <string_view>
 #include <utility>
 
@@ -7,6 +8,7 @@
 #include "base/files/file_path.h"
 #include "base/i18n/time_formatting.h"
 #include "base/json/json_writer.h"
+#include "base/no_destructor.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/time/time.h"
@@ -21,6 +23,7 @@
 #include "clawbrowser/logging.h"
 #include "clawbrowser/paths.h"
 #include "clawbrowser/proxy/proxy_config.h"
+#include "clawbrowser/proxy/socks5_auth_proxy_bridge.h"
 #include "components/version_info/version_info.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
@@ -224,9 +227,19 @@ void AppendAuthPage(base::CommandLine* command_line) {
   command_line->AppendArg("clawbrowser://auth/");
 }
 
+std::unique_ptr<Socks5AuthProxyBridge>& ActiveSocks5AuthProxyBridge() {
+  static base::NoDestructor<std::unique_ptr<Socks5AuthProxyBridge>> bridge;
+  return *bridge;
+}
+
+void StopSocks5AuthProxyBridge() {
+  ActiveSocks5AuthProxyBridge().reset();
+}
+
 StartupResult FallbackToVanillaBrowser(base::CommandLine* command_line,
                                        ProfileManager* profile_manager,
                                        bool append_auth_page) {
+  StopSocks5AuthProxyBridge();
   FingerprintAccessor::Reset();
   if (append_auth_page) {
     ConfigureAuthStartup(command_line, profile_manager);
@@ -244,8 +257,12 @@ void PrintWarning(const std::string& message) {
 constexpr char kBackendBrowserName[] = "chrome";
 
 std::string DefaultProfilePlatform() {
-#if BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_MAC)
+  return "macos";
+#elif BUILDFLAG(IS_WIN)
   return "windows";
+#elif BUILDFLAG(IS_LINUX)
+  return "linux";
 #else
   return "macos";
 #endif
@@ -315,6 +332,9 @@ void ApplyGenerateRequestOverrides(const ClawArgs& args,
   if (args.has_connection_type_override()) {
     request->connection_type = args.connection_type();
   }
+  if (args.has_proxy_scheme_override()) {
+    request->proxy_scheme = args.proxy_scheme();
+  }
 
   if (request->platform.empty()) {
     request->platform = DefaultProfilePlatform();
@@ -377,6 +397,70 @@ std::string AcceptLanguageFromFingerprint(const RuntimeFingerprint& fp) {
     accept_lang += fp.language[i];
   }
   return accept_lang;
+}
+
+base::expected<std::optional<RuntimeProxyConfig>, std::string>
+ResolveDevProxyOverride() {
+#if defined(CLAWBROWSER_ENABLE_DEV_PROXY_URL_OVERRIDE) && \
+    CLAWBROWSER_ENABLE_DEV_PROXY_URL_OVERRIDE
+  auto env = base::Environment::Create();
+  std::optional<std::string> proxy_url =
+      env->GetVar("CLAWBROWSER_DEV_PROXY_URL");
+  if (!proxy_url.has_value() || proxy_url->empty()) {
+    return base::ok(std::nullopt);
+  }
+
+  auto parsed = ParseProxyUrl(*proxy_url);
+  if (!parsed.has_value()) {
+    return base::unexpected(parsed.error());
+  }
+  if (parsed->scheme.value_or("http") != "socks5") {
+    return base::unexpected(
+        "CLAWBROWSER_DEV_PROXY_URL only supports socks5:// URLs");
+  }
+  return base::ok(std::optional<RuntimeProxyConfig>(std::move(*parsed)));
+#else
+  return base::ok(std::nullopt);
+#endif
+}
+
+void ReplaceRuntimeProxy(RuntimeProxyConfig proxy) {
+  const RuntimeFingerprint* fp = FingerprintAccessor::Get();
+  if (!fp) {
+    return;
+  }
+  FingerprintAccessor::Set(*fp, std::move(proxy));
+}
+
+base::expected<std::optional<RuntimeProxyConfig>, std::string>
+ApplyDevProxyOverride() {
+  auto proxy_override = ResolveDevProxyOverride();
+  if (!proxy_override.has_value()) {
+    return base::unexpected(proxy_override.error());
+  }
+  if (!proxy_override->has_value()) {
+    return base::ok(std::nullopt);
+  }
+  RuntimeProxyConfig proxy = std::move(proxy_override->value());
+  ReplaceRuntimeProxy(proxy);
+  return base::ok(std::optional<RuntimeProxyConfig>(std::move(proxy)));
+}
+
+base::expected<std::optional<ProxyBridgeEndpoint>, std::string>
+PrepareProxyBridge(const RuntimeProxyConfig& proxy) {
+  StopSocks5AuthProxyBridge();
+  if (!ShouldUseSocks5AuthBridge(proxy)) {
+    return base::ok(std::nullopt);
+  }
+
+  auto bridge = Socks5AuthProxyBridge::Start(proxy);
+  if (!bridge.has_value()) {
+    return base::unexpected(bridge.error());
+  }
+
+  ProxyBridgeEndpoint endpoint = (*bridge)->endpoint();
+  ActiveSocks5AuthProxyBridge() = std::move(*bridge);
+  return base::ok(std::optional<ProxyBridgeEndpoint>(std::move(endpoint)));
 }
 
 }  // namespace
@@ -450,6 +534,7 @@ base::expected<StartupResult, std::string> RunStartup(
 
   // Vanilla mode
   if (args.is_vanilla()) {
+    StopSocks5AuthProxyBridge();
     if (!profile_manager.ResolveApiKey().has_value()) {
       ConfigureAuthStartup(command_line, &profile_manager);
     } else {
@@ -464,6 +549,7 @@ base::expected<StartupResult, std::string> RunStartup(
                            !profile_manager.HasCachedProfile(fp_id);
   std::optional<std::string> api_key = profile_manager.ResolveApiKey();
   if (!api_key.has_value()) {
+    StopSocks5AuthProxyBridge();
     ConfigureAuthStartup(command_line, &profile_manager);
     return base::ok(std::move(result));
   }
@@ -552,13 +638,30 @@ base::expected<StartupResult, std::string> RunStartup(
     return base::ok(FallbackToVanillaBrowser(
         command_line, &profile_manager, /*append_auth_page=*/false));
   }
+  FingerprintAccessor::SetSpoofingPolicy(args.canvas_spoofing_enabled(),
+                                         args.webgl_spoofing_enabled());
+
+  auto dev_proxy_result = ApplyDevProxyOverride();
+  if (!dev_proxy_result.has_value()) {
+    PrintError(args, "invalid_dev_proxy_url",
+               "invalid CLAWBROWSER_DEV_PROXY_URL: " +
+                   dev_proxy_result.error());
+    result.should_exit = true;
+    result.exit_code = 1;
+    return base::ok(std::move(result));
+  }
+  std::optional<RuntimeProxyConfig> dev_proxy_override =
+      std::move(*dev_proxy_result);
 
   // Set command-line flags for Clawbrowser
   command_line->AppendSwitchPath("clawbrowser-fp-path", fp_path);
   command_line->AppendSwitchPath(
       "user-data-dir", profile_manager.GetUserDataDir(fp_id));
 #if BUILDFLAG(IS_MAC)
-  auto child_payload = BuildChildFingerprintPayload(fp_path);
+  auto child_payload = dev_proxy_override.has_value()
+                           ? BuildChildFingerprintPayload(fp_path,
+                                                          *dev_proxy_override)
+                           : BuildChildFingerprintPayload(fp_path);
   if (!child_payload.has_value()) {
     PrintWarning("failed to prepare child fingerprint payload: " +
                  child_payload.error() + "; falling back to vanilla browser");
@@ -571,7 +674,20 @@ base::expected<StartupResult, std::string> RunStartup(
   // Configure proxy flags
   const auto* proxy = FingerprintAccessor::GetProxy();
   if (proxy) {
-    auto proxy_flags = GetProxyCommandLineFlags(*proxy);
+    auto bridge_endpoint = PrepareProxyBridge(*proxy);
+    if (!bridge_endpoint.has_value()) {
+      PrintError(args, "proxy_bridge_failed",
+                 "failed to start SOCKS5 auth bridge: " +
+                     bridge_endpoint.error());
+      result.should_exit = true;
+      result.exit_code = 1;
+      return base::ok(std::move(result));
+    }
+
+    auto proxy_flags = bridge_endpoint->has_value()
+                           ? GetProxyCommandLineFlags(*proxy,
+                                                      bridge_endpoint->value())
+                           : GetProxyCommandLineFlags(*proxy);
     for (const auto& flag : proxy_flags) {
       // Parse --key=value from flag string
       size_t eq = flag.find('=');
@@ -581,6 +697,8 @@ base::expected<StartupResult, std::string> RunStartup(
             flag.substr(eq + 1));
       }
     }
+  } else {
+    StopSocks5AuthProxyBridge();
   }
 
   // Set language flags from fingerprint (Accept-Language header alignment)

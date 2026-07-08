@@ -57,6 +57,8 @@ paths:
     post:
       tags: [fingerprint]
       summary: Generate a browser fingerprint
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -148,6 +150,12 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           description: Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Remote session rate limit exceeded
           content:
             application/json:
               schema:
@@ -559,6 +567,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          description: Remote session rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /v1/pairing-requests/pending:
     get:
@@ -926,7 +940,7 @@ components:
       properties:
         platform:
           type: string
-          enum: [macos, windows]
+          enum: [linux, macos, windows]
         browser:
           type: string
           enum: [chrome]
@@ -938,12 +952,19 @@ components:
         connection_type:
           type: string
           enum: [residential, datacenter, mobile]
+        proxy_scheme:
+          type: string
+          enum: [http, socks5]
+          default: http
         runtime_browser_version:
           type: string
           description: Full Chromium/Chrome runtime version that will apply the fingerprint
         runtime_os:
           type: string
           enum: [macos, windows, linux]
+        runtime_os_version:
+          type: string
+          description: Optional browser host OS version. When absent, the generator derives os_version from the generated user agent instead of inventing a host version.
         runtime_arch:
           type: string
           enum: [amd64, arm64]
@@ -955,12 +976,10 @@ components:
 
     GenerateResponse:
       type: object
-      required: [fingerprint, generator]
+      required: [fingerprint]
       properties:
         fingerprint:
           $ref: '#/components/schemas/Fingerprint'
-        generator:
-          $ref: '#/components/schemas/GeneratorProvenance'
         proxy:
           $ref: '#/components/schemas/ProxyConfig'
 
@@ -1138,17 +1157,6 @@ components:
           type: string
           enum: [native, native_or_allowlist, override]
 
-    GeneratorProvenance:
-      type: object
-      required: [provider, version, schema_version]
-      properties:
-        provider:
-          type: string
-        version:
-          type: string
-        schema_version:
-          type: integer
-
     Screen:
       type: object
       required: [width, height, avail_width, avail_height, color_depth, pixel_ratio]
@@ -1197,6 +1205,10 @@ components:
     ProxyConfig:
       type: object
       properties:
+        scheme:
+          type: string
+          enum: [http, socks5]
+          default: http
         country: { type: string }
         city: { type: string }
         connection_type: { type: string }
@@ -1213,6 +1225,10 @@ components:
           type: object
           required: [host, port, username, password]
           properties:
+            scheme:
+              type: string
+              enum: [http, socks5]
+              default: http
             host: { type: string }
             port: { type: integer }
             username: { type: string }
@@ -1684,6 +1700,8 @@ components:
           type: string
         connection_type:
           type: string
+        proxy_scheme:
+          type: string
 
     GenerationFingerprintSummary:
       type: object
@@ -1723,6 +1741,8 @@ components:
           type: string
         port:
           type: integer
+        scheme:
+          type: string
         username:
           type: string
         ip:

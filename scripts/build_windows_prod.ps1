@@ -4,6 +4,7 @@ param(
   [int]$ResourceRetryJobs = 8,
   [ValidateSet("sccache", "none")]
   [string]$CompilerCache = "sccache",
+  [string]$BundleVersion = "",
   [switch]$SkipBuild,
   [switch]$SkipZip
 )
@@ -39,9 +40,11 @@ $BuildArguments = @{
   CompilerCacheRetries = $CompilerCacheRetries
   ResourceRetryJobs = $ResourceRetryJobs
   CompilerCache = $CompilerCache
+  BundleVersion = $BundleVersion
   SkipBuild = $SkipBuild
   SkipZip = $SkipZip
 }
 
-Write-Host "Building Clawbrowser for Windows (Prod, jobs=$ResolvedJobs, cache=$CompilerCache)"
+$BundleVersionLabel = if ($BundleVersion) { ", bundle=$BundleVersion" } else { "" }
+Write-Host "Building Clawbrowser for Windows (Prod, jobs=$ResolvedJobs, cache=$CompilerCache$BundleVersionLabel)"
 & $BuildScript @BuildArguments

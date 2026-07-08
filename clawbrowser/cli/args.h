@@ -8,6 +8,15 @@
 
 namespace clawbrowser {
 
+inline constexpr char kEnableCanvasSpoofingSwitch[] =
+    "enable-canvas-spoofing";
+inline constexpr char kDisableCanvasSpoofingSwitch[] =
+    "disable-canvas-spoofing";
+inline constexpr char kEnableWebGLSpoofingSwitch[] =
+    "enable-webgl-spoofing";
+inline constexpr char kDisableWebGLSpoofingSwitch[] =
+    "disable-webgl-spoofing";
+
 // Parsed clawbrowser-specific CLI flags.
 // Unknown flags pass through to the browser engine unchanged.
 class ClawArgs {
@@ -28,10 +37,15 @@ class ClawArgs {
   bool json_output() const { return json_output_; }
   bool skip_verify() const { return skip_verify_; }
   bool verify_automation() const { return verify_automation_; }
+  bool canvas_spoofing_enabled() const { return canvas_spoofing_enabled_; }
+  bool webgl_spoofing_enabled() const { return webgl_spoofing_enabled_; }
   bool has_country_override() const { return has_country_override_; }
   bool has_city_override() const { return has_city_override_; }
   bool has_connection_type_override() const {
     return has_connection_type_override_;
+  }
+  bool has_proxy_scheme_override() const {
+    return has_proxy_scheme_override_;
   }
   bool has_location_overrides() const {
     return has_country_override_ || has_city_override_ ||
@@ -41,6 +55,9 @@ class ClawArgs {
   const std::optional<std::string>& city() const { return city_; }
   const std::optional<std::string>& connection_type() const {
     return connection_type_;
+  }
+  const std::optional<std::string>& proxy_scheme() const {
+    return proxy_scheme_;
   }
   bool is_vanilla() const { return !has_fingerprint_ && !list_; }
 
@@ -53,12 +70,16 @@ class ClawArgs {
   bool json_output_;
   bool skip_verify_;
   bool verify_automation_;
+  bool canvas_spoofing_enabled_;
+  bool webgl_spoofing_enabled_;
   bool has_country_override_;
   bool has_city_override_;
   bool has_connection_type_override_;
+  bool has_proxy_scheme_override_;
   std::string country_;
   std::optional<std::string> city_;
   std::optional<std::string> connection_type_;
+  std::optional<std::string> proxy_scheme_;
 };
 
 }  // namespace clawbrowser

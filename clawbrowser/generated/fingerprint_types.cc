@@ -129,9 +129,13 @@ base::expected<GenerateRequest, std::string> GenerateRequest::FromDict(
 
   if (const std::string* parsed = dict.FindString("connection_type")) value.connection_type = *parsed;
 
+  if (const std::string* parsed = dict.FindString("proxy_scheme")) value.proxy_scheme = *parsed;
+
   if (const std::string* parsed = dict.FindString("runtime_browser_version")) value.runtime_browser_version = *parsed;
 
   if (const std::string* parsed = dict.FindString("runtime_os")) value.runtime_os = *parsed;
+
+  if (const std::string* parsed = dict.FindString("runtime_os_version")) value.runtime_os_version = *parsed;
 
   if (const std::string* parsed = dict.FindString("runtime_arch")) value.runtime_arch = *parsed;
 
@@ -156,8 +160,10 @@ base::DictValue GenerateRequest::ToDict() const {
   dict.Set("country", country);
   if (city.has_value()) dict.Set("city", *city);
   if (connection_type.has_value()) dict.Set("connection_type", *connection_type);
+  if (proxy_scheme.has_value()) dict.Set("proxy_scheme", *proxy_scheme);
   if (runtime_browser_version.has_value()) dict.Set("runtime_browser_version", *runtime_browser_version);
   if (runtime_os.has_value()) dict.Set("runtime_os", *runtime_os);
+  if (runtime_os_version.has_value()) dict.Set("runtime_os_version", *runtime_os_version);
   if (runtime_arch.has_value()) dict.Set("runtime_arch", *runtime_arch);
   if (runtime_gpu.has_value()) dict.Set("runtime_gpu", *runtime_gpu);
   if (runtime_headless.has_value()) dict.Set("runtime_headless", *runtime_headless);
@@ -664,51 +670,6 @@ std::string SurfacePolicy::ToJson() const {
   return DictToJson(ToDict());
 }
 
-GeneratorProvenance::GeneratorProvenance() = default;
-GeneratorProvenance::GeneratorProvenance(const GeneratorProvenance&) = default;
-GeneratorProvenance& GeneratorProvenance::operator=(const GeneratorProvenance&) = default;
-GeneratorProvenance::GeneratorProvenance(GeneratorProvenance&&) = default;
-GeneratorProvenance& GeneratorProvenance::operator=(GeneratorProvenance&&) = default;
-GeneratorProvenance::~GeneratorProvenance() = default;
-
-base::expected<GeneratorProvenance, std::string> GeneratorProvenance::FromDict(
-    const base::DictValue& dict) {
-  GeneratorProvenance value;
-
-  auto provider = RequireString(dict, "provider");
-  if (!provider.has_value()) return base::unexpected(provider.error());
-  value.provider = *provider;
-
-  auto version = RequireString(dict, "version");
-  if (!version.has_value()) return base::unexpected(version.error());
-  value.version = *version;
-
-  auto schema_version = RequireInt(dict, "schema_version");
-  if (!schema_version.has_value()) return base::unexpected(schema_version.error());
-  value.schema_version = *schema_version;
-
-  return base::ok(std::move(value));
-}
-
-base::expected<GeneratorProvenance, std::string> GeneratorProvenance::FromJson(
-    const std::string& json) {
-  auto dict = ParseJsonToDict(json);
-  if (!dict.has_value()) return base::unexpected(dict.error());
-  return FromDict(*dict);
-}
-
-base::DictValue GeneratorProvenance::ToDict() const {
-  base::DictValue dict;
-  dict.Set("provider", provider);
-  dict.Set("version", version);
-  dict.Set("schema_version", schema_version);
-  return dict;
-}
-
-std::string GeneratorProvenance::ToJson() const {
-  return DictToJson(ToDict());
-}
-
 ProxyConfig::ProxyConfig() = default;
 ProxyConfig::ProxyConfig(const ProxyConfig&) = default;
 ProxyConfig& ProxyConfig::operator=(const ProxyConfig&) = default;
@@ -719,6 +680,8 @@ ProxyConfig::~ProxyConfig() = default;
 base::expected<ProxyConfig, std::string> ProxyConfig::FromDict(
     const base::DictValue& dict) {
   ProxyConfig value;
+
+  if (const std::string* parsed = dict.FindString("scheme")) value.scheme = *parsed;
 
   if (const std::string* parsed = dict.FindString("country")) value.country = *parsed;
 
@@ -746,6 +709,7 @@ base::expected<ProxyConfig, std::string> ProxyConfig::FromJson(
 
 base::DictValue ProxyConfig::ToDict() const {
   base::DictValue dict;
+  if (scheme.has_value()) dict.Set("scheme", *scheme);
   if (country.has_value()) dict.Set("country", *country);
   if (city.has_value()) dict.Set("city", *city);
   if (connection_type.has_value()) dict.Set("connection_type", *connection_type);
@@ -1030,12 +994,6 @@ base::expected<GenerateResponse, std::string> GenerateResponse::FromDict(
   if (!fingerprint.has_value()) return base::unexpected(fingerprint.error());
   value.fingerprint = std::move(*fingerprint);
 
-  auto generator_dict = RequireDict(dict, "generator");
-  if (!generator_dict.has_value()) return base::unexpected(generator_dict.error());
-  auto generator = GeneratorProvenance::FromDict(**generator_dict);
-  if (!generator.has_value()) return base::unexpected(generator.error());
-  value.generator = std::move(*generator);
-
   if (const base::DictValue* parsed_dict = dict.FindDict("proxy")) {
     auto parsed = ProxyConfig::FromDict(*parsed_dict);
     if (!parsed.has_value()) return base::unexpected(parsed.error());
@@ -1055,7 +1013,6 @@ base::expected<GenerateResponse, std::string> GenerateResponse::FromJson(
 base::DictValue GenerateResponse::ToDict() const {
   base::DictValue dict;
   dict.Set("fingerprint", fingerprint.ToDict());
-  dict.Set("generator", generator.ToDict());
   if (proxy.has_value()) dict.Set("proxy", proxy->ToDict());
   return dict;
 }
@@ -1074,6 +1031,8 @@ ProxyCredentials::~ProxyCredentials() = default;
 base::expected<ProxyCredentials, std::string> ProxyCredentials::FromDict(
     const base::DictValue& dict) {
   ProxyCredentials value;
+
+  if (const std::string* parsed = dict.FindString("scheme")) value.scheme = *parsed;
 
   auto host = RequireString(dict, "host");
   if (!host.has_value()) return base::unexpected(host.error());
@@ -1103,6 +1062,7 @@ base::expected<ProxyCredentials, std::string> ProxyCredentials::FromJson(
 
 base::DictValue ProxyCredentials::ToDict() const {
   base::DictValue dict;
+  if (scheme.has_value()) dict.Set("scheme", *scheme);
   dict.Set("host", host);
   dict.Set("port", port);
   dict.Set("username", username);

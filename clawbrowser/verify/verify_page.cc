@@ -186,6 +186,10 @@ void VerifyPageUI::SetupDataSource(content::WebUIDataSource* source) {
   source->AddString("screen_color_depth", "0");
   source->AddString("pixel_ratio", "0");
   source->AddString("timezone", "");
+  source->AddString("canvas_policy", "native");
+  source->AddString("canvas_spoofing_enabled", "false");
+  source->AddString("webgl_policy", "native");
+  source->AddString("webgl_spoofing_enabled", "false");
   source->AddString("webgl_vendor", "");
   source->AddString("webgl_renderer", "");
   source->AddString("fonts", "[]");
@@ -235,6 +239,12 @@ void VerifyPageUI::SetupDataSource(content::WebUIDataSource* source) {
   source->AddString("pixel_ratio",
                      base::NumberToString(fp->screen.pixel_ratio));
   source->AddString("timezone", fp->timezone);
+  source->AddString("canvas_policy", fp->surface_policy.canvas);
+  source->AddString("canvas_spoofing_enabled",
+                    fp->canvas_spoofing_enabled ? "true" : "false");
+  source->AddString("webgl_policy", fp->surface_policy.webgl);
+  source->AddString("webgl_spoofing_enabled",
+                    fp->webgl_spoofing_enabled ? "true" : "false");
   source->AddString("webgl_vendor", fp->webgl.vendor);
   source->AddString("webgl_renderer", fp->webgl.renderer);
 
@@ -304,6 +314,7 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
     return;
   }
 
+  const std::string proxy_scheme = proxy->scheme.value_or("http");
   const ProxyExpectation expected = LoadVerifyExpectedProxyLocation(
       GetClawbrowserConfigDir(), proxy->country);
 
@@ -313,6 +324,8 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
     base::DictValue result;
     result.Set("match", true);
     result.Set("actual_country", proxy->country.value_or("N/A"));
+    result.Set("scheme", proxy_scheme);
+    result.Set("error_code", "incomplete_proxy_config");
     result.Set("detail", "incomplete proxy config");
     if (expected.country.has_value())
       result.Set("expected_country", *expected.country);
@@ -323,6 +336,7 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
   }
 
   VerifyProxyRequest request;
+  request.proxy.scheme = proxy_scheme;
   request.proxy.host = *proxy->host;
   request.proxy.port = *proxy->port;
   request.proxy.username = *proxy->username;
@@ -333,6 +347,7 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
 
   std::string expected_country = request.expected_country;
   std::optional<std::string> expected_city = request.expected_city;
+  std::string request_scheme = request.proxy.scheme.value_or("http");
 
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, {base::MayBlock()},
@@ -342,15 +357,18 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
              VerifyProxyRequest request,
              std::string expected_country,
              std::optional<std::string> expected_city,
+             std::string request_scheme,
              VerifyApiConfig config) {
             if (!self)
               return;
 
             auto send_async_result =
-                [self, &expected_country, &expected_city](base::DictValue result) {
+                [self, &expected_country, &expected_city,
+                 &request_scheme](base::DictValue result) {
                   result.Set("expected_country", expected_country);
                   if (expected_city.has_value())
                     result.Set("expected_city", *expected_city);
+                  result.Set("scheme", request_scheme);
                   self->web_ui()->CallJavascriptFunctionUnsafe(
                       "onProxyVerifyResult", base::Value(std::move(result)));
                 };
@@ -359,6 +377,7 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
               base::DictValue result;
               result.Set("match", false);
               result.Set("actual_country", "N/A");
+              result.Set("error_code", "missing_api_key");
               result.Set("detail", "API key not found");
               send_async_result(std::move(result));
               return;
@@ -368,6 +387,7 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
               base::DictValue result;
               result.Set("match", false);
               result.Set("actual_country", "N/A");
+              result.Set("error_code", "missing_api_base_url");
               result.Set("detail", "API base URL not found");
               send_async_result(std::move(result));
               return;
@@ -379,6 +399,7 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
               base::DictValue result;
               result.Set("match", false);
               result.Set("actual_country", "N/A");
+              result.Set("error_code", "url_loader_unavailable");
               result.Set("detail", "URL loader factory unavailable");
               send_async_result(std::move(result));
               return;
@@ -393,6 +414,7 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
                     [](base::WeakPtr<VerifyPageUI> self,
                        std::string expected_country,
                        std::optional<std::string> expected_city,
+                       std::string request_scheme,
                        base::expected<VerifyProxyResponse, ApiError> response) {
                       if (!self)
                         return;
@@ -401,6 +423,7 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
                       result.Set("expected_country", expected_country);
                       if (expected_city.has_value())
                         result.Set("expected_city", *expected_city);
+                      result.Set("scheme", request_scheme);
 
                       if (response.has_value()) {
                         result.Set("match", response->match);
@@ -414,6 +437,7 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
                       } else {
                         result.Set("match", false);
                         result.Set("actual_country", "N/A");
+                        result.Set("error_code", response.error().code);
                         result.Set("detail", response.error().message);
                       }
 
@@ -421,10 +445,11 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
                       self->web_ui()->CallJavascriptFunctionUnsafe(
                           "onProxyVerifyResult", base::Value(std::move(result)));
                     },
-                    self, std::move(expected_country), std::move(expected_city)));
+                    self, std::move(expected_country), std::move(expected_city),
+                    std::move(request_scheme)));
           },
           weak_ptr_factory_.GetWeakPtr(), request, std::move(expected_country),
-          std::move(expected_city)));
+          std::move(expected_city), std::move(request_scheme)));
 }
 
 void VerifyPageUI::HandleVerifyComplete(const base::ListValue& args) {

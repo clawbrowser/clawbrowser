@@ -122,6 +122,17 @@ void FingerprintAccessor::Set(RuntimeFingerprint fingerprint,
 }
 
 // static
+void FingerprintAccessor::SetSpoofingPolicy(bool canvas_enabled,
+                                            bool webgl_enabled) {
+  auto& state = RuntimeStateStorage();
+  if (!state) {
+    return;
+  }
+  state->fingerprint.canvas_spoofing_enabled = canvas_enabled;
+  state->fingerprint.webgl_spoofing_enabled = webgl_enabled;
+}
+
+// static
 void FingerprintAccessor::Reset() {
   RuntimeStateStorage().reset();
 }

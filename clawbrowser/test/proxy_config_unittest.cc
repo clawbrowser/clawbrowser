@@ -69,6 +69,89 @@ TEST(ProxyConfigTest, GeneratesSocks5ProxyServerFlag) {
   EXPECT_EQ(flags[0], "--proxy-server=socks5://proxy.example.com:1080");
 }
 
+TEST(ProxyConfigTest, AuthenticatedSocks5UsesHttpBridgeEndpoint) {
+  RuntimeProxyConfig proxy;
+  proxy.scheme = "socks5";
+  proxy.host = "gate.nodemaven.com";
+  proxy.port = 1080;
+  proxy.username = "user_abc";
+  proxy.password = "pass_xyz";
+
+  EXPECT_TRUE(ShouldUseSocks5AuthBridge(proxy));
+
+  auto flags = GetProxyCommandLineFlags(
+      proxy, ProxyBridgeEndpoint{.host = "127.0.0.1", .port = 43210});
+  EXPECT_EQ(flags.size(), 1u);
+  EXPECT_EQ(flags[0], "--proxy-server=http://127.0.0.1:43210");
+  EXPECT_EQ(flags[0].find("user_abc"), std::string::npos);
+  EXPECT_EQ(flags[0].find("pass_xyz"), std::string::npos);
+}
+
+TEST(ProxyConfigTest, UnauthenticatedSocks5KeepsNativeSocksRoute) {
+  RuntimeProxyConfig proxy;
+  proxy.scheme = "socks5";
+  proxy.host = "proxy.example.com";
+  proxy.port = 1080;
+
+  EXPECT_FALSE(ShouldUseSocks5AuthBridge(proxy));
+
+  auto flags = GetProxyCommandLineFlags(
+      proxy, ProxyBridgeEndpoint{.host = "127.0.0.1", .port = 43210});
+  EXPECT_EQ(flags.size(), 1u);
+  EXPECT_EQ(flags[0], "--proxy-server=socks5://proxy.example.com:1080");
+}
+
+TEST(ProxyConfigTest, IncompleteSocks5CredentialsDoNotUseBridge) {
+  RuntimeProxyConfig proxy;
+  proxy.scheme = "socks5";
+  proxy.host = "proxy.example.com";
+  proxy.port = 1080;
+  proxy.username = "user_only";
+
+  EXPECT_FALSE(ShouldUseSocks5AuthBridge(proxy));
+
+  auto flags = GetProxyCommandLineFlags(
+      proxy, ProxyBridgeEndpoint{.host = "127.0.0.1", .port = 43210});
+  EXPECT_EQ(flags.size(), 1u);
+  EXPECT_EQ(flags[0], "--proxy-server=socks5://proxy.example.com:1080");
+}
+
+TEST(ProxyConfigTest, InvalidSchemeProducesNoProxyFlags) {
+  RuntimeProxyConfig proxy;
+  proxy.scheme = "socks4";
+  proxy.host = "proxy.example.com";
+  proxy.port = 1080;
+
+  EXPECT_FALSE(BuildClawbrowserProxyConfig(proxy).has_value());
+  EXPECT_TRUE(GetProxyCommandLineFlags(proxy).empty());
+  EXPECT_FALSE(ShouldUseSocks5AuthBridge(proxy));
+}
+
+TEST(ProxyConfigTest, ParsesDevProxyUrl) {
+  auto proxy =
+      ParseProxyUrl("socks5://user_abc:pass_xyz@gate.nodemaven.com:1080");
+  ASSERT_TRUE(proxy.has_value()) << proxy.error();
+
+  EXPECT_EQ(proxy->scheme.value_or(""), "socks5");
+  EXPECT_EQ(proxy->host.value_or(""), "gate.nodemaven.com");
+  EXPECT_EQ(proxy->port.value_or(0), 1080);
+  EXPECT_EQ(proxy->username.value_or(""), "user_abc");
+  EXPECT_EQ(proxy->password.value_or(""), "pass_xyz");
+}
+
+TEST(ProxyConfigTest, RejectsInvalidProxyUrlScheme) {
+  auto proxy =
+      ParseProxyUrl("socks4://user_abc:pass_xyz@gate.nodemaven.com:1080");
+  ASSERT_FALSE(proxy.has_value());
+  EXPECT_NE(proxy.error().find("unsupported proxy scheme"), std::string::npos);
+}
+
+TEST(ProxyConfigTest, RejectsProxyUrlWithIncompleteCredentials) {
+  auto proxy = ParseProxyUrl("socks5://user_abc@gate.nodemaven.com:1080");
+  ASSERT_FALSE(proxy.has_value());
+  EXPECT_NE(proxy.error().find("username and password"), std::string::npos);
+}
+
 TEST(ProxyConfigTest, SkipsProxyServerFlagWhenEndpointIncomplete) {
   RuntimeProxyConfig proxy;
   proxy.username = "user";

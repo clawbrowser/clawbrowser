@@ -17,12 +17,20 @@ config("clawbrowser_backend_defaults") {
     defines = [
       "CLAWBROWSER_DEFAULT_API_BASE_URL=\"https://api.clawbrowser.ai\"",
       "CLAWBROWSER_DEFAULT_DASHBOARD_URL=\"https://app.clawbrowser.ai\"",
+      "CLAWBROWSER_ENABLE_DEV_PROXY_URL_OVERRIDE=0",
     ]
   } else {
     defines = [
       "CLAWBROWSER_DEFAULT_API_BASE_URL=\"https://api.qa.clawbrowser.ai\"",
       "CLAWBROWSER_DEFAULT_DASHBOARD_URL=\"https://app.qa.clawbrowser.ai\"",
+      "CLAWBROWSER_ENABLE_DEV_PROXY_URL_OVERRIDE=1",
     ]
+  }
+}
+
+config("clawbrowser_windows_socket_libs") {
+  if (is_win) {
+    libs = [ "ws2_32.lib" ]
   }
 }
 
@@ -80,6 +88,7 @@ component("clawbrowser_runtime") {
 # ---------------------------------------------------------------------------
 source_set("clawbrowser_core") {
   configs += [ ":clawbrowser_backend_defaults" ]
+  public_configs = [ ":clawbrowser_windows_socket_libs" ]
 
   sources = [
     # CLI modules
@@ -113,6 +122,8 @@ source_set("clawbrowser_core") {
     "proxy/proxy_config.h",
     "proxy/proxy_credentials_crypto.cc",
     "proxy/proxy_credentials_crypto.h",
+    "proxy/socks5_auth_proxy_bridge.cc",
+    "proxy/socks5_auth_proxy_bridge.h",
     "user_agent_metadata.h",
   ]
 
@@ -190,6 +201,7 @@ test("clawbrowser_unittests") {
     "test/prng_unittest.cc",
     "test/proxy_config_unittest.cc",
     "test/proxy_credentials_crypto_unittest.cc",
+    "test/socks5_auth_proxy_bridge_unittest.cc",
     "test/startup_unittest.cc",
   ]
 

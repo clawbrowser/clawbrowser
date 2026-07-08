@@ -23,7 +23,6 @@ SCHEMA_ORDER = [
     "UserAgentData",
     "SurfacePolicyRule",
     "SurfacePolicy",
-    "GeneratorProvenance",
     "ProxyConfig",
     "Fingerprint",
     "GenerateResponse",

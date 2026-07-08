@@ -162,7 +162,9 @@ struct COMPONENT_EXPORT(CLAWBROWSER_RUNTIME) RuntimeFingerprint {
   RuntimeScreen screen;
   RuntimeHardware hardware;
   RuntimeWebGL webgl;
+  bool webgl_spoofing_enabled = false;
   int canvas_seed = 0;
+  bool canvas_spoofing_enabled = false;
   int audio_seed = 0;
   int client_rects_seed = 0;
   std::string timezone;
@@ -191,6 +193,8 @@ class COMPONENT_EXPORT(CLAWBROWSER_RUNTIME) FingerprintAccessor {
   // Replace the currently loaded runtime fingerprint state.
   static void Set(RuntimeFingerprint fingerprint,
                   std::optional<RuntimeProxyConfig> proxy = std::nullopt);
+
+  static void SetSpoofingPolicy(bool canvas_enabled, bool webgl_enabled);
 
   // Clear loaded data. For testing only.
   static void Reset();

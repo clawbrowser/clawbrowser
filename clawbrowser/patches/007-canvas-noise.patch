@@ -26,7 +26,7 @@ index 102362021e..c751ad0a39 100644
  #include "third_party/blink/renderer/core/layout/geometry/physical_rect.h"
  #include "third_party/blink/renderer/core/layout/layout_replaced.h"
  #include "third_party/blink/renderer/core/layout/layout_theme.h"
-@@ -782,8 +786,17 @@ ImageData* CanvasRenderingContext2D::getImageDataInternal(
+@@ -782,8 +786,18 @@ ImageData* CanvasRenderingContext2D::getImageDataInternal(
        CreationAttributes().will_read_frequently ==
            CanvasContextCreationAttributesCore::WillReadFrequently::kTrue);
    TRACE_EVENT0("blink", "GetImageData");
@@ -34,7 +34,8 @@ index 102362021e..c751ad0a39 100644
 +  ImageData* image_data = BaseRenderingContext2D::getImageDataInternal(
        sx, sy, sw, sh, image_data_settings, exception_state);
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+      fp && fp->surface_policy.canvas == "override" && image_data) {
++      fp && fp->canvas_spoofing_enabled &&
++      fp->surface_policy.canvas == "override" && image_data) {
 +    clawbrowser::Prng prng(fp->canvas_seed);
 +    for (auto& byte : image_data->RawByteSpan()) {
 +      byte = static_cast<uint8_t>(std::clamp(
@@ -62,12 +63,13 @@ index c76f6553e1..e2cf776cf0 100644
  #include "third_party/blink/renderer/platform/image-encoders/image_encoder_utils.h"
  #include "third_party/blink/renderer/platform/wtf/text/base64.h"
  #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
-@@ -96,6 +100,15 @@ ImageDataBuffer::ImageDataBuffer(scoped_refptr<StaticBitmapImage> image) {
+@@ -96,5 +100,15 @@ ImageDataBuffer::ImageDataBuffer(scoped_refptr<StaticBitmapImage> image) {
        return;
      MSAN_CHECK_MEM_IS_INITIALIZED(pixmap_.addr(), pixmap_.computeByteSize());
    }
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+      fp && fp->surface_policy.canvas == "override" &&
++      fp && fp->canvas_spoofing_enabled &&
++      fp->surface_policy.canvas == "override" &&
 +      pixmap_.writable_addr()) {
 +    clawbrowser::Prng prng(fp->canvas_seed);
 +    for (uint8_t& pixel : gfx::SkPixmapToWritableSpan(pixmap_)) {

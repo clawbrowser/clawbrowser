@@ -19,6 +19,7 @@ BUILD_DIR="${BUILD_DIR:-${CHROMIUM_DIR}/src/out/CBFast}"
 TARGET="${TARGET:-chrome}"
 INTEGRATION_VENV_DIR="${INTEGRATION_VENV_DIR:-${HOME}/.cache/clawbrowser/integration-venv}"
 FINGERPRINT_ID="${FINGERPRINT_ID:-clawbrowser_default}"
+CLAWBROWSER_BUNDLE_VERSION="${CLAWBROWSER_BUNDLE_VERSION:-1.0.0}"
 
 PROJECT_DIR="${PROJECT_DIR:-${DEFAULT_PROJECT_DIR}}"
 PROJECT_REPO_URL="${PROJECT_REPO_URL:-}"
@@ -75,6 +76,7 @@ Options:
   --chromium-branch NAME   Legacy branch checkout flow; incompatible with pinned revision mode
   --chromium-remote NAME   Default: origin
   --target NAME            Default: chrome
+  --bundle-version VERSION macOS bundle CFBundleShortVersionString/CFBundleVersion. Default: ${CLAWBROWSER_BUNDLE_VERSION}
   --integration-venv-dir PATH Default: ~/.cache/clawbrowser/integration-venv
   --ccache-dir PATH        Default: ~/cache/ccache
   --ccache-max-size SIZE   Default: 50G
@@ -735,6 +737,7 @@ import sys
 
 project_dir = Path(sys.argv[1])
 patch_dir = project_dir / "clawbrowser" / "patches"
+cleanup_targets_path = patch_dir / "legacy_cleanup_targets.txt"
 paths = set()
 
 for patch in sorted(patch_dir.glob("[0-9][0-9][0-9]-*.patch")):
@@ -747,6 +750,12 @@ for patch in sorted(patch_dir.glob("[0-9][0-9][0-9]-*.patch")):
         if path.startswith("a/") or path.startswith("b/"):
             path = path[2:]
         paths.add(path)
+
+if cleanup_targets_path.exists():
+    for line in cleanup_targets_path.read_text().splitlines():
+        path = line.split("#", 1)[0].strip()
+        if path:
+            paths.add(path)
 
 for path in sorted(paths):
     print(path)
@@ -976,7 +985,7 @@ rewrite_dev_macos_bundle_metadata() {
   [[ -f "${plist_path}" ]] || \
     die "Missing macOS bundle Info.plist: ${plist_path}"
 
-  python3 - "${staged_app}" <<'PY'
+  python3 - "${staged_app}" "${CLAWBROWSER_BUNDLE_VERSION}" <<'PY'
 from pathlib import Path
 import plistlib
 import sys
@@ -984,7 +993,7 @@ import sys
 APP_NAME = "Clawbrowser"
 SOURCE_APP_NAME = "Chromium"
 BUNDLE_ID = "ai.clawbrowser.Clawbrowser"
-BUNDLE_VERSION = "1.0.0"
+BUNDLE_VERSION = sys.argv[2]
 DIRECT_LAUNCH_NAME = "Direct launch URL"
 DIRECT_LAUNCH_SCHEME = "clawbrowser"
 
@@ -1407,6 +1416,10 @@ parse_args() {
         ;;
       --target)
         TARGET="$2"
+        shift 2
+        ;;
+      --bundle-version)
+        CLAWBROWSER_BUNDLE_VERSION="$2"
         shift 2
         ;;
       --integration-venv-dir)

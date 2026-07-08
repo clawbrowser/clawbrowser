@@ -9,6 +9,8 @@
 
 namespace clawbrowser {
 
+struct RuntimeProxyConfig;
+
 // Command-line switch for fingerprint file path.
 inline constexpr char kFingerprintPathSwitch[] = "clawbrowser-fp-path";
 inline constexpr char kFingerprintChildDataSwitch[] =
@@ -24,6 +26,9 @@ base::expected<void, std::string> LoadFingerprint(
 // needed by child-process spoofing and leak-prevention patches.
 base::expected<std::string, std::string> BuildChildFingerprintPayload(
     const base::FilePath& path);
+base::expected<std::string, std::string> BuildChildFingerprintPayload(
+    const base::FilePath& path,
+    const RuntimeProxyConfig& proxy_override);
 
 // Load fingerprint if --clawbrowser-fp-path is present on command line.
 // Returns success even if the switch is absent (vanilla mode).
