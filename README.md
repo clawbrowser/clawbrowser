@@ -1,84 +1,75 @@
 <p align="center">
-  <img src="https://clawbrowser.ai/side-bite.svg" alt="Clawbrowser" width="110" />
+  <img src="assets/side-bite.svg" alt="Clawbrowser" width="104" />
 </p>
 
 <h1 align="center">Clawbrowser</h1>
 
 <p align="center">
-  <strong>The managed browser runtime for AI agents.</strong><br/>
-  Every profile gets its own identity — unique fingerprint, real IP, isolated cookies — so your<br/>
-  agents and scripts run further without hitting blocks, CAPTCHAs, or account bans.
+  <strong>The managed Chromium runtime for AI agents.</strong><br />
+  Keep browser profiles, fingerprints, proxy routing, cookies, and storage together behind a standard CDP endpoint.
 </p>
 
-<!-- Link buttons -->
 <p align="center">
-  <a href="https://clawbrowser.ai/"><img src="https://img.shields.io/badge/Website-clawbrowser.ai-000000?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Website" /></a>
-  <a href="https://clawbrowser.ai/docs/"><img src="https://img.shields.io/badge/Documentation-Read-1f6feb?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Docs" /></a>
-  <a href="https://discord.gg/j6kjHgCFU"><img src="https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
+  <a href="https://clawbrowser.ai/">Website</a> ·
+  <a href="https://clawbrowser.ai/docs/">Documentation</a> ·
+  <a href="https://app.clawbrowser.ai/">Get an API key</a> ·
+  <a href="https://github.com/clawbrowser/clawbrowser/releases/latest">Releases</a> ·
+  <a href="https://discord.gg/CK62brtKhe">Discord</a>
 </p>
 
-<!-- Status badges -->
 <p align="center">
-  <a href="https://github.com/clawbrowser/clawbrowser/releases/latest"><img src="https://img.shields.io/github/v/release/clawbrowser/clawbrowser?label=release&color=success" alt="Latest release" /></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT" /></a>
-  <a href="https://github.com/clawbrowser/clawbrowser/stargazers"><img src="https://img.shields.io/github/stars/clawbrowser/clawbrowser?style=flat&logo=github" alt="Stars" /></a>
-  <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-blue?logo=linux&logoColor=white" alt="Platforms" />
+  <a href="https://github.com/clawbrowser/clawbrowser/releases/latest"><img src="https://img.shields.io/github/v/release/clawbrowser/clawbrowser?label=release&color=2ea44f" alt="Latest release" /></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="MIT license" /></a>
+  <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-0969da" alt="macOS, Linux, and Windows" />
+  <img src="https://img.shields.io/badge/protocol-CDP-0969da" alt="Chrome DevTools Protocol" />
 </p>
 
-<!-- Stack: what it's built on + what it connects to -->
 <p align="center">
-  <sub><b>BUILT ON</b></sub><br/>
-  <img src="https://img.shields.io/badge/Chromium-3b3b3b?logo=googlechrome&logoColor=white" alt="Chromium" />
-  <img src="https://img.shields.io/badge/Chrome_DevTools_Protocol-3b3b3b?logo=googlechrome&logoColor=white" alt="Chrome DevTools Protocol" />
+  <a href="README.md">English</a> ·
+  <a href="docs/i18n/es/README.md">Español</a> ·
+  <a href="docs/i18n/pt-BR/README.md">Português (Brasil)</a> ·
+  <a href="docs/i18n/zh-CN/README.md">简体中文</a> ·
+  <a href="docs/i18n/ja/README.md">日本語</a> ·
+  <a href="docs/i18n/ko/README.md">한국어</a> ·
+  <a href="docs/i18n/de/README.md">Deutsch</a> ·
+  <a href="docs/i18n/fr/README.md">Français</a> ·
+  <a href="docs/i18n/ru/README.md">Русский</a> ·
+  <a href="docs/i18n/ar/README.md">العربية</a>
 </p>
+
 <p align="center">
-  <sub><b>WORKS WITH</b></sub><br/>
-  <img src="https://img.shields.io/badge/Playwright-3b3b3b?logo=playwright&logoColor=white" alt="Playwright" />
-  <img src="https://img.shields.io/badge/Puppeteer-3b3b3b?logo=puppeteer&logoColor=white" alt="Puppeteer" />
-  <img src="https://img.shields.io/badge/Claude_Code-3b3b3b?logo=anthropic&logoColor=white" alt="Claude Code" />
-  <img src="https://img.shields.io/badge/Codex-3b3b3b?logo=openai&logoColor=white" alt="Codex" />
-  <img src="https://img.shields.io/badge/Gemini_CLI-3b3b3b?logo=googlegemini&logoColor=white" alt="Gemini CLI" />
+  <img src="assets/clawbrowser-site-demo.gif" alt="Clawbrowser website and workflow preview" width="960" />
 </p>
 
----
+## Why Clawbrowser
 
-## 🤔 Why Clawbrowser
+Browser automation often breaks when browser, network, locale, and session signals do not agree. Clawbrowser manages that identity layer inside a Chromium runtime and exposes the running browser through the standard Chrome DevTools Protocol (CDP).
 
-Most browser automation fails not because the code is wrong — but because the browser **looks like a bot**. Anti-bot systems flag inconsistencies: a US IP with a German timezone, a headless flag in the user agent, a canvas fingerprint that never changes.
+- Keep each named profile's fingerprint, proxy binding, cookies, and storage isolated.
+- Reuse a profile when an agent needs continuity between runs.
+- Connect Playwright, Puppeteer, or another CDP client to the endpoint returned by `clawctl`.
+- Inspect the active profile with the built-in `clawbrowser://verify/` page.
 
-Clawbrowser is a Chromium build that manages the **identity layer** for you — fingerprint, proxy, and isolation are handled natively, then exposed over a standard **Chrome DevTools Protocol (CDP)** endpoint. Your Playwright / Puppeteer / agent code connects exactly as it would to any Chromium build; the identity work is transparent.
+Clawbrowser is designed to reduce interruptions caused by inconsistent browser identity signals. It is not a universal CAPTCHA bypass and does not guarantee access to every website.
 
-> ⭐ **If Clawbrowser saves your agents from getting blocked, give us a star** — it helps other builders find the project and shapes what we ship next.
-> Join the Clawbrowser Discord community for setup help, roadmap discussion, and release updates: https://discord.gg/j6kjHgCFU
+## Quick Start
 
-<!-- Architecture diagram. Pre-rendered dark SVG embedded as a data URI so the
-     README is fully self-contained — no .github/assets/, no commits to root.
-     To redesign: regenerate from mermaid source and re-encode as base64. -->
-<p align="center">
-  <img alt="Clawbrowser architecture: AI agent connects over CDP to managed Chromium, which exits through an isolated profile with fingerprint, proxy, and storage" width="820" src="data:image/svg+xml;base64,PHN2ZyBpZD0ibXktc3ZnIiB3aWR0aD0iMTAwJSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgY2xhc3M9ImZsb3djaGFydCIgc3R5bGU9Im1heC13aWR0aDogMTcyMS4xOXB4OyBiYWNrZ3JvdW5kLWNvbG9yOiB0cmFuc3BhcmVudDsiIHZpZXdCb3g9IjAgMCAxNzIxLjE4NzUgMzE4Ljg4NTQwNjQ5NDE0MDYiIHJvbGU9ImdyYXBoaWNzLWRvY3VtZW50IGRvY3VtZW50IiBhcmlhLXJvbGVkZXNjcmlwdGlvbj0iZmxvd2NoYXJ0LXYyIj48c3R5bGU+I215LXN2Z3tmb250LWZhbWlseToidHJlYnVjaGV0IG1zIix2ZXJkYW5hLGFyaWFsLHNhbnMtc2VyaWY7Zm9udC1zaXplOjE2cHg7ZmlsbDojY2NjO31Aa2V5ZnJhbWVzIGVkZ2UtYW5pbWF0aW9uLWZyYW1le2Zyb217c3Ryb2tlLWRhc2hvZmZzZXQ6MDt9fUBrZXlmcmFtZXMgZGFzaHt0b3tzdHJva2UtZGFzaG9mZnNldDowO319I215LXN2ZyAuZWRnZS1hbmltYXRpb24tc2xvd3tzdHJva2UtZGFzaGFycmF5OjksNSFpbXBvcnRhbnQ7c3Ryb2tlLWRhc2hvZmZzZXQ6OTAwO2FuaW1hdGlvbjpkYXNoIDUwcyBsaW5lYXIgaW5maW5pdGU7c3Ryb2tlLWxpbmVjYXA6cm91bmQ7fSNteS1zdmcgLmVkZ2UtYW5pbWF0aW9uLWZhc3R7c3Ryb2tlLWRhc2hhcnJheTo5LDUhaW1wb3J0YW50O3N0cm9rZS1kYXNob2Zmc2V0OjkwMDthbmltYXRpb246ZGFzaCAyMHMgbGluZWFyIGluZmluaXRlO3N0cm9rZS1saW5lY2FwOnJvdW5kO30jbXktc3ZnIC5lcnJvci1pY29ue2ZpbGw6I2E0NDE0MTt9I215LXN2ZyAuZXJyb3ItdGV4dHtmaWxsOiNkZGQ7c3Ryb2tlOiNkZGQ7fSNteS1zdmcgLmVkZ2UtdGhpY2tuZXNzLW5vcm1hbHtzdHJva2Utd2lkdGg6MXB4O30jbXktc3ZnIC5lZGdlLXRoaWNrbmVzcy10aGlja3tzdHJva2Utd2lkdGg6My41cHg7fSNteS1zdmcgLmVkZ2UtcGF0dGVybi1zb2xpZHtzdHJva2UtZGFzaGFycmF5OjA7fSNteS1zdmcgLmVkZ2UtdGhpY2tuZXNzLWludmlzaWJsZXtzdHJva2Utd2lkdGg6MDtmaWxsOm5vbmU7fSNteS1zdmcgLmVkZ2UtcGF0dGVybi1kYXNoZWR7c3Ryb2tlLWRhc2hhcnJheTozO30jbXktc3ZnIC5lZGdlLXBhdHRlcm4tZG90dGVke3N0cm9rZS1kYXNoYXJyYXk6Mjt9I215LXN2ZyAubWFya2Vye2ZpbGw6bGlnaHRncmV5O3N0cm9rZTpsaWdodGdyZXk7fSNteS1zdmcgLm1hcmtlci5jcm9zc3tzdHJva2U6bGlnaHRncmV5O30jbXktc3ZnIHN2Z3tmb250LWZhbWlseToidHJlYnVjaGV0IG1zIix2ZXJkYW5hLGFyaWFsLHNhbnMtc2VyaWY7Zm9udC1zaXplOjE2cHg7fSNteS1zdmcgcHttYXJnaW46MDt9I215LXN2ZyAubGFiZWx7Zm9udC1mYW1pbHk6InRyZWJ1Y2hldCBtcyIsdmVyZGFuYSxhcmlhbCxzYW5zLXNlcmlmO2NvbG9yOiNjY2M7fSNteS1zdmcgLmNsdXN0ZXItbGFiZWwgdGV4dHtmaWxsOiNGOUZGRkU7fSNteS1zdmcgLmNsdXN0ZXItbGFiZWwgc3Bhbntjb2xvcjojRjlGRkZFO30jbXktc3ZnIC5jbHVzdGVyLWxhYmVsIHNwYW4gcHtiYWNrZ3JvdW5kLWNvbG9yOnRyYW5zcGFyZW50O30jbXktc3ZnIC5sYWJlbCB0ZXh0LCNteS1zdmcgc3BhbntmaWxsOiNjY2M7Y29sb3I6I2NjYzt9I215LXN2ZyAubm9kZSByZWN0LCNteS1zdmcgLm5vZGUgY2lyY2xlLCNteS1zdmcgLm5vZGUgZWxsaXBzZSwjbXktc3ZnIC5ub2RlIHBvbHlnb24sI215LXN2ZyAubm9kZSBwYXRoe2ZpbGw6IzFmMjAyMDtzdHJva2U6I2NjYztzdHJva2Utd2lkdGg6MXB4O30jbXktc3ZnIC5yb3VnaC1ub2RlIC5sYWJlbCB0ZXh0LCNteS1zdmcgLm5vZGUgLmxhYmVsIHRleHQsI215LXN2ZyAuaW1hZ2Utc2hhcGUgLmxhYmVsLCNteS1zdmcgLmljb24tc2hhcGUgLmxhYmVse3RleHQtYW5jaG9yOm1pZGRsZTt9I215LXN2ZyAubm9kZSAua2F0ZXggcGF0aHtmaWxsOiMwMDA7c3Ryb2tlOiMwMDA7c3Ryb2tlLXdpZHRoOjFweDt9I215LXN2ZyAucm91Z2gtbm9kZSAubGFiZWwsI215LXN2ZyAubm9kZSAubGFiZWwsI215LXN2ZyAuaW1hZ2Utc2hhcGUgLmxhYmVsLCNteS1zdmcgLmljb24tc2hhcGUgLmxhYmVse3RleHQtYWxpZ246Y2VudGVyO30jbXktc3ZnIC5ub2RlLmNsaWNrYWJsZXtjdXJzb3I6cG9pbnRlcjt9I215LXN2ZyAucm9vdCAuYW5jaG9yIHBhdGh7ZmlsbDpsaWdodGdyZXkhaW1wb3J0YW50O3N0cm9rZS13aWR0aDowO3N0cm9rZTpsaWdodGdyZXk7fSNteS1zdmcgLmFycm93aGVhZFBhdGh7ZmlsbDpsaWdodGdyZXk7fSNteS1zdmcgLmVkZ2VQYXRoIC5wYXRoe3N0cm9rZTpsaWdodGdyZXk7c3Ryb2tlLXdpZHRoOjFweDt9I215LXN2ZyAuZmxvd2NoYXJ0LWxpbmt7c3Ryb2tlOmxpZ2h0Z3JleTtmaWxsOm5vbmU7fSNteS1zdmcgLmVkZ2VMYWJlbHtiYWNrZ3JvdW5kLWNvbG9yOmhzbCgwLCAwJSwgMzQuNDExNzY0NzA1OSUpO3RleHQtYWxpZ246Y2VudGVyO30jbXktc3ZnIC5lZGdlTGFiZWwgcHtiYWNrZ3JvdW5kLWNvbG9yOmhzbCgwLCAwJSwgMzQuNDExNzY0NzA1OSUpO30jbXktc3ZnIC5lZGdlTGFiZWwgcmVjdHtvcGFjaXR5OjAuNTtiYWNrZ3JvdW5kLWNvbG9yOmhzbCgwLCAwJSwgMzQuNDExNzY0NzA1OSUpO2ZpbGw6aHNsKDAsIDAlLCAzNC40MTE3NjQ3MDU5JSk7fSNteS1zdmcgLmxhYmVsQmtne2JhY2tncm91bmQtY29sb3I6cmdiYSg4Ny43NSwgODcuNzUsIDg3Ljc1LCAwLjUpO30jbXktc3ZnIC5jbHVzdGVyIHJlY3R7ZmlsbDpoc2woMTgwLCAxLjU4NzMwMTU4NzMlLCAyOC4zNTI5NDExNzY1JSk7c3Ryb2tlOnJnYmEoMjU1LCAyNTUsIDI1NSwgMC4yNSk7c3Ryb2tlLXdpZHRoOjFweDt9I215LXN2ZyAuY2x1c3RlciB0ZXh0e2ZpbGw6I0Y5RkZGRTt9I215LXN2ZyAuY2x1c3RlciBzcGFue2NvbG9yOiNGOUZGRkU7fSNteS1zdmcgZGl2Lm1lcm1haWRUb29sdGlwe3Bvc2l0aW9uOmFic29sdXRlO3RleHQtYWxpZ246Y2VudGVyO21heC13aWR0aDoyMDBweDtwYWRkaW5nOjJweDtmb250LWZhbWlseToidHJlYnVjaGV0IG1zIix2ZXJkYW5hLGFyaWFsLHNhbnMtc2VyaWY7Zm9udC1zaXplOjEycHg7YmFja2dyb3VuZDpoc2woMjAsIDEuNTg3MzAxNTg3MyUsIDEyLjM1Mjk0MTE3NjUlKTtib3JkZXI6MXB4IHNvbGlkIHJnYmEoMjU1LCAyNTUsIDI1NSwgMC4yNSk7Ym9yZGVyLXJhZGl1czoycHg7cG9pbnRlci1ldmVudHM6bm9uZTt6LWluZGV4OjEwMDt9I215LXN2ZyAuZmxvd2NoYXJ0VGl0bGVUZXh0e3RleHQtYW5jaG9yOm1pZGRsZTtmb250LXNpemU6MThweDtmaWxsOiNjY2M7fSNteS1zdmcgcmVjdC50ZXh0e2ZpbGw6bm9uZTtzdHJva2Utd2lkdGg6MDt9I215LXN2ZyAuaWNvbi1zaGFwZSwjbXktc3ZnIC5pbWFnZS1zaGFwZXtiYWNrZ3JvdW5kLWNvbG9yOmhzbCgwLCAwJSwgMzQuNDExNzY0NzA1OSUpO3RleHQtYWxpZ246Y2VudGVyO30jbXktc3ZnIC5pY29uLXNoYXBlIHAsI215LXN2ZyAuaW1hZ2Utc2hhcGUgcHtiYWNrZ3JvdW5kLWNvbG9yOmhzbCgwLCAwJSwgMzQuNDExNzY0NzA1OSUpO3BhZGRpbmc6MnB4O30jbXktc3ZnIC5pY29uLXNoYXBlIC5sYWJlbCByZWN0LCNteS1zdmcgLmltYWdlLXNoYXBlIC5sYWJlbCByZWN0e29wYWNpdHk6MC41O2JhY2tncm91bmQtY29sb3I6aHNsKDAsIDAlLCAzNC40MTE3NjQ3MDU5JSk7ZmlsbDpoc2woMCwgMCUsIDM0LjQxMTc2NDcwNTklKTt9I215LXN2ZyAubGFiZWwtaWNvbntkaXNwbGF5OmlubGluZS1ibG9jaztoZWlnaHQ6MWVtO292ZXJmbG93OnZpc2libGU7dmVydGljYWwtYWxpZ246LTAuMTI1ZW07fSNteS1zdmcgLm5vZGUgLmxhYmVsLWljb24gcGF0aHtmaWxsOmN1cnJlbnRDb2xvcjtzdHJva2U6cmV2ZXJ0O3N0cm9rZS13aWR0aDpyZXZlcnQ7fSNteS1zdmcgLm5vZGUgLm5lby1ub2Rle3N0cm9rZTojY2NjO30jbXktc3ZnIFtkYXRhLWxvb2s9Im5lbyJdLm5vZGUgcmVjdCwjbXktc3ZnIFtkYXRhLWxvb2s9Im5lbyJdLmNsdXN0ZXIgcmVjdCwjbXktc3ZnIFtkYXRhLWxvb2s9Im5lbyJdLm5vZGUgcG9seWdvbntzdHJva2U6dXJsKCNteS1zdmctZ3JhZGllbnQpO2ZpbHRlcjpkcm9wLXNoYWRvdyggMXB4IDJweCAycHggcmdiYSgxODUsMTg1LDE4NSwxKSk7fSNteS1zdmcgW2RhdGEtbG9vaz0ibmVvIl0ubm9kZSBwYXRoe3N0cm9rZTp1cmwoI215LXN2Zy1ncmFkaWVudCk7c3Ryb2tlLXdpZHRoOjFweDt9I215LXN2ZyBbZGF0YS1sb29rPSJuZW8iXS5ub2RlIC5vdXRlci1wYXRoe2ZpbHRlcjpkcm9wLXNoYWRvdyggMXB4IDJweCAycHggcmdiYSgxODUsMTg1LDE4NSwxKSk7fSNteS1zdmcgW2RhdGEtbG9vaz0ibmVvIl0ubm9kZSAubmVvLWxpbmUgcGF0aHtzdHJva2U6I2NjYztmaWx0ZXI6bm9uZTt9I215LXN2ZyBbZGF0YS1sb29rPSJuZW8iXS5ub2RlIGNpcmNsZXtzdHJva2U6dXJsKCNteS1zdmctZ3JhZGllbnQpO2ZpbHRlcjpkcm9wLXNoYWRvdyggMXB4IDJweCAycHggcmdiYSgxODUsMTg1LDE4NSwxKSk7fSNteS1zdmcgW2RhdGEtbG9vaz0ibmVvIl0ubm9kZSBjaXJjbGUgLnN0YXRlLXN0YXJ0e2ZpbGw6IzAwMDAwMDt9I215LXN2ZyBbZGF0YS1sb29rPSJuZW8iXS5pY29uLXNoYXBlIC5pY29ue2ZpbGw6dXJsKCNteS1zdmctZ3JhZGllbnQpO2ZpbHRlcjpkcm9wLXNoYWRvdyggMXB4IDJweCAycHggcmdiYSgxODUsMTg1LDE4NSwxKSk7fSNteS1zdmcgW2RhdGEtbG9vaz0ibmVvIl0uaWNvbi1zaGFwZSAuaWNvbi1uZW8gcGF0aHtzdHJva2U6dXJsKCNteS1zdmctZ3JhZGllbnQpO2ZpbHRlcjpkcm9wLXNoYWRvdyggMXB4IDJweCAycHggcmdiYSgxODUsMTg1LDE4NSwxKSk7fSNteS1zdmcgOnJvb3R7LS1tZXJtYWlkLWZvbnQtZmFtaWx5OiJ0cmVidWNoZXQgbXMiLHZlcmRhbmEsYXJpYWwsc2Fucy1zZXJpZjt9PC9zdHlsZT48Zz48bWFya2VyIGlkPSJteS1zdmdfZmxvd2NoYXJ0LXYyLXBvaW50RW5kIiBjbGFzcz0ibWFya2VyIGZsb3djaGFydC12MiIgdmlld0JveD0iMCAwIDEwIDEwIiByZWZYPSI1IiByZWZZPSI1IiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSI4IiBtYXJrZXJIZWlnaHQ9IjgiIG9yaWVudD0iYXV0byI+PHBhdGggZD0iTSAwIDAgTCAxMCA1IEwgMCAxMCB6IiBjbGFzcz0iYXJyb3dNYXJrZXJQYXRoIiBzdHlsZT0ic3Ryb2tlLXdpZHRoOiAxOyBzdHJva2UtZGFzaGFycmF5OiAxLCAwOyIvPjwvbWFya2VyPjxtYXJrZXIgaWQ9Im15LXN2Z19mbG93Y2hhcnQtdjItcG9pbnRTdGFydCIgY2xhc3M9Im1hcmtlciBmbG93Y2hhcnQtdjIiIHZpZXdCb3g9IjAgMCAxMCAxMCIgcmVmWD0iNC41IiByZWZZPSI1IiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSI4IiBtYXJrZXJIZWlnaHQ9IjgiIG9yaWVudD0iYXV0byI+PHBhdGggZD0iTSAwIDUgTCAxMCAxMCBMIDEwIDAgeiIgY2xhc3M9ImFycm93TWFya2VyUGF0aCIgc3R5bGU9InN0cm9rZS13aWR0aDogMTsgc3Ryb2tlLWRhc2hhcnJheTogMSwgMDsiLz48L21hcmtlcj48bWFya2VyIGlkPSJteS1zdmdfZmxvd2NoYXJ0LXYyLXBvaW50RW5kLW1hcmdpbiIgY2xhc3M9Im1hcmtlciBmbG93Y2hhcnQtdjIiIHZpZXdCb3g9IjAgMCAxMS41IDE0IiByZWZYPSIxMS41IiByZWZZPSI3IiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSIxMC41IiBtYXJrZXJIZWlnaHQ9IjE0IiBvcmllbnQ9ImF1dG8iPjxwYXRoIGQ9Ik0gMCAwIEwgMTEuNSA3IEwgMCAxNCB6IiBjbGFzcz0iYXJyb3dNYXJrZXJQYXRoIiBzdHlsZT0ic3Ryb2tlLXdpZHRoOiAwOyBzdHJva2UtZGFzaGFycmF5OiAxLCAwOyIvPjwvbWFya2VyPjxtYXJrZXIgaWQ9Im15LXN2Z19mbG93Y2hhcnQtdjItcG9pbnRTdGFydC1tYXJnaW4iIGNsYXNzPSJtYXJrZXIgZmxvd2NoYXJ0LXYyIiB2aWV3Qm94PSIwIDAgMTEuNSAxNCIgcmVmWD0iMSIgcmVmWT0iNyIgbWFya2VyVW5pdHM9InVzZXJTcGFjZU9uVXNlIiBtYXJrZXJXaWR0aD0iMTEuNSIgbWFya2VySGVpZ2h0PSIxNCIgb3JpZW50PSJhdXRvIj48cG9seWdvbiBwb2ludHM9IjAsNyAxMS41LDE0IDExLjUsMCIgY2xhc3M9ImFycm93TWFya2VyUGF0aCIgc3R5bGU9InN0cm9rZS13aWR0aDogMDsgc3Ryb2tlLWRhc2hhcnJheTogMSwgMDsiLz48L21hcmtlcj48bWFya2VyIGlkPSJteS1zdmdfZmxvd2NoYXJ0LXYyLWNpcmNsZUVuZCIgY2xhc3M9Im1hcmtlciBmbG93Y2hhcnQtdjIiIHZpZXdCb3g9IjAgMCAxMCAxMCIgcmVmWD0iMTEiIHJlZlk9IjUiIG1hcmtlclVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgbWFya2VyV2lkdGg9IjExIiBtYXJrZXJIZWlnaHQ9IjExIiBvcmllbnQ9ImF1dG8iPjxjaXJjbGUgY3g9IjUiIGN5PSI1IiByPSI1IiBjbGFzcz0iYXJyb3dNYXJrZXJQYXRoIiBzdHlsZT0ic3Ryb2tlLXdpZHRoOiAxOyBzdHJva2UtZGFzaGFycmF5OiAxLCAwOyIvPjwvbWFya2VyPjxtYXJrZXIgaWQ9Im15LXN2Z19mbG93Y2hhcnQtdjItY2lyY2xlU3RhcnQiIGNsYXNzPSJtYXJrZXIgZmxvd2NoYXJ0LXYyIiB2aWV3Qm94PSIwIDAgMTAgMTAiIHJlZlg9Ii0xIiByZWZZPSI1IiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSIxMSIgbWFya2VySGVpZ2h0PSIxMSIgb3JpZW50PSJhdXRvIj48Y2lyY2xlIGN4PSI1IiBjeT0iNSIgcj0iNSIgY2xhc3M9ImFycm93TWFya2VyUGF0aCIgc3R5bGU9InN0cm9rZS13aWR0aDogMTsgc3Ryb2tlLWRhc2hhcnJheTogMSwgMDsiLz48L21hcmtlcj48bWFya2VyIGlkPSJteS1zdmdfZmxvd2NoYXJ0LXYyLWNpcmNsZUVuZC1tYXJnaW4iIGNsYXNzPSJtYXJrZXIgZmxvd2NoYXJ0LXYyIiB2aWV3Qm94PSIwIDAgMTAgMTAiIHJlZlk9IjUiIHJlZlg9IjEyLjI1IiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSIxNCIgbWFya2VySGVpZ2h0PSIxNCIgb3JpZW50PSJhdXRvIj48Y2lyY2xlIGN4PSI1IiBjeT0iNSIgcj0iNSIgY2xhc3M9ImFycm93TWFya2VyUGF0aCIgc3R5bGU9InN0cm9rZS13aWR0aDogMDsgc3Ryb2tlLWRhc2hhcnJheTogMSwgMDsiLz48L21hcmtlcj48bWFya2VyIGlkPSJteS1zdmdfZmxvd2NoYXJ0LXYyLWNpcmNsZVN0YXJ0LW1hcmdpbiIgY2xhc3M9Im1hcmtlciBmbG93Y2hhcnQtdjIiIHZpZXdCb3g9IjAgMCAxMCAxMCIgcmVmWD0iLTIiIHJlZlk9IjUiIG1hcmtlclVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgbWFya2VyV2lkdGg9IjE0IiBtYXJrZXJIZWlnaHQ9IjE0IiBvcmllbnQ9ImF1dG8iPjxjaXJjbGUgY3g9IjUiIGN5PSI1IiByPSI1IiBjbGFzcz0iYXJyb3dNYXJrZXJQYXRoIiBzdHlsZT0ic3Ryb2tlLXdpZHRoOiAwOyBzdHJva2UtZGFzaGFycmF5OiAxLCAwOyIvPjwvbWFya2VyPjxtYXJrZXIgaWQ9Im15LXN2Z19mbG93Y2hhcnQtdjItY3Jvc3NFbmQiIGNsYXNzPSJtYXJrZXIgY3Jvc3MgZmxvd2NoYXJ0LXYyIiB2aWV3Qm94PSIwIDAgMTEgMTEiIHJlZlg9IjEyIiByZWZZPSI1LjIiIG1hcmtlclVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgbWFya2VyV2lkdGg9IjExIiBtYXJrZXJIZWlnaHQ9IjExIiBvcmllbnQ9ImF1dG8iPjxwYXRoIGQ9Ik0gMSwxIGwgOSw5IE0gMTAsMSBsIC05LDkiIGNsYXNzPSJhcnJvd01hcmtlclBhdGgiIHN0eWxlPSJzdHJva2Utd2lkdGg6IDI7IHN0cm9rZS1kYXNoYXJyYXk6IDEsIDA7Ii8+PC9tYXJrZXI+PG1hcmtlciBpZD0ibXktc3ZnX2Zsb3djaGFydC12Mi1jcm9zc1N0YXJ0IiBjbGFzcz0ibWFya2VyIGNyb3NzIGZsb3djaGFydC12MiIgdmlld0JveD0iMCAwIDExIDExIiByZWZYPSItMSIgcmVmWT0iNS4yIiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSIxMSIgbWFya2VySGVpZ2h0PSIxMSIgb3JpZW50PSJhdXRvIj48cGF0aCBkPSJNIDEsMSBsIDksOSBNIDEwLDEgbCAtOSw5IiBjbGFzcz0iYXJyb3dNYXJrZXJQYXRoIiBzdHlsZT0ic3Ryb2tlLXdpZHRoOiAyOyBzdHJva2UtZGFzaGFycmF5OiAxLCAwOyIvPjwvbWFya2VyPjxtYXJrZXIgaWQ9Im15LXN2Z19mbG93Y2hhcnQtdjItY3Jvc3NFbmQtbWFyZ2luIiBjbGFzcz0ibWFya2VyIGNyb3NzIGZsb3djaGFydC12MiIgdmlld0JveD0iMCAwIDE1IDE1IiByZWZYPSIxNy43IiByZWZZPSI3LjUiIG1hcmtlclVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgbWFya2VyV2lkdGg9IjEyIiBtYXJrZXJIZWlnaHQ9IjEyIiBvcmllbnQ9ImF1dG8iPjxwYXRoIGQ9Ik0gMSwxIEwgMTQsMTQgTSAxLDE0IEwgMTQsMSIgY2xhc3M9ImFycm93TWFya2VyUGF0aCIgc3R5bGU9InN0cm9rZS13aWR0aDogMi41OyIvPjwvbWFya2VyPjxtYXJrZXIgaWQ9Im15LXN2Z19mbG93Y2hhcnQtdjItY3Jvc3NTdGFydC1tYXJnaW4iIGNsYXNzPSJtYXJrZXIgY3Jvc3MgZmxvd2NoYXJ0LXYyIiB2aWV3Qm94PSIwIDAgMTUgMTUiIHJlZlg9Ii0zLjUiIHJlZlk9IjcuNSIgbWFya2VyVW5pdHM9InVzZXJTcGFjZU9uVXNlIiBtYXJrZXJXaWR0aD0iMTIiIG1hcmtlckhlaWdodD0iMTIiIG9yaWVudD0iYXV0byI+PHBhdGggZD0iTSAxLDEgTCAxNCwxNCBNIDEsMTQgTCAxNCwxIiBjbGFzcz0iYXJyb3dNYXJrZXJQYXRoIiBzdHlsZT0ic3Ryb2tlLXdpZHRoOiAyLjU7IHN0cm9rZS1kYXNoYXJyYXk6IDEsIDA7Ii8+PC9tYXJrZXI+PGcgY2xhc3M9InJvb3QiPjxnIGNsYXNzPSJjbHVzdGVycyIvPjxnIGNsYXNzPSJlZGdlUGF0aHMiPjxwYXRoIGQ9Ik0yMjkuODU5LDEzNC4xNjRMMjQzLjE5MSwxMzQuMTY0QzI1Ni41MjMsMTM0LjE2NCwyODMuMTg4LDEzNC4xNjQsMzA5LjE4NSwxMzQuMTY0QzMzNS4xODIsMTM0LjE2NCwzNjAuNTEzLDEzNC4xNjQsMzczLjE3OCwxMzQuMTY0TDM4NS44NDQsMTM0LjE2NCIgaWQ9Im15LXN2Zy1MX0FnZW50X0Jyb3dzZXJfMCIgY2xhc3M9ImVkZ2UtdGhpY2tuZXNzLW5vcm1hbCBlZGdlLXBhdHRlcm4tc29saWQgZWRnZS10aGlja25lc3Mtbm9ybWFsIGVkZ2UtcGF0dGVybi1zb2xpZCBmbG93Y2hhcnQtbGluayIgc3R5bGU9IjsiIGRhdGEtZWRnZT0idHJ1ZSIgZGF0YS1ldD0iZWRnZSIgZGF0YS1pZD0iTF9BZ2VudF9Ccm93c2VyXzAiIGRhdGEtcG9pbnRzPSJXM3NpZUNJNk1qSTVMamcxT1RNM05Td2llU0k2TVRNMExqRTJOREEwT1RFME9EVTFPVFUzZlN4N0luZ2lPak13T1M0NE5URTFOakkxTENKNUlqb3hNelF1TVRZME1EUTVNVFE0TlRVNU5UZDlMSHNpZUNJNk16ZzVMamcwTXpjMUxDSjVJam94TXpRdU1UWTBNRFE1TVRRNE5UVTVOVGQ5WFE9PSIgZGF0YS1sb29rPSJjbGFzc2ljIiBtYXJrZXItZW5kPSJ1cmwoI215LXN2Z19mbG93Y2hhcnQtdjItcG9pbnRFbmQpIi8+PHBhdGggZD0iTTU4OC41OTcsOTUuMTY0TDYwNy43MjgsODYuOTZDNjI2Ljg1OSw3OC43NTcsNjY1LjEyMSw2Mi4zNSw3NjUuODE2LDU0LjE0NkM4NjYuNTEsNDUuOTQzLDEwMjkuNjM4LDQ1Ljk0MywxMTExLjIwMiw0NS45NDNMMTE5Mi43NjYsNDUuOTQzIiBpZD0ibXktc3ZnLUxfQnJvd3Nlcl9TaXRlc18wIiBjbGFzcz0iZWRnZS10aGlja25lc3Mtbm9ybWFsIGVkZ2UtcGF0dGVybi1zb2xpZCBlZGdlLXRoaWNrbmVzcy1ub3JtYWwgZWRnZS1wYXR0ZXJuLXNvbGlkIGZsb3djaGFydC1saW5rIiBzdHlsZT0iOyIgZGF0YS1lZGdlPSJ0cnVlIiBkYXRhLWV0PSJlZGdlIiBkYXRhLWlkPSJMX0Jyb3dzZXJfU2l0ZXNfMCIgZGF0YS1wb2ludHM9Ilczc2llQ0k2TlRnNExqVTVOelF3TkRVeE1EazJNakVzSW5raU9qazFMakUyTkRBME9URTBPRFUxT1RVM2ZTeDdJbmdpT2pjd015NHpPREk0TVRJMUxDSjVJam8wTlM0NU5ESTJPVGswTXpJek56TXdOWDBzZXlKNElqb3hNVGsyTGpjMk5UWXlOU3dpZVNJNk5EVXVPVFF5TmprNU5ETXlNemN6TURWOVhRPT0iIGRhdGEtbG9vaz0iY2xhc3NpYyIgbWFya2VyLWVuZD0idXJsKCNteS1zdmdfZmxvd2NoYXJ0LXYyLXBvaW50RW5kKSIvPjxwYXRoIGQ9Ik01ODguNTk3LDE3My4xNjRMNjA3LjcyOCwxODEuMzY4QzYyNi44NTksMTg5LjU3MSw2NjUuMTIxLDIwNS45NzgsNzAwLjU3NCwyMTQuMTgyQzczNi4wMjYsMjIyLjM4NSw3NjguNjY5LDIyMi4zODUsNzg0Ljk5MSwyMjIuMzg1TDgwMS4zMTMsMjIyLjM4NSIgaWQ9Im15LXN2Zy1MX0Jyb3dzZXJfUHJvZmlsZV8wIiBjbGFzcz0iZWRnZS10aGlja25lc3Mtbm9ybWFsIGVkZ2UtcGF0dGVybi1zb2xpZCBlZGdlLXRoaWNrbmVzcy1ub3JtYWwgZWRnZS1wYXR0ZXJuLXNvbGlkIGZsb3djaGFydC1saW5rIiBzdHlsZT0iOyIgZGF0YS1lZGdlPSJ0cnVlIiBkYXRhLWV0PSJlZGdlIiBkYXRhLWlkPSJMX0Jyb3dzZXJfUHJvZmlsZV8wIiBkYXRhLXBvaW50cz0iVzNzaWVDSTZOVGc0TGpVNU56UXdORFV4TURrMk1qRXNJbmtpT2pFM015NHhOalF3TkRreE5EZzFOVGsxTjMwc2V5SjRJam8zTURNdU16Z3lPREV5TlN3aWVTSTZNakl5TGpNNE5UTTVPRGcyTkRjME5qRjlMSHNpZUNJNk9EQXhMak14TWpVc0lua2lPakl5TWk0ek9EVXpPVGc0TmpRM05EWXhmVjA9IiBkYXRhLWxvb2s9ImNsYXNzaWMiLz48L2c+PGcgY2xhc3M9ImVkZ2VMYWJlbHMiPjxnIGNsYXNzPSJlZGdlTGFiZWwiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDMwOS44NTE1NjI1LCAxMzQuMTY0MDQ5MTQ4NTU5NTcpIj48ZyBjbGFzcz0ibGFiZWwiIGRhdGEtaWQ9IkxfQWdlbnRfQnJvd3Nlcl8wIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtNTQuOTkyMTg3NSwgLTEyKSI+PGZvcmVpZ25PYmplY3Qgd2lkdGg9IjEwOS45ODQzNzUiIGhlaWdodD0iMjQiPjxkaXYgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIGNsYXNzPSJsYWJlbEJrZyIgc3R5bGU9ImRpc3BsYXk6IHRhYmxlLWNlbGw7IHdoaXRlLXNwYWNlOiBub3dyYXA7IGxpbmUtaGVpZ2h0OiAxLjU7IG1heC13aWR0aDogMjAwcHg7IHRleHQtYWxpZ246IGNlbnRlcjsiPjxzcGFuIGNsYXNzPSJlZGdlTGFiZWwiPjxwPkNEUCA6IGxvY2FsaG9zdDwvcD48L3NwYW4+PC9kaXY+PC9mb3JlaWduT2JqZWN0PjwvZz48L2c+PGcgY2xhc3M9ImVkZ2VMYWJlbCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzAzLjM4MjgxMjUsIDQ1Ljk0MjY5OTQzMjM3MzA1KSI+PGcgY2xhc3M9ImxhYmVsIiBkYXRhLWlkPSJMX0Jyb3dzZXJfU2l0ZXNfMCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTcyLjkyOTY4NzUsIC0xMikiPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIxNDUuODU5Mzc1IiBoZWlnaHQ9IjI0Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBjbGFzcz0ibGFiZWxCa2ciIHN0eWxlPSJkaXNwbGF5OiB0YWJsZS1jZWxsOyB3aGl0ZS1zcGFjZTogbm93cmFwOyBsaW5lLWhlaWdodDogMS41OyBtYXgtd2lkdGg6IDIwMHB4OyB0ZXh0LWFsaWduOiBjZW50ZXI7Ij48c3BhbiBjbGFzcz0iZWRnZUxhYmVsIj48cD5leGl0cyB2aWEgYXNzaWduZWQgSVA8L3A+PC9zcGFuPjwvZGl2PjwvZm9yZWlnbk9iamVjdD48L2c+PC9nPjxnIGNsYXNzPSJlZGdlTGFiZWwiPjxnIGNsYXNzPSJsYWJlbCIgZGF0YS1pZD0iTF9Ccm93c2VyX1Byb2ZpbGVfMCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMCwgMCkiPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIwIiBoZWlnaHQ9IjAiPjxkaXYgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIGNsYXNzPSJsYWJlbEJrZyIgc3R5bGU9ImRpc3BsYXk6IHRhYmxlLWNlbGw7IHdoaXRlLXNwYWNlOiBub3dyYXA7IGxpbmUtaGVpZ2h0OiAxLjU7IG1heC13aWR0aDogMjAwcHg7IHRleHQtYWxpZ246IGNlbnRlcjsiPjxzcGFuIGNsYXNzPSJlZGdlTGFiZWwiPjwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48L2c+PGcgY2xhc3M9Im5vZGVzIj48ZyBjbGFzcz0icm9vdCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzkzLjMxMjUsIDEyNS44ODUzOTg4NjQ3NDYxKSI+PGcgY2xhc3M9ImNsdXN0ZXJzIj48ZyBjbGFzcz0iY2x1c3RlciIgaWQ9Im15LXN2Zy1Qcm9maWxlIiBkYXRhLWxvb2s9ImNsYXNzaWMiPjxyZWN0IHN0eWxlPSIiIHg9IjgiIHk9IjgiIHdpZHRoPSI5MTEuODc1IiBoZWlnaHQ9IjE3NyIvPjxnIGNsYXNzPSJjbHVzdGVyLWxhYmVsIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgzOTkuNjc5Njg3NSwgOCkiPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIxMjguNTE1NjI1IiBoZWlnaHQ9IjI0Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBzdHlsZT0iZGlzcGxheTogdGFibGUtY2VsbDsgd2hpdGUtc3BhY2U6IG5vd3JhcDsgbGluZS1oZWlnaHQ6IDEuNTsiPjxzcGFuIGNsYXNzPSJub2RlTGFiZWwiPjxwPvCfq6cgSXNvbGF0ZWQgcHJvZmlsZTwvcD48L3NwYW4+PC9kaXY+PC9mb3JlaWduT2JqZWN0PjwvZz48L2c+PC9nPjxnIGNsYXNzPSJlZGdlUGF0aHMiLz48ZyBjbGFzcz0iZWRnZUxhYmVscyIvPjxnIGNsYXNzPSJub2RlcyI+PGcgY2xhc3M9Im5vZGUgZGVmYXVsdCIgaWQ9Im15LXN2Zy1mbG93Y2hhcnQtRlAtMiIgZGF0YS1sb29rPSJjbGFzc2ljIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxNzMsIDk2LjUpIj48cmVjdCBjbGFzcz0iYmFzaWMgbGFiZWwtY29udGFpbmVyIiBzdHlsZT0iIiB4PSItMTMwIiB5PSItNTEiIHdpZHRoPSIyNjAiIGhlaWdodD0iMTAyIi8+PGcgY2xhc3M9ImxhYmVsIiBzdHlsZT0iIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTAwLCAtMzYpIj48cmVjdC8+PGZvcmVpZ25PYmplY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSI3MiI+PGRpdiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCIgc3R5bGU9ImRpc3BsYXk6IHRhYmxlOyB3aGl0ZS1zcGFjZTogYnJlYWstc3BhY2VzOyBsaW5lLWhlaWdodDogMS41OyBtYXgtd2lkdGg6IDIwMHB4OyB0ZXh0LWFsaWduOiBjZW50ZXI7IHdpZHRoOiAyMDBweDsiPjxzcGFuIGNsYXNzPSJub2RlTGFiZWwiPjxwPvCfqqogRmluZ2VycHJpbnQgZW5naW5lPGJyIC8+Q2FudmFzIMK3IFdlYkdMIMK3IGZvbnRzIMK3IHRpbWV6b25lPC9wPjwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48ZyBjbGFzcz0ibm9kZSBkZWZhdWx0IiBpZD0ibXktc3ZnLWZsb3djaGFydC1QWC0zIiBkYXRhLWxvb2s9ImNsYXNzaWMiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDQ2My45Mzc1LCA5Ni41KSI+PHJlY3QgY2xhc3M9ImJhc2ljIGxhYmVsLWNvbnRhaW5lciIgc3R5bGU9IiIgeD0iLTExMC45Mzc1IiB5PSItMzkiIHdpZHRoPSIyMjEuODc1IiBoZWlnaHQ9Ijc4Ii8+PGcgY2xhc3M9ImxhYmVsIiBzdHlsZT0iIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtODAuOTM3NSwgLTI0KSI+PHJlY3QvPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIxNjEuODc1IiBoZWlnaHQ9IjQ4Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBzdHlsZT0iZGlzcGxheTogdGFibGUtY2VsbDsgd2hpdGUtc3BhY2U6IG5vd3JhcDsgbGluZS1oZWlnaHQ6IDEuNTsgbWF4LXdpZHRoOiAyMDBweDsgdGV4dC1hbGlnbjogY2VudGVyOyI+PHNwYW4gY2xhc3M9Im5vZGVMYWJlbCI+PHA+8J+MjSBQcm94eSByb3V0aW5nPGJyIC8+cmVzaWRlbnRpYWwgLyBkYXRhY2VudGVyPC9wPjwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48ZyBjbGFzcz0ibm9kZSBkZWZhdWx0IiBpZD0ibXktc3ZnLWZsb3djaGFydC1DSy00IiBkYXRhLWxvb2s9ImNsYXNzaWMiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDc1NC44NzUsIDk2LjUpIj48cmVjdCBjbGFzcz0iYmFzaWMgbGFiZWwtY29udGFpbmVyIiBzdHlsZT0iIiB4PSItMTMwIiB5PSItMzkiIHdpZHRoPSIyNjAiIGhlaWdodD0iNzgiLz48ZyBjbGFzcz0ibGFiZWwiIHN0eWxlPSIiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0xMDAsIC0yNCkiPjxyZWN0Lz48Zm9yZWlnbk9iamVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjQ4Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBzdHlsZT0iZGlzcGxheTogdGFibGU7IHdoaXRlLXNwYWNlOiBicmVhay1zcGFjZXM7IGxpbmUtaGVpZ2h0OiAxLjU7IG1heC13aWR0aDogMjAwcHg7IHRleHQtYWxpZ246IGNlbnRlcjsgd2lkdGg6IDIwMHB4OyI+PHNwYW4gY2xhc3M9Im5vZGVMYWJlbCI+PHA+8J+NqiBJc29sYXRlZCBjb29raWVzICZhbXA7IHN0b3JhZ2U8L3A+PC9zcGFuPjwvZGl2PjwvZm9yZWlnbk9iamVjdD48L2c+PC9nPjwvZz48L2c+PGcgY2xhc3M9Im5vZGUgZGVmYXVsdCIgaWQ9Im15LXN2Zy1mbG93Y2hhcnQtQWdlbnQtMCIgZGF0YS1sb29rPSJjbGFzc2ljIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxMTguOTI5Njg3NSwgMTM0LjE2NDA0OTE0ODU1OTU3KSI+PHJlY3QgY2xhc3M9ImJhc2ljIGxhYmVsLWNvbnRhaW5lciIgc3R5bGU9IiIgeD0iLTExMC45Mjk2ODc1IiB5PSItMzkiIHdpZHRoPSIyMjEuODU5Mzc1IiBoZWlnaHQ9Ijc4Ii8+PGcgY2xhc3M9ImxhYmVsIiBzdHlsZT0iIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtODAuOTI5Njg3NSwgLTI0KSI+PHJlY3QvPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIxNjEuODU5Mzc1IiBoZWlnaHQ9IjQ4Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBzdHlsZT0iZGlzcGxheTogdGFibGUtY2VsbDsgd2hpdGUtc3BhY2U6IG5vd3JhcDsgbGluZS1oZWlnaHQ6IDEuNTsgbWF4LXdpZHRoOiAyMDBweDsgdGV4dC1hbGlnbjogY2VudGVyOyI+PHNwYW4gY2xhc3M9Im5vZGVMYWJlbCI+PHA+8J+kliBBSSBhZ2VudCAvIHNjcmlwdDxiciAvPlBsYXl3cmlnaHQgwrcgUHVwcGV0ZWVyPC9wPjwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48ZyBjbGFzcz0ibm9kZSBkZWZhdWx0IiBpZD0ibXktc3ZnLWZsb3djaGFydC1Ccm93c2VyLTEiIGRhdGEtbG9vaz0iY2xhc3NpYyIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNDk3LjY0ODQzNzUsIDEzNC4xNjQwNDkxNDg1NTk1NykiPjxyZWN0IGNsYXNzPSJiYXNpYyBsYWJlbC1jb250YWluZXIiIHN0eWxlPSIiIHg9Ii0xMDcuODA0Njg3NSIgeT0iLTM5IiB3aWR0aD0iMjE1LjYwOTM3NSIgaGVpZ2h0PSI3OCIvPjxnIGNsYXNzPSJsYWJlbCIgc3R5bGU9IiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTc3LjgwNDY4NzUsIC0yNCkiPjxyZWN0Lz48Zm9yZWlnbk9iamVjdCB3aWR0aD0iMTU1LjYwOTM3NSIgaGVpZ2h0PSI0OCI+PGRpdiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCIgc3R5bGU9ImRpc3BsYXk6IHRhYmxlLWNlbGw7IHdoaXRlLXNwYWNlOiBub3dyYXA7IGxpbmUtaGVpZ2h0OiAxLjU7IG1heC13aWR0aDogMjAwcHg7IHRleHQtYWxpZ246IGNlbnRlcjsiPjxzcGFuIGNsYXNzPSJub2RlTGFiZWwiPjxwPvCfkL4gQ2xhd2Jyb3dzZXI8YnIgLz4obWFuYWdlZCBDaHJvbWl1bSk8L3A+PC9zcGFuPjwvZGl2PjwvZm9yZWlnbk9iamVjdD48L2c+PC9nPjxnIGNsYXNzPSJub2RlIGRlZmF1bHQiIGlkPSJteS1zdmctZmxvd2NoYXJ0LVNpdGVzLTUiIGRhdGEtbG9vaz0iY2xhc3NpYyIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTI1Ny4yNSwgNDUuOTQyNjk5NDMyMzczMDUpIj48cGF0aCBkPSJNMCwxMi4yOTUxMzQwMzYzMzU5MTUgYTYwLjQ4NDM3NSwxMi4yOTUxMzQwMzYzMzU5MTUgMCwwLDAgMTIwLjk2ODc1LDAgYTYwLjQ4NDM3NSwxMi4yOTUxMzQwMzYzMzU5MTUgMCwwLDAgLTEyMC45Njg3NSwwIGwwLDUxLjI5NTEzNDAzNjMzNTkyIGE2MC40ODQzNzUsMTIuMjk1MTM0MDM2MzM1OTE1IDAsMCwwIDEyMC45Njg3NSwwIGwwLC01MS4yOTUxMzQwMzYzMzU5MiIgY2xhc3M9ImJhc2ljIGxhYmVsLWNvbnRhaW5lciBvdXRlci1wYXRoIiBzdHlsZT0iIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtNjAuNDg0Mzc1LCAtMzcuOTQyNzAxMDU0NTAzODcpIi8+PGcgY2xhc3M9ImxhYmVsIiBzdHlsZT0iIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtNTIuOTg0Mzc1LCAtMikiPjxyZWN0Lz48Zm9yZWlnbk9iamVjdCB3aWR0aD0iMTA1Ljk2ODc1IiBoZWlnaHQ9IjI0Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBzdHlsZT0iZGlzcGxheTogdGFibGUtY2VsbDsgd2hpdGUtc3BhY2U6IG5vd3JhcDsgbGluZS1oZWlnaHQ6IDEuNTsgbWF4LXdpZHRoOiAyMDBweDsgdGV4dC1hbGlnbjogY2VudGVyOyI+PHNwYW4gY2xhc3M9Im5vZGVMYWJlbCI+PHA+8J+MkCBUYXJnZXQgc2l0ZXM8L3A+PC9zcGFuPjwvZGl2PjwvZm9yZWlnbk9iamVjdD48L2c+PC9nPjwvZz48L2c+PC9nPjxkZWZzPjxmaWx0ZXIgaWQ9Im15LXN2Zy1kcm9wLXNoYWRvdyIgaGVpZ2h0PSIxMzAlIiB3aWR0aD0iMTMwJSI+PGZlRHJvcFNoYWRvdyBkeD0iNCIgZHk9IjQiIHN0ZERldmlhdGlvbj0iMCIgZmxvb2Qtb3BhY2l0eT0iMC4wNiIgZmxvb2QtY29sb3I9IiNGRkZGRkYiLz48L2ZpbHRlcj48L2RlZnM+PGRlZnM+PGZpbHRlciBpZD0ibXktc3ZnLWRyb3Atc2hhZG93LXNtYWxsIiBoZWlnaHQ9IjE1MCUiIHdpZHRoPSIxNTAlIj48ZmVEcm9wU2hhZG93IGR4PSIyIiBkeT0iMiIgc3RkRGV2aWF0aW9uPSIwIiBmbG9vZC1vcGFjaXR5PSIwLjA2IiBmbG9vZC1jb2xvcj0iI0ZGRkZGRiIvPjwvZmlsdGVyPjwvZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9Im15LXN2Zy1ncmFkaWVudCIgZ3JhZGllbnRVbml0cz0ib2JqZWN0Qm91bmRpbmdCb3giIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjAlIj48c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjY2NjY2NjIiBzdG9wLW9wYWNpdHk9IjEiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9ImhzbCgxODAsIDAlLCAxOC4zNTI5NDExNzY1JSkiIHN0b3Atb3BhY2l0eT0iMSIvPjwvbGluZWFyR3JhZGllbnQ+PC9zdmc+" />
-</p>
+Get an API key at **[app.clawbrowser.ai](https://app.clawbrowser.ai/)**, then run:
+
+```bash
+clawctl install --json
+clawctl config set --api-key "$CLAWBROWSER_API_KEY"
+clawctl start --profile work --url https://example.com --json
+clawctl endpoint --profile work --json
+# Connect the returned CDP endpoint with Playwright, Puppeteer, or your agent.
+```
+
+Re-fetch the endpoint with `clawctl endpoint` after a start, restart, or failure; CDP endpoints are temporary and should not be stored in configuration.
 
 <details>
-<summary>📑 <b>Table of Contents</b></summary>
+<summary><b>Let an AI coding agent perform the installation</b></summary>
 
-- [⚡ Quick Start](#-quick-start)
-- [📦 Install](#-install)
-- [Features](#features)
-- [👥 Who it's for](#-who-its-for)
-- [⚙️ How it works](#️-how-it-works)
-- [🔌 Agent integration](#-agent-integration)
-- [🖥️ CLI reference](#️-cli-reference)
-- [📺 Remote viewing](#-remote-viewing)
-- [🧬 Multi-profile management](#-multi-profile-management)
-- [💻 Platform support](#-platform-support)
-- [🛟 Troubleshooting](#-troubleshooting)
-- [📄 License](#-license)
-
-</details>
-
-## ⚡ Quick Start
-
-**Option 1 — let your AI agent install Clawbrowser.** Paste this prompt into your coding agent — Claude Code, Codex, Cursor, Gemini CLI, or any other:
+Paste the following prompt into Claude Code, Codex, Cursor, Gemini CLI, or another coding agent:
 
 ```text
 Install Clawbrowser and clawctl by following the official Clawbrowser install documentation.
@@ -111,70 +102,72 @@ Expected result:
 - Browser verification passes according to INSTALL.md.
 ```
 
-**Option 2 — install yourself.** 🔑 First grab an API key at **[app.clawbrowser.ai](https://app.clawbrowser.ai)**, then:
+</details>
 
-```bash
-clawctl install --json
-clawctl config set --api-key "$CLAWBROWSER_API_KEY"
-clawctl start --profile work --url https://example.com --json
-clawctl endpoint --profile work --json
-# → connect this CDP endpoint with Playwright / Puppeteer / your agent
-```
+## Install
 
-See [Install](#-install) for the platform-specific commands to obtain `clawctl` itself.
+`clawctl` is the supported bootstrapper. Start with the standalone archive for the host OS and architecture from [`clawbrowser/clawctl`](https://github.com/clawbrowser/clawctl/releases/latest). Then run `clawctl install` so it can install or reuse Clawbrowser, add the portable Linux runtime when required, and configure supported agent integrations.
 
-## 📦 Install
-
-`clawctl` is the bootstrapper: it installs (or reuses) Clawbrowser and the portable runtime, and wires the browser into your agent. The supported install path is the **standalone `clawctl` release archive** for your OS/arch — not `npm`, `npx`, curl-piped scripts, or a source checkout. Standalone archives live in the [`clawbrowser/clawctl`](https://github.com/clawbrowser/clawctl) repo ([latest release](https://github.com/clawbrowser/clawctl/releases/latest)); `clawctl install` then fetches the browser and portable runtime payloads from this repo when the host needs them.
+Do not bootstrap from `npm`, `npx`, a curl-piped installer, Docker, a browser payload archive, or a raw source checkout.
 
 > [!IMPORTANT]
-> Don't extract `clawctl` under `/tmp` — many agent containers mount `/tmp` with `noexec` and `chmod +x` won't help. Use a durable, executable workdir.
+> Do not extract `clawctl` under `/tmp`. Many agent containers mount `/tmp` with `noexec`; use a durable executable work directory instead.
 
 <details open>
-<summary><b>🐧 Linux</b> (server, container, no display required)</summary>
+<summary><b>Linux</b> (x64 or ARM64; server, container, or no-display host)</summary>
 
 ```bash
-# Pick a durable workdir outside /tmp
 mkdir -p ~/clawbrowser-install && cd ~/clawbrowser-install
 
-# Download the standalone clawctl archive for your arch
-archive="clawctl-linux-amd64.tar.gz"   # or clawctl-linux-arm64.tar.gz
+case "$(uname -m)" in
+  x86_64|amd64) platform="linux-amd64" ;;
+  arm64|aarch64) platform="linux-arm64" ;;
+  *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+esac
+
+archive="clawctl-${platform}.tar.gz"
 url="https://github.com/clawbrowser/clawctl/releases/latest/download/${archive}"
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
+tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
-cd clawctl-linux-amd64
+cd "clawctl-${platform}"
 
 ./clawctl install --json
 ./clawctl config set --api-key "$CLAWBROWSER_API_KEY"
 ./clawctl start --profile work --url clawbrowser://verify/ --json
+./clawctl endpoint --profile work --json
 ./clawctl verify --profile work --json
 ```
 
-No Docker, sudo, apt, manual portable runtime download, or physical display is required.
+The portable Linux flow supports glibc `amd64` and `arm64` hosts and does not require Docker, `sudo`, `apt`, a physical display, or a manual runtime download.
+
 </details>
 
 <details>
-<summary><b>🍎 macOS</b> (Apple Silicon)</summary>
+<summary><b>macOS</b> (Apple Silicon)</summary>
 
 ```bash
 archive="clawctl-macos-arm64.tar.gz"
 url="https://github.com/clawbrowser/clawctl/releases/latest/download/${archive}"
 
 curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
+tar -tzf "$archive" >/dev/null
 tar -xzf "$archive"
 cd clawctl-macos-arm64
 
 ./clawctl install --json
 ./clawctl config set --api-key "$CLAWBROWSER_API_KEY"
 ./clawctl start --profile work --url clawbrowser://verify/ --json
+./clawctl endpoint --profile work --json
 ./clawctl verify --profile work --json
 ```
 
-macOS uses `Clawbrowser.app` and requires a logged-in GUI desktop context (Xvfb is Linux-only).
+macOS uses `Clawbrowser.app` and requires a logged-in GUI desktop context.
+
 </details>
 
 <details>
-<summary><b>🪟 Windows</b> (PowerShell, 64-bit)</summary>
+<summary><b>Windows</b> (64-bit PowerShell)</summary>
 
 ```powershell
 $archive = "clawctl-win-amd64.zip"
@@ -187,224 +180,156 @@ Set-Location .\clawctl-win-amd64
 .\clawctl.exe install --json
 .\clawctl.exe config set --api-key "$env:CLAWBROWSER_API_KEY"
 .\clawctl.exe start --profile work --url clawbrowser://verify/ --json
+.\clawctl.exe endpoint --profile work --json
 .\clawctl.exe verify --profile work --json
 ```
 
-If the browser payload contains `setup.exe`, `clawctl install` runs it silently; Windows may prompt for administrator approval.
+If the browser payload contains `setup.exe`, `clawctl install` runs it silently and Windows may request administrator approval.
+
 </details>
 
-#### What `clawctl install` sets up
+For durable work directories, exact archive roles, offline setups, Docker-backed infrastructure, and troubleshooting, read **[INSTALL.md](./INSTALL.md)**.
 
-| | Component | Purpose |
-| :--: | :--- | :--- |
-| 🛠️ | **`clawctl` bootstrapper** | One CLI that installs, configures, updates, and starts the browser |
-| 🐾 | **Clawbrowser browser payload** | Managed Chromium; downloaded automatically when no usable install exists |
-| 🐧 | **Portable Linux runtime** | Bundled Xvfb, libs, xkb data and portable browser binary — fetched only when the host needs it |
-| 🔌 | **Agent integrations** | Plugin / MCP / extension templates for Claude Code, Codex, Gemini CLI, Hermes and others, written into the locations each agent actually scans |
+## Core capabilities
 
-> 📖 Full archive list, durable-workdir guidance, and offline / pre-extracted runtime flows are in **[INSTALL.md](./INSTALL.md)**.
+| Capability | What it provides |
+| --- | --- |
+| Managed identity | A generated profile keeps related fingerprint surfaces together inside the browser runtime. |
+| Proxy-bound profiles | Residential or datacenter routing can be associated with the generated profile. |
+| Isolated sessions | Named profiles keep their own cookies, storage, identity, and endpoint. |
+| Standard CDP access | Playwright, Puppeteer, and other CDP clients connect to the live browser endpoint. |
+| Remote viewing | `clawctl remote` can return a temporary `dashboard_url` for watching or controlling a running profile. |
+| Agent integrations | `clawctl install` writes supported integration templates into the locations used by the selected agents. |
 
-## Features
+## How it works
 
-| | Feature | What it does |
-| :--: | :--- | :--- |
-| 🪪 | **Realistic fingerprints** | Each profile gets a unique, internally consistent fingerprint across the surfaces sites use to tell humans from bots — Canvas, WebGL, AudioContext, `navigator.*`, screen, fonts, timezone, locale, plugins, media devices, WebRTC. |
-| 🌍 | **Browse from any location** | Attach a residential or datacenter IP to a profile; traffic exits from the country you choose. |
-| 🫧 | **Isolated profiles** | Every profile is a sealed bubble — its own cookies, storage, and identity. No cross-contamination between accounts. |
-| 🔌 | **Works with your tools** | Standard CDP endpoint — Playwright, Puppeteer, Claude Code, and other CDP clients connect as-is, no code changes. |
-| 📺 | **Live remote view** | One command turns any profile into a watchable, controllable browser session over a shareable `viewer_url`. |
-| ⚡ | **One command to start** | Launch a session with a single command and get back a URL your agent connects to. |
+1. **Install the runtime.** `clawctl install` installs or reuses Clawbrowser and prepares any required portable runtime.
+2. **Save authentication.** `clawctl config set --api-key …` writes the API key to Clawbrowser's configuration directory.
+3. **Start a profile.** `clawctl start --profile <name>` launches managed Chromium and waits for its CDP endpoint.
+4. **Verify the identity.** `clawbrowser://verify/` reports proxy egress and generated fingerprint surfaces.
+5. **Connect the agent.** Read the current endpoint with `clawctl endpoint`, then connect using a standard CDP client.
 
-## 👥 Who it's for
+## Connect a CDP client
 
-<table>
-<tr>
-<td width="50%" valign="top">
-
-#### 🤖 AI developers
-Give your agent a browser that works like a real person's, so it focuses on the task instead of CAPTCHA walls mid-run.
-
-</td>
-<td width="50%" valign="top">
-
-#### 📈 Growth & marketing
-Manage many accounts, each in a fully isolated profile that looks like an independent user.
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-#### 🔬 Data & research teams
-Run parallel scraping/monitoring jobs and keep each profile's identity consistent across runs.
-
-</td>
-<td width="50%" valign="top">
-
-#### 🛠️ SaaS builders
-Ship browser-automation features without building the identity stack yourself; plugs into any Playwright/Puppeteer setup.
-
-</td>
-</tr>
-</table>
-
-## ⚙️ How it works
-
-<!-- Install → run → connect flow. Pre-rendered dark SVG embedded as a data URI. -->
-<p align="center">
-  <img alt="Flow: clawctl install → config set --api-key → start --profile → endpoint → your agent connects" width="900" src="data:image/svg+xml;base64,PHN2ZyBpZD0ibXktc3ZnIiB3aWR0aD0iMTAwJSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgY2xhc3M9ImZsb3djaGFydCIgc3R5bGU9Im1heC13aWR0aDogMTkzMi44OHB4OyBiYWNrZ3JvdW5kLWNvbG9yOiB0cmFuc3BhcmVudDsiIHZpZXdCb3g9IjAgMCAxOTMyLjg3NSAxMTgiIHJvbGU9ImdyYXBoaWNzLWRvY3VtZW50IGRvY3VtZW50IiBhcmlhLXJvbGVkZXNjcmlwdGlvbj0iZmxvd2NoYXJ0LXYyIj48c3R5bGU+I215LXN2Z3tmb250LWZhbWlseToidHJlYnVjaGV0IG1zIix2ZXJkYW5hLGFyaWFsLHNhbnMtc2VyaWY7Zm9udC1zaXplOjE2cHg7ZmlsbDojY2NjO31Aa2V5ZnJhbWVzIGVkZ2UtYW5pbWF0aW9uLWZyYW1le2Zyb217c3Ryb2tlLWRhc2hvZmZzZXQ6MDt9fUBrZXlmcmFtZXMgZGFzaHt0b3tzdHJva2UtZGFzaG9mZnNldDowO319I215LXN2ZyAuZWRnZS1hbmltYXRpb24tc2xvd3tzdHJva2UtZGFzaGFycmF5OjksNSFpbXBvcnRhbnQ7c3Ryb2tlLWRhc2hvZmZzZXQ6OTAwO2FuaW1hdGlvbjpkYXNoIDUwcyBsaW5lYXIgaW5maW5pdGU7c3Ryb2tlLWxpbmVjYXA6cm91bmQ7fSNteS1zdmcgLmVkZ2UtYW5pbWF0aW9uLWZhc3R7c3Ryb2tlLWRhc2hhcnJheTo5LDUhaW1wb3J0YW50O3N0cm9rZS1kYXNob2Zmc2V0OjkwMDthbmltYXRpb246ZGFzaCAyMHMgbGluZWFyIGluZmluaXRlO3N0cm9rZS1saW5lY2FwOnJvdW5kO30jbXktc3ZnIC5lcnJvci1pY29ue2ZpbGw6I2E0NDE0MTt9I215LXN2ZyAuZXJyb3ItdGV4dHtmaWxsOiNkZGQ7c3Ryb2tlOiNkZGQ7fSNteS1zdmcgLmVkZ2UtdGhpY2tuZXNzLW5vcm1hbHtzdHJva2Utd2lkdGg6MXB4O30jbXktc3ZnIC5lZGdlLXRoaWNrbmVzcy10aGlja3tzdHJva2Utd2lkdGg6My41cHg7fSNteS1zdmcgLmVkZ2UtcGF0dGVybi1zb2xpZHtzdHJva2UtZGFzaGFycmF5OjA7fSNteS1zdmcgLmVkZ2UtdGhpY2tuZXNzLWludmlzaWJsZXtzdHJva2Utd2lkdGg6MDtmaWxsOm5vbmU7fSNteS1zdmcgLmVkZ2UtcGF0dGVybi1kYXNoZWR7c3Ryb2tlLWRhc2hhcnJheTozO30jbXktc3ZnIC5lZGdlLXBhdHRlcm4tZG90dGVke3N0cm9rZS1kYXNoYXJyYXk6Mjt9I215LXN2ZyAubWFya2Vye2ZpbGw6bGlnaHRncmV5O3N0cm9rZTpsaWdodGdyZXk7fSNteS1zdmcgLm1hcmtlci5jcm9zc3tzdHJva2U6bGlnaHRncmV5O30jbXktc3ZnIHN2Z3tmb250LWZhbWlseToidHJlYnVjaGV0IG1zIix2ZXJkYW5hLGFyaWFsLHNhbnMtc2VyaWY7Zm9udC1zaXplOjE2cHg7fSNteS1zdmcgcHttYXJnaW46MDt9I215LXN2ZyAubGFiZWx7Zm9udC1mYW1pbHk6InRyZWJ1Y2hldCBtcyIsdmVyZGFuYSxhcmlhbCxzYW5zLXNlcmlmO2NvbG9yOiNjY2M7fSNteS1zdmcgLmNsdXN0ZXItbGFiZWwgdGV4dHtmaWxsOiNGOUZGRkU7fSNteS1zdmcgLmNsdXN0ZXItbGFiZWwgc3Bhbntjb2xvcjojRjlGRkZFO30jbXktc3ZnIC5jbHVzdGVyLWxhYmVsIHNwYW4gcHtiYWNrZ3JvdW5kLWNvbG9yOnRyYW5zcGFyZW50O30jbXktc3ZnIC5sYWJlbCB0ZXh0LCNteS1zdmcgc3BhbntmaWxsOiNjY2M7Y29sb3I6I2NjYzt9I215LXN2ZyAubm9kZSByZWN0LCNteS1zdmcgLm5vZGUgY2lyY2xlLCNteS1zdmcgLm5vZGUgZWxsaXBzZSwjbXktc3ZnIC5ub2RlIHBvbHlnb24sI215LXN2ZyAubm9kZSBwYXRoe2ZpbGw6IzFmMjAyMDtzdHJva2U6I2NjYztzdHJva2Utd2lkdGg6MXB4O30jbXktc3ZnIC5yb3VnaC1ub2RlIC5sYWJlbCB0ZXh0LCNteS1zdmcgLm5vZGUgLmxhYmVsIHRleHQsI215LXN2ZyAuaW1hZ2Utc2hhcGUgLmxhYmVsLCNteS1zdmcgLmljb24tc2hhcGUgLmxhYmVse3RleHQtYW5jaG9yOm1pZGRsZTt9I215LXN2ZyAubm9kZSAua2F0ZXggcGF0aHtmaWxsOiMwMDA7c3Ryb2tlOiMwMDA7c3Ryb2tlLXdpZHRoOjFweDt9I215LXN2ZyAucm91Z2gtbm9kZSAubGFiZWwsI215LXN2ZyAubm9kZSAubGFiZWwsI215LXN2ZyAuaW1hZ2Utc2hhcGUgLmxhYmVsLCNteS1zdmcgLmljb24tc2hhcGUgLmxhYmVse3RleHQtYWxpZ246Y2VudGVyO30jbXktc3ZnIC5ub2RlLmNsaWNrYWJsZXtjdXJzb3I6cG9pbnRlcjt9I215LXN2ZyAucm9vdCAuYW5jaG9yIHBhdGh7ZmlsbDpsaWdodGdyZXkhaW1wb3J0YW50O3N0cm9rZS13aWR0aDowO3N0cm9rZTpsaWdodGdyZXk7fSNteS1zdmcgLmFycm93aGVhZFBhdGh7ZmlsbDpsaWdodGdyZXk7fSNteS1zdmcgLmVkZ2VQYXRoIC5wYXRoe3N0cm9rZTpsaWdodGdyZXk7c3Ryb2tlLXdpZHRoOjFweDt9I215LXN2ZyAuZmxvd2NoYXJ0LWxpbmt7c3Ryb2tlOmxpZ2h0Z3JleTtmaWxsOm5vbmU7fSNteS1zdmcgLmVkZ2VMYWJlbHtiYWNrZ3JvdW5kLWNvbG9yOmhzbCgwLCAwJSwgMzQuNDExNzY0NzA1OSUpO3RleHQtYWxpZ246Y2VudGVyO30jbXktc3ZnIC5lZGdlTGFiZWwgcHtiYWNrZ3JvdW5kLWNvbG9yOmhzbCgwLCAwJSwgMzQuNDExNzY0NzA1OSUpO30jbXktc3ZnIC5lZGdlTGFiZWwgcmVjdHtvcGFjaXR5OjAuNTtiYWNrZ3JvdW5kLWNvbG9yOmhzbCgwLCAwJSwgMzQuNDExNzY0NzA1OSUpO2ZpbGw6aHNsKDAsIDAlLCAzNC40MTE3NjQ3MDU5JSk7fSNteS1zdmcgLmxhYmVsQmtne2JhY2tncm91bmQtY29sb3I6cmdiYSg4Ny43NSwgODcuNzUsIDg3Ljc1LCAwLjUpO30jbXktc3ZnIC5jbHVzdGVyIHJlY3R7ZmlsbDpoc2woMTgwLCAxLjU4NzMwMTU4NzMlLCAyOC4zNTI5NDExNzY1JSk7c3Ryb2tlOnJnYmEoMjU1LCAyNTUsIDI1NSwgMC4yNSk7c3Ryb2tlLXdpZHRoOjFweDt9I215LXN2ZyAuY2x1c3RlciB0ZXh0e2ZpbGw6I0Y5RkZGRTt9I215LXN2ZyAuY2x1c3RlciBzcGFue2NvbG9yOiNGOUZGRkU7fSNteS1zdmcgZGl2Lm1lcm1haWRUb29sdGlwe3Bvc2l0aW9uOmFic29sdXRlO3RleHQtYWxpZ246Y2VudGVyO21heC13aWR0aDoyMDBweDtwYWRkaW5nOjJweDtmb250LWZhbWlseToidHJlYnVjaGV0IG1zIix2ZXJkYW5hLGFyaWFsLHNhbnMtc2VyaWY7Zm9udC1zaXplOjEycHg7YmFja2dyb3VuZDpoc2woMjAsIDEuNTg3MzAxNTg3MyUsIDEyLjM1Mjk0MTE3NjUlKTtib3JkZXI6MXB4IHNvbGlkIHJnYmEoMjU1LCAyNTUsIDI1NSwgMC4yNSk7Ym9yZGVyLXJhZGl1czoycHg7cG9pbnRlci1ldmVudHM6bm9uZTt6LWluZGV4OjEwMDt9I215LXN2ZyAuZmxvd2NoYXJ0VGl0bGVUZXh0e3RleHQtYW5jaG9yOm1pZGRsZTtmb250LXNpemU6MThweDtmaWxsOiNjY2M7fSNteS1zdmcgcmVjdC50ZXh0e2ZpbGw6bm9uZTtzdHJva2Utd2lkdGg6MDt9I215LXN2ZyAuaWNvbi1zaGFwZSwjbXktc3ZnIC5pbWFnZS1zaGFwZXtiYWNrZ3JvdW5kLWNvbG9yOmhzbCgwLCAwJSwgMzQuNDExNzY0NzA1OSUpO3RleHQtYWxpZ246Y2VudGVyO30jbXktc3ZnIC5pY29uLXNoYXBlIHAsI215LXN2ZyAuaW1hZ2Utc2hhcGUgcHtiYWNrZ3JvdW5kLWNvbG9yOmhzbCgwLCAwJSwgMzQuNDExNzY0NzA1OSUpO3BhZGRpbmc6MnB4O30jbXktc3ZnIC5pY29uLXNoYXBlIC5sYWJlbCByZWN0LCNteS1zdmcgLmltYWdlLXNoYXBlIC5sYWJlbCByZWN0e29wYWNpdHk6MC41O2JhY2tncm91bmQtY29sb3I6aHNsKDAsIDAlLCAzNC40MTE3NjQ3MDU5JSk7ZmlsbDpoc2woMCwgMCUsIDM0LjQxMTc2NDcwNTklKTt9I215LXN2ZyAubGFiZWwtaWNvbntkaXNwbGF5OmlubGluZS1ibG9jaztoZWlnaHQ6MWVtO292ZXJmbG93OnZpc2libGU7dmVydGljYWwtYWxpZ246LTAuMTI1ZW07fSNteS1zdmcgLm5vZGUgLmxhYmVsLWljb24gcGF0aHtmaWxsOmN1cnJlbnRDb2xvcjtzdHJva2U6cmV2ZXJ0O3N0cm9rZS13aWR0aDpyZXZlcnQ7fSNteS1zdmcgLm5vZGUgLm5lby1ub2Rle3N0cm9rZTojY2NjO30jbXktc3ZnIFtkYXRhLWxvb2s9Im5lbyJdLm5vZGUgcmVjdCwjbXktc3ZnIFtkYXRhLWxvb2s9Im5lbyJdLmNsdXN0ZXIgcmVjdCwjbXktc3ZnIFtkYXRhLWxvb2s9Im5lbyJdLm5vZGUgcG9seWdvbntzdHJva2U6dXJsKCNteS1zdmctZ3JhZGllbnQpO2ZpbHRlcjpkcm9wLXNoYWRvdyggMXB4IDJweCAycHggcmdiYSgxODUsMTg1LDE4NSwxKSk7fSNteS1zdmcgW2RhdGEtbG9vaz0ibmVvIl0ubm9kZSBwYXRoe3N0cm9rZTp1cmwoI215LXN2Zy1ncmFkaWVudCk7c3Ryb2tlLXdpZHRoOjFweDt9I215LXN2ZyBbZGF0YS1sb29rPSJuZW8iXS5ub2RlIC5vdXRlci1wYXRoe2ZpbHRlcjpkcm9wLXNoYWRvdyggMXB4IDJweCAycHggcmdiYSgxODUsMTg1LDE4NSwxKSk7fSNteS1zdmcgW2RhdGEtbG9vaz0ibmVvIl0ubm9kZSAubmVvLWxpbmUgcGF0aHtzdHJva2U6I2NjYztmaWx0ZXI6bm9uZTt9I215LXN2ZyBbZGF0YS1sb29rPSJuZW8iXS5ub2RlIGNpcmNsZXtzdHJva2U6dXJsKCNteS1zdmctZ3JhZGllbnQpO2ZpbHRlcjpkcm9wLXNoYWRvdyggMXB4IDJweCAycHggcmdiYSgxODUsMTg1LDE4NSwxKSk7fSNteS1zdmcgW2RhdGEtbG9vaz0ibmVvIl0ubm9kZSBjaXJjbGUgLnN0YXRlLXN0YXJ0e2ZpbGw6IzAwMDAwMDt9I215LXN2ZyBbZGF0YS1sb29rPSJuZW8iXS5pY29uLXNoYXBlIC5pY29ue2ZpbGw6dXJsKCNteS1zdmctZ3JhZGllbnQpO2ZpbHRlcjpkcm9wLXNoYWRvdyggMXB4IDJweCAycHggcmdiYSgxODUsMTg1LDE4NSwxKSk7fSNteS1zdmcgW2RhdGEtbG9vaz0ibmVvIl0uaWNvbi1zaGFwZSAuaWNvbi1uZW8gcGF0aHtzdHJva2U6dXJsKCNteS1zdmctZ3JhZGllbnQpO2ZpbHRlcjpkcm9wLXNoYWRvdyggMXB4IDJweCAycHggcmdiYSgxODUsMTg1LDE4NSwxKSk7fSNteS1zdmcgOnJvb3R7LS1tZXJtYWlkLWZvbnQtZmFtaWx5OiJ0cmVidWNoZXQgbXMiLHZlcmRhbmEsYXJpYWwsc2Fucy1zZXJpZjt9PC9zdHlsZT48Zz48bWFya2VyIGlkPSJteS1zdmdfZmxvd2NoYXJ0LXYyLXBvaW50RW5kIiBjbGFzcz0ibWFya2VyIGZsb3djaGFydC12MiIgdmlld0JveD0iMCAwIDEwIDEwIiByZWZYPSI1IiByZWZZPSI1IiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSI4IiBtYXJrZXJIZWlnaHQ9IjgiIG9yaWVudD0iYXV0byI+PHBhdGggZD0iTSAwIDAgTCAxMCA1IEwgMCAxMCB6IiBjbGFzcz0iYXJyb3dNYXJrZXJQYXRoIiBzdHlsZT0ic3Ryb2tlLXdpZHRoOiAxOyBzdHJva2UtZGFzaGFycmF5OiAxLCAwOyIvPjwvbWFya2VyPjxtYXJrZXIgaWQ9Im15LXN2Z19mbG93Y2hhcnQtdjItcG9pbnRTdGFydCIgY2xhc3M9Im1hcmtlciBmbG93Y2hhcnQtdjIiIHZpZXdCb3g9IjAgMCAxMCAxMCIgcmVmWD0iNC41IiByZWZZPSI1IiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSI4IiBtYXJrZXJIZWlnaHQ9IjgiIG9yaWVudD0iYXV0byI+PHBhdGggZD0iTSAwIDUgTCAxMCAxMCBMIDEwIDAgeiIgY2xhc3M9ImFycm93TWFya2VyUGF0aCIgc3R5bGU9InN0cm9rZS13aWR0aDogMTsgc3Ryb2tlLWRhc2hhcnJheTogMSwgMDsiLz48L21hcmtlcj48bWFya2VyIGlkPSJteS1zdmdfZmxvd2NoYXJ0LXYyLXBvaW50RW5kLW1hcmdpbiIgY2xhc3M9Im1hcmtlciBmbG93Y2hhcnQtdjIiIHZpZXdCb3g9IjAgMCAxMS41IDE0IiByZWZYPSIxMS41IiByZWZZPSI3IiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSIxMC41IiBtYXJrZXJIZWlnaHQ9IjE0IiBvcmllbnQ9ImF1dG8iPjxwYXRoIGQ9Ik0gMCAwIEwgMTEuNSA3IEwgMCAxNCB6IiBjbGFzcz0iYXJyb3dNYXJrZXJQYXRoIiBzdHlsZT0ic3Ryb2tlLXdpZHRoOiAwOyBzdHJva2UtZGFzaGFycmF5OiAxLCAwOyIvPjwvbWFya2VyPjxtYXJrZXIgaWQ9Im15LXN2Z19mbG93Y2hhcnQtdjItcG9pbnRTdGFydC1tYXJnaW4iIGNsYXNzPSJtYXJrZXIgZmxvd2NoYXJ0LXYyIiB2aWV3Qm94PSIwIDAgMTEuNSAxNCIgcmVmWD0iMSIgcmVmWT0iNyIgbWFya2VyVW5pdHM9InVzZXJTcGFjZU9uVXNlIiBtYXJrZXJXaWR0aD0iMTEuNSIgbWFya2VySGVpZ2h0PSIxNCIgb3JpZW50PSJhdXRvIj48cG9seWdvbiBwb2ludHM9IjAsNyAxMS41LDE0IDExLjUsMCIgY2xhc3M9ImFycm93TWFya2VyUGF0aCIgc3R5bGU9InN0cm9rZS13aWR0aDogMDsgc3Ryb2tlLWRhc2hhcnJheTogMSwgMDsiLz48L21hcmtlcj48bWFya2VyIGlkPSJteS1zdmdfZmxvd2NoYXJ0LXYyLWNpcmNsZUVuZCIgY2xhc3M9Im1hcmtlciBmbG93Y2hhcnQtdjIiIHZpZXdCb3g9IjAgMCAxMCAxMCIgcmVmWD0iMTEiIHJlZlk9IjUiIG1hcmtlclVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgbWFya2VyV2lkdGg9IjExIiBtYXJrZXJIZWlnaHQ9IjExIiBvcmllbnQ9ImF1dG8iPjxjaXJjbGUgY3g9IjUiIGN5PSI1IiByPSI1IiBjbGFzcz0iYXJyb3dNYXJrZXJQYXRoIiBzdHlsZT0ic3Ryb2tlLXdpZHRoOiAxOyBzdHJva2UtZGFzaGFycmF5OiAxLCAwOyIvPjwvbWFya2VyPjxtYXJrZXIgaWQ9Im15LXN2Z19mbG93Y2hhcnQtdjItY2lyY2xlU3RhcnQiIGNsYXNzPSJtYXJrZXIgZmxvd2NoYXJ0LXYyIiB2aWV3Qm94PSIwIDAgMTAgMTAiIHJlZlg9Ii0xIiByZWZZPSI1IiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSIxMSIgbWFya2VySGVpZ2h0PSIxMSIgb3JpZW50PSJhdXRvIj48Y2lyY2xlIGN4PSI1IiBjeT0iNSIgcj0iNSIgY2xhc3M9ImFycm93TWFya2VyUGF0aCIgc3R5bGU9InN0cm9rZS13aWR0aDogMTsgc3Ryb2tlLWRhc2hhcnJheTogMSwgMDsiLz48L21hcmtlcj48bWFya2VyIGlkPSJteS1zdmdfZmxvd2NoYXJ0LXYyLWNpcmNsZUVuZC1tYXJnaW4iIGNsYXNzPSJtYXJrZXIgZmxvd2NoYXJ0LXYyIiB2aWV3Qm94PSIwIDAgMTAgMTAiIHJlZlk9IjUiIHJlZlg9IjEyLjI1IiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSIxNCIgbWFya2VySGVpZ2h0PSIxNCIgb3JpZW50PSJhdXRvIj48Y2lyY2xlIGN4PSI1IiBjeT0iNSIgcj0iNSIgY2xhc3M9ImFycm93TWFya2VyUGF0aCIgc3R5bGU9InN0cm9rZS13aWR0aDogMDsgc3Ryb2tlLWRhc2hhcnJheTogMSwgMDsiLz48L21hcmtlcj48bWFya2VyIGlkPSJteS1zdmdfZmxvd2NoYXJ0LXYyLWNpcmNsZVN0YXJ0LW1hcmdpbiIgY2xhc3M9Im1hcmtlciBmbG93Y2hhcnQtdjIiIHZpZXdCb3g9IjAgMCAxMCAxMCIgcmVmWD0iLTIiIHJlZlk9IjUiIG1hcmtlclVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgbWFya2VyV2lkdGg9IjE0IiBtYXJrZXJIZWlnaHQ9IjE0IiBvcmllbnQ9ImF1dG8iPjxjaXJjbGUgY3g9IjUiIGN5PSI1IiByPSI1IiBjbGFzcz0iYXJyb3dNYXJrZXJQYXRoIiBzdHlsZT0ic3Ryb2tlLXdpZHRoOiAwOyBzdHJva2UtZGFzaGFycmF5OiAxLCAwOyIvPjwvbWFya2VyPjxtYXJrZXIgaWQ9Im15LXN2Z19mbG93Y2hhcnQtdjItY3Jvc3NFbmQiIGNsYXNzPSJtYXJrZXIgY3Jvc3MgZmxvd2NoYXJ0LXYyIiB2aWV3Qm94PSIwIDAgMTEgMTEiIHJlZlg9IjEyIiByZWZZPSI1LjIiIG1hcmtlclVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgbWFya2VyV2lkdGg9IjExIiBtYXJrZXJIZWlnaHQ9IjExIiBvcmllbnQ9ImF1dG8iPjxwYXRoIGQ9Ik0gMSwxIGwgOSw5IE0gMTAsMSBsIC05LDkiIGNsYXNzPSJhcnJvd01hcmtlclBhdGgiIHN0eWxlPSJzdHJva2Utd2lkdGg6IDI7IHN0cm9rZS1kYXNoYXJyYXk6IDEsIDA7Ii8+PC9tYXJrZXI+PG1hcmtlciBpZD0ibXktc3ZnX2Zsb3djaGFydC12Mi1jcm9zc1N0YXJ0IiBjbGFzcz0ibWFya2VyIGNyb3NzIGZsb3djaGFydC12MiIgdmlld0JveD0iMCAwIDExIDExIiByZWZYPSItMSIgcmVmWT0iNS4yIiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSIxMSIgbWFya2VySGVpZ2h0PSIxMSIgb3JpZW50PSJhdXRvIj48cGF0aCBkPSJNIDEsMSBsIDksOSBNIDEwLDEgbCAtOSw5IiBjbGFzcz0iYXJyb3dNYXJrZXJQYXRoIiBzdHlsZT0ic3Ryb2tlLXdpZHRoOiAyOyBzdHJva2UtZGFzaGFycmF5OiAxLCAwOyIvPjwvbWFya2VyPjxtYXJrZXIgaWQ9Im15LXN2Z19mbG93Y2hhcnQtdjItY3Jvc3NFbmQtbWFyZ2luIiBjbGFzcz0ibWFya2VyIGNyb3NzIGZsb3djaGFydC12MiIgdmlld0JveD0iMCAwIDE1IDE1IiByZWZYPSIxNy43IiByZWZZPSI3LjUiIG1hcmtlclVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgbWFya2VyV2lkdGg9IjEyIiBtYXJrZXJIZWlnaHQ9IjEyIiBvcmllbnQ9ImF1dG8iPjxwYXRoIGQ9Ik0gMSwxIEwgMTQsMTQgTSAxLDE0IEwgMTQsMSIgY2xhc3M9ImFycm93TWFya2VyUGF0aCIgc3R5bGU9InN0cm9rZS13aWR0aDogMi41OyIvPjwvbWFya2VyPjxtYXJrZXIgaWQ9Im15LXN2Z19mbG93Y2hhcnQtdjItY3Jvc3NTdGFydC1tYXJnaW4iIGNsYXNzPSJtYXJrZXIgY3Jvc3MgZmxvd2NoYXJ0LXYyIiB2aWV3Qm94PSIwIDAgMTUgMTUiIHJlZlg9Ii0zLjUiIHJlZlk9IjcuNSIgbWFya2VyVW5pdHM9InVzZXJTcGFjZU9uVXNlIiBtYXJrZXJXaWR0aD0iMTIiIG1hcmtlckhlaWdodD0iMTIiIG9yaWVudD0iYXV0byI+PHBhdGggZD0iTSAxLDEgTCAxNCwxNCBNIDEsMTQgTCAxNCwxIiBjbGFzcz0iYXJyb3dNYXJrZXJQYXRoIiBzdHlsZT0ic3Ryb2tlLXdpZHRoOiAyLjU7IHN0cm9rZS1kYXNoYXJyYXk6IDEsIDA7Ii8+PC9tYXJrZXI+PGcgY2xhc3M9InJvb3QiPjxnIGNsYXNzPSJjbHVzdGVycyIvPjxnIGNsYXNzPSJlZGdlUGF0aHMiPjxwYXRoIGQ9Ik0xNjEuMzU5LDU5TDE2NS41MjYsNTlDMTY5LjY5Myw1OSwxNzguMDI2LDU5LDE4NS42OTMsNTlDMTkzLjM1OSw1OSwyMDAuMzU5LDU5LDIwMy44NTksNTlMMjA3LjM1OSw1OSIgaWQ9Im15LXN2Zy1MX0luc3RhbGxfS2V5XzAiIGNsYXNzPSJlZGdlLXRoaWNrbmVzcy1ub3JtYWwgZWRnZS1wYXR0ZXJuLXNvbGlkIGVkZ2UtdGhpY2tuZXNzLW5vcm1hbCBlZGdlLXBhdHRlcm4tc29saWQgZmxvd2NoYXJ0LWxpbmsiIHN0eWxlPSI7IiBkYXRhLWVkZ2U9InRydWUiIGRhdGEtZXQ9ImVkZ2UiIGRhdGEtaWQ9IkxfSW5zdGFsbF9LZXlfMCIgZGF0YS1wb2ludHM9Ilczc2llQ0k2TVRZeExqTTFPVE0zTlN3aWVTSTZOVGw5TEhzaWVDSTZNVGcyTGpNMU9UTTNOU3dpZVNJNk5UbDlMSHNpZUNJNk1qRXhMak0xT1RNM05Td2llU0k2TlRsOVhRPT0iIGRhdGEtbG9vaz0iY2xhc3NpYyIgbWFya2VyLWVuZD0idXJsKCNteS1zdmdfZmxvd2NoYXJ0LXYyLXBvaW50RW5kKSIvPjxwYXRoIGQ9Ik00NTguOTg0LDU5TDQ2My4xNTEsNTlDNDY3LjMxOCw1OSw0NzUuNjUxLDU5LDQ4My4zMTgsNTlDNDkwLjk4NCw1OSw0OTcuOTg0LDU5LDUwMS40ODQsNTlMNTA0Ljk4NCw1OSIgaWQ9Im15LXN2Zy1MX0tleV9TdGFydF8wIiBjbGFzcz0iZWRnZS10aGlja25lc3Mtbm9ybWFsIGVkZ2UtcGF0dGVybi1zb2xpZCBlZGdlLXRoaWNrbmVzcy1ub3JtYWwgZWRnZS1wYXR0ZXJuLXNvbGlkIGZsb3djaGFydC1saW5rIiBzdHlsZT0iOyIgZGF0YS1lZGdlPSJ0cnVlIiBkYXRhLWV0PSJlZGdlIiBkYXRhLWlkPSJMX0tleV9TdGFydF8wIiBkYXRhLXBvaW50cz0iVzNzaWVDSTZORFU0TGprNE5ETTNOU3dpZVNJNk5UbDlMSHNpZUNJNk5EZ3pMams0TkRNM05Td2llU0k2TlRsOUxIc2llQ0k2TlRBNExqazRORE0zTlN3aWVTSTZOVGw5WFE9PSIgZGF0YS1sb29rPSJjbGFzc2ljIiBtYXJrZXItZW5kPSJ1cmwoI215LXN2Z19mbG93Y2hhcnQtdjItcG9pbnRFbmQpIi8+PHBhdGggZD0iTTc0OS40NjksNTlMNzUzLjYzNSw1OUM3NTcuODAyLDU5LDc2Ni4xMzUsNTksNzczLjgwMiw1OUM3ODEuNDY5LDU5LDc4OC40NjksNTksNzkxLjk2OSw1OUw3OTUuNDY5LDU5IiBpZD0ibXktc3ZnLUxfU3RhcnRfUHJvZmlsZV8wIiBjbGFzcz0iZWRnZS10aGlja25lc3Mtbm9ybWFsIGVkZ2UtcGF0dGVybi1zb2xpZCBlZGdlLXRoaWNrbmVzcy1ub3JtYWwgZWRnZS1wYXR0ZXJuLXNvbGlkIGZsb3djaGFydC1saW5rIiBzdHlsZT0iOyIgZGF0YS1lZGdlPSJ0cnVlIiBkYXRhLWV0PSJlZGdlIiBkYXRhLWlkPSJMX1N0YXJ0X1Byb2ZpbGVfMCIgZGF0YS1wb2ludHM9Ilczc2llQ0k2TnpRNUxqUTJPRGMxTENKNUlqbzFPWDBzZXlKNElqbzNOelF1TkRZNE56VXNJbmtpT2pVNWZTeDdJbmdpT2pjNU9TNDBOamczTlN3aWVTSTZOVGw5WFE9PSIgZGF0YS1sb29rPSJjbGFzc2ljIiBtYXJrZXItZW5kPSJ1cmwoI215LXN2Z19mbG93Y2hhcnQtdjItcG9pbnRFbmQpIi8+PHBhdGggZD0iTTEwMzYuODc1LDU5TDEwNDEuMDQyLDU5QzEwNDUuMjA4LDU5LDEwNTMuNTQyLDU5LDEwNjEuMjA4LDU5QzEwNjguODc1LDU5LDEwNzUuODc1LDU5LDEwNzkuMzc1LDU5TDEwODIuODc1LDU5IiBpZD0ibXktc3ZnLUxfUHJvZmlsZV9Cb290XzAiIGNsYXNzPSJlZGdlLXRoaWNrbmVzcy1ub3JtYWwgZWRnZS1wYXR0ZXJuLXNvbGlkIGVkZ2UtdGhpY2tuZXNzLW5vcm1hbCBlZGdlLXBhdHRlcm4tc29saWQgZmxvd2NoYXJ0LWxpbmsiIHN0eWxlPSI7IiBkYXRhLWVkZ2U9InRydWUiIGRhdGEtZXQ9ImVkZ2UiIGRhdGEtaWQ9IkxfUHJvZmlsZV9Cb290XzAiIGRhdGEtcG9pbnRzPSJXM3NpZUNJNk1UQXpOaTQ0TnpVc0lua2lPalU1ZlN4N0luZ2lPakV3TmpFdU9EYzFMQ0o1SWpvMU9YMHNleUo0SWpveE1EZzJMamczTlN3aWVTSTZOVGw5WFE9PSIgZGF0YS1sb29rPSJjbGFzc2ljIiBtYXJrZXItZW5kPSJ1cmwoI215LXN2Z19mbG93Y2hhcnQtdjItcG9pbnRFbmQpIi8+PHBhdGggZD0iTTEzMzUuNDIyLDU5TDEzMzkuNTg5LDU5QzEzNDMuNzU1LDU5LDEzNTIuMDg5LDU5LDEzNTkuNzU1LDU5QzEzNjcuNDIyLDU5LDEzNzQuNDIyLDU5LDEzNzcuOTIyLDU5TDEzODEuNDIyLDU5IiBpZD0ibXktc3ZnLUxfQm9vdF9FbmRwb2ludF8wIiBjbGFzcz0iZWRnZS10aGlja25lc3Mtbm9ybWFsIGVkZ2UtcGF0dGVybi1zb2xpZCBlZGdlLXRoaWNrbmVzcy1ub3JtYWwgZWRnZS1wYXR0ZXJuLXNvbGlkIGZsb3djaGFydC1saW5rIiBzdHlsZT0iOyIgZGF0YS1lZGdlPSJ0cnVlIiBkYXRhLWV0PSJlZGdlIiBkYXRhLWlkPSJMX0Jvb3RfRW5kcG9pbnRfMCIgZGF0YS1wb2ludHM9Ilczc2llQ0k2TVRNek5TNDBNakU0TnpVc0lua2lPalU1ZlN4N0luZ2lPakV6TmpBdU5ESXhPRGMxTENKNUlqbzFPWDBzZXlKNElqb3hNemcxTGpReU1UZzNOU3dpZVNJNk5UbDlYUT09IiBkYXRhLWxvb2s9ImNsYXNzaWMiIG1hcmtlci1lbmQ9InVybCgjbXktc3ZnX2Zsb3djaGFydC12Mi1wb2ludEVuZCkiLz48cGF0aCBkPSJNMTY0NS40MjIsNTlMMTY0OS41ODksNTlDMTY1My43NTUsNTksMTY2Mi4wODksNTksMTY2OS43NTUsNTlDMTY3Ny40MjIsNTksMTY4NC40MjIsNTksMTY4Ny45MjIsNTlMMTY5MS40MjIsNTkiIGlkPSJteS1zdmctTF9FbmRwb2ludF9BZ2VudF8wIiBjbGFzcz0iZWRnZS10aGlja25lc3Mtbm9ybWFsIGVkZ2UtcGF0dGVybi1zb2xpZCBlZGdlLXRoaWNrbmVzcy1ub3JtYWwgZWRnZS1wYXR0ZXJuLXNvbGlkIGZsb3djaGFydC1saW5rIiBzdHlsZT0iOyIgZGF0YS1lZGdlPSJ0cnVlIiBkYXRhLWV0PSJlZGdlIiBkYXRhLWlkPSJMX0VuZHBvaW50X0FnZW50XzAiIGRhdGEtcG9pbnRzPSJXM3NpZUNJNk1UWTBOUzQwTWpFNE56VXNJbmtpT2pVNWZTeDdJbmdpT2pFMk56QXVOREl4T0RjMUxDSjVJam8xT1gwc2V5SjRJam94TmprMUxqUXlNVGczTlN3aWVTSTZOVGw5WFE9PSIgZGF0YS1sb29rPSJjbGFzc2ljIiBtYXJrZXItZW5kPSJ1cmwoI215LXN2Z19mbG93Y2hhcnQtdjItcG9pbnRFbmQpIi8+PC9nPjxnIGNsYXNzPSJlZGdlTGFiZWxzIj48ZyBjbGFzcz0iZWRnZUxhYmVsIj48ZyBjbGFzcz0ibGFiZWwiIGRhdGEtaWQ9IkxfSW5zdGFsbF9LZXlfMCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMCwgMCkiPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIwIiBoZWlnaHQ9IjAiPjxkaXYgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIGNsYXNzPSJsYWJlbEJrZyIgc3R5bGU9ImRpc3BsYXk6IHRhYmxlLWNlbGw7IHdoaXRlLXNwYWNlOiBub3dyYXA7IGxpbmUtaGVpZ2h0OiAxLjU7IG1heC13aWR0aDogMjAwcHg7IHRleHQtYWxpZ246IGNlbnRlcjsiPjxzcGFuIGNsYXNzPSJlZGdlTGFiZWwiPjwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48ZyBjbGFzcz0iZWRnZUxhYmVsIj48ZyBjbGFzcz0ibGFiZWwiIGRhdGEtaWQ9IkxfS2V5X1N0YXJ0XzAiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDAsIDApIj48Zm9yZWlnbk9iamVjdCB3aWR0aD0iMCIgaGVpZ2h0PSIwIj48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBjbGFzcz0ibGFiZWxCa2ciIHN0eWxlPSJkaXNwbGF5OiB0YWJsZS1jZWxsOyB3aGl0ZS1zcGFjZTogbm93cmFwOyBsaW5lLWhlaWdodDogMS41OyBtYXgtd2lkdGg6IDIwMHB4OyB0ZXh0LWFsaWduOiBjZW50ZXI7Ij48c3BhbiBjbGFzcz0iZWRnZUxhYmVsIj48L3NwYW4+PC9kaXY+PC9mb3JlaWduT2JqZWN0PjwvZz48L2c+PGcgY2xhc3M9ImVkZ2VMYWJlbCI+PGcgY2xhc3M9ImxhYmVsIiBkYXRhLWlkPSJMX1N0YXJ0X1Byb2ZpbGVfMCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMCwgMCkiPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIwIiBoZWlnaHQ9IjAiPjxkaXYgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIGNsYXNzPSJsYWJlbEJrZyIgc3R5bGU9ImRpc3BsYXk6IHRhYmxlLWNlbGw7IHdoaXRlLXNwYWNlOiBub3dyYXA7IGxpbmUtaGVpZ2h0OiAxLjU7IG1heC13aWR0aDogMjAwcHg7IHRleHQtYWxpZ246IGNlbnRlcjsiPjxzcGFuIGNsYXNzPSJlZGdlTGFiZWwiPjwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48ZyBjbGFzcz0iZWRnZUxhYmVsIj48ZyBjbGFzcz0ibGFiZWwiIGRhdGEtaWQ9IkxfUHJvZmlsZV9Cb290XzAiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDAsIDApIj48Zm9yZWlnbk9iamVjdCB3aWR0aD0iMCIgaGVpZ2h0PSIwIj48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBjbGFzcz0ibGFiZWxCa2ciIHN0eWxlPSJkaXNwbGF5OiB0YWJsZS1jZWxsOyB3aGl0ZS1zcGFjZTogbm93cmFwOyBsaW5lLWhlaWdodDogMS41OyBtYXgtd2lkdGg6IDIwMHB4OyB0ZXh0LWFsaWduOiBjZW50ZXI7Ij48c3BhbiBjbGFzcz0iZWRnZUxhYmVsIj48L3NwYW4+PC9kaXY+PC9mb3JlaWduT2JqZWN0PjwvZz48L2c+PGcgY2xhc3M9ImVkZ2VMYWJlbCI+PGcgY2xhc3M9ImxhYmVsIiBkYXRhLWlkPSJMX0Jvb3RfRW5kcG9pbnRfMCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMCwgMCkiPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIwIiBoZWlnaHQ9IjAiPjxkaXYgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIGNsYXNzPSJsYWJlbEJrZyIgc3R5bGU9ImRpc3BsYXk6IHRhYmxlLWNlbGw7IHdoaXRlLXNwYWNlOiBub3dyYXA7IGxpbmUtaGVpZ2h0OiAxLjU7IG1heC13aWR0aDogMjAwcHg7IHRleHQtYWxpZ246IGNlbnRlcjsiPjxzcGFuIGNsYXNzPSJlZGdlTGFiZWwiPjwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48ZyBjbGFzcz0iZWRnZUxhYmVsIj48ZyBjbGFzcz0ibGFiZWwiIGRhdGEtaWQ9IkxfRW5kcG9pbnRfQWdlbnRfMCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMCwgMCkiPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIwIiBoZWlnaHQ9IjAiPjxkaXYgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIGNsYXNzPSJsYWJlbEJrZyIgc3R5bGU9ImRpc3BsYXk6IHRhYmxlLWNlbGw7IHdoaXRlLXNwYWNlOiBub3dyYXA7IGxpbmUtaGVpZ2h0OiAxLjU7IG1heC13aWR0aDogMjAwcHg7IHRleHQtYWxpZ246IGNlbnRlcjsiPjxzcGFuIGNsYXNzPSJlZGdlTGFiZWwiPjwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48L2c+PGcgY2xhc3M9Im5vZGVzIj48ZyBjbGFzcz0ibm9kZSBkZWZhdWx0IiBpZD0ibXktc3ZnLWZsb3djaGFydC1JbnN0YWxsLTAiIGRhdGEtbG9vaz0iY2xhc3NpYyIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODQuNjc5Njg3NSwgNTkpIj48cmVjdCBjbGFzcz0iYmFzaWMgbGFiZWwtY29udGFpbmVyIiBzdHlsZT0iIiB4PSItNzYuNjc5Njg3NSIgeT0iLTI3IiB3aWR0aD0iMTUzLjM1OTM3NSIgaGVpZ2h0PSI1NCIvPjxnIGNsYXNzPSJsYWJlbCIgc3R5bGU9IiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTQ2LjY3OTY4NzUsIC0xMikiPjxyZWN0Lz48Zm9yZWlnbk9iamVjdCB3aWR0aD0iOTMuMzU5Mzc1IiBoZWlnaHQ9IjI0Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBzdHlsZT0iZGlzcGxheTogdGFibGUtY2VsbDsgd2hpdGUtc3BhY2U6IG5vd3JhcDsgbGluZS1oZWlnaHQ6IDEuNTsgbWF4LXdpZHRoOiAyMDBweDsgdGV4dC1hbGlnbjogY2VudGVyOyI+PHNwYW4gY2xhc3M9Im5vZGVMYWJlbCI+PHA+Y2xhd2N0bCBpbnN0YWxsPC9wPjwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48ZyBjbGFzcz0ibm9kZSBkZWZhdWx0IiBpZD0ibXktc3ZnLWZsb3djaGFydC1LZXktMSIgZGF0YS1sb29rPSJjbGFzc2ljIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgzMzUuMTcxODc1LCA1OSkiPjxyZWN0IGNsYXNzPSJiYXNpYyBsYWJlbC1jb250YWluZXIiIHN0eWxlPSIiIHg9Ii0xMjMuODEyNSIgeT0iLTI3IiB3aWR0aD0iMjQ3LjYyNSIgaGVpZ2h0PSI1NCIvPjxnIGNsYXNzPSJsYWJlbCIgc3R5bGU9IiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTkzLjgxMjUsIC0xMikiPjxyZWN0Lz48Zm9yZWlnbk9iamVjdCB3aWR0aD0iMTg3LjYyNSIgaGVpZ2h0PSIyNCI+PGRpdiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCIgc3R5bGU9ImRpc3BsYXk6IHRhYmxlLWNlbGw7IHdoaXRlLXNwYWNlOiBub3dyYXA7IGxpbmUtaGVpZ2h0OiAxLjU7IG1heC13aWR0aDogMjAwcHg7IHRleHQtYWxpZ246IGNlbnRlcjsiPjxzcGFuIGNsYXNzPSJub2RlTGFiZWwiPjxwPmNsYXdjdGwgY29uZmlnIHNldCAtLWFwaS1rZXk8L3A+PC9zcGFuPjwvZGl2PjwvZm9yZWlnbk9iamVjdD48L2c+PC9nPjxnIGNsYXNzPSJub2RlIGRlZmF1bHQiIGlkPSJteS1zdmctZmxvd2NoYXJ0LVN0YXJ0LTMiIGRhdGEtbG9vaz0iY2xhc3NpYyIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNjI5LjIyNjU2MjUsIDU5KSI+PHJlY3QgY2xhc3M9ImJhc2ljIGxhYmVsLWNvbnRhaW5lciIgc3R5bGU9IiIgeD0iLTEyMC4yNDIxODc1IiB5PSItMjciIHdpZHRoPSIyNDAuNDg0Mzc1IiBoZWlnaHQ9IjU0Ii8+PGcgY2xhc3M9ImxhYmVsIiBzdHlsZT0iIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtOTAuMjQyMTg3NSwgLTEyKSI+PHJlY3QvPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIxODAuNDg0Mzc1IiBoZWlnaHQ9IjI0Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBzdHlsZT0iZGlzcGxheTogdGFibGUtY2VsbDsgd2hpdGUtc3BhY2U6IG5vd3JhcDsgbGluZS1oZWlnaHQ6IDEuNTsgbWF4LXdpZHRoOiAyMDBweDsgdGV4dC1hbGlnbjogY2VudGVyOyI+PHNwYW4gY2xhc3M9Im5vZGVMYWJlbCI+PHA+Y2xhd2N0bCBzdGFydCAtLXByb2ZpbGUgd29yazwvcD48L3NwYW4+PC9kaXY+PC9mb3JlaWduT2JqZWN0PjwvZz48L2c+PGcgY2xhc3M9Im5vZGUgZGVmYXVsdCIgaWQ9Im15LXN2Zy1mbG93Y2hhcnQtUHJvZmlsZS01IiBkYXRhLWxvb2s9ImNsYXNzaWMiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDkxOC4xNzE4NzUsIDU5KSI+PHJlY3QgY2xhc3M9ImJhc2ljIGxhYmVsLWNvbnRhaW5lciIgc3R5bGU9IiIgeD0iLTExOC43MDMxMjUiIHk9Ii0zOSIgd2lkdGg9IjIzNy40MDYyNSIgaGVpZ2h0PSI3OCIvPjxnIGNsYXNzPSJsYWJlbCIgc3R5bGU9IiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTg4LjcwMzEyNSwgLTI0KSI+PHJlY3QvPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIxNzcuNDA2MjUiIGhlaWdodD0iNDgiPjxkaXYgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIHN0eWxlPSJkaXNwbGF5OiB0YWJsZS1jZWxsOyB3aGl0ZS1zcGFjZTogbm93cmFwOyBsaW5lLWhlaWdodDogMS41OyBtYXgtd2lkdGg6IDIwMHB4OyB0ZXh0LWFsaWduOiBjZW50ZXI7Ij48c3BhbiBjbGFzcz0ibm9kZUxhYmVsIj48cD5HZW5lcmF0ZSAvIHJldXNlIHByb2ZpbGU8YnIgLz7wn6qqIGZpbmdlcnByaW50ICsg8J+MjSBwcm94eTwvcD48L3NwYW4+PC9kaXY+PC9mb3JlaWduT2JqZWN0PjwvZz48L2c+PGcgY2xhc3M9Im5vZGUgZGVmYXVsdCIgaWQ9Im15LXN2Zy1mbG93Y2hhcnQtQm9vdC03IiBkYXRhLWxvb2s9ImNsYXNzaWMiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDEyMTEuMTQ4NDM3NSwgNTkpIj48cmVjdCBjbGFzcz0iYmFzaWMgbGFiZWwtY29udGFpbmVyIiBzdHlsZT0iIiB4PSItMTI0LjI3MzQzNzUiIHk9Ii0zOSIgd2lkdGg9IjI0OC41NDY4NzUiIGhlaWdodD0iNzgiLz48ZyBjbGFzcz0ibGFiZWwiIHN0eWxlPSIiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC05NC4yNzM0Mzc1LCAtMjQpIj48cmVjdC8+PGZvcmVpZ25PYmplY3Qgd2lkdGg9IjE4OC41NDY4NzUiIGhlaWdodD0iNDgiPjxkaXYgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIHN0eWxlPSJkaXNwbGF5OiB0YWJsZS1jZWxsOyB3aGl0ZS1zcGFjZTogbm93cmFwOyBsaW5lLWhlaWdodDogMS41OyBtYXgtd2lkdGg6IDIwMHB4OyB0ZXh0LWFsaWduOiBjZW50ZXI7Ij48c3BhbiBjbGFzcz0ibm9kZUxhYmVsIj48cD5NYW5hZ2VkIENocm9taXVtIGJvb3RzPGJyIC8+Y29uc2lzdGVudCBpZGVudGl0eTwvcD48L3NwYW4+PC9kaXY+PC9mb3JlaWduT2JqZWN0PjwvZz48L2c+PGcgY2xhc3M9Im5vZGUgZGVmYXVsdCIgaWQ9Im15LXN2Zy1mbG93Y2hhcnQtRW5kcG9pbnQtOSIgZGF0YS1sb29rPSJjbGFzc2ljIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxNTE1LjQyMTg3NSwgNTkpIj48cmVjdCBjbGFzcz0iYmFzaWMgbGFiZWwtY29udGFpbmVyIiBzdHlsZT0iIiB4PSItMTMwIiB5PSItNTEiIHdpZHRoPSIyNjAiIGhlaWdodD0iMTAyIi8+PGcgY2xhc3M9ImxhYmVsIiBzdHlsZT0iIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTAwLCAtMzYpIj48cmVjdC8+PGZvcmVpZ25PYmplY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSI3MiI+PGRpdiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCIgc3R5bGU9ImRpc3BsYXk6IHRhYmxlOyB3aGl0ZS1zcGFjZTogYnJlYWstc3BhY2VzOyBsaW5lLWhlaWdodDogMS41OyBtYXgtd2lkdGg6IDIwMHB4OyB0ZXh0LWFsaWduOiBjZW50ZXI7IHdpZHRoOiAyMDBweDsiPjxzcGFuIGNsYXNzPSJub2RlTGFiZWwiPjxwPmNsYXdjdGwgZW5kcG9pbnQgLS1wcm9maWxlIHdvcms8YnIgLz7ihpIgQ0RQIFVSTDwvcD48L3NwYW4+PC9kaXY+PC9mb3JlaWduT2JqZWN0PjwvZz48L2c+PGcgY2xhc3M9Im5vZGUgZGVmYXVsdCIgaWQ9Im15LXN2Zy1mbG93Y2hhcnQtQWdlbnQtMTEiIGRhdGEtbG9vaz0iY2xhc3NpYyIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTgxMC4xNDg0Mzc1LCA1OSkiPjxyZWN0IGNsYXNzPSJiYXNpYyBsYWJlbC1jb250YWluZXIiIHN0eWxlPSIiIHg9Ii0xMTQuNzI2NTYyNSIgeT0iLTM5IiB3aWR0aD0iMjI5LjQ1MzEyNSIgaGVpZ2h0PSI3OCIvPjxnIGNsYXNzPSJsYWJlbCIgc3R5bGU9IiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTg0LjcyNjU2MjUsIC0yNCkiPjxyZWN0Lz48Zm9yZWlnbk9iamVjdCB3aWR0aD0iMTY5LjQ1MzEyNSIgaGVpZ2h0PSI0OCI+PGRpdiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCIgc3R5bGU9ImRpc3BsYXk6IHRhYmxlLWNlbGw7IHdoaXRlLXNwYWNlOiBub3dyYXA7IGxpbmUtaGVpZ2h0OiAxLjU7IG1heC13aWR0aDogMjAwcHg7IHRleHQtYWxpZ246IGNlbnRlcjsiPjxzcGFuIGNsYXNzPSJub2RlTGFiZWwiPjxwPvCfpJYgWW91ciBhZ2VudCBjb25uZWN0czxiciAvPlBsYXl3cmlnaHQgLyBQdXBwZXRlZXI8L3A+PC9zcGFuPjwvZGl2PjwvZm9yZWlnbk9iamVjdD48L2c+PC9nPjwvZz48L2c+PC9nPjxkZWZzPjxmaWx0ZXIgaWQ9Im15LXN2Zy1kcm9wLXNoYWRvdyIgaGVpZ2h0PSIxMzAlIiB3aWR0aD0iMTMwJSI+PGZlRHJvcFNoYWRvdyBkeD0iNCIgZHk9IjQiIHN0ZERldmlhdGlvbj0iMCIgZmxvb2Qtb3BhY2l0eT0iMC4wNiIgZmxvb2QtY29sb3I9IiNGRkZGRkYiLz48L2ZpbHRlcj48L2RlZnM+PGRlZnM+PGZpbHRlciBpZD0ibXktc3ZnLWRyb3Atc2hhZG93LXNtYWxsIiBoZWlnaHQ9IjE1MCUiIHdpZHRoPSIxNTAlIj48ZmVEcm9wU2hhZG93IGR4PSIyIiBkeT0iMiIgc3RkRGV2aWF0aW9uPSIwIiBmbG9vZC1vcGFjaXR5PSIwLjA2IiBmbG9vZC1jb2xvcj0iI0ZGRkZGRiIvPjwvZmlsdGVyPjwvZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9Im15LXN2Zy1ncmFkaWVudCIgZ3JhZGllbnRVbml0cz0ib2JqZWN0Qm91bmRpbmdCb3giIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjAlIj48c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjY2NjY2NjIiBzdG9wLW9wYWNpdHk9IjEiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9ImhzbCgxODAsIDAlLCAxOC4zNTI5NDExNzY1JSkiIHN0b3Atb3BhY2l0eT0iMSIvPjwvbGluZWFyR3JhZGllbnQ+PC9zdmc+" />
-</p>
-
-1. **Install once.** `clawctl install` pulls Clawbrowser, the portable Linux runtime (when the host needs it), and the integration templates for the agents on the box.
-2. **Save your API key.** `clawctl config set --api-key …` writes it to `$HOME/.config/clawbrowser/config.json` on Linux/macOS or `%LOCALAPPDATA%\Clawbrowser\config.json` on Windows. `clawctl install` and `clawctl start` use it automatically from then on.
-3. **Start the browser.** `clawctl start --profile <name>` boots a managed Chromium with a generated or reused profile and prints a local CDP endpoint when it's ready.
-4. **Identity stays consistent.** The same profile propagates into the renderer and GPU processes at startup, so user agent, platform, fonts, timezone, locale, screen, and proxy geo all line up.
-5. **Your agent connects over CDP.** Fingerprint patching and proxy routing are invisible to the automation client — re-fetch the endpoint with `clawctl endpoint` after any restart or failure; don't cache it.
-
-> 🔎 Verify any profile against the built-in proof page at **`clawbrowser://verify/`** to inspect proxy egress and the generated fingerprint surfaces:
-> ```bash
-> clawctl start --profile work --url clawbrowser://verify/ --json
-> clawctl verify --profile work --json
-> ```
-
-## 🔌 Agent integration
-
-Connect your framework to the endpoint from `clawctl endpoint --profile <name> --json`.
+Use the endpoint returned by `clawctl endpoint --profile work --json`.
 
 <details open>
-<summary><b>🐍 Playwright (Python)</b></summary>
+<summary><b>Playwright for Python</b></summary>
 
 ```python
 from playwright.async_api import async_playwright
 
 async with async_playwright() as p:
-    endpoint = "http://127.0.0.1:9222"  # from: clawctl endpoint --profile work --json
+    endpoint = "http://127.0.0.1:9222"  # from clawctl endpoint
     browser = await p.chromium.connect_over_cdp(endpoint)
     page = browser.contexts[0].pages[0]
     await page.goto("https://example.com")
-    content = await page.content()
 ```
+
 </details>
 
 <details>
-<summary><b>🟢 Playwright (Node.js)</b></summary>
+<summary><b>Playwright for Node.js</b></summary>
 
 ```js
 const { chromium } = require('playwright');
 
-const endpoint = 'http://127.0.0.1:9222'; // from: clawctl endpoint --profile work --json
+const endpoint = 'http://127.0.0.1:9222'; // from clawctl endpoint
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0].pages()[0];
 await page.goto('https://example.com');
 ```
+
 </details>
 
 <details>
-<summary><b>🎭 Puppeteer</b></summary>
+<summary><b>Puppeteer</b></summary>
 
 ```js
 const puppeteer = require('puppeteer');
 
-const endpoint = 'http://127.0.0.1:9222'; // from: clawctl endpoint --profile work --json
+const endpoint = 'http://127.0.0.1:9222'; // from clawctl endpoint
 const browser = await puppeteer.connect({ browserURL: endpoint });
 const [page] = await browser.pages();
 await page.goto('https://example.com');
 ```
+
 </details>
 
 > [!TIP]
-> Don't override fingerprint properties via CDP. Clawbrowser handles overrides at the engine level; CDP-level overrides can conflict and create detectable inconsistencies.
+> Do not override fingerprint properties through CDP. Clawbrowser applies them inside the engine; client-side overrides can create conflicting signals.
 
-## 🖥️ CLI reference
+## Common workflows
+
+<details>
+<summary><b>CLI, remote viewing, and multiple profiles</b></summary>
 
 ```bash
-# Install / reuse the browser and the portable runtime when needed
-clawctl install --json
-
-# Save your API key (Linux/macOS: $HOME/.config/clawbrowser/config.json; Windows: %LOCALAPPDATA%\Clawbrowser\config.json)
-clawctl config set --api-key "$CLAWBROWSER_API_KEY"
-
-# Start (or reattach to) a managed session, optionally opening a URL
+# Start or reattach to a profile.
 clawctl start --profile work --url https://example.com --json
 
-# Print the live CDP endpoint (always re-fetch after start / restart / failure)
+# Always request the current endpoint after a start, restart, or failure.
 clawctl endpoint --profile work --json
 
-# Verify proxy egress + fingerprint surfaces against the built-in proof page
+# Verify proxy egress and fingerprint surfaces.
 clawctl verify --profile work --json
 
-# Check remaining proxy traffic on the account
-clawctl proxy-traffic --json
-
-# Open another URL on the running profile
+# Open a URL and create a temporary remote viewer link.
 clawctl open --profile work https://example.com --json
+clawctl remote --profile work --json
 
-# Update clawctl and the browser/runtime to the latest releases
-clawctl update
-
-# Sidecar mode: drive an already-running CDP session
-clawctl --cdp http://127.0.0.1:9222 tabs list --json
-clawctl --cdp http://127.0.0.1:9222 verify --json
-```
-
-> [!IMPORTANT]
-> **API key.** Get one at [app.clawbrowser.ai](https://app.clawbrowser.ai). Save it with `clawctl config set --api-key …` — that writes it to `$HOME/.config/clawbrowser/config.json` on Linux/macOS or `%LOCALAPPDATA%\Clawbrowser\config.json` on Windows, and every subsequent `clawctl` call picks it up. Never store the key in shell rc files, env files, MCP/agent config, project files, or logs.
-
-## 📺 Remote viewing
-
-Need to watch your agent work, hand a stuck flow over to a human, or stream a session into a UI? Open the target URL on a profile, then start a remote session:
-
-```bash
-clawctl open --profile work https://example.com --json
-clawctl remote --profile work --wait=false --json
-```
-
-Share only the returned `viewer_url` — treat it as a sensitive, temporary control link. If multiple tabs are open, narrow the target with `--target-url-contains` or `--target-title-contains`.
-
-## 🧬 Multi-profile management
-
-Every named profile is a fully isolated browser session with its own fingerprint, proxy, cookies, and CDP endpoint. Use distinct names per agent / account / region:
-
-```bash
+# Run isolated named profiles in parallel.
 clawctl start --profile agent-us --url https://example.com --json
 clawctl start --profile agent-de --url https://example.com --json
-clawctl start --profile agent-uk --url https://example.com --json
-
-# Pull endpoints separately
 clawctl endpoint --profile agent-us --json
 clawctl endpoint --profile agent-de --json
-clawctl endpoint --profile agent-uk --json
 ```
 
-- ♻️ **Profile names are sticky** — reusing a name reuses the cached identity (cookies, fingerprint, proxy binding).
-- 🏷️ Use descriptive names like `agent-us`, `de-scraper-main`, or `growth-account-04`.
+Treat a returned `dashboard_url` as a sensitive temporary control link. Reusing a profile name reuses its cached identity and session data.
 
-## 💻 Platform support
+</details>
 
-| | Platform | Mode | Notes |
-| :--: | :--- | :--- | :--- |
-| 🍎 | **macOS** | Native desktop app | Uses `Clawbrowser.app`; requires a logged-in GUI desktop. Apple Silicon (`arm64`). |
-| 🐧 | **Linux** | Portable runtime | Default on Linux servers, no-display hosts, and restricted containers. Bundles Xvfb, libs, and xkb data — no Docker required. glibc (`amd64` / `arm64`). |
-| 🪟 | **Windows** | Native install | 64-bit Windows via PowerShell. May surface a UAC prompt during install when `setup.exe` is present. |
+## Platform support
 
-## 🛟 Troubleshooting
+| Platform | Runtime mode | Notes |
+| --- | --- | --- |
+| macOS | Native desktop app | Apple Silicon; requires a logged-in GUI desktop. |
+| Linux | Portable runtime | glibc `amd64` and `arm64`; suitable for server, container, and no-display hosts. |
+| Windows | Native install | 64-bit Windows through PowerShell; installation may trigger UAC. |
 
-| Symptom | Likely cause | Fix |
-| :--- | :--- | :--- |
-| `clawctl: command not found` | Standalone archive not extracted, or extract dir not on `PATH`. | Run `./clawctl …` from the unpacked archive, or add the install bin dir to `PATH`. |
-| `Permission denied` after `chmod +x` | Extracted under `/tmp` or another `noexec` filesystem. | Re-extract into a durable executable workdir (e.g. `~/clawbrowser-install` or a workspace mount), then rerun. |
-| API key prompts every time | Key wasn't saved via `clawctl config set`. | Run `clawctl config set --api-key "$CLAWBROWSER_API_KEY"` once; future calls pick it up from `$HOME/.config/clawbrowser/config.json` on Linux/macOS or `%LOCALAPPDATA%\Clawbrowser\config.json` on Windows. |
-| `Timed out waiting for CDP on port …` | Browser startup failed or is slow. | Retry; inspect startup logs; for already-running sessions use `--cdp <url>` sidecar mode. |
-| `invalid API key` / API unreachable | Wrong key or network/backend issue. | Re-check the key from app.clawbrowser.ai and your egress connectivity. |
-| Endpoint refused or stale | Profile restarted or endpoint changed. | Re-run `clawctl endpoint --profile <name> --json` after every start/restart/failure; never persist the endpoint in config. |
-| `proxy-traffic` reports `state: "exhausted"` | Account proxy quota used up. | Top up traffic in the dashboard and rerun; pause proxy-backed runs until then. |
+## Use cases
 
-## 📄 License
+- AI-assisted research and structured data collection.
+- Website QA through real browser journeys.
+- Repeated monitoring workflows that need session continuity.
+- Multi-profile account operations with isolated browser state.
+
+Use Clawbrowser only on systems and data you are authorized to access, and follow the target website's terms and applicable law.
+
+## Troubleshooting
+
+<details>
+<summary><b>Common installation and session problems</b></summary>
+
+| Symptom | Action |
+| --- | --- |
+| `clawctl: command not found` | Run the binary from the extracted standalone archive or add its directory to `PATH`. |
+| `Permission denied` after `chmod +x` | Re-extract outside `/tmp` or another `noexec` filesystem. |
+| API key is requested repeatedly | Save it once with `clawctl config set --api-key "$CLAWBROWSER_API_KEY"`. |
+| CDP endpoint is refused or stale | Run `clawctl endpoint --profile <name> --json` again after starting or restarting the profile. |
+| Browser startup times out | Retry, inspect startup logs, and verify available disk space and network access. |
+
+See **[INSTALL.md](./INSTALL.md)** for the complete installation and recovery guidance.
+
+</details>
+
+## Community and support
+
+- Read the [documentation](https://clawbrowser.ai/docs/) and [FAQ](https://clawbrowser.ai/faq/).
+- Report reproducible problems in [GitHub Issues](https://github.com/clawbrowser/clawbrowser/issues).
+- Join the [Clawbrowser Discord](https://discord.gg/CK62brtKhe) for community discussion.
+- Review product releases in [`clawbrowser/clawbrowser`](https://github.com/clawbrowser/clawbrowser/releases/latest) and bootstrapper releases in [`clawbrowser/clawctl`](https://github.com/clawbrowser/clawctl/releases/latest).
+
+## License
 
 Distributed under the **MIT** license. Full text: [opensource.org/licenses/MIT](https://opensource.org/licenses/MIT).
-
----
-
-<p align="center">
-  <sub>🐾 © 2026 Clawbrowser. Available on macOS, Linux, and Windows.</sub>
-</p>
