@@ -150,3 +150,24 @@ clawctl sessions list --json
 clawctl list --profile work --json
 clawctl stop --profile work --json
 ```
+
+## Documentation Maintenance
+
+`README.md` is the canonical English product README. The files listed in
+`docs/i18n/manifest.json` are translations of that source.
+
+When the canonical README changes:
+
+1. Update all nine translated READMEs in the same change.
+2. Preserve product names, technical terms, commands, code blocks, paths, and
+   URLs exactly unless the canonical source intentionally changes them.
+3. Keep the complete language selector in every README.
+4. From a translated README, use `../../../assets/...` for shared images and
+   `../../../INSTALL.md` for the installation guide.
+5. Review every translation, then run
+   `node scripts/validate-i18n.mjs --update-hash` to record the new canonical
+   hash.
+6. Run `node scripts/validate-i18n.mjs` again before committing.
+
+Do not update the hash merely to silence a stale-translation error. It
+certifies that every locale was reviewed against the current English source.
