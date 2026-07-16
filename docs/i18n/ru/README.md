@@ -14,12 +14,12 @@
   <a href="https://clawbrowser.ai/docs/">Документация</a> ·
   <a href="https://app.clawbrowser.ai/">Получить API-ключ</a> ·
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest">Релизы</a> ·
-  <a href="https://discord.gg/CK62brtKhe">Discord</a>
+  <a href="https://discord.gg/DWuwhYZVn">Discord</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest"><img src="https://img.shields.io/github/v/release/clawbrowser/clawbrowser?label=release&color=2ea44f" alt="Последний релиз" /></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="Лицензия MIT" /></a>
+  <a href="../../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="Лицензия MIT" /></a>
   <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-0969da" alt="macOS, Linux и Windows" />
   <img src="https://img.shields.io/badge/protocol-CDP-0969da" alt="Chrome DevTools Protocol" />
 </p>
@@ -327,9 +327,9 @@ clawctl endpoint --profile agent-de --json
 
 - Ознакомьтесь с [документацией](https://clawbrowser.ai/docs/) и [FAQ](https://clawbrowser.ai/faq/).
 - Сообщайте о воспроизводимых проблемах в [GitHub Issues](https://github.com/clawbrowser/clawbrowser/issues).
-- Присоединяйтесь к [Discord-сообществу Clawbrowser](https://discord.gg/CK62brtKhe).
+- Присоединяйтесь к [Discord-сообществу Clawbrowser](https://discord.gg/DWuwhYZVn).
 - Следите за релизами продукта в [`clawbrowser/clawbrowser`](https://github.com/clawbrowser/clawbrowser/releases/latest), а за релизами загрузчика — в [`clawbrowser/clawctl`](https://github.com/clawbrowser/clawctl/releases/latest).
 
 ## Лицензия
 
-Распространяется по лицензии **MIT**. Полный текст: [opensource.org/licenses/MIT](https://opensource.org/licenses/MIT).
+Распространяется по лицензии **MIT**. Полный текст: [MIT License](../../../LICENSE).

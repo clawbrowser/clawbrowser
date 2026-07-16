@@ -14,12 +14,12 @@
   <a href="https://clawbrowser.ai/docs/">文档</a> ·
   <a href="https://app.clawbrowser.ai/">获取 API 密钥</a> ·
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest">版本发布</a> ·
-  <a href="https://discord.gg/CK62brtKhe">Discord</a>
+  <a href="https://discord.gg/DWuwhYZVn">Discord</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest"><img src="https://img.shields.io/github/v/release/clawbrowser/clawbrowser?label=release&color=2ea44f" alt="最新版本" /></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="MIT 许可证" /></a>
+  <a href="../../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="MIT 许可证" /></a>
   <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-0969da" alt="macOS、Linux 和 Windows" />
   <img src="https://img.shields.io/badge/protocol-CDP-0969da" alt="Chrome DevTools Protocol" />
 </p>
@@ -327,9 +327,9 @@ clawctl endpoint --profile agent-de --json
 
 - 阅读[文档](https://clawbrowser.ai/docs/)和[常见问题](https://clawbrowser.ai/faq/)。
 - 在 [GitHub Issues](https://github.com/clawbrowser/clawbrowser/issues) 中报告可复现的问题。
-- 加入 [Clawbrowser Discord](https://discord.gg/CK62brtKhe) 参与社区讨论。
+- 加入 [Clawbrowser Discord](https://discord.gg/DWuwhYZVn) 参与社区讨论。
 - 在 [`clawbrowser/clawbrowser`](https://github.com/clawbrowser/clawbrowser/releases/latest) 查看产品版本，在 [`clawbrowser/clawctl`](https://github.com/clawbrowser/clawctl/releases/latest) 查看引导程序版本。
 
 ## 许可证
 
-本项目采用 **MIT** 许可证分发。完整文本：[opensource.org/licenses/MIT](https://opensource.org/licenses/MIT)。
+本项目采用 **MIT** 许可证分发。完整文本：[MIT License](../../../LICENSE)。

@@ -14,12 +14,12 @@
   <a href="https://clawbrowser.ai/docs/">문서</a> ·
   <a href="https://app.clawbrowser.ai/">API 키 받기</a> ·
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest">릴리스</a> ·
-  <a href="https://discord.gg/CK62brtKhe">Discord</a>
+  <a href="https://discord.gg/DWuwhYZVn">Discord</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest"><img src="https://img.shields.io/github/v/release/clawbrowser/clawbrowser?label=release&color=2ea44f" alt="최신 릴리스" /></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="MIT 라이선스" /></a>
+  <a href="../../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="MIT 라이선스" /></a>
   <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-0969da" alt="macOS, Linux 및 Windows" />
   <img src="https://img.shields.io/badge/protocol-CDP-0969da" alt="Chrome DevTools Protocol" />
 </p>
@@ -327,9 +327,9 @@ clawctl endpoint --profile agent-de --json
 
 - [문서](https://clawbrowser.ai/docs/)와 [FAQ](https://clawbrowser.ai/faq/)를 읽어보세요.
 - 재현 가능한 문제는 [GitHub Issues](https://github.com/clawbrowser/clawbrowser/issues)에 보고하세요.
-- 커뮤니티 토론을 위해 [Clawbrowser Discord](https://discord.gg/CK62brtKhe)에 참여하세요.
+- 커뮤니티 토론을 위해 [Clawbrowser Discord](https://discord.gg/DWuwhYZVn)에 참여하세요.
 - 제품 릴리스는 [`clawbrowser/clawbrowser`](https://github.com/clawbrowser/clawbrowser/releases/latest)에서, 부트스트래퍼 릴리스는 [`clawbrowser/clawctl`](https://github.com/clawbrowser/clawctl/releases/latest)에서 확인하세요.
 
 ## 라이선스
 
-**MIT** 라이선스에 따라 배포됩니다. 전문: [opensource.org/licenses/MIT](https://opensource.org/licenses/MIT).
+**MIT** 라이선스에 따라 배포됩니다. 전문: [MIT License](../../../LICENSE).

@@ -14,12 +14,12 @@
   <a href="https://clawbrowser.ai/docs/">Documentación</a> ·
   <a href="https://app.clawbrowser.ai/">Obtener una clave API</a> ·
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest">Versiones</a> ·
-  <a href="https://discord.gg/CK62brtKhe">Discord</a>
+  <a href="https://discord.gg/DWuwhYZVn">Discord</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest"><img src="https://img.shields.io/github/v/release/clawbrowser/clawbrowser?label=release&color=2ea44f" alt="Última versión" /></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="Licencia MIT" /></a>
+  <a href="../../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="Licencia MIT" /></a>
   <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-0969da" alt="macOS, Linux y Windows" />
   <img src="https://img.shields.io/badge/protocol-CDP-0969da" alt="Chrome DevTools Protocol" />
 </p>
@@ -327,9 +327,9 @@ Consulta **[INSTALL.md](../../../INSTALL.md)** para obtener las instrucciones co
 
 - Consulta la [documentación](https://clawbrowser.ai/docs/) y las [preguntas frecuentes](https://clawbrowser.ai/faq/).
 - Informa de problemas reproducibles en [GitHub Issues](https://github.com/clawbrowser/clawbrowser/issues).
-- Únete al [Discord de Clawbrowser](https://discord.gg/CK62brtKhe) para participar en la comunidad.
+- Únete al [Discord de Clawbrowser](https://discord.gg/DWuwhYZVn) para participar en la comunidad.
 - Consulta las versiones del producto en [`clawbrowser/clawbrowser`](https://github.com/clawbrowser/clawbrowser/releases/latest) y las del programa de arranque en [`clawbrowser/clawctl`](https://github.com/clawbrowser/clawctl/releases/latest).
 
 ## Licencia
 
-Distribuido bajo la licencia **MIT**. Texto completo: [opensource.org/licenses/MIT](https://opensource.org/licenses/MIT).
+Distribuido bajo la licencia **MIT**. Texto completo: [MIT License](../../../LICENSE).

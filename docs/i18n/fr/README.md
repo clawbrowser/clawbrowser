@@ -14,12 +14,12 @@
   <a href="https://clawbrowser.ai/docs/">Documentation</a> ·
   <a href="https://app.clawbrowser.ai/">Obtenir une clé API</a> ·
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest">Versions</a> ·
-  <a href="https://discord.gg/CK62brtKhe">Discord</a>
+  <a href="https://discord.gg/DWuwhYZVn">Discord</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest"><img src="https://img.shields.io/github/v/release/clawbrowser/clawbrowser?label=release&color=2ea44f" alt="Dernière version" /></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="Licence MIT" /></a>
+  <a href="../../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="Licence MIT" /></a>
   <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-0969da" alt="macOS, Linux et Windows" />
   <img src="https://img.shields.io/badge/protocol-CDP-0969da" alt="Chrome DevTools Protocol" />
 </p>
@@ -327,9 +327,9 @@ Consultez **[INSTALL.md](../../../INSTALL.md)** pour les instructions complètes
 
 - Consultez la [documentation](https://clawbrowser.ai/docs/) et la [FAQ](https://clawbrowser.ai/faq/).
 - Signalez les problèmes reproductibles dans les [GitHub Issues](https://github.com/clawbrowser/clawbrowser/issues).
-- Rejoignez le [Discord de Clawbrowser](https://discord.gg/CK62brtKhe) pour participer aux échanges de la communauté.
+- Rejoignez le [Discord de Clawbrowser](https://discord.gg/DWuwhYZVn) pour participer aux échanges de la communauté.
 - Consultez les versions du produit dans [`clawbrowser/clawbrowser`](https://github.com/clawbrowser/clawbrowser/releases/latest) et les versions du programme d'amorçage dans [`clawbrowser/clawctl`](https://github.com/clawbrowser/clawctl/releases/latest).
 
 ## Licence
 
-Distribué sous licence **MIT**. Texte intégral : [opensource.org/licenses/MIT](https://opensource.org/licenses/MIT).
+Distribué sous licence **MIT**. Texte intégral : [MIT License](../../../LICENSE).

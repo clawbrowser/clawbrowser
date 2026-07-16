@@ -14,12 +14,12 @@
   <a href="https://clawbrowser.ai/docs/">الوثائق</a> ·
   <a href="https://app.clawbrowser.ai/">الحصول على مفتاح API</a> ·
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest">الإصدارات</a> ·
-  <a href="https://discord.gg/CK62brtKhe">Discord</a>
+  <a href="https://discord.gg/DWuwhYZVn">Discord</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest"><img src="https://img.shields.io/github/v/release/clawbrowser/clawbrowser?label=release&color=2ea44f" alt="أحدث إصدار" /></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="ترخيص MIT" /></a>
+  <a href="../../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="ترخيص MIT" /></a>
   <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-0969da" alt="macOS وLinux وWindows" />
   <img src="https://img.shields.io/badge/protocol-CDP-0969da" alt="Chrome DevTools Protocol" />
 </p>
@@ -327,9 +327,9 @@ clawctl endpoint --profile agent-de --json
 
 - اقرأ [الوثائق](https://clawbrowser.ai/docs/) و[الأسئلة الشائعة](https://clawbrowser.ai/faq/).
 - أبلغ عن المشكلات القابلة لإعادة الإنتاج في [GitHub Issues](https://github.com/clawbrowser/clawbrowser/issues).
-- انضم إلى [Discord الخاص بـ Clawbrowser](https://discord.gg/CK62brtKhe) لمناقشات المجتمع.
+- انضم إلى [Discord الخاص بـ Clawbrowser](https://discord.gg/DWuwhYZVn) لمناقشات المجتمع.
 - راجع إصدارات المنتج في [`clawbrowser/clawbrowser`](https://github.com/clawbrowser/clawbrowser/releases/latest) وإصدارات برنامج التمهيد في [`clawbrowser/clawctl`](https://github.com/clawbrowser/clawctl/releases/latest).
 
 ## الترخيص
 
-يُوزع بموجب ترخيص **MIT**. النص الكامل: [opensource.org/licenses/MIT](https://opensource.org/licenses/MIT).
+يُوزع بموجب ترخيص **MIT**. النص الكامل: [MIT License](../../../LICENSE).

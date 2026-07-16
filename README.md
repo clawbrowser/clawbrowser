@@ -14,12 +14,12 @@
   <a href="https://clawbrowser.ai/docs/">Documentation</a> ·
   <a href="https://app.clawbrowser.ai/">Get an API key</a> ·
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest">Releases</a> ·
-  <a href="https://discord.gg/CK62brtKhe">Discord</a>
+  <a href="https://discord.gg/DWuwhYZVn">Discord</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/clawbrowser/clawbrowser/releases/latest"><img src="https://img.shields.io/github/v/release/clawbrowser/clawbrowser?label=release&color=2ea44f" alt="Latest release" /></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="MIT license" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f" alt="MIT license" /></a>
   <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-0969da" alt="macOS, Linux, and Windows" />
   <img src="https://img.shields.io/badge/protocol-CDP-0969da" alt="Chrome DevTools Protocol" />
 </p>
@@ -327,9 +327,11 @@ See **[INSTALL.md](./INSTALL.md)** for the complete installation and recovery gu
 
 - Read the [documentation](https://clawbrowser.ai/docs/) and [FAQ](https://clawbrowser.ai/faq/).
 - Report reproducible problems in [GitHub Issues](https://github.com/clawbrowser/clawbrowser/issues).
-- Join the [Clawbrowser Discord](https://discord.gg/CK62brtKhe) for community discussion.
+- Join the [Clawbrowser Discord](https://discord.gg/DWuwhYZVn) for community discussion.
 - Review product releases in [`clawbrowser/clawbrowser`](https://github.com/clawbrowser/clawbrowser/releases/latest) and bootstrapper releases in [`clawbrowser/clawctl`](https://github.com/clawbrowser/clawctl/releases/latest).
 
 ## License
 
-Distributed under the **MIT** license. Full text: [opensource.org/licenses/MIT](https://opensource.org/licenses/MIT).
+Clawbrowser is open-source software available under the [MIT License](LICENSE).
+
+Copyright © 2026 Clawbrowser contributors.
