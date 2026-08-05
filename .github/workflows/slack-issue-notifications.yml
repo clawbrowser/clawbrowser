@@ -30,7 +30,6 @@ jobs:
 
             const { issue, repository, sender } = context.payload;
             const isComment = context.eventName === "issue_comment";
-            const action = context.payload.action;
             const actor = sender?.login ?? "GitHub user";
             const issueUrl = issue.html_url;
 
@@ -39,56 +38,21 @@ jobs:
               .replaceAll("<", "&lt;")
               .replaceAll(">", "&gt;");
 
-            const title = isComment
-              ? `New issue comment: ${issue.title}`
-              : `Issue ${action}: ${issue.title}`;
-            const summary = isComment
-              ? `${actor} ${action} a comment on issue #${issue.number}`
-              : `${actor} ${action} issue #${issue.number}`;
             const commentBody = isComment
               ? escapeSlack(context.payload.comment?.body?.trim()).slice(0, 700)
               : "";
 
-            const fields = [
-              { type: "mrkdwn", text: `*Repository*\n${escapeSlack(repository.full_name)}` },
-              { type: "mrkdwn", text: `*Issue*\n<${issueUrl}|#${issue.number}>` },
-              { type: "mrkdwn", text: `*Action*\n${escapeSlack(action)}` },
-              { type: "mrkdwn", text: `*Author*\n${escapeSlack(issue.user?.login ?? "Unknown")}` },
-            ];
-
-            const blocks = [
-              {
-                type: "header",
-                text: { type: "plain_text", text: title.slice(0, 150) },
-              },
-              {
-                type: "section",
-                text: { type: "mrkdwn", text: escapeSlack(summary) },
-              },
-              { type: "section", fields },
-            ];
-
-            if (commentBody) {
-              blocks.push({
-                type: "section",
-                text: {
-                  type: "mrkdwn",
-                  text: `>*Comment*\n>${commentBody.replaceAll("\n", "\n>")}`,
-                },
-              });
-            }
-
-            blocks.push({
-              type: "context",
-              elements: [
-                { type: "mrkdwn", text: "Clawbrowser GitHub issue tracker" },
-              ],
-            });
+            const message = [
+              `${isComment ? "*New Comment*" : "*New Issue*"} <${issueUrl}|#${issue.number}>`,
+              isComment ? commentBody : escapeSlack(issue.title),
+              escapeSlack(repository.full_name),
+              escapeSlack(actor),
+            ].join("\n");
 
             const response = await fetch(webhookUrl, {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ blocks }),
+              body: JSON.stringify({ text: message }),
             });
 
             if (!response.ok) {
