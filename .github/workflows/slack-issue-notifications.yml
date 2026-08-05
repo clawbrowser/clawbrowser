@@ -2,7 +2,7 @@ name: Notify Slack about GitHub issues
 
 on:
   issues:
-    types: [opened]
+    types: [opened, closed]
   issue_comment:
     types: [created]
 
@@ -20,15 +20,14 @@ jobs:
         uses: actions/github-script@v8
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
         with:
           script: |
             const webhookUrl = process.env.SLACK_WEBHOOK_URL;
-            if (!webhookUrl) {
-              core.setFailed("Missing repository secret: SLACK_WEBHOOK_URL");
-              return;
-            }
 
             const { issue, repository, sender } = context.payload;
+            const isClosed = context.eventName === "issues" && context.payload.action === "closed";
             const isComment = context.eventName === "issue_comment";
             const actor = sender?.login ?? "GitHub user";
             const issueUrl = issue.html_url;
@@ -43,9 +42,62 @@ jobs:
               ? escapeSlack(context.payload.comment?.body?.trim()).slice(0, 700)
               : "";
 
+            async function slackApi(method, body) {
+              const response = await fetch(`https://slack.com/api/${method}`, {
+                method: "POST",
+                headers: {
+                  authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
+                  "content-type": "application/json; charset=utf-8",
+                },
+                body: JSON.stringify(body),
+              });
+              const result = await response.json();
+              if (!response.ok || !result.ok) {
+                throw new Error(`Slack ${method} failed: ${response.status} ${JSON.stringify(result)}`);
+              }
+              return result;
+            }
+
+            if (isClosed) {
+              if (!process.env.SLACK_BOT_TOKEN || !process.env.SLACK_CHANNEL_ID) {
+                core.setFailed("Missing repository secrets: SLACK_BOT_TOKEN and SLACK_CHANNEL_ID");
+                return;
+              }
+
+              let cursor;
+              let threadTs;
+              do {
+                const history = await slackApi("conversations.history", {
+                  channel: process.env.SLACK_CHANNEL_ID,
+                  limit: 200,
+                  ...(cursor ? { cursor } : {}),
+                });
+                const root = history.messages?.find((message) => message.text?.includes(issueUrl));
+                if (root) threadTs = root.thread_ts ?? root.ts;
+                cursor = history.response_metadata?.next_cursor || undefined;
+              } while (!threadTs && cursor);
+
+              if (!threadTs) {
+                core.setFailed(`Could not find the Slack root message for issue #${issue.number}`);
+                return;
+              }
+
+              await slackApi("chat.postMessage", {
+                channel: process.env.SLACK_CHANNEL_ID,
+                thread_ts: threadTs,
+                text: `Issue #${issue.number} closed`,
+              });
+              return;
+            }
+
             const message = isComment
               ? `*New Comment:* <${issueUrl}|${escapeSlack(issue.title)}>\n\n*${escapeSlack(actor)}* in <${repositoryUrl}|${escapeSlack(repository.full_name)}>\n\n${commentBody}`
               : `*New Issue:* <${issueUrl}|${escapeSlack(issue.title)}>\n\n*${escapeSlack(actor)}* in <${repositoryUrl}|${escapeSlack(repository.full_name)}>`;
+
+            if (!webhookUrl) {
+              core.setFailed("Missing repository secret: SLACK_WEBHOOK_URL");
+              return;
+            }
 
             const response = await fetch(webhookUrl, {
               method: "POST",
