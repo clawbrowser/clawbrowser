@@ -32,6 +32,7 @@ jobs:
             const isComment = context.eventName === "issue_comment";
             const actor = sender?.login ?? "GitHub user";
             const issueUrl = issue.html_url;
+            const repositoryUrl = `https://github.com/${repository.full_name}`;
 
             const escapeSlack = (value) => String(value ?? "")
               .replaceAll("&", "&amp;")
@@ -42,12 +43,9 @@ jobs:
               ? escapeSlack(context.payload.comment?.body?.trim()).slice(0, 700)
               : "";
 
-            const message = [
-              `${isComment ? "*New Comment*" : "*New Issue*"} <${issueUrl}|#${issue.number}>`,
-              isComment ? commentBody : escapeSlack(issue.title),
-              escapeSlack(repository.full_name),
-              escapeSlack(actor),
-            ].join("\n");
+            const message = isComment
+              ? `*New Comment:* <${issueUrl}|${escapeSlack(issue.title)}>\n\n*${escapeSlack(actor)}* in <${repositoryUrl}|${escapeSlack(repository.full_name)}>\n\n${commentBody}`
+              : `*New Issue:* <${issueUrl}|${escapeSlack(issue.title)}>\n\n*${escapeSlack(actor)}* in <${repositoryUrl}|${escapeSlack(repository.full_name)}>`;
 
             const response = await fetch(webhookUrl, {
               method: "POST",
