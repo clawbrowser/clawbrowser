@@ -1,0 +1,112 @@
+name: Notify Slack about GitHub issues
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+      - deleted
+      - transferred
+      - pinned
+      - unpinned
+      - closed
+      - reopened
+      - assigned
+      - unassigned
+      - labeled
+      - unlabeled
+      - locked
+      - unlocked
+      - milestoned
+      - demilestoned
+  issue_comment:
+    types: [created, edited, deleted]
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  notify:
+    # issue_comment also fires for pull requests; keep this workflow issue-only.
+    if: ${{ github.event_name == 'issues' || !github.event.issue.pull_request }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send notification to Slack
+        uses: actions/github-script@v8
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          script: |
+            const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+            if (!webhookUrl) {
+              core.setFailed("Missing repository secret: SLACK_WEBHOOK_URL");
+              return;
+            }
+
+            const { issue, repository, sender } = context.payload;
+            const isComment = context.eventName === "issue_comment";
+            const action = context.payload.action;
+            const actor = sender?.login ?? "GitHub user";
+            const issueUrl = issue.html_url;
+
+            const escapeSlack = (value) => String(value ?? "")
+              .replaceAll("&", "&amp;")
+              .replaceAll("<", "&lt;")
+              .replaceAll(">", "&gt;");
+
+            const title = isComment
+              ? `New issue comment: ${issue.title}`
+              : `Issue ${action}: ${issue.title}`;
+            const summary = isComment
+              ? `${actor} ${action} a comment on issue #${issue.number}`
+              : `${actor} ${action} issue #${issue.number}`;
+            const commentBody = isComment
+              ? escapeSlack(context.payload.comment?.body?.trim()).slice(0, 700)
+              : "";
+
+            const fields = [
+              { type: "mrkdwn", text: `*Repository*\n${escapeSlack(repository.full_name)}` },
+              { type: "mrkdwn", text: `*Issue*\n<${issueUrl}|#${issue.number}>` },
+              { type: "mrkdwn", text: `*Action*\n${escapeSlack(action)}` },
+              { type: "mrkdwn", text: `*Author*\n${escapeSlack(issue.user?.login ?? "Unknown")}` },
+            ];
+
+            const blocks = [
+              {
+                type: "header",
+                text: { type: "plain_text", text: title.slice(0, 150) },
+              },
+              {
+                type: "section",
+                text: { type: "mrkdwn", text: escapeSlack(summary) },
+              },
+              { type: "section", fields },
+            ];
+
+            if (commentBody) {
+              blocks.push({
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: `>*Comment*\n>${commentBody.replaceAll("\n", "\n>")}`,
+                },
+              });
+            }
+
+            blocks.push({
+              type: "context",
+              elements: [
+                { type: "mrkdwn", text: "Clawbrowser GitHub issue tracker" },
+              ],
+            });
+
+            const response = await fetch(webhookUrl, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ blocks }),
+            });
+
+            if (!response.ok) {
+              throw new Error(`Slack webhook failed: ${response.status} ${await response.text()}`);
+            }
