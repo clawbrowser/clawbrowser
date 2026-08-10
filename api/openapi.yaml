@@ -742,6 +742,7 @@ paths:
     post:
       tags: [dashboard]
       summary: Add 1 GiB to the current proxy traffic limit
+      description: Restricted to internal accounts. External accounts request traffic through Discord and the team adds it manually.
       security:
         - auth0Jwt: []
       responses:
@@ -753,6 +754,12 @@ paths:
                 $ref: '#/components/schemas/ProxyTrafficStats'
         '401':
           description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Automatic top-up is limited to internal accounts
           content:
             application/json:
               schema:
@@ -1757,7 +1764,7 @@ components:
 
     ProxyTrafficStats:
       type: object
-      required: [limited, used_bytes, state, top_up_bytes, dashboard_url]
+      required: [limited, used_bytes, state, top_up_available, top_up_bytes, dashboard_url, request_url]
       properties:
         limited:
           type: boolean
@@ -1776,12 +1783,26 @@ components:
         state:
           type: string
           enum: [ok, near_limit, exhausted, unavailable]
+        top_up_available:
+          type: boolean
+          description: >-
+            Whether this account may add proxy traffic from the app. Automatic
+            top-up is limited to internal accounts; every other account receives
+            false and a top_up_bytes of 0, and must request traffic through
+            request_url for the team to add manually. Clients must not offer an
+            automatic top-up control when this is false.
         top_up_bytes:
           type: integer
           format: int64
         dashboard_url:
           type: string
           format: uri
+        request_url:
+          type: string
+          format: uri
+          description: >-
+            Where an account requests more proxy traffic when automatic top-up is
+            unavailable. Points at the Clawbrowser Discord community.
 
     # ──────────────────────────────────────────────
     # Webhook schemas

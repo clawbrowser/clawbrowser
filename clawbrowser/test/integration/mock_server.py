@@ -10,11 +10,52 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 FINGERPRINTS_FIXTURE = WORKSPACE_ROOT / "api/mocks/fingerprints.json"
 PROXY_FIXTURE = WORKSPACE_ROOT / "api/mocks/proxy.json"
 TEST_API_KEY = "test_api_key_123"
+TOP_UP_BYTES = 1024 * 1024 * 1024
+DASHBOARD_URL = "https://app.clawbrowser.ai/dashboard"
+
+# Mutable proxy-traffic state so top-up is observable across requests.
+# New accounts start with a single GiB; the mock impersonates an internal
+# account so the top-up route stays exercisable. Flip TOP_UP_AVAILABLE to model
+# an external account, which the backend answers with 403 and which must ask
+# for traffic in Discord instead.
+TOP_UP_AVAILABLE = True
+REQUEST_URL = "https://discord.gg/CK62brtKhe"
+TRAFFIC = {
+    "used_bytes": 0,
+    "limit_bytes": TOP_UP_BYTES,
+}
 
 
 def _load_fixture(path: Path):
     with path.open(encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def _traffic_stats():
+    used = TRAFFIC["used_bytes"]
+    limit = TRAFFIC["limit_bytes"]
+    remaining = max(limit - used, 0)
+    percent = (used / limit * 100) if limit else 0.0
+
+    if remaining <= 0:
+        state = "exhausted"
+    elif percent >= 80:
+        state = "near_limit"
+    else:
+        state = "ok"
+
+    return {
+        "limited": True,
+        "used_bytes": used,
+        "limit_bytes": limit,
+        "remaining_bytes": remaining,
+        "percent_used": round(percent, 2),
+        "state": state,
+        "top_up_available": TOP_UP_AVAILABLE,
+        "top_up_bytes": TOP_UP_BYTES if TOP_UP_AVAILABLE else 0,
+        "dashboard_url": DASHBOARD_URL,
+        "request_url": REQUEST_URL,
+    }
 
 
 def _request_matches_fixture(path: str, actual: dict, expected: dict) -> bool:
@@ -36,6 +77,25 @@ class MockHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if self.path == "/v1/auth/api-key/validate":
+            if not self._require_api_key():
+                return
+            self._write_json(
+                200,
+                {
+                    "valid": True,
+                    "key_id": "mock_key_id",
+                    "owner_id": "mock_owner_id",
+                },
+            )
+            return
+
+        if self.path == "/v1/proxy/traffic":
+            if not self._require_api_key():
+                return
+            self._write_json(200, _traffic_stats())
+            return
+
         if self.path == "/__healthz":
             self.send_response(200)
             self._write_cors_headers()
@@ -78,6 +138,34 @@ class MockHandler(BaseHTTPRequestHandler):
         self.send_error(404)
 
     def do_POST(self):
+        if self.path == "/v1/telemetry/tool":
+            self._drain_body()
+            self.send_response(204)
+            self._write_cors_headers()
+            self.end_headers()
+            return
+
+        if self.path == "/v1/usage/proxy-traffic/top-up":
+            if not self._require_api_key():
+                return
+            self._drain_body()
+            if not TOP_UP_AVAILABLE:
+                self._write_json(
+                    403,
+                    {
+                        "code": "proxy_traffic_top_up_forbidden",
+                        "message": (
+                            "Adding proxy traffic from the app is limited to internal "
+                            "accounts. Request more traffic in the Clawbrowser Discord "
+                            "and the team will add it."
+                        ),
+                    },
+                )
+                return
+            TRAFFIC["limit_bytes"] += TOP_UP_BYTES
+            self._write_json(200, _traffic_stats())
+            return
+
         route_map = {
             "/v1/fingerprints/generate": self.server.fingerprints_fixture,
             "/v1/proxy/verify": self.server.proxy_fixture,
@@ -87,12 +175,7 @@ class MockHandler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
 
-        auth_header = self.headers.get("Authorization")
-        if auth_header != f"Bearer {TEST_API_KEY}":
-            self._write_json(
-                401,
-                {"code": "invalid_api_key", "message": "invalid API key"},
-            )
+        if not self._require_api_key():
             return
 
         content_length = int(self.headers.get("Content-Length", "0"))
@@ -123,6 +206,21 @@ class MockHandler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         print(fmt % args, flush=True)
+
+    def _require_api_key(self) -> bool:
+        auth_header = self.headers.get("Authorization")
+        if auth_header == f"Bearer {TEST_API_KEY}":
+            return True
+        self._write_json(
+            401,
+            {"code": "invalid_api_key", "message": "invalid API key"},
+        )
+        return False
+
+    def _drain_body(self):
+        content_length = int(self.headers.get("Content-Length", "0"))
+        if content_length:
+            self.rfile.read(content_length)
 
     def _write_json(self, status_code: int, payload):
         encoded = json.dumps(payload).encode("utf-8")
@@ -175,11 +273,17 @@ def parse_args():
         default=str(PROXY_FIXTURE),
     )
     parser.add_argument("--verify-html")
+    parser.add_argument("--traffic-used-bytes", type=int)
+    parser.add_argument("--traffic-limit-bytes", type=int)
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    if args.traffic_used_bytes is not None:
+        TRAFFIC["used_bytes"] = args.traffic_used_bytes
+    if args.traffic_limit_bytes is not None:
+        TRAFFIC["limit_bytes"] = args.traffic_limit_bytes
     server = MockHTTPServer(
         (args.host, args.port),
         MockHandler,
