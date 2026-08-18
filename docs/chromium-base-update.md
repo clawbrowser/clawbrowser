@@ -3,9 +3,9 @@
 Clawbrowser is a Chromium fork. A **Chromium base update** (also "browser core
 update", or just "core update") moves the fork onto a newer Chromium release.
 
-This guide is written for someone who has never done one. It assumes you can
-build the browser but knows nothing about how the fork is layered on top of
-Chromium.
+This guide is written for someone who has never done one and knows nothing about
+how the fork is layered on Chromium. It does assume you can already build the
+browser.
 
 Nothing here is automated. A human picks the version, resolves every patch
 conflict, fixes the build breaks, runs the tests, and decides whether to ship.
@@ -13,10 +13,14 @@ conflict, fixes the build breaks, runs the tests, and decides whether to ship.
 after a milestone jump runs for hours on its own, and conflicts need real
 reading, not pattern-matching.
 
+Throughout, the worked example updates the fork to **151.0.7922.109**, whose
+upstream commit is `28a7a6c409e03c701d3474ef9e3b1f0be6249039`. Substitute your
+own target and revision everywhere those appear.
+
 ## How the fork is layered
 
-Clawbrowser does *not* keep a forked Chromium tree. This repo holds three things that get combined
-into a Chromium checkout at build time:
+Clawbrowser does *not* keep a forked Chromium tree. This repo holds three things
+that get combined into a Chromium checkout at build time:
 
 | Layer | Lives in | What it is |
 | --- | --- | --- |
@@ -35,8 +39,9 @@ Telling those apart is the actual work of a base update.
 
 One patch does not target `chromium/src` at all:
 `033-devtools-no-getter-preview.patch` targets `v8/src/inspector/value-mirror.cc`,
-and `src/v8` is a separate DEPS repository. It applies from the `src` root but is
-easy to forget when you are checking "did everything apply?".
+and `src/v8` is a separate DEPS repository. It applies from the `src` root like
+the others, so applying it needs nothing special — but it is easy to miss when
+you check "did everything apply?".
 
 ## Read these once, before your first base update
 
@@ -51,7 +56,7 @@ easy to forget when you are checking "did everything apply?".
 
 ## 0. Before you start
 
-Make sure of all of the following:
+You need all of the following:
 
 - Read access to this repo and a working `depot_tools` on `PATH`.
 - A Chromium checkout you are allowed to destroy and re-sync
@@ -69,10 +74,10 @@ buildable tree to do it — you need the *pristine* upstream file at the new
 revision and the patch. Work in a scratch directory:
 
 ```bash
-mkdir -p /tmp/rebase/006-screen-metrics.patch
+mkdir -p /tmp/rebase/006-screen-metrics
 cd /c/src/chromium/src
 git show 151.0.7922.109:third_party/blink/renderer/core/frame/screen.cc \
-  > /tmp/rebase/006-screen-metrics.patch/screen.cc
+  > /tmp/rebase/006-screen-metrics/screen.cc
 ```
 
 Reasons to keep it out of the live checkout:
@@ -83,10 +88,12 @@ Reasons to keep it out of the live checkout:
 - `git apply` in the live tree will happily half-apply a patch and leave you
   reconciling a mess.
 
+Step 5.1 gives a loop that does this extraction for all 31 patches at once.
+
 ### 0.2 Seed a profile for acceptance
 
-Step 9 upgrades a *used* profile, so create the seed deliberately, on the
-**currently released** build, before you replace anything:
+Step 9 checks that a *used* profile survives the upgrade, so create the seed
+deliberately, on the **currently released** build, before you replace anything:
 
 ```bash
 clawctl start --profile seed --country DE --verify --json
@@ -102,23 +109,59 @@ and a real on-disk profile to migrate, not an empty one.
 Take the latest **Stable Channel Update for Desktop** post from the
 [Chrome releases blog](https://chromereleases.googleblog.com/search/label/Stable%20updates).
 
-A post reading "updated to 151.0.7922.75/.76 for Windows and Mac" means the
-target is **151.0.7922.76** — the `.75/.76` split is Google's staged rollout, so
-take the highest.
+Reading the post: a sentence like "updated to 151.0.7922.75/.76 for Windows and
+Mac" means the target is **151.0.7922.76** — the `.75/.76` split is Google's
+staged rollout, so take the highest. (That is only an illustration of how to read
+the blog; the worked example in the rest of this guide uses 151.0.7922.109.)
 
-Confirm the tag exists upstream before you plan anything around it:
+### 1.1 Get the revision SHA
 
-```bash
-git ls-remote --tags https://chromium.googlesource.com/chromium/src refs/tags/151.0.7922.109
-```
-
-Compare against where the fork sits today:
+Confirm the tag exists upstream, and get the commit it points at:
 
 ```bash
-grep CHROMIUM_VERSION_LABEL scripts/chromium_pin.conf
+git ls-remote --tags https://chromium.googlesource.com/chromium/src \
+  refs/tags/151.0.7922.109
 ```
 
-Stop if they match.
+```
+28a7a6c409e03c701d3474ef9e3b1f0be6249039	refs/tags/151.0.7922.109
+```
+
+**Column 1 is the revision SHA.** That value is what goes into
+`CHROMIUM_REVISION` in step 3, and into every `--revision src@...` from here on.
+No output means the tag does not exist — check the version before going further.
+
+### 1.2 Compare against where the fork sits today
+
+The pin file carries two fields, and the label can be in either of two formats:
+
+```bash
+cat scripts/chromium_pin.conf
+```
+
+```
+CHROMIUM_VERSION_LABEL="main@{#1609092}"          # a main-branch position
+CHROMIUM_REVISION="25a94a5662bc9cce918f4626472e7edca1ba2b39"
+```
+
+- `main@{#1609092}` — a **main-branch commit position**. The fork was pinned to
+  a snapshot of `main`, not to a release.
+- `151.0.7922.109` — a **release tag**.
+
+A main-position label can never string-match a release tag, so do not compare the
+labels. Compare the versions they resolve to:
+
+```bash
+git -C /c/src/chromium/src show \
+  25a94a5662bc9cce918f4626472e7edca1ba2b39:chrome/VERSION
+```
+
+That prints `MAJOR`/`MINOR`/`BUILD`/`PATCH` for the currently pinned revision —
+compare that with your target. Stop if they are the same.
+
+Part of doing this update is **normalising the pin to a release tag**: after
+step 3 the label reads `151.0.7922.109`, and future updates can compare labels
+directly.
 
 ---
 
@@ -133,50 +176,71 @@ has no header profiles for that Chromium version, it returns **HTTP 500
 `generation_failed`** and the browser **silently falls back to vanilla mode** —
 no fingerprint, no spoofing, plain Chromium. It still starts. `clawctl` still
 reports `ok`. The only visible signal is one warning line and this sentence on
-`clawbrowser://verify`:
+`clawbrowser://verify/`:
 
 > No expected values — not running in fingerprint mode
 
 Check it directly, with your own API key:
 
 ```bash
-curl -s -X POST https://api.clawbrowser.ai/v1/fingerprints/generate \
+curl -s -w '\n%{http_code}\n' -X POST \
+  https://api.clawbrowser.ai/v1/fingerprints/generate \
   -H "Authorization: Bearer $CLAWBROWSER_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"platform":"windows","browser":"chrome","country":"US","runtime_browser_version":"151.0.7922.109"}'
 ```
 
-- **HTTP 200** with a `fingerprint` object → the service supports it, continue.
-- **HTTP 500 `generation_failed`** → stop. The update can be prepared and merged,
-  but it cannot ship until the backend adds profiles for that version. Raise it
-  with whoever owns the service before doing the rest of the work.
+- **200** with a `fingerprint` object → the service supports it, continue.
+- **500 `generation_failed`** → stop. The update can be prepared and merged, but
+  it cannot ship until the backend adds profiles for that version. Raise it with
+  whoever owns the service before doing the rest of the work.
 
 The integration suite cannot catch this, because it runs against
 `clawbrowser/test/integration/mock_server.py`, which serves static fixtures and
-has no version gate. A completely green test run tells you nothing about
-whether the real service accepts your new version.
+has no version gate. A completely green test run tells you nothing about whether
+the real service accepts your new version.
 
 ---
 
 ## 3. Update the pins
 
-Two files, kept identical:
+Set both variables in both pin files. `CHROMIUM_REVISION` is the SHA from
+step 1.1; `CHROMIUM_VERSION_LABEL` becomes the release tag:
 
 ```bash
-sed -i 's/^CHROMIUM_VERSION_LABEL=.*/CHROMIUM_VERSION_LABEL="151.0.7922.109"/; s/^CHROMIUM_REVISION=.*/CHROMIUM_REVISION="28a7a6c409e03c701d3474ef9e3b1f0be6249039"/' \
+sed -i \
+  -e 's/^CHROMIUM_VERSION_LABEL=.*/CHROMIUM_VERSION_LABEL="151.0.7922.109"/' \
+  -e 's/^CHROMIUM_REVISION=.*/CHROMIUM_REVISION="28a7a6c409e03c701d3474ef9e3b1f0be6249039"/' \
   scripts/chromium_pin.conf scripts/clawbrowser_pin.conf
 ```
 
-Then the two build docs, which quote the pin in prose, and the per-patch
-headers:
+Both build docs quote the pin in prose — the label, the full revision, the short
+form, an example `--chromium-revision`, and an example `gclient sync` line. All
+five need rewriting in each file:
+
+```bash
+sed -i \
+  -e 's/^- label: `.*`$/- label: `151.0.7922.109`/' \
+  -e 's/25a94a5662bc9cce918f4626472e7edca1ba2b39/28a7a6c409e03c701d3474ef9e3b1f0be6249039/g' \
+  -e 's/`25a94a5662bc`/`28a7a6c409e0`/g' \
+  docs/chromium-remote-build.md docs/clawbrowser-remote-build.md
+```
+
+Then the per-patch headers:
 
 ```bash
 sed -i 's|^# Pinned against Chromium revision .*|# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)|' \
   clawbrowser/patches/*.patch
 ```
 
-Three patches (`027`, `029`, `030`) have never carried that header. Leave them
-alone rather than adding one.
+Verify no stale references survive anywhere:
+
+```bash
+grep -rn "25a94a5662bc\|1609092" scripts/ docs/ clawbrowser/patches/ || echo clean
+```
+
+Three patches (`027`, `029`, `030`) have never carried the pin header. Leave
+them alone rather than adding one.
 
 **The Windows build scripts need no edit.** They resolve the checkout path
 dynamically and read `chrome/VERSION` at build time, so they follow the pin
@@ -192,7 +256,8 @@ Release tags are not fetched by default. Fetch the one you need, then sync:
 cd /c/src/chromium/src
 git fetch origin +refs/tags/151.0.7922.109:refs/tags/151.0.7922.109
 cd /c/src/chromium
-gclient sync -D --force --reset --revision "src@28a7a6c409e03c701d3474ef9e3b1f0be6249039"
+gclient sync -D --force --reset \
+  --revision "src@28a7a6c409e03c701d3474ef9e3b1f0be6249039"
 ```
 
 Expect this to take a long time across a milestone jump — it pulls a large DEPS
@@ -220,17 +285,63 @@ This is the part that needs judgement. Everything else is mechanical.
 ### 5.1 Get the conflict inventory
 
 Test-apply every patch against pristine upstream files, in a scratch tree, and
-record which ones fail. Do **not** touch the live checkout yet. What you want is
-three buckets:
+bucket the results. Do **not** touch the live checkout yet.
+
+There is no script in the repo for this; you write it. Its shape:
+
+```bash
+#!/usr/bin/env bash
+# Bucket every patch against a target revision, without touching the checkout.
+TAG=151.0.7922.109
+SRC=/c/src/chromium/src
+REPO=/path/to/clawbrowser_core
+OUT=/tmp/rebase
+
+for p in "$REPO"/clawbrowser/patches/*.patch; do
+  name=$(basename "$p")
+  work="$OUT/${name%.patch}"
+  rm -rf "$work"; mkdir -p "$work"
+
+  # Extract each file the patch touches, at the target revision.
+  for f in $(grep '^--- a/' "$p" | sed 's|^--- a/||'); do
+    if git -C "$SRC" cat-file -e "$TAG:$f" 2>/dev/null; then
+      mkdir -p "$work/$(dirname "$f")"
+      git -C "$SRC" show "$TAG:$f" > "$work/$f"
+    else
+      echo "  $name: target absent upstream: $f"
+    fi
+  done
+
+  # fuzz=0 on purpose: see 5.2.
+  if (cd "$work" && patch -p1 --dry-run --forward --fuzz=0 -i "$p" \
+        >"$work/.log" 2>&1); then
+    if grep -q offset "$work/.log"; then echo "OFFSET   $name"
+    else echo "CLEAN    $name"; fi
+  else
+    echo "CONFLICT $name"
+  fi
+done
+```
+
+Three buckets come out:
 
 - **clean** — applies exactly.
 - **offset** — applies, but the code moved. Harmless; the regenerated patch will
   carry the new line numbers.
 - **conflict** — context no longer matches. Needs a human.
 
-On the 148 → 151 update, that split was 1 clean / 19 offset / 11 conflicts.
-Expect roughly a third of the patch set to need attention on a multi-milestone
-jump.
+Run against the 148-era patch set with a 151 checkout, that loop buckets them
+**3 clean / 15 offset / 13 conflicts**. Expect roughly a third of the patch set
+to need real attention on a multi-milestone jump.
+
+Bucketing each patch in isolation, as above, is the right way to plan the work.
+It can differ by a patch or two from applying them in sequence into one tree,
+where later patches see earlier patches' changes — so treat the conflict count
+as a planning figure, not an invariant.
+
+Files reported as "target absent upstream" are the important edge case: upstream
+deleted or moved the file, which is always a semantic conflict even though no
+hunk failed.
 
 ### 5.2 Never let the patch tool guess
 
@@ -242,7 +353,8 @@ patch -p1 --forward --fuzz=0 --no-backup-if-mismatch -i "$PATCH"
 
 Line-number *offsets* are fine — the code moved, the context still matches.
 **Fuzz is not fine.** Fuzz means "ignore some context lines and place the hunk
-anyway", and it fails silently and destructively.
+anyway". It does not fail. It reports success and writes the change to the wrong
+place.
 
 A real example from the 148 → 151 update. Patch `006` inserts an early return
 into `LocalDOMWindow::devicePixelRatio()`. Upstream had only added braces to an
@@ -258,10 +370,11 @@ completely different function, splitting a multi-line expression in
                 chrome_client.GetScreenInfo(*frame).device_scale_factor));
 ```
 
-That does not compile, and if it had, it would have been wrong. Every hunk in
-that run was reported as "succeeded". **Fuzzy application is not a time-saver on
-a security-relevant patch set — it is a way to introduce defects that look like
-successful output.** Use `--fuzz=0` and resolve the `.rej` files by hand.
+That does not compile, and even if it had compiled, it would have been wrong.
+Every hunk in that run was reported as "succeeded". **Fuzzy application is not a
+time-saver on a security-relevant patch set — it is a way to introduce defects
+that look like successful output.** Use `--fuzz=0` and resolve the `.rej` files
+by hand.
 
 ### 5.3 Resolving a conflict
 
@@ -273,8 +386,7 @@ For each rejected hunk:
    function being deleted and split in two is a semantic decision.
 4. Apply the intent by hand to the pristine file.
 
-The 148 → 151 update contained one conflict of each kind, and they are worth
-knowing as archetypes:
+The 11 conflicts fell into three kinds. One example of each:
 
 **Mechanical.** `017` failed only because upstream fixed the indentation of a
 `DCHECK` the patch was normalising. Re-anchor and move on.
@@ -305,8 +417,9 @@ Once the pristine file carries the change, regenerate the diff rather than
 hand-editing hunk headers:
 
 ```bash
-cd /tmp/rebase/019-verify-page-registration.patch
-git init -q . && git add -A && git -c user.email=x@x -c user.name=x commit -qm base
+cd /tmp/rebase/019-verify-page-registration
+git init -q . && git add -A
+git -c user.email=x@x -c user.name=x commit -qm base
 # ... apply your resolution to the working files ...
 git add -A
 git diff --cached -U3 | grep -vE '^(index |new file mode|deleted file mode)' \
@@ -336,9 +449,9 @@ for p in clawbrowser/patches/*.patch; do
 done
 ```
 
-`019` legitimately changes *which* files it targets (the `ValidateUrl` split
-moved two hunks to a new file) while keeping the same count — so read mismatches,
-do not just count them.
+The count is a tripwire, not a verdict: investigate every mismatch, and note that
+`019` changed which files it targets — the `ValidateUrl` split moved two hunks to
+a new file — without changing the count.
 
 ---
 
@@ -354,37 +467,67 @@ powershell -NoProfile -ExecutionPolicy Bypass \
   -BuildProfile Prod -SkipBuild
 ```
 
-Run it with **`-SkipBuild` first.** That applies every patch and runs `gn gen`
-in about a minute, which catches bad `BUILD.gn` edits immediately instead of
-three hours into a compile. A healthy run ends with something like
+Run it with **`-SkipBuild` first.** That applies every patch and runs `gn gen` in
+about a minute, which catches bad `BUILD.gn` edits immediately instead of three
+hours into a compile. A healthy run ends with something like
 `Done. Made 31650 targets from 4850 files`.
 
-Then confirm all 31 patches are actually in the tree. A patch that reverse-applies
-cleanly is present:
+Then confirm all 31 patches are actually in the tree. If a patch reverse-applies
+cleanly, it is present:
 
 ```bash
 cd /c/src/chromium/src
 for p in /path/to/repo/clawbrowser/patches/*.patch; do
-  git apply --reverse --check -p1 "$p" 2>/dev/null || echo "NOT APPLIED: $(basename $p)"
+  git apply --reverse --check -p1 "$p" 2>/dev/null \
+    || echo "NOT APPLIED: $(basename $p)"
 done
 ```
 
+This loop **does** cover `033`, the V8 patch: its paths are `v8/...` relative to
+the `src` root, so running from `src` reaches into the `src/v8` sub-repository
+correctly. A clean run really does mean 31 of 31. (The reason `033` still earns a
+warning is that it is easy to forget when you apply patches by hand, or to skip
+when a script only iterates files under `chromium/src`.)
+
 Only then drop `-SkipBuild` and let it build.
 
-> **MIDL baselines.** `gclient sync` resets `third_party/win_build_output/` to
-> the pristine upstream baselines, which then disagree with your locally
-> installed Windows SDK. The build fails in
-> `chrome/windows_services/elevated_tracing_service` with "midl.exe output
-> different from files in ...". Fix it by re-running the rebaseline script
-> against your SDK. It only accepts differences in the binary `.tlb` type
-> library and refuses any generated C/C++ difference, so it cannot paper over a
-> real change. This is not a patch problem and will happen on every clean sync.
+### 6.1 The MIDL rebaseline
+
+`gclient sync` resets `third_party/win_build_output/` to the pristine upstream
+baselines, which then disagree with your locally installed Windows SDK. The build
+fails in `chrome/windows_services/elevated_tracing_service` with:
+
+```
+midl.exe output different from files in gen/chrome/windows_services/elevated_tracing_service,
+see C:\Users\<you>\AppData\Local\Temp\tmpXXXXXXXX
+To rebaseline:
+  copy /y C:\Users\<you>\AppData\Local\Temp\tmpXXXXXXXX\* ..\..\third_party\win_build_output\midl\chrome\windows_services\elevated_tracing_service\x64
+```
+
+There is **no rebaseline script in this repo** — you either follow the printed
+instruction or write a loop. Either way, apply one safety rule:
+
+> Accept the copy **only if the sole difference is the binary `.tlb` type
+> library.** A `.tlb` differing is an SDK version stamp. Any generated `.h`,
+> `.c`, or `_i.c` differing is a semantic change, and copying over it hides a
+> real problem.
+
+The loop shape, if you write one: build just the MIDL targets with `-k 0` so they
+all report, parse the `copy /y SRC DEST` lines out of the log, compare each file
+against its baseline, refuse the target if any non-`.tlb` file differs, copy the
+rest, and repeat until the targets build clean. It normally converges in two
+passes. Targets involved include
+`chrome/windows_services/elevated_tracing_service:tracing_service_idl_idl_action`,
+`chrome/elevation_service:elevation_service_idl_idl_action`, and the
+`chrome/updater/app/server/win:*_idl_action` family.
+
+This is not a patch problem and will happen on every clean sync.
 
 ---
 
 ## 7. Tests
 
-Four layers, cheapest first. Run them in this order.
+Four layers, cheapest first.
 
 **Contract tests** — patch text only, no build needed:
 
@@ -414,7 +557,7 @@ python -m pytest clawbrowser/test/integration/ -q \
 ```
 
 `CLAWBROWSER_BINARY` is mandatory on Windows — the auto-detection list in
-`run_integration_tests.py` only contains macOS `.app` paths.
+`run_integration_tests.py` has no Windows path.
 
 **Acceptance** — see step 9.
 
@@ -430,8 +573,8 @@ CLAWBROWSER_PROJECT_DIR=/path/to/repo \
 python -m pytest clawbrowser/test/integration/ -q ...
 ```
 
-Installed releases live under `%LOCALAPPDATA%\Clawbrowser\`. If the failing and
-erroring test sets are identical between old and new, you have introduced no
+Installed releases live under `%LOCALAPPDATA%\Clawbrowser\`. If pytest's `FAILED`
+and `ERROR` sets are identical between old and new, you have introduced no
 regression, and you can say so with evidence rather than confidence.
 
 **Copying a build breaks its sandbox.** A copied or staged tree loses the
@@ -452,7 +595,7 @@ copies you make by hand.
 
 ## 8. Fixing what the tests find
 
-Expect two categories, and keep them apart in your head.
+Expect two categories, and keep them in separate commits.
 
 **Real breaks from the new Chromium.** 151 enabled `-Wshorten-64-to-32` for
 Blink modules, so `ReserveInitialCapacity(fp.media_devices.size())` became a hard
@@ -466,15 +609,15 @@ platform assumptions: `base::SetPosixFilePermissions` does not exist on Windows,
 `FilePath::value()` is `std::wstring` there, and fixtures that pin
 `"platform": "macos"` will not match what the browser actually sends.
 
-These are worth fixing, but they are **not part of the base update**. Keep them
-in a separate commit so the version bump stays revertable on its own.
+These are worth fixing, but they are **not part of the base update**, so the
+version bump stays revertable on its own.
 
 Two judgement calls worth copying:
 
 - When a test fails because production code is wrong, fix the code. A test that
   caught `group\profile` instead of `group/profile` on Windows found a real bug
-  in profile-id round-tripping; the right fix was in `profile_manager.cc`, not
-  in the assertion.
+  in profile-id round-tripping; the right fix was in `profile_manager.cc`, not in
+  the assertion.
 - When a test asserts behaviour that no longer exists, delete the assertion and
   say where the behaviour went. Do not resurrect dead code to make it green.
 
@@ -544,16 +687,16 @@ any known-failing tests with evidence that they pre-date the update.
 
 ## 11. Traps the pipeline cannot see
 
-Collected in one place, because each of these cost real time:
+Collected in one place, because each of these has cost real time:
 
 | Trap | Symptom | Fix |
 | --- | --- | --- |
 | Service lacks the new version | Browser starts, everything green, no fingerprint | Check step 2 **before** doing the work |
 | Fuzzy patching | Hunks report success, code lands in the wrong function | `--fuzz=0`, resolve `.rej` by hand |
 | `gclient sync -D` | `clawbrowser/` and `api/` vanish from `chromium/src` | Expected; build scripts re-sync them |
-| MIDL baselines | Build fails in `elevated_tracing_service` | Re-run the rebaseline against your SDK |
+| MIDL baselines | Build fails in `elevated_tracing_service` | Rebaseline against your SDK (step 6.1) |
 | Copied build's ACL | `Sandbox cannot access executable`, `LAUNCH_FAILED` | `icacls ... *S-1-15-2-2:(OI)(CI)(RX) /T` |
 | Line-ending churn | Diff is thousands of lines for a small change | `--ignore-cr-at-eol` to detect, `sed -i 's/\r$//'` to fix |
 | Unit tests not built | "Tests pass" — but they were never compiled | `autoninja -C out/CBProd clawbrowser_unittests` |
 | Mock has no version gate | Integration suite green while the real service 500s | Acceptance in step 9 is the only cover |
-| `033` targets V8 | "All patches applied" while one silently was not | It lives in `src/v8`, a separate DEPS repo |
+| `033` targets V8 | Missed if you apply patches by hand or iterate only `chromium/src` | Reverse-apply check from the `src` root covers it |
