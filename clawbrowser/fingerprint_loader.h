@@ -9,6 +9,27 @@
 
 namespace clawbrowser {
 
+// Decides whether a surface should be spoofed, combining the fingerprint's
+// declared intent with the local command-line switches.
+//
+// surface_policy is the default: a profile asking for "override" gets spoofing
+// without any extra flag. The switches remain an explicit local override --
+// --enable-* forces a surface on, --disable-* wins over everything.
+//
+// This has to be resolved identically in the browser process and in every
+// child. Child processes receive only the raw switches (patch 004 propagates
+// them) and rebuild their own RuntimeFingerprint from the profile JSON, which
+// carries no resolved spoofing state -- so resolving once in the browser is not
+// enough. The renderer is where the canvas/WebGL patches actually run.
+inline bool ResolveSurfaceSpoofing(bool forced_on,
+                                   bool forced_off,
+                                   bool policy_requests_override) {
+  if (forced_off) {
+    return false;
+  }
+  return forced_on || policy_requests_override;
+}
+
 struct RuntimeProxyConfig;
 
 // Command-line switch for fingerprint file path.

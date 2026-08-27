@@ -1,27 +1,26 @@
-# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
 diff --git a/chrome/browser/ui/views/frame/browser_window_factory.cc b/chrome/browser/ui/views/frame/browser_window_factory.cc
-index 503f18d8ca..d4ecb51d8f 100644
 --- a/chrome/browser/ui/views/frame/browser_window_factory.cc
 +++ b/chrome/browser/ui/views/frame/browser_window_factory.cc
-@@ -10,6 +10,7 @@
- #include "build/build_config.h"
+@@ -8,6 +8,7 @@
  #include "chrome/browser/ui/browser_window_deleter.h"
+ #include "chrome/browser/ui/fullscreen/browser_window_fullscreen_controller.h"
  #include "chrome/browser/ui/views/frame/browser_native_widget_factory.h"
 +#include "chrome/browser/headless/headless_mode_util.h"
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/frame/browser_widget.h"
  #include "chrome/browser/ui/webui_browser/webui_browser.h"
-@@ -58,8 +59,11 @@ BrowserWindow::CreateBrowserWindow(Browser* browser,
- 
- #if BUILDFLAG(IS_MAC)
-   if (view->UsesImmersiveFullscreenMode()) {
--    // This needs to happen after BrowserWidget has been initialized. It creates
-+    // Headless runs do not need the Mac overlay widget and can crash when it
-+    // tries to bind a CG window ID without a usable window server session.
+@@ -65,7 +66,12 @@ BrowserWindow::CreateBrowserWindow(Browser* browser,
+           ->UsesImmersiveFullscreenMode()) {
+     // This needs to happen after BrowserWidget has been initialized. It creates
      // a new Widget that copies the theme from BrowserWidget.
 -    view->CreateMacOverlayView();
++    //
++    // Headless runs do not need the Mac overlay widget and can crash when it
++    // tries to bind a CG window ID without a usable window server session.
 +    if (!headless::IsHeadlessMode()) {
 +      view->CreateMacOverlayView();
 +    }
    }
  #endif  // IS_MAC
+ 

@@ -145,6 +145,8 @@ struct Battery {
 
   std::optional<bool> charging;
   std::optional<double> level;
+  std::optional<double> chargingTime;
+  std::optional<double> dischargingTime;
 
   static base::expected<Battery, std::string> FromDict(
       const base::DictValue& dict);

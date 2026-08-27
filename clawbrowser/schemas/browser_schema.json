@@ -478,6 +478,14 @@
         },
         "level": {
           "type": "number"
+        },
+        "chargingTime": {
+          "type": "number",
+          "nullable": true
+        },
+        "dischargingTime": {
+          "type": "number",
+          "nullable": true
         }
       }
     },

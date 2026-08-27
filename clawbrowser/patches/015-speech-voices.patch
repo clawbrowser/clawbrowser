@@ -1,4 +1,5 @@
-# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+diff --git a/third_party/blink/renderer/modules/speech/speech_synthesis.cc b/third_party/blink/renderer/modules/speech/speech_synthesis.cc
 --- a/third_party/blink/renderer/modules/speech/speech_synthesis.cc
 +++ b/third_party/blink/renderer/modules/speech/speech_synthesis.cc
 @@ -28,6 +28,7 @@
@@ -9,7 +10,7 @@
  #include "third_party/blink/public/common/thread_safe_browser_interface_broker_proxy.h"
  #include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
  #include "third_party/blink/public/platform/platform.h"
-@@ -47,6 +48,33 @@
+@@ -47,6 +48,34 @@
  
  namespace blink {
  
@@ -18,7 +19,8 @@
 +HeapVector<Member<SpeechSynthesisVoice>> BuildSpoofedVoiceList(
 +    const clawbrowser::RuntimeFingerprint& fp) {
 +  HeapVector<Member<SpeechSynthesisVoice>> voices;
-+  voices.ReserveInitialCapacity(fp.speech_voices.size());
++  voices.ReserveInitialCapacity(
++      static_cast<wtf_size_t>(fp.speech_voices.size()));
 +
 +  const String language =
 +      fp.language.empty() ? String() : String::FromUtf8(fp.language.front());
@@ -42,14 +44,18 @@
 +
  const char SpeechSynthesis::kSupplementName[] = "SpeechSynthesis";
  
- SpeechSynthesisBase* SpeechSynthesis::Create(LocalDOMWindow& window) {
-@@ -87,6 +115,14 @@
+ 
+@@ -84,6 +113,18 @@ SpeechSynthesis::SpeechSynthesis(LocalDOMWindow& window)
  
  void SpeechSynthesis::OnSetVoiceList(
      Vector<mojom::blink::SpeechSynthesisVoicePtr> mojom_voices) {
++  // Note the absence of an emptiness check: an "override" policy with an empty
++  // voice list means "expose no voices", not "fall back to the host's". The
++  // earlier `&& !fp->speech_voices.empty()` guard turned an empty list into a
++  // passthrough, leaking the real Windows voice registry (Microsoft David /
++  // Mark / Zira), which identifies the OS install rather than the profile.
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+      fp && fp->surface_policy.speech_voices == "override" &&
-+      !fp->speech_voices.empty()) {
++      fp && fp->surface_policy.speech_voices == "override") {
 +    voice_list_ = BuildSpoofedVoiceList(*fp);
 +    VoicesDidChange();
 +    return;
@@ -58,13 +64,15 @@
    voice_list_.clear();
    for (auto& mojom_voice : mojom_voices) {
      voice_list_.push_back(
-@@ -96,6 +131,15 @@
+@@ -93,6 +134,17 @@ void SpeechSynthesis::OnSetVoiceList(
  }
  
  const HeapVector<Member<SpeechSynthesisVoice>>& SpeechSynthesis::getVoices() {
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+      fp && fp->surface_policy.speech_voices == "override" &&
-+      !fp->speech_voices.empty()) {
++      fp && fp->surface_policy.speech_voices == "override") {
++    // Rebuilding when the list is empty is a no-op for an empty declaration,
++    // and must not reach the mojo path below, which would repopulate from the
++    // host.
 +    if (voice_list_.empty()) {
 +      voice_list_ = BuildSpoofedVoiceList(*fp);
 +    }

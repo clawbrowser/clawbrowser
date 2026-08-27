@@ -71,7 +71,10 @@ def extract(openapi_path: pathlib.Path, output_path: pathlib.Path) -> None:
     }
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w") as f:
+    # Match generate_browser_types.py: pin the encoding and force LF so the
+    # artifact is byte-identical across platforms. A bare open() writes CRLF on
+    # Windows, which makes check_generated_fresh.sh's cmp report a false STALE.
+    with output_path.open("w", encoding="utf-8", newline="\n") as f:
         json.dump(artifact, f, indent=2)
         f.write("\n")
 

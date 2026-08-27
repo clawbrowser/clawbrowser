@@ -1,9 +1,8 @@
-# Pinned against Chromium revision 25a94a5662bc
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
 diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -1558,11 +1558,16 @@ if (!is_android) {
-       output_dir = root_out_dir
+@@ -1564,9 +1564,14 @@ if (!is_android) {
        mark_as_data = true
      }
  
@@ -17,8 +16,5 @@ diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
 -      deps = [ ":resource_allowlist" ]
 +      deps += [ ":resource_allowlist" ]
      }
- 
-     if (is_chrome_branded && !is_mac) {
-       public_deps = [ ":preinstalled_apps" ]
-     }
    }
+ }

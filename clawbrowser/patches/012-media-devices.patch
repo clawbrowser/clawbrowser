@@ -1,4 +1,4 @@
-# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
 --- a/third_party/blink/renderer/modules/mediastream/media_devices.cc
 +++ b/third_party/blink/renderer/modules/mediastream/media_devices.cc
 @@ -5,6 +5,7 @@
@@ -17,7 +17,7 @@
  #include "media/base/media_permission.h"
  #include "mojo/public/cpp/bindings/remote.h"
  #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
-@@ -91,6 +93,31 @@
+@@ -91,6 +93,32 @@
    blink::WebRtcLogMessage("MD::" + message);
  }
  
@@ -36,7 +36,8 @@
 +MediaDeviceInfoVector BuildSpoofedMediaDevices(
 +    const clawbrowser::RuntimeFingerprint& fp) {
 +  MediaDeviceInfoVector devices;
-+  devices.ReserveInitialCapacity(fp.media_devices.size());
++  devices.ReserveInitialCapacity(
++      static_cast<wtf_size_t>(fp.media_devices.size()));
 +  for (const auto& device : fp.media_devices) {
 +    devices.push_back(MakeGarbageCollected<MediaDeviceInfo>(
 +        String::FromUtf8(device.device_id.value_or(std::string())),
@@ -49,7 +50,7 @@
  void LogDevicesEnumerated(
      ScriptPromiseResolverWithTracker<EnumerateDevicesResult,
                                       IDLSequence<MediaDeviceInfo>>*
-@@ -525,6 +552,15 @@
+@@ -525,6 +553,15 @@
        kEnumerateDevicesTimeout);
    const auto promise = result_tracker->Promise();
  

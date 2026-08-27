@@ -393,6 +393,10 @@ base::expected<Battery, std::string> Battery::FromDict(
 
   if (std::optional<double> parsed = FindOptionalDouble(dict, "level")) value.level = *parsed;
 
+  if (std::optional<double> parsed = FindOptionalDouble(dict, "chargingTime")) value.chargingTime = *parsed;
+
+  if (std::optional<double> parsed = FindOptionalDouble(dict, "dischargingTime")) value.dischargingTime = *parsed;
+
   return base::ok(std::move(value));
 }
 
@@ -407,6 +411,8 @@ base::DictValue Battery::ToDict() const {
   base::DictValue dict;
   if (charging.has_value()) dict.Set("charging", *charging);
   if (level.has_value()) dict.Set("level", *level);
+  if (chargingTime.has_value()) dict.Set("chargingTime", *chargingTime);
+  if (dischargingTime.has_value()) dict.Set("dischargingTime", *dischargingTime);
   return dict;
 }
 

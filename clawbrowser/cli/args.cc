@@ -12,6 +12,8 @@ ClawArgs::ClawArgs()
       verify_automation_(false),
       canvas_spoofing_enabled_(false),
       webgl_spoofing_enabled_(false),
+      canvas_spoofing_suppressed_(false),
+      webgl_spoofing_suppressed_(false),
       has_country_override_(false),
       has_city_override_(false),
       has_connection_type_override_(false),
@@ -41,12 +43,16 @@ ClawArgs ClawArgs::Parse(const base::CommandLine& command_line) {
   args.verbose_ = command_line.HasSwitch("verbose");
   args.skip_verify_ = command_line.HasSwitch("skip-verify");
   args.verify_automation_ = command_line.HasSwitch("verify-automation");
+  args.canvas_spoofing_suppressed_ =
+      command_line.HasSwitch(kDisableCanvasSpoofingSwitch);
+  args.webgl_spoofing_suppressed_ =
+      command_line.HasSwitch(kDisableWebGLSpoofingSwitch);
   args.canvas_spoofing_enabled_ =
       command_line.HasSwitch(kEnableCanvasSpoofingSwitch) &&
-      !command_line.HasSwitch(kDisableCanvasSpoofingSwitch);
+      !args.canvas_spoofing_suppressed_;
   args.webgl_spoofing_enabled_ =
       command_line.HasSwitch(kEnableWebGLSpoofingSwitch) &&
-      !command_line.HasSwitch(kDisableWebGLSpoofingSwitch);
+      !args.webgl_spoofing_suppressed_;
   args.has_country_override_ = command_line.HasSwitch("country");
   args.has_city_override_ = command_line.HasSwitch("city");
   args.has_connection_type_override_ =

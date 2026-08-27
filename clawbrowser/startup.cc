@@ -3,6 +3,7 @@
 #include <memory>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "base/environment.h"
 #include "base/files/file_path.h"
@@ -10,6 +11,8 @@
 #include "base/json/json_writer.h"
 #include "base/no_destructor.h"
 #include "base/run_loop.h"
+#include "base/strings/string_split.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "base/values.h"
@@ -19,6 +22,7 @@
 #include "clawbrowser/defaults.h"
 #include "clawbrowser/cli/profile_manager.h"
 #include "clawbrowser/fingerprint_accessor.h"
+#include "clawbrowser/fingerprint_coherence.h"
 #include "clawbrowser/fingerprint_loader.h"
 #include "clawbrowser/logging.h"
 #include "clawbrowser/paths.h"
@@ -382,11 +386,29 @@ std::string HeaderOrValue(const RuntimeFingerprint& fp,
   return fallback;
 }
 
+// Chromium's --accept-lang switch feeds the intl.accept_languages pref, which
+// net::HttpUtil::ExpandLanguageList() parses as bare language codes; it CHECKs
+// that no entry contains ';' or whitespace. Backend fingerprints supply a full
+// Accept-Language header value, which normally carries q-values such as
+// "en-US,en;q=0.9". Strip the parameters so only the codes are handed over --
+// Chromium regenerates the q-values itself when building the actual header.
+std::string StripLanguageQualityValues(std::string_view header_value) {
+  std::vector<std::string> codes;
+  for (std::string_view entry : base::SplitStringPiece(
+           header_value, ",", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY)) {
+    std::string_view code = entry.substr(0, entry.find(';'));
+    code = base::TrimWhitespaceASCII(code, base::TRIM_ALL);
+    if (!code.empty())
+      codes.emplace_back(code);
+  }
+  return base::JoinString(codes, ",");
+}
+
 std::string AcceptLanguageFromFingerprint(const RuntimeFingerprint& fp) {
   for (const auto& [name, value] : fp.headers) {
     if (base::EqualsCaseInsensitiveASCII(name, "Accept-Language") &&
         !value.empty()) {
-      return value;
+      return StripLanguageQualityValues(value);
     }
   }
 
@@ -638,8 +660,24 @@ base::expected<StartupResult, std::string> RunStartup(
     return base::ok(FallbackToVanillaBrowser(
         command_line, &profile_manager, /*append_auth_page=*/false));
   }
-  FingerprintAccessor::SetSpoofingPolicy(args.canvas_spoofing_enabled(),
-                                         args.webgl_spoofing_enabled());
+  // The fingerprint's surface_policy is the backend's statement of which
+  // surfaces this profile wants spoofed, so it supplies the default. Requiring
+  // an extra --enable-*-spoofing switch on top of it meant a profile could ask
+  // for canvas/WebGL spoofing and silently not get it -- WebGL in particular
+  // would keep handing out the host's real adapter while the profile carried a
+  // different renderer string.
+  //
+  // The switches remain an explicit local override in both directions:
+  // --enable-* forces spoofing on for a profile that did not request it, and
+  // --disable-* wins over everything.
+  const RuntimeFingerprint* loaded = FingerprintAccessor::Get();
+  FingerprintAccessor::SetSpoofingPolicy(
+      ResolveSurfaceSpoofing(
+          args.canvas_spoofing_enabled(), args.canvas_spoofing_suppressed(),
+          loaded && loaded->surface_policy.canvas == "override"),
+      ResolveSurfaceSpoofing(
+          args.webgl_spoofing_enabled(), args.webgl_spoofing_suppressed(),
+          loaded && loaded->surface_policy.webgl == "override"));
 
   auto dev_proxy_result = ApplyDevProxyOverride();
   if (!dev_proxy_result.has_value()) {
@@ -713,6 +751,36 @@ base::expected<StartupResult, std::string> RunStartup(
     // --accept-lang sets the Accept-Language HTTP header
     command_line->AppendSwitchASCII("accept-lang",
                                     AcceptLanguageFromFingerprint(*fp));
+  }
+
+  // Keep the real OS window inside the screen we claim to be on.
+  // window.outerWidth/outerHeight are reported from the actual window and are
+  // not spoofed, so a window wider than the advertised screen.availWidth is a
+  // contradiction any detector can check in one line. Sizing the window from
+  // the spoofed available area removes the mismatch at the source instead of
+  // adding another lie on top of it.
+  //
+  // An explicit --window-size from the caller always wins; that is a
+  // deliberate, controlled override.
+  if (fp && !command_line->HasSwitch("window-size")) {
+    const int avail_width =
+        fp->screen.avail_width > 0 ? fp->screen.avail_width : fp->screen.width;
+    const int avail_height = fp->screen.avail_height > 0
+                                 ? fp->screen.avail_height
+                                 : fp->screen.height;
+    const WindowSize window =
+        DeriveWindowSize(avail_width, avail_height,
+                         static_cast<uint64_t>(fp->canvas_seed));
+    if (window.width > 0 && window.height > 0) {
+      command_line->AppendSwitchASCII(
+          "window-size", base::NumberToString(window.width) + "," +
+                             base::NumberToString(window.height));
+      // Anchored at the origin so screenX/screenY + outer size stay within the
+      // spoofed screen bounds.
+      if (!command_line->HasSwitch("window-position")) {
+        command_line->AppendSwitchASCII("window-position", "0,0");
+      }
+    }
   }
 
   // Navigate to verify page on startup (unless --skip-verify)

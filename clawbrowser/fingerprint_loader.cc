@@ -123,6 +123,8 @@ RuntimeFingerprint ToRuntimeFingerprint(const Fingerprint& fingerprint) {
     RuntimeBattery runtime_battery;
     runtime_battery.charging = fingerprint.battery->charging;
     runtime_battery.level = fingerprint.battery->level;
+    runtime_battery.charging_time = fingerprint.battery->chargingTime;
+    runtime_battery.discharging_time = fingerprint.battery->dischargingTime;
     runtime.battery = std::move(runtime_battery);
   }
 
@@ -185,11 +187,21 @@ ProxyConfig ToChildProxyConfig(const ProxyConfig& proxy) {
 
 void ApplySpoofingPolicyFromCommandLine(
     const base::CommandLine& command_line) {
+  // Runs after the fingerprint is loaded, so surface_policy is readable and can
+  // supply the default. Reading it here is what makes the policy reach the
+  // renderer: child processes only ever see the raw switches, so resolving this
+  // in the browser process alone left canvas/WebGL spoofing off in exactly the
+  // process where the patches run.
+  const RuntimeFingerprint* fp = FingerprintAccessor::Get();
   FingerprintAccessor::SetSpoofingPolicy(
-      command_line.HasSwitch(kEnableCanvasSpoofingSwitch) &&
-          !command_line.HasSwitch(kDisableCanvasSpoofingSwitch),
-      command_line.HasSwitch(kEnableWebGLSpoofingSwitch) &&
-          !command_line.HasSwitch(kDisableWebGLSpoofingSwitch));
+      ResolveSurfaceSpoofing(
+          command_line.HasSwitch(kEnableCanvasSpoofingSwitch),
+          command_line.HasSwitch(kDisableCanvasSpoofingSwitch),
+          fp && fp->surface_policy.canvas == "override"),
+      ResolveSurfaceSpoofing(
+          command_line.HasSwitch(kEnableWebGLSpoofingSwitch),
+          command_line.HasSwitch(kDisableWebGLSpoofingSwitch),
+          fp && fp->surface_policy.webgl == "override"));
 }
 
 base::expected<void, std::string> LoadFingerprintContents(

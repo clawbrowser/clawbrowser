@@ -1,6 +1,5 @@
-# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
 diff --git a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
-index 102362021e..c751ad0a39 100644
 --- a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
 +++ b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
 @@ -33,9 +33,13 @@
@@ -17,8 +16,7 @@ index 102362021e..c751ad0a39 100644
  #include <optional>
  #include <string_view>
  #include <utility>
-@@ -86,7 +90,8 @@
- #include "third_party/blink/renderer/core/html/canvas/canvas_font_cache.h"
+@@ -82,6 +86,7 @@
  #include "third_party/blink/renderer/core/html/canvas/canvas_performance_monitor.h"
  #include "third_party/blink/renderer/core/html/canvas/canvas_rendering_context.h"
  #include "third_party/blink/renderer/core/html/canvas/canvas_rendering_context_host.h"
@@ -26,7 +24,7 @@ index 102362021e..c751ad0a39 100644
  #include "third_party/blink/renderer/core/layout/geometry/physical_rect.h"
  #include "third_party/blink/renderer/core/layout/layout_replaced.h"
  #include "third_party/blink/renderer/core/layout/layout_theme.h"
-@@ -782,8 +786,18 @@ ImageData* CanvasRenderingContext2D::getImageDataInternal(
+@@ -861,8 +866,18 @@ ImageData* CanvasRenderingContext2D::getImageDataInternal(
        CreationAttributes().will_read_frequently ==
            CanvasContextCreationAttributesCore::WillReadFrequently::kTrue);
    TRACE_EVENT0("blink", "GetImageData");
@@ -45,9 +43,8 @@ index 102362021e..c751ad0a39 100644
 +  return image_data;
  }
  
- DOMMatrix* CanvasRenderingContext2D::drawElement(
+ void CanvasRenderingContext2D::EnableAccelerationIfPossible() {
 diff --git a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc b/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
-index c76f6553e1..e2cf776cf0 100644
 --- a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
 +++ b/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
 @@ -32,8 +32,12 @@
@@ -63,7 +60,7 @@ index c76f6553e1..e2cf776cf0 100644
  #include "third_party/blink/renderer/platform/image-encoders/image_encoder_utils.h"
  #include "third_party/blink/renderer/platform/wtf/text/base64.h"
  #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
-@@ -96,5 +100,15 @@ ImageDataBuffer::ImageDataBuffer(scoped_refptr<StaticBitmapImage> image) {
+@@ -96,6 +100,16 @@ ImageDataBuffer::ImageDataBuffer(scoped_refptr<StaticBitmapImage> image) {
        return;
      MSAN_CHECK_MEM_IS_INITIALIZED(pixmap_.addr(), pixmap_.computeByteSize());
    }

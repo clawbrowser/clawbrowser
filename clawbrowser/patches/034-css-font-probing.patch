@@ -1,0 +1,39 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+diff --git a/third_party/blink/renderer/core/css/css_font_selector.cc b/third_party/blink/renderer/core/css/css_font_selector.cc
+--- a/third_party/blink/renderer/core/css/css_font_selector.cc
++++ b/third_party/blink/renderer/core/css/css_font_selector.cc
+@@ -26,6 +26,8 @@
+ 
+ #include "third_party/blink/renderer/core/css/css_font_selector.h"
+ 
++#include "clawbrowser/fingerprint_coherence.h"
++
+ #include "build/build_config.h"
+ #include "third_party/blink/renderer/core/animation/interpolable_color.h"
+ #include "third_party/blink/renderer/core/css/css_segmented_font_face.h"
+@@ -243,6 +245,25 @@ const FontData* CSSFontSelector::GetFontData(
+     }
+   }
+ 
++  // Local font probing defense.
++  //
++  // Filtering queryLocalFonts() only closes the enumeration API. CSS font
++  // matching still resolves any family installed on the host, so a page can
++  // detect fonts without any permission prompt by rendering text in a
++  // candidate family and measuring it against a fallback -- the classic
++  // width-comparison probe, which also reaches through canvas measureText()
++  // and document.fonts.check().
++  //
++  // Refusing to resolve non-allowlisted local families makes every such probe
++  // fall through to the next family in the stack, so unavailable fonts all
++  // measure identically instead of revealing themselves. Web fonts are matched
++  // above and are unaffected; generic families must keep resolving or there is
++  // no fallback left to render with.
++  if (!font_family.FamilyIsGeneric() &&
++      clawbrowser::IsLocalFontBlocked(family_name.Utf8())) {
++    return nullptr;
++  }
++
+   // Try to return the correct font based off our settings, in case we were
+   // handed the generic font family name.
+   AtomicString settings_family_name =

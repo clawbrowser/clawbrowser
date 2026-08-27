@@ -112,6 +112,16 @@ TEST(ProfileEnvelopeTest, OutdatedSchemaVersionWarns) {
     "request": {"platform": "macos", "browser": "clawbrowser", "country": "US"},
     "response": {
       "fingerprint": {
+        "browser_family": "chrome",
+        "browser_version": "120.0.0.0",
+        "engine": "blink",
+        "os": "macos",
+        "os_version": "10.15.7",
+        "architecture": "arm64",
+        "device_class": "desktop",
+        "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+        "headers": {"Accept-Language": "en-US"},
+        "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
         "user_agent": "test", "platform": "test",
         "screen": {"width": 1, "height": 1, "avail_width": 1, "avail_height": 1, "color_depth": 24, "pixel_ratio": 1.0},
         "hardware": {"concurrency": 1, "memory": 1},
@@ -131,6 +141,16 @@ TEST(ProfileEnvelopeTest, MissingSchemaVersionFallsBackToOutdated) {
     "created_at": "2026-01-01T00:00:00Z",
     "response": {
       "fingerprint": {
+        "browser_family": "chrome",
+        "browser_version": "120.0.0.0",
+        "engine": "blink",
+        "os": "macos",
+        "os_version": "10.15.7",
+        "architecture": "arm64",
+        "device_class": "desktop",
+        "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+        "headers": {"Accept-Language": "en-US"},
+        "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
         "user_agent": "missing-schema-ua", "platform": "test",
         "screen": {"width": 1, "height": 1, "avail_width": 1, "avail_height": 1, "color_depth": 24, "pixel_ratio": 1.0},
         "hardware": {"concurrency": 1, "memory": 1},

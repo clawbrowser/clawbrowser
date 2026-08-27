@@ -72,6 +72,11 @@ struct COMPONENT_EXPORT(CLAWBROWSER_RUNTIME) RuntimeBattery {
 
   std::optional<bool> charging;
   std::optional<double> level;
+  // Seconds until full / until empty. Absent means "derive a value consistent
+  // with charging+level" -- see clawbrowser/fingerprint_coherence.h. Reporting
+  // the host's real times while spoofing charging+level is self-contradictory.
+  std::optional<double> charging_time;
+  std::optional<double> discharging_time;
 };
 
 struct COMPONENT_EXPORT(CLAWBROWSER_RUNTIME) RuntimeClientHintBrand {

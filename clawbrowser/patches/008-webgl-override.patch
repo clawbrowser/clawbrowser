@@ -1,27 +1,26 @@
-# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
 diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
-index a35f78dde3..3f338fb1d5 100644
 --- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
 +++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
-@@ -25,6 +25,7 @@
+@@ -27,6 +27,7 @@
  
- #include "third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h"
+ #include <inttypes.h>
  
 +#include <algorithm>
  #include <memory>
  #include <utility>
  
-@@ -41,6 +42,9 @@
- #include "base/task/single_thread_task_runner.h"
+@@ -45,6 +46,9 @@
+ #include "base/trace_event/memory_dump_manager.h"
  #include "base/trace_event/trace_event.h"
  #include "build/build_config.h"
 +#include "base/containers/span.h"
 +#include "clawbrowser/fingerprint_accessor.h"
 +#include "clawbrowser/noise/prng.h"
+ #include "components/viz/common/gpu/raster_context_provider.h"
+ #include "components/viz/common/resources/shared_image_format_utils.h"
  #include "device/vr/buildflags/buildflags.h"
- #include "device/vr/public/mojom/vr_service.mojom-blink-forward.h"
- #include "gpu/GLES2/gl2extchromium.h"
-@@ -3903,6 +3907,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+@@ -4095,6 +4099,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
      case GL_RENDERBUFFER_BINDING:
        return WebGLAny(script_state, renderbuffer_binding_.Get());
      case GL_RENDERER:
@@ -33,7 +32,7 @@ index a35f78dde3..3f338fb1d5 100644
        return WebGLAny(script_state, String("WebKit WebGL"));
      case GL_SAMPLE_ALPHA_TO_COVERAGE:
        return GetBooleanParameter(script_state, pname);
-@@ -3981,6 +3989,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+@@ -4173,6 +4182,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
      case GC3D_UNPACK_COLORSPACE_CONVERSION_WEBGL:
        return WebGLAny(script_state, unpack_colorspace_conversion_);
      case GL_VENDOR:
@@ -45,7 +44,7 @@ index a35f78dde3..3f338fb1d5 100644
        return WebGLAny(script_state, String("WebKit"));
      case GL_VERSION:
        return WebGLAny(
-@@ -3999,6 +4011,12 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+@@ -4191,6 +4205,12 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
        return ScriptValue::CreateNull(script_state->GetIsolate());
      case WebGLDebugRendererInfo::kUnmaskedRendererWebgl:
        if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
@@ -58,7 +57,7 @@ index a35f78dde3..3f338fb1d5 100644
          return WebGLAny(script_state,
                          String(ContextGL()->GetString(GL_RENDERER)));
        }
-@@ -4008,6 +4025,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+@@ -4200,6 +4220,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
        return ScriptValue::CreateNull(script_state->GetIsolate());
      case WebGLDebugRendererInfo::kUnmaskedVendorWebgl:
        if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
@@ -70,7 +69,7 @@ index a35f78dde3..3f338fb1d5 100644
          return WebGLAny(script_state,
                          String(ContextGL()->GetString(GL_VENDOR)));
        }
-@@ -5155,6 +5176,17 @@ void WebGLRenderingContextBase::ReadPixelsHelper(GLint x,
+@@ -5347,6 +5372,17 @@ void WebGLRenderingContextBase::ReadPixelsHelper(GLint x,
      }
      ContextGL()->ReadPixels(x, y, width, height, format, type, data);
    }

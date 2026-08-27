@@ -1,5 +1,4 @@
 diff --git a/chrome/app/chromium_strings.grd b/chrome/app/chromium_strings.grd
-index 88092d48fd..60840963ac 100644
 --- a/chrome/app/chromium_strings.grd
 +++ b/chrome/app/chromium_strings.grd
 @@ -294,10 +294,10 @@ If you update this file, be sure also to update google_chrome_strings.grd. -->
@@ -28,7 +27,7 @@ index 88092d48fd..60840963ac 100644
          </message>
        </if>
        <if expr="is_macosx or is_linux">
-@@ -360,7 +360,7 @@ If you update this file, be sure also to update google_chrome_strings.grd. -->
+@@ -355,7 +355,7 @@ If you update this file, be sure also to update google_chrome_strings.grd. -->
        </if>
        <if expr="not is_macosx and not is_chromeos">
          <message name="IDS_TASK_MANAGER_TITLE" desc="The title of the Task Manager window">
@@ -37,7 +36,7 @@ index 88092d48fd..60840963ac 100644
          </message>
        </if>
        <message name="IDS_TASK_MANAGER_SEARCH_PLACEHOLDER" desc="The placeholder text for the Search bar in the Task Manager window">
-@@ -431,7 +431,7 @@
+@@ -443,7 +443,7 @@ New bookmarks can’t be saved in your account until you delete some. If you sig
            </then>
            <else>
              <message name="IDS_BROWSER_WINDOW_TITLE_FORMAT" desc="The format for titles displayed in tabs and popup windows">
@@ -46,7 +45,7 @@ index 88092d48fd..60840963ac 100644
              </message>
            </else>
          </if>
-@@ -445,7 +445,7 @@
+@@ -457,7 +457,7 @@ New bookmarks can’t be saved in your account until you delete some. If you sig
        <if expr="not is_chromeos and not is_macosx">
          <!-- Captive Portal Browser Window Title Format -->
          <message name="IDS_CAPTIVE_PORTAL_BROWSER_WINDOW_TITLE_FORMAT" desc="The format for titles displayed in captive portal popup windows">
@@ -55,7 +54,7 @@ index 88092d48fd..60840963ac 100644
          </message>
        </if>
        <if expr="is_chromeos">
-@@ -470,7 +470,7 @@
+@@ -482,7 +482,7 @@ New bookmarks can’t be saved in your account until you delete some. If you sig
          </then>
          <else>
            <message name="IDS_ACCESSIBLE_BROWSER_WINDOW_TITLE_FORMAT" desc="The format for the accessible name of a tabbed browser window">
@@ -64,7 +63,7 @@ index 88092d48fd..60840963ac 100644
            </message>
          </else>
        </if>
-@@ -582,43 +582,43 @@
+@@ -594,21 +594,21 @@ New bookmarks can’t be saved in your account until you delete some. If you sig
        <!-- Uninstall messages -->
        <if expr="is_win">
          <message name="IDS_UNINSTALL_CLOSE_APP" desc="Message to user when uninstall detects other app instance running">
@@ -80,6 +79,7 @@ index 88092d48fd..60840963ac 100644
 +          Uninstall Clawbrowser
          </message>
        </if>
+       <!-- Default Browser messages -->
        <message name="IDS_FR_CUSTOMIZE_DEFAULT_BROWSER" desc="Default browser checkbox label">
 -        Make Chromium the default browser
 +        Make Clawbrowser the default browser
@@ -88,6 +88,10 @@ index 88092d48fd..60840963ac 100644
 -        Chromium is no longer your default browser. Make Chromium the default browser?
 +        Clawbrowser is no longer your default browser. Make Clawbrowser the default browser?
        </message>
+       <if expr="is_win">
+         <message name="IDS_DEFAULT_BROWSER_VISUAL_GUIDED_SETTER_PAGE_TITLE" desc="Title of the default browser visual guided setter page.">
+@@ -629,26 +629,26 @@ New bookmarks can’t be saved in your account until you delete some. If you sig
+       </if>
        <if expr="use_titlecase">
          <message name="IDS_STATUS_TRAY_KEEP_CHROME_RUNNING_IN_BACKGROUND" desc="In Title Case: The checkbox in the status tray context menu that controls whether chrome keeps running in the background after the last window is closed">
 -          Let Chromium Run in the Background
@@ -118,7 +122,7 @@ index 88092d48fd..60840963ac 100644
  
  <ph name="USER_DATA_DIRECTORY">$1<ex>C:\Documents and Settings\devint\Local Settings\Application Data\Google\Chrome</ex></ph>
        </message>
-@@ -690,37 +690,37 @@ Chromium is unable to recover your settings.
+@@ -720,37 +720,37 @@ Chromium is unable to recover your settings.
            Chromium is trying to replace existing passwords. Type your Windows password to allow this.
          </message>
          <message name="IDS_INSTALL_HIGHER_VERSION" desc="Error displayed when higher version already exists.">
@@ -165,7 +169,7 @@ index 88092d48fd..60840963ac 100644
          </message>
          <message name="IDS_ELEVATION_SERVICE_DESCRIPTION"
                   desc="The description of the Windows elevation service. Displayed in the Windows Services management console.">
-@@ -751,10 +751,10 @@ Chromium is unable to recover your settings.
+@@ -781,10 +781,10 @@ Chromium is unable to recover your settings.
            Uninstall
          </message>
          <message name="IDS_PIN_INFOBAR_TEXT" desc="Text to show in an infobar when Chromium is not pinned to the taskbar.">
@@ -179,7 +183,6 @@ index 88092d48fd..60840963ac 100644
        </if>
        <if expr="is_macosx">
 diff --git a/chrome/install_static/chromium_install_modes.h b/chrome/install_static/chromium_install_modes.h
-index ee62888f89..a8b3561290 100644
 --- a/chrome/install_static/chromium_install_modes.h
 +++ b/chrome/install_static/chromium_install_modes.h
 @@ -21,7 +21,7 @@ inline constexpr wchar_t kCompanyPathName[] = L"";
@@ -191,7 +194,7 @@ index ee62888f89..a8b3561290 100644
  
  // The brand-specific safe browsing client name.
  inline constexpr char kSafeBrowsingName[] = "chromium";
-@@ -45,15 +45,15 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
+@@ -45,15 +45,21 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
          .logo_suffix = L"",  // No logo suffix for the primary install mode.
          .app_guid =
              L"",  // Empty app_guid since no integration with Google Update.
@@ -206,7 +209,13 @@ index ee62888f89..a8b3561290 100644
 -        .direct_launch_url_scheme = "chromium",
 -        .pdf_prog_id_prefix = L"ChromiumPDF",  // PDF ProgID prefix.
 +            L"Clawbrowser HTML Document",  // Browser ProgID description.
-+        .direct_launch_url_scheme = "clawbrowser",
++        // Deliberately empty. clawbrowser:// is our WebUI scheme (auth,
++        // verify). Reusing it as the direct-launch scheme makes
++        // StripGoogleChromeScheme() strip the prefix off startup URLs, so
++        // clawbrowser://verify/ arrives as verify/, gets fixed up to
++        // http://verify/, and is validated as untrusted web content.
++        // Empty disables direct launch, which nothing here uses.
++        .direct_launch_url_scheme = "",
 +        .pdf_prog_id_prefix = L"ClawPDF",  // PDF ProgID prefix.
          .pdf_prog_id_description =
 -            L"Chromium PDF Document",  // PDF ProgID description.

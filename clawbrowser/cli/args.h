@@ -37,8 +37,16 @@ class ClawArgs {
   bool json_output() const { return json_output_; }
   bool skip_verify() const { return skip_verify_; }
   bool verify_automation() const { return verify_automation_; }
+  // Whether --enable-*-spoofing was passed. This is a *forcing* switch; the
+  // fingerprint's surface_policy supplies the default when it is absent.
   bool canvas_spoofing_enabled() const { return canvas_spoofing_enabled_; }
   bool webgl_spoofing_enabled() const { return webgl_spoofing_enabled_; }
+
+  // Whether --disable-*-spoofing was passed. Kept separate from the enable
+  // switches so startup can tell "not requested" from "explicitly refused" --
+  // only the latter should override what the fingerprint asks for.
+  bool canvas_spoofing_suppressed() const { return canvas_spoofing_suppressed_; }
+  bool webgl_spoofing_suppressed() const { return webgl_spoofing_suppressed_; }
   bool has_country_override() const { return has_country_override_; }
   bool has_city_override() const { return has_city_override_; }
   bool has_connection_type_override() const {
@@ -72,6 +80,8 @@ class ClawArgs {
   bool verify_automation_;
   bool canvas_spoofing_enabled_;
   bool webgl_spoofing_enabled_;
+  bool canvas_spoofing_suppressed_;
+  bool webgl_spoofing_suppressed_;
   bool has_country_override_;
   bool has_city_override_;
   bool has_connection_type_override_;

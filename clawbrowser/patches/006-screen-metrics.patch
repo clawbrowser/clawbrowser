@@ -1,4 +1,31 @@
-# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+diff --git a/third_party/blink/renderer/core/frame/local_dom_window.cc b/third_party/blink/renderer/core/frame/local_dom_window.cc
+--- a/third_party/blink/renderer/core/frame/local_dom_window.cc
++++ b/third_party/blink/renderer/core/frame/local_dom_window.cc
+@@ -36,6 +36,7 @@
+ #include "base/trace_event/trace_id_helper.h"
+ #include "base/trace_event/typed_macros.h"
+ #include "build/build_config.h"
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "cc/input/snap_selection_strategy.h"
+ #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+ #include "net/storage_access_api/status.h"
+@@ -1907,6 +1908,14 @@ CSSStyleDeclaration* LocalDOMWindow::getComputedStyle(
+ }
+ 
+ double LocalDOMWindow::devicePixelRatio() const {
++  // Guarded on > 0 so a fingerprint missing this field cannot report a device
++  // pixel ratio of 0 here while CSS `resolution` falls back to the real value
++  // (media_values.cc) -- the two must agree or they become a tell in
++  // themselves.
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->screen.pixel_ratio > 0.0) {
++    return fp->screen.pixel_ratio;
++  }
+   if (!GetFrame()) {
+     return 0.0;
+   }
+diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink/renderer/core/frame/screen.cc
 --- a/third_party/blink/renderer/core/frame/screen.cc
 +++ b/third_party/blink/renderer/core/frame/screen.cc
 @@ -29,6 +29,7 @@
@@ -9,7 +36,7 @@
  #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
  #include "third_party/blink/renderer/core/event_target_names.h"
  #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-@@ -79,12 +80,16 @@
+@@ -79,12 +80,16 @@ bool Screen::AreWebExposedScreenPropertiesEqual(
  }
  
  int Screen::height() const {
@@ -26,7 +53,7 @@
    if (!DomWindow())
      return 0;
    return GetRect(/*available=*/false).width();
-@@ -97,6 +102,8 @@
+@@ -97,6 +102,8 @@ unsigned Screen::colorDepth() const {
    // https://drafts.csswg.org/cssom-view/#dom-screen-colordepth
    unsigned unknown_color_depth = 24u;
  
@@ -35,7 +62,7 @@
    if (!DomWindow()) {
      return unknown_color_depth;
    }
-@@ -122,12 +129,16 @@
+@@ -122,12 +129,16 @@ int Screen::availTop() const {
  }
  
  int Screen::availHeight() const {
@@ -52,22 +79,3 @@
    if (!DomWindow())
      return 0;
    return GetRect(/*available=*/true).width();
---- a/third_party/blink/renderer/core/frame/local_dom_window.cc
-+++ b/third_party/blink/renderer/core/frame/local_dom_window.cc
-@@ -36,6 +36,7 @@
- #include "base/trace_event/trace_id_helper.h"
- #include "base/trace_event/typed_macros.h"
- #include "build/build_config.h"
-+#include "clawbrowser/fingerprint_accessor.h"
- #include "cc/input/snap_selection_strategy.h"
- #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
- #include "net/storage_access_api/status.h"
-@@ -1799,6 +1800,8 @@
- }
- 
- double LocalDOMWindow::devicePixelRatio() const {
-+  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
-+    return fp->screen.pixel_ratio;
-   if (!GetFrame())
-     return 0.0;
- 

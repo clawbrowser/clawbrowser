@@ -109,6 +109,27 @@ TEST(ArgsTest, DisableSpoofingFlagsWinOverEnableFlags) {
   EXPECT_FALSE(args.webgl_spoofing_enabled());
 }
 
+TEST(ArgsTest, SpoofingSuppressionIsReportedSeparately) {
+  // "not requested" and "explicitly refused" must stay distinguishable: the
+  // fingerprint's surface_policy supplies the default for the former, while
+  // the latter has to override it.
+  base::CommandLine none(base::CommandLine::NO_PROGRAM);
+  ClawArgs unset = ClawArgs::Parse(none);
+  EXPECT_FALSE(unset.canvas_spoofing_enabled());
+  EXPECT_FALSE(unset.canvas_spoofing_suppressed());
+  EXPECT_FALSE(unset.webgl_spoofing_enabled());
+  EXPECT_FALSE(unset.webgl_spoofing_suppressed());
+
+  base::CommandLine off(base::CommandLine::NO_PROGRAM);
+  off.AppendSwitch(kDisableCanvasSpoofingSwitch);
+  off.AppendSwitch(kDisableWebGLSpoofingSwitch);
+  ClawArgs refused = ClawArgs::Parse(off);
+  EXPECT_FALSE(refused.canvas_spoofing_enabled());
+  EXPECT_TRUE(refused.canvas_spoofing_suppressed());
+  EXPECT_FALSE(refused.webgl_spoofing_enabled());
+  EXPECT_TRUE(refused.webgl_spoofing_suppressed());
+}
+
 TEST(ArgsTest, ParseLocationOverrides) {
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
   cmd.AppendSwitchASCII("country", "DE");

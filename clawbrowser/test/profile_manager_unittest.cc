@@ -1,10 +1,12 @@
 #include "clawbrowser/cli/profile_manager.h"
 
 #include "base/environment.h"
+#include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/json/json_writer.h"
 #include "base/values.h"
+#include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace clawbrowser {
@@ -90,6 +92,16 @@ class ProfileManagerTest : public testing::Test {
       "request": {"platform": "macos", "browser": "clawbrowser", "country": "US"},
       "response": {
         "fingerprint": {
+          "browser_family": "chrome",
+          "browser_version": "120.0.0.0",
+          "engine": "blink",
+          "os": "macos",
+          "os_version": "10.15.7",
+          "architecture": "arm64",
+          "device_class": "desktop",
+          "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+          "headers": {"Accept-Language": "en-US"},
+          "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
           "user_agent": "test", "platform": "test",
           "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
                      "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
@@ -115,6 +127,16 @@ class ProfileManagerTest : public testing::Test {
       "request": {"platform": "macos", "browser": "clawbrowser", "country": "US"},
       "response": {
         "fingerprint": {
+          "browser_family": "chrome",
+          "browser_version": "120.0.0.0",
+          "engine": "blink",
+          "os": "macos",
+          "os_version": "10.15.7",
+          "architecture": "arm64",
+          "device_class": "desktop",
+          "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+          "headers": {"Accept-Language": "en-US"},
+          "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
           "user_agent": "test", "platform": "test",
           "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
                      "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
@@ -291,7 +313,10 @@ TEST_F(ProfileManagerTest, GetUserDataDir) {
 
 TEST_F(ProfileManagerTest, GetVanillaUserDataDir) {
   auto dir = manager_->GetVanillaUserDataDir();
-  EXPECT_NE(dir.value().find("Default"), std::string::npos);
+  // FilePath::StringType is std::wstring on Windows and std::string on POSIX,
+  // so the needle and the npos constant both have to come from StringType.
+  EXPECT_NE(dir.value().find(FILE_PATH_LITERAL("Default")),
+            base::FilePath::StringType::npos);
 }
 
 TEST_F(ProfileManagerTest, SaveAndReadEnvelope) {
@@ -398,6 +423,11 @@ TEST_F(ProfileManagerTest, SaveAndReadEnvelopeEncryptsProxyCredentials) {
   EXPECT_EQ(read_result->response.proxy->password.value_or(""), "pass_xyz");
 }
 
+// POSIX-only: this makes a directory unwritable via chmod. Windows has no
+// equivalent that is reliable in a test -- read-only ACLs are bypassed for
+// elevated processes, which would make the expectation flaky rather than
+// portable.
+#if BUILDFLAG(IS_POSIX)
 TEST_F(ProfileManagerTest, SaveProfileDirectoryNotWritable) {
   // Create a read-only directory to simulate write failure
   base::FilePath readonly_dir = temp_dir_.GetPath().AppendASCII("readonly");
@@ -420,6 +450,7 @@ TEST_F(ProfileManagerTest, SaveProfileDirectoryNotWritable) {
   // Cleanup: restore permissions so temp dir cleanup works
   base::SetPosixFilePermissions(readonly_dir, 0755);
 }
+#endif  // BUILDFLAG(IS_POSIX)
 
 }  // namespace
 }  // namespace clawbrowser

@@ -1,4 +1,4 @@
-# Pinned against Chromium revision 25a94a5662bc
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
 --- a/content/public/common/url_utils.cc
 +++ b/content/public/common/url_utils.cc
 @@ -25,7 +25,8 @@ namespace {
@@ -111,39 +111,52 @@
  #if BUILDFLAG(ENABLE_DEVTOOLS_FRONTEND)
    if (!url.SchemeIs(content::kChromeDevToolsScheme)) {
      return nullptr;
---- a/chrome/browser/ui/startup/google_chrome_scheme_util.cc
-+++ b/chrome/browser/ui/startup/google_chrome_scheme_util.cc
-@@ -143,13 +143,18 @@ bool ValidateUrl(const GURL& url) {
-       LOG(WARNING) << "Headless mode requires the --allow-chrome-scheme-url "
-                       "command-line option to access "
-                    << url;
-     }
-   }
- #endif
+--- a/chrome/browser/ui/startup/url_util.cc
++++ b/chrome/browser/ui/startup/url_util.cc
+@@ -79,9 +79,18 @@
+   url_scheme_is_content = url.SchemeIs(url::kContentScheme);
+ #endif  // BUILDFLAG(IS_ANDROID)
  
++  // Clawbrowser's own WebUI entry points may be launched from the command line
++  // or an OS integration. This is deliberately confined to the WebUnsafe
++  // validator: ValidateLaunchUrlWebSafe() governs redirects initiated by
++  // untrusted web content, which must never reach a clawbrowser:// page.
 +  const bool url_scheme_is_clawbrowser =
 +      url.SchemeIs("clawbrowser") &&
 +      (url.host() == "auth" || url.host() == "verify");
 +
    auto* policy = content::ChildProcessSecurityPolicy::GetInstance();
    return policy->IsWebSafeScheme(url.GetScheme()) ||
--         url.SchemeIs(url::kFileScheme) || url_scheme_is_chrome ||
-+         url.SchemeIs(url::kFileScheme) || url_scheme_is_chrome ||
+          url.SchemeIs(url::kFileScheme) || url_scheme_is_chrome ||
 +         url_scheme_is_clawbrowser ||
-          url_points_to_an_approved_settings_page ||
+          url_scheme_is_content || url_points_to_an_approved_settings_page ||
           url.spec() == url::kAboutBlankURL;
  }
---- a/chrome/browser/ui/startup/google_chrome_scheme_util_unittest.cc
-+++ b/chrome/browser/ui/startup/google_chrome_scheme_util_unittest.cc
-@@ -235,6 +235,8 @@ TEST(GoogleChromeSchemeUtilTest, ValidateUrl) {
-   EXPECT_TRUE(ValidateUrl(GURL("http://google.com")));
-   EXPECT_TRUE(ValidateUrl(GURL("https://google.com")));
-   EXPECT_TRUE(ValidateUrl(GURL("file:///tmp/test")));
-+  EXPECT_TRUE(ValidateUrl(GURL("clawbrowser://auth")));
-+  EXPECT_TRUE(ValidateUrl(GURL("clawbrowser://verify")));
-   EXPECT_TRUE(ValidateUrl(GURL("about:blank")));
-
+--- a/chrome/browser/ui/startup/url_util_unittest.cc
++++ b/chrome/browser/ui/startup/url_util_unittest.cc
+@@ -21,6 +21,12 @@
+   EXPECT_TRUE(ValidateLaunchUrlWebUnsafe(GURL("file:///tmp/test")));
+   EXPECT_TRUE(ValidateLaunchUrlWebUnsafe(GURL("about:blank")));
+ 
++  // Clawbrowser WebUI entry points are launchable from the command line, but
++  // only the two known hosts.
++  EXPECT_TRUE(ValidateLaunchUrlWebUnsafe(GURL("clawbrowser://auth")));
++  EXPECT_TRUE(ValidateLaunchUrlWebUnsafe(GURL("clawbrowser://verify")));
++  EXPECT_FALSE(ValidateLaunchUrlWebUnsafe(GURL("clawbrowser://other")));
++
    // chrome:// settings
+ #if BUILDFLAG(IS_CHROMEOS)
+   EXPECT_TRUE(ValidateLaunchUrlWebUnsafe(GURL("chrome://settings")));
+@@ -64,6 +70,9 @@
+   EXPECT_FALSE(
+       ValidateLaunchUrlWebSafe(GURL("chrome://settings/resetProfileSettings")));
+   EXPECT_FALSE(ValidateLaunchUrlWebSafe(GURL("javascript:alert(1)")));
++  // Clawbrowser WebUI must never be reachable from untrusted web content.
++  EXPECT_FALSE(ValidateLaunchUrlWebSafe(GURL("clawbrowser://auth")));
++  EXPECT_FALSE(ValidateLaunchUrlWebSafe(GURL("clawbrowser://verify")));
+   EXPECT_FALSE(ValidateLaunchUrlWebSafe(GURL("")));
+   EXPECT_FALSE(ValidateLaunchUrlWebSafe(GURL("https://")));
+ 
 --- a/content/browser/webui/web_ui_data_source_impl.cc
 +++ b/content/browser/webui/web_ui_data_source_impl.cc
 @@ -392,10 +392,11 @@
@@ -164,65 +177,21 @@
    return result;
 --- a/content/browser/webui/web_ui_impl.cc
 +++ b/content/browser/webui/web_ui_impl.cc
-@@ -90,51 +90,56 @@
- 
-   // Add generated resources.
-   base::flat_map<std::string, std::string> generated_resources;
-   webui_data_source.PopulateWebUIResources(generated_resources);
- 
-   for (auto& [path, content] : generated_resources) {
-     // Ensures dynamic resources, e.g., string.m.js, do not have a resource id.
-     CHECK(path_to_resource_map.find(path) == path_to_resource_map.end());
-     path_to_resource_map[path] =
-         blink::mojom::LocalResourceValue::NewResponseBody(std::move(content));
-   }
- }
- 
- // Returns true if the data source from `origin` should be included for a WebUI
- // with `current_origin`.
- // For performance, a WebUI page should only receives data from its own data
- // sources and shared resources.
- // TODO(crbug.com/459528908): Allow configuring this from URLDataSource.
+@@ -109,6 +109,14 @@
  bool ShouldIncludeDataSource(const url::Origin& origin,
-                              const url::Origin& current_origin) {
--  // We only support data sources that serve URLs of the form: chrome://*
-+  if (origin == current_origin) {
-+    return true;
+                              const url::Origin& current_origin,
+                              bool enable_in_process_loading_v2) {
++  // Clawbrowser WebUI pages are self-contained: they load only their own data
++  // source, and no other WebUI origin may load theirs. Every other scheme
++  // keeps Chromium's behaviour unchanged.
++  if (origin.scheme() == "clawbrowser" ||
++      current_origin.scheme() == "clawbrowser") {
++    return origin == current_origin;
 +  }
 +
-+  // We only support shared data sources that serve URLs of the form:
-+  // chrome://*
+   // We only support data sources that serve URLs of the form: chrome://*
    if (origin.scheme() != kChromeUIScheme) {
      return false;
-   }
- 
-   if (!base::FeatureList::IsEnabled(
-           features::kWebUIInProcessResourceLoadingV2)) {
-     return true;
-   }
- 
--  return origin == current_origin || origin.host() == kChromeUIResourcesHost ||
-+  return origin.host() == kChromeUIResourcesHost ||
-          origin.host() == kChromeUIThemeHost;
- }
- 
- // Helper to add a single data source to the config.
- void AddDataSourceToConfig(
-     WebUIDataSourceImpl* webui_data_source,
-     const url::Origin& current_origin,
-     blink::mojom::LocalResourceLoaderConfig* loader_config) {
-   url::Origin origin = webui_data_source->GetOrigin();
- 
-   if (!ShouldIncludeDataSource(origin, current_origin)) {
-     return;
-   }
- 
-   auto loader_source = blink::mojom::LocalResourceSource::New();
-   webui_data_source->EnsureLoadTimeDataDefaultsAdded();
-   loader_source->headers =
-       URLDataManagerBackend::GetHeaders(webui_data_source, GURL("/"), "")
-           ->raw_headers();
-   loader_source->should_replace_i18n_in_js =
 --- a/content/renderer/web_ui_extension.cc
 +++ b/content/renderer/web_ui_extension.cc
 @@ -48,6 +48,7 @@

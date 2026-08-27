@@ -52,7 +52,7 @@ async def test_implicit_startup_newest_profile():
     binary = _resolve_browser_binary()
     browser_port = _reserve_port()
 
-    with tempfile.TemporaryDirectory(prefix="clawbrowser-implicit-") as temp_home:
+    with tempfile.TemporaryDirectory(prefix="clawbrowser-implicit-", ignore_cleanup_errors=True) as temp_home:
         home_dir = Path(temp_home)
         config_dir = _config_dir(home_dir)
         _seed_config(config_dir, "http://127.0.0.1:0", TEST_API_KEY)

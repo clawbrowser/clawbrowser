@@ -77,6 +77,8 @@ component("clawbrowser_runtime") {
     "fingerprint_accessor.h",
   ]
 
+  defines = [ "IS_CLAWBROWSER_RUNTIME_IMPL" ]
+
   public_deps = [
     "//base",
   ]
@@ -117,6 +119,9 @@ source_set("clawbrowser_core") {
 
     # Noise generation
     "noise/prng.h",
+
+    # Cross-surface coherence helpers shared with the Chromium patches.
+    "fingerprint_coherence.h",
 
     "proxy/proxy_config.cc",
     "proxy/proxy_config.h",
@@ -195,6 +200,7 @@ test("clawbrowser_unittests") {
     "test/run_all_unittests.cc",
     "test/api_client_unittest.cc",
     "test/args_unittest.cc",
+    "test/fingerprint_coherence_unittest.cc",
     "test/fingerprint_loader_unittest.cc",
     "test/profile_envelope_unittest.cc",
     "test/profile_manager_unittest.cc",
@@ -234,6 +240,13 @@ test("clawbrowser_browser_unittests") {
     ":clawbrowser_core",
     ":clawbrowser_proxy_auth",
     "//base/test:test_support",
+
+    # auth_page.cc / verify_page.cc reference chrome browser-layer symbols
+    # (g_browser_process, SystemNetworkContextManager, ExitIgnoreUnloadHandlers).
+    # In the shipping browser these resolve because //clawbrowser links into the
+    # chrome binary alongside //chrome/browser; this test must link the browser
+    # layer itself, so it uses the same scaffolding as //chrome/test:unit_tests.
+    "//chrome/test:test_support",
     "//content/public/browser",
     "//mojo/core/embedder",
     "//net",

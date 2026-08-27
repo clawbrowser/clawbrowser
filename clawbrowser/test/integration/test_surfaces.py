@@ -160,8 +160,8 @@ async def test_timezone(browser_with_fingerprint):
 
 
 @pytest.mark.asyncio
-async def test_webgl_vendor_renderer(browser_with_fingerprint):
-    page, data = browser_with_fingerprint
+async def test_webgl_vendor_renderer(browser_with_webgl_spoofing):
+    page, data = browser_with_webgl_spoofing
     fp = data["response"]["fingerprint"]
     result = await page.evaluate("""() => {
         const canvas = document.createElement('canvas');

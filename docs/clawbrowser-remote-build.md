@@ -145,18 +145,18 @@ Instead, `checkout` and `update` load the repo-local pin from
 
 Current default pin:
 
-- label: `main@{#1609092}`
-- revision: `25a94a5662bc9cce918f4626472e7edca1ba2b39`
+- label: `151.0.7922.109`
+- revision: `28a7a6c409e03c701d3474ef9e3b1f0be6249039`
 
 That revision matches the current Chromium patch manifests that already refer to
-the short form `25a94a5662bc`.
+the short form `28a7a6c409e0`.
 
 If you intentionally want to test a different Chromium base for one run, pass an
 explicit override:
 
 ```bash
 bash scripts/clawbrowser_remote.sh update \
-  --chromium-revision 25a94a5662bc9cce918f4626472e7edca1ba2b39
+  --chromium-revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039
 ```
 
 ## First-Time Remote Machine Setup
@@ -190,7 +190,7 @@ By default this:
 
 ```bash
 fetch --no-history chromium
-gclient sync -D --force --reset --revision "src@25a94a5662bc9cce918f4626472e7edca1ba2b39"
+gclient sync -D --force --reset --revision "src@28a7a6c409e03c701d3474ef9e3b1f0be6249039"
 ```
 
 To keep the full Chromium history:

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from conftest import (
+    HOST_PROFILE_PLATFORM,
     TEST_API_KEY,
     _config_dir,
     _launch_browser_with_details,
@@ -33,7 +34,7 @@ def run_clawbrowser(args, env):
 def test_cli_list_empty():
     """Test --list when no profiles are cached."""
     binary = _resolve_browser_binary()
-    with tempfile.TemporaryDirectory(prefix="clawbrowser-cli-") as temp_home:
+    with tempfile.TemporaryDirectory(prefix="clawbrowser-cli-", ignore_cleanup_errors=True) as temp_home:
         home_dir = Path(temp_home)
         config_dir = _config_dir(home_dir)
         _seed_config(config_dir, "http://127.0.0.1:0", TEST_API_KEY)
@@ -48,7 +49,7 @@ def test_cli_list_empty():
 def test_cli_list_with_profiles():
     """Test --list when profiles are cached."""
     binary = _resolve_browser_binary()
-    with tempfile.TemporaryDirectory(prefix="clawbrowser-cli-") as temp_home:
+    with tempfile.TemporaryDirectory(prefix="clawbrowser-cli-", ignore_cleanup_errors=True) as temp_home:
         home_dir = Path(temp_home)
         config_dir = _config_dir(home_dir)
         _seed_config(config_dir, "http://127.0.0.1:0", TEST_API_KEY)
@@ -64,7 +65,7 @@ def test_cli_list_with_profiles():
 def test_cli_list_json():
     """Test --list --output=json."""
     binary = _resolve_browser_binary()
-    with tempfile.TemporaryDirectory(prefix="clawbrowser-cli-") as temp_home:
+    with tempfile.TemporaryDirectory(prefix="clawbrowser-cli-", ignore_cleanup_errors=True) as temp_home:
         home_dir = Path(temp_home)
         config_dir = _config_dir(home_dir)
         _seed_config(config_dir, "http://127.0.0.1:0", TEST_API_KEY)
@@ -107,7 +108,7 @@ async def test_cli_targeting_flags_smoke():
     source_envelope = json.loads(source_fixture.read_text(encoding="utf-8"))
     fixture_data = {
         "request": {
-            "platform": "macos",
+            "platform": HOST_PROFILE_PLATFORM,
             "browser": "chrome",
             "country": "DE",
             "city": "Berlin",
@@ -118,7 +119,7 @@ async def test_cli_targeting_flags_smoke():
         },
     }
 
-    with tempfile.TemporaryDirectory(prefix="clawbrowser-targeting-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="clawbrowser-targeting-", ignore_cleanup_errors=True) as temp_dir:
         fixture_path = Path(temp_dir) / "fingerprints.json"
         fixture_path.write_text(json.dumps(fixture_data) + "\n", encoding="utf-8")
         async with _launch_browser_with_details(

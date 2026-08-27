@@ -8,6 +8,7 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/path_service.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/task_environment.h"
 #include "base/test/scoped_path_override.h"
@@ -387,15 +388,89 @@ TEST_F(StartupTest, FingerprintWithCachedProfile) {
   EXPECT_TRUE(cmd.HasSwitch("user-agent"));
   EXPECT_EQ(cmd.GetSwitchValueASCII("user-agent"),
             FingerprintAccessor::Get()->user_agent);
-  EXPECT_EQ(cmd.GetSwitchValueASCII("clawbrowser-ua-major-version"), "120");
-  EXPECT_EQ(cmd.GetSwitchValueASCII("clawbrowser-ua-full-version"),
-            "120.0.0.0");
-  EXPECT_EQ(cmd.GetSwitchValueASCII("clawbrowser-ua-platform"), "macOS");
+  // User-agent client hints are no longer plumbed through command-line
+  // switches: a5fc4ed replaced clawbrowser-ua-{major-version,full-version,
+  // platform} with the ChromeContentBrowserClient::GetUserAgentMetadata()
+  // override (patch 024) that returns BuildUserAgentMetadata(fingerprint).
+  // That path is covered by clawbrowser/test/integration/test_surfaces.py
+  // (test_navigator_user_agent_data, test_sec_ch_ua_headers).
 #if BUILDFLAG(IS_MAC)
   EXPECT_TRUE(cmd.HasSwitch(kFingerprintChildDataSwitch));
 #else
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintChildDataSwitch));
 #endif
+}
+
+TEST(SurfaceSpoofingResolutionTest, PolicyEnablesWithoutAnyFlag) {
+  // The regression this guards: spoofing used to require --enable-*-spoofing
+  // even when the profile asked for "override", so a fingerprint could carry a
+  // WebGL renderer string and still emit the host's real adapter.
+  EXPECT_TRUE(ResolveSurfaceSpoofing(/*forced_on=*/false, /*forced_off=*/false,
+                                     /*policy_requests_override=*/true));
+}
+
+TEST(SurfaceSpoofingResolutionTest, NativePolicyStaysOff) {
+  EXPECT_FALSE(ResolveSurfaceSpoofing(false, false, false));
+}
+
+TEST(SurfaceSpoofingResolutionTest, EnableSwitchForcesOnAgainstNativePolicy) {
+  EXPECT_TRUE(ResolveSurfaceSpoofing(/*forced_on=*/true, /*forced_off=*/false,
+                                     /*policy_requests_override=*/false));
+}
+
+TEST(SurfaceSpoofingResolutionTest, DisableSwitchBeatsEverything) {
+  EXPECT_FALSE(ResolveSurfaceSpoofing(/*forced_on=*/true, /*forced_off=*/true,
+                                      /*policy_requests_override=*/true));
+  EXPECT_FALSE(ResolveSurfaceSpoofing(false, true, true));
+}
+
+TEST_F(StartupTest, WindowSizeFitsInsideSpoofedScreen) {
+  // window.outerWidth/outerHeight come from the real OS window and are not
+  // spoofed, so a window larger than the screen we advertise is a one-line
+  // contradiction for any detector. The fixture reports 1920x1080 with a
+  // 1920x1040 available area.
+  WriteCachedProfile("cached_profile");
+  WriteConfigJson("test_key");
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "cached_profile");
+
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  ASSERT_NE(FingerprintAccessor::Get(), nullptr);
+
+  ASSERT_TRUE(cmd.HasSwitch("window-size"));
+  const std::string value = cmd.GetSwitchValueASCII("window-size");
+  const size_t comma = value.find(',');
+  ASSERT_NE(comma, std::string::npos) << "window-size was: " << value;
+
+  int width = 0;
+  int height = 0;
+  ASSERT_TRUE(base::StringToInt(value.substr(0, comma), &width));
+  ASSERT_TRUE(base::StringToInt(value.substr(comma + 1), &height));
+
+  const auto* fp = FingerprintAccessor::Get();
+  EXPECT_GT(width, 0);
+  EXPECT_GT(height, 0);
+  EXPECT_LE(width, fp->screen.avail_width);
+  EXPECT_LE(height, fp->screen.avail_height);
+  EXPECT_LE(fp->screen.avail_width, fp->screen.width);
+  EXPECT_LE(fp->screen.avail_height, fp->screen.height);
+
+  // Anchored at the origin so screenX + outerWidth stays on-screen too.
+  EXPECT_EQ(cmd.GetSwitchValueASCII("window-position"), "0,0");
+}
+
+TEST_F(StartupTest, ExplicitWindowSizeIsNotOverridden) {
+  // A caller-supplied size is a deliberate, controlled override and must win.
+  WriteCachedProfile("cached_profile");
+  WriteConfigJson("test_key");
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "cached_profile");
+  cmd.AppendSwitchASCII("window-size", "801,601");
+
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_EQ(cmd.GetSwitchValueASCII("window-size"), "801,601");
 }
 
 TEST_F(StartupTest, SpoofingFlagsApplyToLoadedBrowserFingerprint) {
@@ -751,6 +826,16 @@ TEST_F(StartupTest, FingerprintApiCallSuccess) {
   // Mock API response
   std::string api_response = R"({
     "fingerprint": {
+      "browser_family": "chrome",
+      "browser_version": "120.0.0.0",
+      "engine": "blink",
+      "os": "macos",
+      "os_version": "10.15.7",
+      "architecture": "arm64",
+      "device_class": "desktop",
+      "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+      "headers": {"Accept-Language": "en-US"},
+      "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
       "user_agent": "test-ua", "platform": "test",
       "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
                  "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
@@ -784,6 +869,16 @@ TEST_F(StartupTest, FreshStartWithApiKeyRunsInImplicitFingerprintMode) {
       std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
       R"({
         "fingerprint": {
+          "browser_family": "chrome",
+          "browser_version": "120.0.0.0",
+          "engine": "blink",
+          "os": "macos",
+          "os_version": "10.15.7",
+          "architecture": "arm64",
+          "device_class": "desktop",
+          "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+          "headers": {"Accept-Language": "en-US"},
+          "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
           "user_agent": "default-profile-ua", "platform": "MacIntel",
           "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
                      "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
@@ -828,6 +923,16 @@ TEST_F(StartupTest, FingerprintApiCallSuccessWithPathLikeId) {
       std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
       R"({
         "fingerprint": {
+          "browser_family": "chrome",
+          "browser_version": "120.0.0.0",
+          "engine": "blink",
+          "os": "macos",
+          "os_version": "10.15.7",
+          "architecture": "arm64",
+          "device_class": "desktop",
+          "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+          "headers": {"Accept-Language": "en-US"},
+          "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
           "user_agent": "pathlike-ua", "platform": "test",
           "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
                      "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
@@ -859,6 +964,16 @@ TEST_F(StartupTest, FingerprintApiCallSuccessWithEmptyId) {
       std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
       R"({
         "fingerprint": {
+          "browser_family": "chrome",
+          "browser_version": "120.0.0.0",
+          "engine": "blink",
+          "os": "macos",
+          "os_version": "10.15.7",
+          "architecture": "arm64",
+          "device_class": "desktop",
+          "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+          "headers": {"Accept-Language": "en-US"},
+          "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
           "user_agent": "empty-id-ua", "platform": "test",
           "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
                      "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
@@ -889,6 +1004,16 @@ TEST_F(StartupTest, FingerprintApiCallWithoutConfiguredBaseUrlRespectsBuildDefau
         *build_default + "/v1/fingerprints/generate",
         R"({
           "fingerprint": {
+            "browser_family": "chrome",
+            "browser_version": "120.0.0.0",
+            "engine": "blink",
+            "os": "macos",
+            "os_version": "10.15.7",
+            "architecture": "arm64",
+            "device_class": "desktop",
+            "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+            "headers": {"Accept-Language": "en-US"},
+            "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
             "user_agent": "default-ua", "platform": "test",
             "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
                        "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
@@ -1076,6 +1201,16 @@ TEST_F(StartupTest, RegenerateReplaysStoredParams) {
       std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
       R"({
         "fingerprint": {
+          "browser_family": "chrome",
+          "browser_version": "120.0.0.0",
+          "engine": "blink",
+          "os": "macos",
+          "os_version": "10.15.7",
+          "architecture": "arm64",
+          "device_class": "desktop",
+          "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+          "headers": {"Accept-Language": "en-US"},
+          "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
           "user_agent": "new-ua", "platform": "test",
           "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
                      "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
@@ -1136,6 +1271,16 @@ TEST_F(StartupTest, FingerprintApiCallUsesLocationOverrides) {
       std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
       R"({
         "fingerprint": {
+          "browser_family": "chrome",
+          "browser_version": "120.0.0.0",
+          "engine": "blink",
+          "os": "macos",
+          "os_version": "10.15.7",
+          "architecture": "arm64",
+          "device_class": "desktop",
+          "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+          "headers": {"Accept-Language": "en-US"},
+          "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
           "user_agent": "test-ua", "platform": "MacIntel",
           "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
                      "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
@@ -1210,6 +1355,16 @@ TEST_F(StartupTest, FingerprintApiCallAllowsCityOnlyOverrides) {
       std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
       R"({
         "fingerprint": {
+          "browser_family": "chrome",
+          "browser_version": "120.0.0.0",
+          "engine": "blink",
+          "os": "macos",
+          "os_version": "10.15.7",
+          "architecture": "arm64",
+          "device_class": "desktop",
+          "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+          "headers": {"Accept-Language": "en-US"},
+          "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
           "user_agent": "test-ua", "platform": "MacIntel",
           "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
                      "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
@@ -1250,6 +1405,16 @@ TEST_F(StartupTest, RegenerateCountryOverrideClearsStaleOptionalTargeting) {
       std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
       R"({
         "fingerprint": {
+          "browser_family": "chrome",
+          "browser_version": "120.0.0.0",
+          "engine": "blink",
+          "os": "macos",
+          "os_version": "10.15.7",
+          "architecture": "arm64",
+          "device_class": "desktop",
+          "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+          "headers": {"Accept-Language": "en-US"},
+          "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
           "user_agent": "test-ua", "platform": "MacIntel",
           "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
                      "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},

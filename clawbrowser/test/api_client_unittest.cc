@@ -80,6 +80,16 @@ class ApiClientTest : public testing::Test {
 TEST_F(ApiClientTest, GenerateFingerprintSuccess) {
   std::string response_json = R"({
     "fingerprint": {
+      "browser_family": "chrome",
+      "browser_version": "120.0.0.0",
+      "engine": "blink",
+      "os": "macos",
+      "os_version": "10.15.7",
+      "architecture": "arm64",
+      "device_class": "desktop",
+      "user_agent_data": {"brands": [{"brand": "Chromium", "version": "120"}], "fullVersionList": [{"brand": "Chromium", "version": "120.0.0.0"}], "platform": "macOS", "platformVersion": "10.15.7", "architecture": "arm", "bitness": "64", "mobile": false, "model": ""},
+      "headers": {"Accept-Language": "en-US"},
+      "surface_policy": {"canvas": {"mode": "native"}, "audio": {"mode": "native"}, "client_rects": {"mode": "native"}, "webgl": {"mode": "native"}, "fonts": {"mode": "native_or_allowlist"}, "plugins": {"mode": "override"}, "media_devices": {"mode": "override"}, "speech_voices": {"mode": "override"}},
       "user_agent": "test-ua", "platform": "test",
       "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
                  "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},

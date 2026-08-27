@@ -1,9 +1,8 @@
-# Pinned against Chromium revision 25a94a5662bc9cce918f4626472e7edca1ba2b39 (main@{#1609092})
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
 diff --git a/v8/src/inspector/value-mirror.cc b/v8/src/inspector/value-mirror.cc
-index 85d7fdba86f..b0d3bb0a1d1 100644
 --- a/v8/src/inspector/value-mirror.cc
 +++ b/v8/src/inspector/value-mirror.cc
-@@ -1470,43 +1470,6 @@ std::unique_ptr<ValueMirror> createNativeSetter(v8::Local<v8::Context> context,
+@@ -1479,43 +1479,6 @@ std::unique_ptr<ValueMirror> createNativeSetter(v8::Local<v8::Context> context,
    return ValueMirror::create(context, function);
  }
  
@@ -47,7 +46,8 @@ index 85d7fdba86f..b0d3bb0a1d1 100644
  }  // anonymous namespace
  
  ValueMirror::~ValueMirror() = default;
-@@ -1610,10 +1573,8 @@ bool ValueMirror::getProperties(v8::Local<v8::Context> context,
+@@ -1621,33 +1584,19 @@ bool ValueMirror::getProperties(v8::Local<v8::Context> context,
+           if (!descriptor.value.IsEmpty()) {
              valueMirror = ValueMirror::create(context, descriptor.value);
            }
 -          v8::Local<v8::Function> getterFunction;
@@ -58,11 +58,10 @@ index 85d7fdba86f..b0d3bb0a1d1 100644
            }
            if (!descriptor.set.IsEmpty()) {
              setterMirror = ValueMirror::create(context, descriptor.set);
-@@ -1621,22 +1582,9 @@ bool ValueMirror::getProperties(v8::Local<v8::Context> context,
+           }
            isAccessorProperty = getterMirror || setterMirror;
 -          if (name != "__proto__" && !getterFunction.IsEmpty() &&
--              deepBoundFunction(getterFunction)->ScriptId() ==
--                  v8::UnboundScript::kNoScriptId &&
+-              isBuiltinGetter(getterFunction) &&
 -              !doesAttributeHaveObservableSideEffectOnGet(context, object,
 -                                                          v8Name)) {
 -            v8::TryCatch tryCatchFunction(isolate);

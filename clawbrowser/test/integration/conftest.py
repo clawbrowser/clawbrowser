@@ -24,6 +24,14 @@ MOCK_SERVER_SCRIPT = PROJECT_ROOT / "clawbrowser/test/integration/mock_server.py
 DEFAULT_FINGERPRINTS_FIXTURE_PATH = PROJECT_ROOT / "api/mocks/fingerprints.json"
 DEFAULT_PROXY_FIXTURE_PATH = PROJECT_ROOT / "api/mocks/proxy.json"
 MISMATCH_PROXY_FIXTURE_PATH = PROJECT_ROOT / "api/mocks/proxy_mismatch.json"
+# Mirrors DefaultProfilePlatform() in clawbrowser/startup.cc: the value the
+# browser puts in GenerateRequest.platform on this host. Fixtures that pin
+# "platform" for mock request-matching have to use the same value or the mock
+# rejects the request with 400 and the browser silently falls back to vanilla.
+HOST_PROFILE_PLATFORM = {
+    "win32": "windows",
+    "darwin": "macos",
+}.get(sys.platform, "linux")
 FINGERPRINT_ID = "test_profile"
 TEST_API_KEY = "test_api_key_123"
 CDP_READY_TIMEOUT_SECONDS = 30
@@ -221,6 +229,22 @@ async def _wait_for_page(context, *, url_prefix=None):
 def _stop_process(process: subprocess.Popen):
     if process.poll() is not None:
         return
+    if sys.platform == "win32":
+        # Chromium's children (renderer/GPU/utility) inherit the stdout handle
+        # for browser.log. terminate() only signals the parent, so the children
+        # keep that handle open and the temp-dir cleanup then fails with
+        # WinError 32. /T kills the whole tree so every writer goes away.
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+        return
     process.terminate()
     try:
         process.wait(timeout=10)
@@ -316,7 +340,7 @@ async def _launch_browser_with_details(
     if expect_verify and effective_fingerprint_id is None:
         raise ValueError("expect_verify requires a fingerprint_id or fixture_name")
 
-    with tempfile.TemporaryDirectory(prefix="clawbrowser-it-home-") as temp_home:
+    with tempfile.TemporaryDirectory(prefix="clawbrowser-it-home-", ignore_cleanup_errors=True) as temp_home:
         home_dir = Path(temp_home)
         config_dir = _config_dir(home_dir)
 
@@ -452,6 +476,23 @@ async def browser_with_fingerprint():
         fixture_name="valid_fingerprint.json",
         backend_mode="mock",
         skip_verify=True,
+    ) as result:
+        yield result
+
+
+@pytest_asyncio.fixture
+async def browser_with_webgl_spoofing():
+    """Launch with WebGL spoofing opted in.
+
+    WebGL vendor/renderer overrides are gated on --enable-webgl-spoofing (see
+    clawbrowser/cli/args.h), not on surface_policy.webgl, so a test that asserts
+    the spoofed values has to pass the switch explicitly.
+    """
+    async with _launch_browser(
+        fixture_name="valid_fingerprint.json",
+        backend_mode="mock",
+        skip_verify=True,
+        extra_browser_args=("--enable-webgl-spoofing",),
     ) as result:
         yield result
 

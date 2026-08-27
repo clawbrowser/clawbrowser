@@ -1208,6 +1208,13 @@ components:
       properties:
         charging: { type: boolean }
         level: { type: number }
+        # Seconds until fully charged / until empty, matching BatteryManager.
+        # Optional: when omitted the browser derives a pair consistent with
+        # `charging` and `level` rather than leaking the host's real battery.
+        # Use `null` to mean the spec's Infinity (charging batteries report an
+        # infinite dischargingTime, and vice versa).
+        chargingTime: { type: number, nullable: true }
+        dischargingTime: { type: number, nullable: true }
 
     ProxyConfig:
       type: object

@@ -78,7 +78,11 @@ std::string InferProfileIdFromProfileDir(const base::FilePath& browser_dir,
 
   base::FilePath relative_path;
   if (browser_dir.AppendRelativePath(profile_dir, &relative_path)) {
-    return relative_path.AsUTF8Unsafe();
+    // Profile ids are '/'-delimited on every platform -- that is the form the
+    // CLI accepts ("group/profile") and the form stored in the envelope's
+    // profile_id. FilePath renders nested paths with the native separator, so
+    // normalize before handing the id back out. No-op on POSIX.
+    return relative_path.NormalizePathSeparatorsTo('/').AsUTF8Unsafe();
   }
   return profile_dir.BaseName().AsUTF8Unsafe();
 }

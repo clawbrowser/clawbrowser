@@ -1,4 +1,4 @@
-# Pinned against Chromium revision 25a94a5662bc
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
 @@ -2833,6 +2833,30 @@
