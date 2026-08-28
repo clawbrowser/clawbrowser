@@ -1,0 +1,56 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+--- a/third_party/blink/renderer/modules/webaudio/audio_buffer.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_buffer.cc
+@@ -32,6 +32,8 @@
+ 
+ #include "base/compiler_specific.h"
+ #include "base/containers/span.h"
++#include "clawbrowser/fingerprint_accessor.h"
++#include "clawbrowser/noise/prng.h"
+ #include "third_party/blink/renderer/bindings/modules/v8/v8_audio_buffer_options.h"
+ #include "third_party/blink/renderer/modules/webaudio/base_audio_context.h"
+ #include "third_party/blink/renderer/platform/audio/audio_bus.h"
+@@ -184,6 +186,7 @@
+   // Copy audio data from the bus to the Float32Arrays we manage.
+   unsigned number_of_channels = bus->NumberOfChannels();
+   channels_.reserve(number_of_channels);
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
+   for (unsigned i = 0; i < number_of_channels; ++i) {
+     DOMFloat32Array* channel_data_array = CreateFloat32ArrayOrNull(
+         length_, InitializationPolicy::kDontInitialize);
+@@ -193,6 +196,11 @@
+       return;
+     }
+     channel_data_array->AsSpan().copy_from(bus->Channel(i)->Span());
++    if (fp && fp->surface_policy.audio == "override") {
++      clawbrowser::Prng prng(static_cast<uint64_t>(fp->audio_seed) + i);
++      for (float& sample : channel_data_array->AsSpan())
++        sample += prng.AudioNoise();
++    }
+     channels_.push_back(channel_data_array);
+   }
+ }
+--- a/third_party/blink/renderer/modules/webaudio/analyser_node.cc
++++ b/third_party/blink/renderer/modules/webaudio/analyser_node.cc
+@@ -25,6 +25,8 @@
+ 
+ #include "third_party/blink/renderer/modules/webaudio/analyser_node.h"
+ 
++#include "clawbrowser/fingerprint_accessor.h"
++#include "clawbrowser/noise/prng.h"
+ #include "third_party/blink/renderer/bindings/modules/v8/v8_analyser_options.h"
+ #include "third_party/blink/renderer/modules/webaudio/analyser_handler.h"
+ #include "third_party/blink/renderer/modules/webaudio/audio_graph_tracer.h"
+@@ -119,6 +121,12 @@
+ void AnalyserNode::getFloatFrequencyData(NotShared<DOMFloat32Array> array) {
+   GetAnalyserHandler().GetFloatFrequencyData(array.Get(),
+                                              context()->currentTime());
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->surface_policy.audio == "override" && array.Get()) {
++    clawbrowser::Prng prng(fp->audio_seed);
++    for (float& sample : array->AsSpan())
++      sample += prng.AudioNoise();
++  }
+ }
+ 
+ void AnalyserNode::getByteFrequencyData(NotShared<DOMUint8Array> array) {

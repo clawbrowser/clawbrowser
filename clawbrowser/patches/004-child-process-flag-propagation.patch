@@ -1,0 +1,34 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -2833,6 +2833,30 @@
+       command_line->GetSwitchValueASCII(switches::kProcessType);
+   const base::CommandLine& browser_command_line =
+       *base::CommandLine::ForCurrentProcess();
++
++  if (browser_command_line.HasSwitch("clawbrowser-fp-path")) {
++    command_line->AppendSwitchPath(
++        "clawbrowser-fp-path",
++        browser_command_line.GetSwitchValuePath("clawbrowser-fp-path"));
++  }
++  if (browser_command_line.HasSwitch("clawbrowser-fp-child-data")) {
++    command_line->AppendSwitchASCII(
++        "clawbrowser-fp-child-data",
++        browser_command_line.GetSwitchValueASCII(
++            "clawbrowser-fp-child-data"));
++  }
++  if (browser_command_line.HasSwitch("enable-canvas-spoofing")) {
++    command_line->AppendSwitch("enable-canvas-spoofing");
++  }
++  if (browser_command_line.HasSwitch("disable-canvas-spoofing")) {
++    command_line->AppendSwitch("disable-canvas-spoofing");
++  }
++  if (browser_command_line.HasSwitch("enable-webgl-spoofing")) {
++    command_line->AppendSwitch("enable-webgl-spoofing");
++  }
++  if (browser_command_line.HasSwitch("disable-webgl-spoofing")) {
++    command_line->AppendSwitch("disable-webgl-spoofing");
++  }
+ 
+   static const char* const kCommonSwitchNames[] = {
+       embedder_support::kUserAgent,

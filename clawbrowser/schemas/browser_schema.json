@@ -1,0 +1,601 @@
+{
+  "version": 1,
+  "generated_from": "api/openapi.yaml",
+  "entrypoints": [
+    "GenerateRequest",
+    "GenerateResponse",
+    "Fingerprint",
+    "ProxyConfig",
+    "VerifyProxyRequest",
+    "VerifyProxyResponse"
+  ],
+  "schemas": {
+    "GenerateRequest": {
+      "type": "object",
+      "required": [
+        "platform",
+        "browser",
+        "country"
+      ],
+      "properties": {
+        "platform": {
+          "type": "string",
+          "enum": [
+            "linux",
+            "macos",
+            "windows"
+          ]
+        },
+        "browser": {
+          "type": "string",
+          "enum": [
+            "chrome"
+          ]
+        },
+        "country": {
+          "type": "string",
+          "description": "ISO 3166-1 alpha-2"
+        },
+        "city": {
+          "type": "string"
+        },
+        "connection_type": {
+          "type": "string",
+          "enum": [
+            "residential",
+            "datacenter",
+            "mobile"
+          ]
+        },
+        "proxy_scheme": {
+          "type": "string",
+          "enum": [
+            "http",
+            "socks5"
+          ],
+          "default": "http"
+        },
+        "runtime_browser_version": {
+          "type": "string",
+          "description": "Full Chromium/Chrome runtime version that will apply the fingerprint"
+        },
+        "runtime_os": {
+          "type": "string",
+          "enum": [
+            "macos",
+            "windows",
+            "linux"
+          ]
+        },
+        "runtime_os_version": {
+          "type": "string",
+          "description": "Optional browser host OS version. When absent, the generator derives os_version from the generated user agent instead of inventing a host version."
+        },
+        "runtime_arch": {
+          "type": "string",
+          "enum": [
+            "amd64",
+            "arm64"
+          ]
+        },
+        "runtime_gpu": {
+          "type": "string",
+          "description": "Runtime GPU backend hint, for example apple-metal, d3d11-nvidia, or swiftshader"
+        },
+        "runtime_headless": {
+          "type": "boolean"
+        }
+      }
+    },
+    "GenerateResponse": {
+      "type": "object",
+      "required": [
+        "fingerprint"
+      ],
+      "properties": {
+        "fingerprint": {
+          "$ref": "#/components/schemas/Fingerprint"
+        },
+        "proxy": {
+          "$ref": "#/components/schemas/ProxyConfig"
+        }
+      }
+    },
+    "Fingerprint": {
+      "type": "object",
+      "required": [
+        "browser_family",
+        "browser_version",
+        "engine",
+        "os",
+        "os_version",
+        "architecture",
+        "device_class",
+        "user_agent",
+        "platform",
+        "user_agent_data",
+        "screen",
+        "hardware",
+        "webgl",
+        "canvas_seed",
+        "audio_seed",
+        "client_rects_seed",
+        "timezone",
+        "language",
+        "fonts",
+        "headers",
+        "surface_policy"
+      ],
+      "properties": {
+        "browser_family": {
+          "type": "string",
+          "enum": [
+            "chrome"
+          ]
+        },
+        "browser_version": {
+          "type": "string"
+        },
+        "engine": {
+          "type": "string",
+          "enum": [
+            "blink"
+          ]
+        },
+        "os": {
+          "type": "string",
+          "enum": [
+            "macos",
+            "windows",
+            "linux"
+          ]
+        },
+        "os_version": {
+          "type": "string"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "device_class": {
+          "type": "string",
+          "enum": [
+            "desktop",
+            "mobile"
+          ]
+        },
+        "user_agent": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "user_agent_data": {
+          "$ref": "#/components/schemas/UserAgentData"
+        },
+        "screen": {
+          "$ref": "#/components/schemas/Screen"
+        },
+        "hardware": {
+          "$ref": "#/components/schemas/Hardware"
+        },
+        "webgl": {
+          "$ref": "#/components/schemas/WebGL"
+        },
+        "canvas_seed": {
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "audio_seed": {
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "client_rects_seed": {
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "timezone": {
+          "type": "string"
+        },
+        "language": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fonts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "media_devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/MediaDevice"
+          }
+        },
+        "plugins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/Plugin"
+          }
+        },
+        "battery": {
+          "$ref": "#/components/schemas/Battery"
+        },
+        "speech_voices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "audio_codecs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "video_codecs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "surface_policy": {
+          "$ref": "#/components/schemas/SurfacePolicy"
+        }
+      }
+    },
+    "UserAgentData": {
+      "type": "object",
+      "required": [
+        "brands",
+        "fullVersionList",
+        "platform",
+        "platformVersion",
+        "architecture",
+        "bitness",
+        "mobile",
+        "model"
+      ],
+      "properties": {
+        "brands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ClientHintBrand"
+          }
+        },
+        "fullVersionList": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ClientHintBrand"
+          }
+        },
+        "platform": {
+          "type": "string"
+        },
+        "platformVersion": {
+          "type": "string"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "bitness": {
+          "type": "string"
+        },
+        "mobile": {
+          "type": "boolean"
+        },
+        "model": {
+          "type": "string"
+        },
+        "uaFullVersion": {
+          "type": "string"
+        }
+      }
+    },
+    "ClientHintBrand": {
+      "type": "object",
+      "required": [
+        "brand",
+        "version"
+      ],
+      "properties": {
+        "brand": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "SurfacePolicy": {
+      "type": "object",
+      "required": [
+        "canvas",
+        "audio",
+        "client_rects",
+        "webgl",
+        "fonts",
+        "plugins",
+        "media_devices",
+        "speech_voices"
+      ],
+      "properties": {
+        "canvas": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "audio": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "client_rects": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "webgl": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "fonts": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "plugins": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "media_devices": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        },
+        "speech_voices": {
+          "$ref": "#/components/schemas/SurfacePolicyRule"
+        }
+      }
+    },
+    "SurfacePolicyRule": {
+      "type": "object",
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "native",
+            "native_or_allowlist",
+            "override"
+          ]
+        }
+      }
+    },
+    "Screen": {
+      "type": "object",
+      "required": [
+        "width",
+        "height",
+        "avail_width",
+        "avail_height",
+        "color_depth",
+        "pixel_ratio"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "avail_width": {
+          "type": "integer"
+        },
+        "avail_height": {
+          "type": "integer"
+        },
+        "color_depth": {
+          "type": "integer"
+        },
+        "pixel_ratio": {
+          "type": "number"
+        }
+      }
+    },
+    "Hardware": {
+      "type": "object",
+      "required": [
+        "concurrency",
+        "memory"
+      ],
+      "properties": {
+        "concurrency": {
+          "type": "integer"
+        },
+        "memory": {
+          "type": "integer"
+        }
+      }
+    },
+    "WebGL": {
+      "type": "object",
+      "required": [
+        "vendor",
+        "renderer"
+      ],
+      "properties": {
+        "vendor": {
+          "type": "string"
+        },
+        "renderer": {
+          "type": "string"
+        }
+      }
+    },
+    "MediaDevice": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "audioinput",
+            "audiooutput",
+            "videoinput"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "device_id": {
+          "type": "string"
+        }
+      }
+    },
+    "Plugin": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "filename": {
+          "type": "string"
+        }
+      }
+    },
+    "Battery": {
+      "type": "object",
+      "properties": {
+        "charging": {
+          "type": "boolean"
+        },
+        "level": {
+          "type": "number"
+        },
+        "chargingTime": {
+          "type": "number",
+          "nullable": true
+        },
+        "dischargingTime": {
+          "type": "number",
+          "nullable": true
+        }
+      }
+    },
+    "ProxyConfig": {
+      "type": "object",
+      "properties": {
+        "scheme": {
+          "type": "string",
+          "enum": [
+            "http",
+            "socks5"
+          ],
+          "default": "http"
+        },
+        "country": {
+          "type": "string"
+        },
+        "city": {
+          "type": "string"
+        },
+        "connection_type": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        }
+      }
+    },
+    "VerifyProxyRequest": {
+      "type": "object",
+      "required": [
+        "proxy",
+        "expected_country"
+      ],
+      "properties": {
+        "proxy": {
+          "type": "object",
+          "required": [
+            "host",
+            "port",
+            "username",
+            "password"
+          ],
+          "properties": {
+            "scheme": {
+              "type": "string",
+              "enum": [
+                "http",
+                "socks5"
+              ],
+              "default": "http"
+            },
+            "host": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer"
+            },
+            "username": {
+              "type": "string"
+            },
+            "password": {
+              "type": "string"
+            }
+          }
+        },
+        "expected_country": {
+          "type": "string",
+          "description": "ISO 3166-1 alpha-2"
+        },
+        "expected_city": {
+          "type": "string"
+        }
+      }
+    },
+    "VerifyProxyResponse": {
+      "type": "object",
+      "required": [
+        "match",
+        "actual_country"
+      ],
+      "properties": {
+        "match": {
+          "type": "boolean",
+          "description": "Whether the proxy geo matches the expected country (and city if provided)"
+        },
+        "actual_country": {
+          "type": "string"
+        },
+        "actual_city": {
+          "type": "string"
+        },
+        "ipv4": {
+          "type": "string",
+          "description": "Detected IPv4 address of the proxy"
+        },
+        "ipv6": {
+          "type": "string",
+          "description": "Detected IPv6 address of the proxy"
+        }
+      }
+    }
+  }
+}

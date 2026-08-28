@@ -1,0 +1,159 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+#
+# Apply backend-provided codec capability answers to canPlayType() without
+# hardcoding a passing codec profile. If the backend does not provide an entry
+# for the queried codec family, Chromium's native result is used.
+--- a/third_party/blink/renderer/core/html/media/html_media_element.cc
++++ b/third_party/blink/renderer/core/html/media/html_media_element.cc
+@@ -28,6 +28,8 @@
+ 
+ #include <algorithm>
+ #include <limits>
++#include <optional>
++#include <string>
+ #include <utility>
+ #include <variant>
+ 
+@@ -38,9 +40,11 @@
+ #include "base/memory/ptr_util.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/numerics/safe_conversions.h"
++#include "base/strings/string_util.h"
+ #include "base/strings/to_string.h"
+ #include "base/synchronization/lock.h"
+ #include "base/time/time.h"
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "cc/layers/layer.h"
+ #include "media/base/media_content_type.h"
+ #include "media/base/media_switches.h"
+@@ -365,7 +369,115 @@
+ }
+ 
+ }  // anonymous namespace
++namespace {
++
++bool ContainsAscii(const std::string& haystack, const char* needle) {
++  return haystack.find(needle) != std::string::npos;
++}
++
++bool IsAudioMimeType(const std::string& mime_type) {
++  return mime_type.rfind("audio/", 0) == 0;
++}
++
++bool IsVideoMimeType(const std::string& mime_type) {
++  return mime_type.rfind("video/", 0) == 0;
++}
++
++std::optional<std::string> FingerprintCodecKeyForContentType(
++    const std::string& mime_type,
++    const std::string& codec) {
++  if (IsAudioMimeType(mime_type)) {
++    if (mime_type == "audio/mpeg" || mime_type == "audio/mp3" ||
++        ContainsAscii(codec, "mp3")) {
++      return "mp3";
++    }
++    if (ContainsAscii(codec, "mp4a.40.2") || ContainsAscii(codec, "aac")) {
++      return "aac";
++    }
++    if (ContainsAscii(codec, "opus")) {
++      return "opus";
++    }
++    if (ContainsAscii(codec, "vorbis")) {
++      return "vorbis";
++    }
++    if (ContainsAscii(codec, "flac")) {
++      return "flac";
++    }
++    if (mime_type == "audio/wav" || mime_type == "audio/wave" ||
++        mime_type == "audio/x-wav") {
++      return "wav";
++    }
++    return std::nullopt;
++  }
++
++  if (IsVideoMimeType(mime_type)) {
++    if (ContainsAscii(codec, "avc1") || ContainsAscii(codec, "avc3") ||
++        ContainsAscii(codec, "h264")) {
++      return "h264";
++    }
++    if (ContainsAscii(codec, "hev1") || ContainsAscii(codec, "hvc1") ||
++        ContainsAscii(codec, "hevc") || ContainsAscii(codec, "h265")) {
++      return "h265";
++    }
++    if (ContainsAscii(codec, "vp8") || ContainsAscii(codec, "vp08")) {
++      return "vp8";
++    }
++    if (ContainsAscii(codec, "vp9") || ContainsAscii(codec, "vp09")) {
++      return "vp9";
++    }
++    if (ContainsAscii(codec, "av01") || ContainsAscii(codec, "av1")) {
++      return "av1";
++    }
++  }
++
++  return std::nullopt;
++}
++
++std::optional<MIMETypeRegistry::SupportsType> FingerprintCodecSupportValue(
++    const std::string& value) {
++  const std::string normalized = base::ToLowerASCII(value);
++  if (normalized == "probably") {
++    return MIMETypeRegistry::kSupported;
++  }
++  if (normalized == "maybe") {
++    return MIMETypeRegistry::kMaybeSupported;
++  }
++  if (normalized.empty() || normalized == "no" ||
++      normalized == "unsupported") {
++    return MIMETypeRegistry::kNotSupported;
++  }
++  return std::nullopt;
++}
++
++std::optional<MIMETypeRegistry::SupportsType> FingerprintCodecSupport(
++    const String& mime_type) {
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  if (!fp || (fp->audio_codecs.empty() && fp->video_codecs.empty())) {
++    return std::nullopt;
++  }
++
++  ContentType content_type(mime_type);
++  const std::string type =
++      content_type.GetType().DeprecatedLower().Ascii();
++  const std::string codec =
++      content_type.Parameter("codecs").DeprecatedLower().Ascii();
++  std::optional<std::string> key =
++      FingerprintCodecKeyForContentType(type, codec);
++  if (!key.has_value()) {
++    return std::nullopt;
++  }
+ 
++  const auto& codec_map =
++      IsAudioMimeType(type) ? fp->audio_codecs : fp->video_codecs;
++  auto value = codec_map.find(*key);
++  if (value == codec_map.end()) {
++    return std::nullopt;
++  }
++  return FingerprintCodecSupportValue(value->second);
++}
++
++}  // namespace
++
+ // static
+ MIMETypeRegistry::SupportsType HTMLMediaElement::GetSupportsType(
+     const ContentType& content_type) {
+@@ -1027,8 +1141,12 @@
+ 
+ V8CanPlayTypeResult HTMLMediaElement::canPlayType(
+     const String& mime_type) const {
+-  MIMETypeRegistry::SupportsType support =
+-      GetSupportsType(ContentType(mime_type));
++  std::optional<MIMETypeRegistry::SupportsType> fingerprint_support =
++      FingerprintCodecSupport(mime_type);
++  MIMETypeRegistry::SupportsType support = fingerprint_support.has_value()
++                                               ? *fingerprint_support
++                                               : GetSupportsType(
++                                                     ContentType(mime_type));
+ 
+   V8CanPlayTypeResult can_play =
+       V8CanPlayTypeResult(V8CanPlayTypeResult::Enum::k);

@@ -1,0 +1,30 @@
+# Chromium files touched by removed historical Clawbrowser patches.
+# Keep these in the reset target set so incremental remote builders return them
+# to the pinned Chromium revision before applying the current patch set.
+components/client_hints/browser/BUILD.gn
+components/client_hints/browser/client_hints.cc
+content/browser/BUILD.gn
+content/browser/child_process_security_policy_impl.cc
+content/browser/devtools/devtools_http_handler.cc
+content/browser/devtools/protocol/browser_handler.cc
+content/browser/font_access/font_enumeration_cache.cc
+content/browser/renderer_host/navigator.cc
+content/browser/renderer_host/render_frame_host_impl.cc
+content/browser/webui/web_ui_url_loader_factory.cc
+third_party/blink/renderer/core/css/font_face_set.cc
+third_party/blink/renderer/core/geolocation/geolocation.cc
+third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+third_party/blink/renderer/core/loader/base_fetch_context.cc
+third_party/blink/renderer/core/loader/image_loader.cc
+third_party/blink/renderer/core/loader/image_loader.h
+third_party/blink/renderer/core/loader/mixed_content_checker.cc
+third_party/blink/renderer/core/offscreencanvas/offscreen_canvas.cc
+third_party/blink/renderer/modules/audio_output_devices/html_media_element_audio_output_device.cc
+third_party/blink/renderer/modules/webaudio/audio_context.cc
+third_party/blink/renderer/modules/webgpu/gpu.cc
+third_party/blink/renderer/modules/webgpu/gpu_adapter.cc
+third_party/blink/renderer/modules/webgpu/gpu_device.cc
+third_party/blink/renderer/modules/webgpu/gpu_supported_features.cc
+third_party/blink/renderer/modules/webgpu/gpu_supported_features.h
+third_party/blink/renderer/platform/fonts/font_cache.cc
+third_party/blink/renderer/platform/runtime_enabled_features.json5

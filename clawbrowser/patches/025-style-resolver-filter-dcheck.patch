@@ -1,0 +1,60 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+--- a/third_party/blink/renderer/core/css/resolver/style_resolver.cc
++++ b/third_party/blink/renderer/core/css/resolver/style_resolver.cc
+@@ -369,6 +369,16 @@ String ComputeBaseComputedStyleDiff(const ComputedStyle* base_computed_style,
+     if (exclusions.Contains(d.field)) {
+       continue;
+     }
++    // Reference filters may rebuild identical debug strings while differing in
++    // backing resource/filter pointer identity. That makes the base-style
++    // validation DCHECK fire on pages that animate while using SVG reference
++    // filters, even though the computed value is semantically unchanged.
++    if ((d.field == DebugField::filter_ ||
++         d.field == DebugField::backdrop_filter_) &&
++        d.actual == d.correct) {
++      continue;
++    }
++
+     builder.Append(ComputedStyleBase::DebugFieldToString(d.field));
+     builder.Append("(was ");
+     builder.Append(d.actual.c_str());
+--- a/third_party/blink/renderer/core/css/resolver/style_resolver_test.cc
++++ b/third_party/blink/renderer/core/css/resolver/style_resolver_test.cc
+@@ -231,6 +231,37 @@ TEST_F(StyleResolverTest, AnimationBaseComputedStyle) {
+   EXPECT_EQ(20, resolver.ResolveStyle(div, recalc_context)->FontSize());
+ }
+ 
++TEST_F(StyleResolverTest, AnimationBaseComputedStyleWithReferenceFilter) {
++  GetDocument().documentElement()->SetInnerHTMLWithoutTrustedTypes(R"HTML(
++    <style>
++      @keyframes fade { to { opacity: 0; } }
++      #div {
++        animation: fade 1s;
++        filter: url(#text-inner-shadow);
++      }
++    </style>
++    <svg width="0" height="0" aria-hidden="true">
++      <filter id="text-inner-shadow">
++        <feGaussianBlur stdDeviation="1"></feGaussianBlur>
++      </filter>
++    </svg>
++    <div id="div">Test</div>
++  )HTML");
++  UpdateAllLifecyclePhasesForTest();
++
++  Element* div = GetDocument().getElementById(AtomicString("div"));
++  ElementAnimations& animations = div->EnsureElementAnimations();
++  animations.SetAnimationStyleChange(true);
++
++  StyleResolver& resolver = GetStyleEngine().GetStyleResolver();
++  StyleRecalcContext recalc_context;
++  recalc_context.old_style = div->GetComputedStyle();
++  const auto* style = resolver.ResolveStyle(div, recalc_context);
++  ASSERT_TRUE(style);
++  ASSERT_TRUE(style->GetBaseComputedStyle());
++  EXPECT_EQ(style->Filter(), style->GetBaseComputedStyle()->Filter());
++}
++
+ TEST_F(StyleResolverTest, HasEmUnits) {
+   GetDocument().documentElement()->SetInnerHTMLWithoutTrustedTypes(
+       "<div id=div>Test</div>");

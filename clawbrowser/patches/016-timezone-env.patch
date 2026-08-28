@@ -1,0 +1,66 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+--- a/base/i18n/icu_util.cc
++++ b/base/i18n/icu_util.cc
+@@ -4,6 +4,12 @@
+ 
+ #include "base/i18n/icu_util.h"
+ 
++#include <stdlib.h>
++#include <time.h>
++
++#include "base/base64.h"
++#include "base/command_line.h"
++#include "base/json/json_reader.h"
+ #include "build/build_config.h"
+ 
+ #if BUILDFLAG(IS_WIN)
+@@ -309,7 +315,41 @@
+   return result;
+ }
+ #endif  // (ICU_UTIL_DATA_IMPL == ICU_UTIL_DATA_FILE)
++
++void MaybeSetClawbrowserTimeZoneFromCommandLine() {
++  const base::CommandLine* command_line =
++      base::CommandLine::ForCurrentProcess();
++  if (!command_line ||
++      !command_line->HasSwitch("clawbrowser-fp-child-data")) {
++    return;
++  }
+ 
++  std::string json;
++  if (!base::Base64Decode(
++          command_line->GetSwitchValueASCII("clawbrowser-fp-child-data"),
++          &json)) {
++    return;
++  }
++
++  std::optional<base::Value> parsed =
++      base::JSONReader::Read(json, base::JSON_PARSE_RFC);
++  if (!parsed || !parsed->is_dict()) {
++    return;
++  }
++
++  const std::string* timezone = parsed->GetDict().FindString("timezone");
++  if (!timezone || timezone->empty()) {
++    return;
++  }
++#if BUILDFLAG(IS_WIN)
++  _putenv_s("TZ", timezone->c_str());
++  _tzset();
++#else
++  setenv("TZ", timezone->c_str(), 1);
++  tzset();
++#endif
++}
++
+ // Explicitly initialize ICU's time zone if necessary.
+ // On some platforms, the time zone must be explicitly initialized zone rather
+ // than relying on ICU's internal initialization.
+@@ -361,6 +401,7 @@
+   // TODO(jungshik): Some callers do not care about tz at all. If necessary,
+   // add a boolean argument to this function to init the default tz only
+   // when requested.
++  MaybeSetClawbrowserTimeZoneFromCommandLine();
+   InitializeIcuTimeZone();
+ 
+   utrace_setLevel(UTRACE_VERBOSE);

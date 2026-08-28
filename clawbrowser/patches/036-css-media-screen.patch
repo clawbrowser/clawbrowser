@@ -1,0 +1,52 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+diff --git a/third_party/blink/renderer/core/css/media_values.cc b/third_party/blink/renderer/core/css/media_values.cc
+--- a/third_party/blink/renderer/core/css/media_values.cc
++++ b/third_party/blink/renderer/core/css/media_values.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "third_party/blink/renderer/core/css/media_values.h"
+ 
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "third_party/blink/public/common/css/scripting.h"
+ #include "third_party/blink/renderer/core/css/css_resolution_units.h"
+ #include "third_party/blink/renderer/core/css/css_to_length_conversion_data.h"
+@@ -164,6 +165,13 @@ double MediaValues::CalculateDynamicViewportHeight(LocalFrame* frame) {
+ 
+ int MediaValues::CalculateDeviceWidth(LocalFrame* frame) {
+   DCHECK(frame && frame->View() && frame->GetSettings() && frame->GetPage());
++  // Screen.width is spoofed in screen.cc, but CSS device-width is evaluated
++  // from ScreenInfo here. Left alone, the two disagree by exactly the host's
++  // real resolution, and a page can read both and diff them in one line.
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->screen.width > 0) {
++    return fp->screen.width;
++  }
+   const display::ScreenInfo& screen_info =
+       frame->GetPage()->GetChromeClient().GetScreenInfo(*frame);
+   int device_width = screen_info.rect.width();
+@@ -176,6 +184,11 @@ int MediaValues::CalculateDeviceWidth(LocalFrame* frame) {
+ 
+ int MediaValues::CalculateDeviceHeight(LocalFrame* frame) {
+   DCHECK(frame && frame->View() && frame->GetSettings() && frame->GetPage());
++  // Mirrors CalculateDeviceWidth; see the note there.
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->screen.height > 0) {
++    return fp->screen.height;
++  }
+   const display::ScreenInfo& screen_info =
+       frame->GetPage()->GetChromeClient().GetScreenInfo(*frame);
+   int device_height = screen_info.rect.height();
+@@ -193,6 +206,13 @@ bool MediaValues::CalculateStrictMode(LocalFrame* frame) {
+ }
+ 
+ float MediaValues::CalculateDevicePixelRatio(LocalFrame* frame) {
++  // Backs the CSS `resolution` feature. window.devicePixelRatio is already
++  // overridden in local_dom_window.cc; without this the two agree only by
++  // luck on profiles whose ratio happens to be 1.0.
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->screen.pixel_ratio > 0.0) {
++    return static_cast<float>(fp->screen.pixel_ratio);
++  }
+   return frame->DevicePixelRatio();
+ }
+ 
