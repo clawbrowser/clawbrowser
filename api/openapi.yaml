@@ -1,0 +1,1844 @@
+openapi: 3.1.0
+info:
+  title: Clawbrowser API
+  version: 1.0.0
+  description: |
+    Clawbrowser backend API. Two auth contexts:
+    - Browser-facing endpoints use Unkey API key auth (bearerAuth)
+    - Dashboard-facing endpoints use Auth0 JWT auth (auth0Jwt)
+    - Webhook endpoints use signature verification
+
+tags:
+  - name: auth
+    description: Runtime authentication helpers
+  - name: fingerprint
+    description: Browser-facing fingerprint operations (Unkey API key auth)
+  - name: pairing
+    description: Runtime pairing and dashboard approval operations
+  - name: remote
+    description: Browser-only Remote Control session operations
+  - name: dashboard
+    description: Dashboard-facing operations (Auth0 JWT auth)
+  - name: webhooks
+    description: Webhook receivers (signature verification)
+
+paths:
+  # ──────────────────────────────────────────────
+  # Browser-facing (Unkey API key auth)
+  # ──────────────────────────────────────────────
+
+  /v1/auth/api-key/validate:
+    get:
+      tags: [auth]
+      summary: Validate the current API key
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: API key is valid and usable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyValidationResponse'
+        '401':
+          description: Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/fingerprints/generate:
+    post:
+      tags: [fingerprint]
+      summary: Generate a browser fingerprint
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateRequest'
+      responses:
+        '200':
+          description: Generated fingerprint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/proxy/verify:
+    post:
+      tags: [fingerprint]
+      summary: Verify proxy matches expected geo parameters
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyProxyRequest'
+      responses:
+        '200':
+          description: Proxy verification result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyProxyResponse'
+        '401':
+          description: Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/remote-sessions:
+    post:
+      tags: [remote]
+      summary: Create a Remote Control session
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRemoteSessionRequest'
+      responses:
+        '201':
+          description: Remote session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateRemoteSessionResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Remote session rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/remote-sessions/{id}:
+    get:
+      tags: [remote]
+      summary: Get Remote Control session metadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Remote session metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RemoteSession'
+        '401':
+          description: Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Remote session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '410':
+          description: Remote session expired or closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/remote-sessions/{id}/close:
+    post:
+      tags: [remote]
+      summary: Close a Remote Control session
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CloseRemoteSessionRequest'
+      responses:
+        '200':
+          description: Remote session closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RemoteSession'
+        '401':
+          description: Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Remote session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '410':
+          description: Remote session expired or closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/pairing-requests/browser:
+    post:
+      tags: [pairing]
+      summary: Start a browser pairing request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePairingRequest'
+      responses:
+        '201':
+          description: Pairing request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairingStartResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/pairing-requests/agent:
+    post:
+      tags: [pairing]
+      summary: Start an agent pairing request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePairingRequest'
+      responses:
+        '201':
+          description: Pairing request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairingStartResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/pairing-requests/{id}:
+    get:
+      tags: [pairing]
+      summary: Poll a pairing request for status or one-time key delivery
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: poll_token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pairing status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairingPollResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid poll token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Pairing request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/support/contact:
+    post:
+      tags: [dashboard]
+      summary: Submit a support contact request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitSupportRequest'
+      responses:
+        '204':
+          description: Support request accepted
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ──────────────────────────────────────────────
+  # Dashboard-facing (Auth0 JWT auth)
+  # ──────────────────────────────────────────────
+
+  /v1/me:
+    get:
+      tags: [dashboard]
+      summary: Get current customer profile
+      security:
+        - auth0Jwt: []
+      responses:
+        '200':
+          description: Customer profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [dashboard]
+      summary: Update current customer profile
+      security:
+        - auth0Jwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCustomerRequest'
+      responses:
+        '200':
+          description: Updated customer profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/api-keys:
+    post:
+      tags: [dashboard]
+      summary: Create a new API key
+      security:
+        - auth0Jwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApiKeyRequest'
+      responses:
+        '201':
+          description: API key created. The key value is only returned once.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateApiKeyResponse'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [dashboard]
+      summary: List customer's API keys
+      security:
+        - auth0Jwt: []
+      responses:
+        '200':
+          description: List of API keys (key values are masked)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keys]
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKey'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/api-keys/{id}:
+    delete:
+      tags: [dashboard]
+      summary: Revoke an API key
+      security:
+        - auth0Jwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: API key revoked
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/dashboard/remote-sessions/active:
+    get:
+      tags: [remote, dashboard]
+      summary: List active Remote Control sessions for the current dashboard customer
+      security:
+        - auth0Jwt: []
+      responses:
+        '200':
+          description: Active Remote Control sessions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveRemoteSessionsResponse'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Remote session service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/dashboard/remote-sessions/{id}/viewer-access:
+    post:
+      tags: [remote, dashboard]
+      summary: Issue dashboard viewer access for an active Remote Control session
+      security:
+        - auth0Jwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dashboard viewer connection details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RemoteSessionViewerAccess'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Remote session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '410':
+          description: Remote session expired or closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Remote session rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/pairing-requests/pending:
+    get:
+      tags: [pairing, dashboard]
+      summary: List pending pairing requests visible to the current customer
+      security:
+        - auth0Jwt: []
+      parameters:
+        - name: include_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Include a specific pending request from a verification link, even if it is not yet attached to the current customer.
+      responses:
+        '200':
+          description: Pending pairing requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [requests]
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PairingRequest'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/pairing-requests/{id}/approve:
+    post:
+      tags: [pairing, dashboard]
+      summary: Approve a pending pairing request
+      security:
+        - auth0Jwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pairing request approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairingRequest'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Pairing request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Pairing request cannot be approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/pairing-requests/{id}/reject:
+    post:
+      tags: [pairing, dashboard]
+      summary: Reject a pending pairing request
+      security:
+        - auth0Jwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pairing request rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairingRequest'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Pairing request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Pairing request cannot be rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/pairing-requests/resolve-code:
+    post:
+      tags: [pairing, dashboard]
+      summary: Resolve a pairing request by pairing code
+      security:
+        - auth0Jwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolvePairingCodeRequest'
+      responses:
+        '200':
+          description: Pairing request resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairingRequest'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Pairing request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/usage:
+    get:
+      tags: [dashboard]
+      summary: Get current period usage stats
+      security:
+        - auth0Jwt: []
+      responses:
+        '200':
+          description: Usage statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageStats'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/usage/proxy-traffic/top-up:
+    post:
+      tags: [dashboard]
+      summary: Add 1 GiB to the current proxy traffic limit
+      description: Restricted to internal accounts. External accounts request traffic through Discord and the team adds it manually.
+      security:
+        - auth0Jwt: []
+      responses:
+        '200':
+          description: Updated proxy traffic statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProxyTrafficStats'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Automatic top-up is limited to internal accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Proxy traffic record not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/proxy/traffic:
+    get:
+      tags: [browser]
+      summary: Get managed proxy traffic state
+      security:
+        - apiKeyAuth: []
+      responses:
+        '200':
+          description: Proxy traffic state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProxyTrafficStats'
+        '401':
+          description: Invalid or missing runtime API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Proxy traffic record not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Upstream proxy traffic lookup failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Proxy traffic service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/usage/history:
+    get:
+      tags: [dashboard]
+      summary: Get usage over time (for charts)
+      security:
+        - auth0Jwt: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Start date in YYYY-MM-DD format
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: End date in YYYY-MM-DD format
+        - name: granularity
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: day
+      responses:
+        '200':
+          description: Usage history data points
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageHistory'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/usage/generation-requests:
+    get:
+      tags: [dashboard]
+      summary: List recent fingerprint generation requests
+      security:
+        - auth0Jwt: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+          description: Maximum number of recent requests to return
+      responses:
+        '200':
+          description: Recent fingerprint generation requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationRequestHistory'
+        '401':
+          description: Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ──────────────────────────────────────────────
+  # Webhooks (signature verification)
+  # ──────────────────────────────────────────────
+
+  /v1/webhooks/auth0:
+    post:
+      tags: [webhooks]
+      summary: Auth0 post-registration webhook
+      description: |
+        Called by Auth0 after a new user registers. Creates the customer record
+        and provisions backend-side infrastructure. First runtime credentials are
+        now issued later through pairing approval.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Auth0WebhookPayload'
+      responses:
+        '200':
+          description: Webhook processed
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid webhook signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Unkey-issued API key for browser clients
+    auth0Jwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Auth0-issued JWT for dashboard clients
+
+  schemas:
+    # ──────────────────────────────────────────────
+    # Fingerprint schemas
+    # ──────────────────────────────────────────────
+
+    APIKeyValidationResponse:
+      type: object
+      required: [valid]
+      properties:
+        valid:
+          type: boolean
+        key_id:
+          type: string
+        owner_id:
+          type: string
+
+    GenerateRequest:
+      type: object
+      required: [platform, browser, country]
+      properties:
+        platform:
+          type: string
+          enum: [linux, macos, windows]
+        browser:
+          type: string
+          enum: [chrome]
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2
+        city:
+          type: string
+        connection_type:
+          type: string
+          enum: [residential, datacenter, mobile]
+        proxy_scheme:
+          type: string
+          enum: [http, socks5]
+          default: http
+        runtime_browser_version:
+          type: string
+          description: Full Chromium/Chrome runtime version that will apply the fingerprint
+        runtime_os:
+          type: string
+          enum: [macos, windows, linux]
+        runtime_os_version:
+          type: string
+          description: Optional browser host OS version. When absent, the generator derives os_version from the generated user agent instead of inventing a host version.
+        runtime_arch:
+          type: string
+          enum: [amd64, arm64]
+        runtime_gpu:
+          type: string
+          description: Runtime GPU backend hint, for example apple-metal, d3d11-nvidia, or swiftshader
+        runtime_headless:
+          type: boolean
+
+    GenerateResponse:
+      type: object
+      required: [fingerprint]
+      properties:
+        fingerprint:
+          $ref: '#/components/schemas/Fingerprint'
+        proxy:
+          $ref: '#/components/schemas/ProxyConfig'
+
+    Fingerprint:
+      type: object
+      required:
+        - browser_family
+        - browser_version
+        - engine
+        - os
+        - os_version
+        - architecture
+        - device_class
+        - user_agent
+        - platform
+        - user_agent_data
+        - screen
+        - hardware
+        - webgl
+        - canvas_seed
+        - audio_seed
+        - client_rects_seed
+        - timezone
+        - language
+        - fonts
+        - headers
+        - surface_policy
+      properties:
+        browser_family:
+          type: string
+          enum: [chrome]
+        browser_version:
+          type: string
+        engine:
+          type: string
+          enum: [blink]
+        os:
+          type: string
+          enum: [macos, windows, linux]
+        os_version:
+          type: string
+        architecture:
+          type: string
+        device_class:
+          type: string
+          enum: [desktop, mobile]
+        user_agent:
+          type: string
+        platform:
+          type: string
+        user_agent_data:
+          $ref: '#/components/schemas/UserAgentData'
+        screen:
+          $ref: '#/components/schemas/Screen'
+        hardware:
+          $ref: '#/components/schemas/Hardware'
+        webgl:
+          $ref: '#/components/schemas/WebGL'
+        canvas_seed:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 2147483647
+        audio_seed:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 2147483647
+        client_rects_seed:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 2147483647
+        timezone:
+          type: string
+        language:
+          type: array
+          items:
+            type: string
+        fonts:
+          type: array
+          items:
+            type: string
+        media_devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaDevice'
+        plugins:
+          type: array
+          items:
+            $ref: '#/components/schemas/Plugin'
+        battery:
+          $ref: '#/components/schemas/Battery'
+        speech_voices:
+          type: array
+          items:
+            type: string
+        audio_codecs:
+          type: object
+          additionalProperties:
+            type: string
+        video_codecs:
+          type: object
+          additionalProperties:
+            type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        surface_policy:
+          $ref: '#/components/schemas/SurfacePolicy'
+
+    UserAgentData:
+      type: object
+      required: [brands, fullVersionList, platform, platformVersion, architecture, bitness, mobile, model]
+      properties:
+        brands:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientHintBrand'
+        fullVersionList:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientHintBrand'
+        platform:
+          type: string
+        platformVersion:
+          type: string
+        architecture:
+          type: string
+        bitness:
+          type: string
+        mobile:
+          type: boolean
+        model:
+          type: string
+        uaFullVersion:
+          type: string
+
+    ClientHintBrand:
+      type: object
+      required: [brand, version]
+      properties:
+        brand:
+          type: string
+        version:
+          type: string
+
+    SurfacePolicy:
+      type: object
+      required: [canvas, audio, client_rects, webgl, fonts, plugins, media_devices, speech_voices]
+      properties:
+        canvas:
+          $ref: '#/components/schemas/SurfacePolicyRule'
+        audio:
+          $ref: '#/components/schemas/SurfacePolicyRule'
+        client_rects:
+          $ref: '#/components/schemas/SurfacePolicyRule'
+        webgl:
+          $ref: '#/components/schemas/SurfacePolicyRule'
+        fonts:
+          $ref: '#/components/schemas/SurfacePolicyRule'
+        plugins:
+          $ref: '#/components/schemas/SurfacePolicyRule'
+        media_devices:
+          $ref: '#/components/schemas/SurfacePolicyRule'
+        speech_voices:
+          $ref: '#/components/schemas/SurfacePolicyRule'
+
+    SurfacePolicyRule:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [native, native_or_allowlist, override]
+
+    Screen:
+      type: object
+      required: [width, height, avail_width, avail_height, color_depth, pixel_ratio]
+      properties:
+        width: { type: integer }
+        height: { type: integer }
+        avail_width: { type: integer }
+        avail_height: { type: integer }
+        color_depth: { type: integer }
+        pixel_ratio: { type: number }
+
+    Hardware:
+      type: object
+      required: [concurrency, memory]
+      properties:
+        concurrency: { type: integer }
+        memory: { type: integer }
+
+    WebGL:
+      type: object
+      required: [vendor, renderer]
+      properties:
+        vendor: { type: string }
+        renderer: { type: string }
+
+    MediaDevice:
+      type: object
+      properties:
+        kind: { type: string, enum: [audioinput, audiooutput, videoinput] }
+        label: { type: string }
+        device_id: { type: string }
+
+    Plugin:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        filename: { type: string }
+
+    Battery:
+      type: object
+      properties:
+        charging: { type: boolean }
+        level: { type: number }
+        # Seconds until fully charged / until empty, matching BatteryManager.
+        # Optional: when omitted the browser derives a pair consistent with
+        # `charging` and `level` rather than leaking the host's real battery.
+        # Use `null` to mean the spec's Infinity (charging batteries report an
+        # infinite dischargingTime, and vice versa).
+        chargingTime: { type: number, nullable: true }
+        dischargingTime: { type: number, nullable: true }
+
+    ProxyConfig:
+      type: object
+      properties:
+        scheme:
+          type: string
+          enum: [http, socks5]
+          default: http
+        country: { type: string }
+        city: { type: string }
+        connection_type: { type: string }
+        host: { type: string }
+        port: { type: integer }
+        username: { type: string }
+        password: { type: string }
+
+    VerifyProxyRequest:
+      type: object
+      required: [proxy, expected_country]
+      properties:
+        proxy:
+          type: object
+          required: [host, port, username, password]
+          properties:
+            scheme:
+              type: string
+              enum: [http, socks5]
+              default: http
+            host: { type: string }
+            port: { type: integer }
+            username: { type: string }
+            password: { type: string }
+        expected_country:
+          type: string
+          description: ISO 3166-1 alpha-2
+        expected_city:
+          type: string
+
+    VerifyProxyResponse:
+      type: object
+      required: [match, actual_country]
+      properties:
+        match:
+          type: boolean
+          description: Whether the proxy geo matches the expected country (and city if provided)
+        actual_country:
+          type: string
+        actual_city:
+          type: string
+        ipv4:
+          type: string
+          description: Detected IPv4 address of the proxy
+        ipv6:
+          type: string
+          description: Detected IPv6 address of the proxy
+
+    # ──────────────────────────────────────────────
+    # Remote Control schemas
+    # ──────────────────────────────────────────────
+
+    RemoteSessionCapability:
+      type: string
+      enum: [cdp_screencast, mouse, wheel, keyboard, text, tabs]
+
+    RemoteSessionStatus:
+      type: string
+      enum: [created, waiting_agent, waiting_viewer, streaming, viewer_detached, closed, expired]
+
+    CreateRemoteSessionRequest:
+      type: object
+      properties:
+        profile:
+          type: string
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/RemoteSessionCapability'
+        ttl_seconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
+        viewer_reconnect_ttl_seconds:
+          type: integer
+          minimum: 1
+          maximum: 1800
+
+    ICEServer:
+      type: object
+      required: [urls]
+      properties:
+        urls:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        username:
+          type: string
+        credential:
+          type: string
+
+    CreateRemoteSessionResponse:
+      type: object
+      required: [id, viewer_url, agent_ws_url, expires_at, ice_servers]
+      properties:
+        id:
+          type: string
+        viewer_url:
+          type: string
+          format: uri
+        agent_ws_url:
+          type: string
+          format: uri
+        expires_at:
+          type: string
+          format: date-time
+        ice_servers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ICEServer'
+
+    RemoteSession:
+      type: object
+      required: [id, owner_id, profile, capabilities, status, created_at, expires_at]
+      properties:
+        id:
+          type: string
+        owner_id:
+          type: string
+        api_key_id:
+          type: string
+        profile:
+          type: string
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/RemoteSessionCapability'
+        status:
+          $ref: '#/components/schemas/RemoteSessionStatus'
+        transport_mode:
+          type: string
+          enum: [websocket_cdp, webrtc]
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        viewer_reconnect_expires_at:
+          type: string
+          format: date-time
+        closed_at:
+          type: string
+          format: date-time
+        close_reason:
+          type: string
+        agent_connected_at:
+          type: string
+          format: date-time
+        viewer_connected_at:
+          type: string
+          format: date-time
+        last_frame_at:
+          type: string
+          format: date-time
+
+    CloseRemoteSessionRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+
+    ActiveRemoteSessionsResponse:
+      type: object
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RemoteSession'
+
+    RemoteSessionViewerAccess:
+      type: object
+      required: [id, session, viewer_url, viewer_ws_url, expires_at, ice_servers]
+      properties:
+        id:
+          type: string
+        session:
+          $ref: '#/components/schemas/RemoteSession'
+        viewer_url:
+          type: string
+          format: uri
+        viewer_ws_url:
+          type: string
+          format: uri
+        expires_at:
+          type: string
+          format: date-time
+        ice_servers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ICEServer'
+
+    # ──────────────────────────────────────────────
+    # Dashboard schemas
+    # ──────────────────────────────────────────────
+
+    Customer:
+      type: object
+      required: [id, email, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        status:
+          type: string
+          enum: [provisioning, active, provisioning_failed]
+          description: Account provisioning status
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UpdateCustomerRequest:
+      type: object
+      properties:
+        name:
+          type: string
+
+    SubmitSupportRequest:
+      type: object
+      required: [email, message]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        message:
+          type: string
+
+    CreateApiKeyRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Human-readable label for the API key
+
+    CreateApiKeyResponse:
+      type: object
+      required: [id, name, key, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        key:
+          type: string
+          description: The API key value. Only returned once at creation time.
+        created_at:
+          type: string
+          format: date-time
+
+    ApiKey:
+      type: object
+      required: [id, name, key_prefix, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        key_prefix:
+          type: string
+          description: First 8 characters of the key for identification (e.g. "clawbrow...")
+        created_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+
+    PairingRequestKind:
+      type: string
+      enum: [browser, agent]
+
+    PairingRequestStatus:
+      type: string
+      enum: [pending, approved, rejected, expired, completed]
+
+    CreatePairingRequest:
+      type: object
+      properties:
+        display_name:
+          type: string
+        runtime_name:
+          type: string
+        plugin_name:
+          type: string
+        version:
+          type: string
+        platform:
+          type: string
+        os:
+          type: string
+        hostname:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    PairingRequest:
+      type: object
+      required: [id, pairing_code, kind, status, created_at, expires_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        pairing_code:
+          type: string
+        kind:
+          $ref: '#/components/schemas/PairingRequestKind'
+        status:
+          $ref: '#/components/schemas/PairingRequestStatus'
+        display_name:
+          type: string
+        runtime_name:
+          type: string
+        plugin_name:
+          type: string
+        version:
+          type: string
+        platform:
+          type: string
+        os:
+          type: string
+        hostname:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        approved_at:
+          type: string
+          format: date-time
+        rejected_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    PairingStartResponse:
+      type: object
+      required: [pairing_id, pairing_code, verification_url, status, expires_at, poll_after_ms, poll_token]
+      properties:
+        pairing_id:
+          type: string
+          format: uuid
+        pairing_code:
+          type: string
+        verification_url:
+          type: string
+          format: uri
+        status:
+          $ref: '#/components/schemas/PairingRequestStatus'
+        expires_at:
+          type: string
+          format: date-time
+        poll_after_ms:
+          type: integer
+        poll_token:
+          type: string
+
+    PairingPollResponse:
+      type: object
+      required: [pairing_id, kind, status, expires_at, poll_after_ms]
+      properties:
+        pairing_id:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/PairingRequestKind'
+        status:
+          $ref: '#/components/schemas/PairingRequestStatus'
+        expires_at:
+          type: string
+          format: date-time
+        poll_after_ms:
+          type: integer
+        api_key:
+          type: string
+
+    ResolvePairingCodeRequest:
+      type: object
+      required: [pairing_code]
+      properties:
+        pairing_code:
+          type: string
+
+    UsageStats:
+      type: object
+      required: [period_start, period_end, fingerprint_generations, proxy_verifications]
+      properties:
+        period_start:
+          type: string
+          format: date
+        period_end:
+          type: string
+          format: date
+        fingerprint_generations:
+          type: integer
+        proxy_verifications:
+          type: integer
+        proxy_traffic:
+          $ref: '#/components/schemas/ProxyTrafficStats'
+
+    UsageHistory:
+      type: object
+      required: [data_points]
+      properties:
+        data_points:
+          type: array
+          items:
+            type: object
+            required: [date, fingerprint_generations, proxy_verifications]
+            properties:
+              date:
+                type: string
+                format: date
+              fingerprint_generations:
+                type: integer
+              proxy_verifications:
+                type: integer
+
+    GenerationRequestHistory:
+      type: object
+      required: [requests]
+      properties:
+        requests:
+          type: array
+          items:
+            $ref: '#/components/schemas/GenerationRequestHistoryItem'
+
+    GenerationRequestHistoryItem:
+      type: object
+      required: [id, occurred_at, ip, request, fingerprint]
+      properties:
+        id:
+          type: string
+          format: uuid
+        occurred_at:
+          type: string
+          format: date-time
+        ip:
+          type: string
+          description: Device IP observed by the API edge
+        api_key_id:
+          type: string
+          format: uuid
+        api_key_name:
+          type: string
+        api_key_source:
+          type: string
+        request:
+          $ref: '#/components/schemas/GenerationRequestInput'
+        fingerprint:
+          $ref: '#/components/schemas/GenerationFingerprintSummary'
+        proxy:
+          $ref: '#/components/schemas/GenerationProxySummary'
+
+    GenerationRequestInput:
+      type: object
+      required: [platform, browser, country]
+      properties:
+        platform:
+          type: string
+        browser:
+          type: string
+        country:
+          type: string
+        city:
+          type: string
+        connection_type:
+          type: string
+        proxy_scheme:
+          type: string
+
+    GenerationFingerprintSummary:
+      type: object
+      required: [user_agent, platform, screen, webgl_vendor, webgl_renderer, timezone, language, canvas_seed, audio_seed, client_rects_seed]
+      properties:
+        user_agent:
+          type: string
+        platform:
+          type: string
+        screen:
+          type: string
+        webgl_vendor:
+          type: string
+        webgl_renderer:
+          type: string
+        timezone:
+          type: string
+        language:
+          type: array
+          items:
+            type: string
+        canvas_seed:
+          type: integer
+          format: int64
+        audio_seed:
+          type: integer
+          format: int64
+        client_rects_seed:
+          type: integer
+          format: int64
+
+    GenerationProxySummary:
+      type: object
+      required: [host, port, username]
+      properties:
+        host:
+          type: string
+        port:
+          type: integer
+        scheme:
+          type: string
+        username:
+          type: string
+        ip:
+          type: string
+          description: Outbound IP observed through the proxy
+        country:
+          type: string
+        city:
+          type: string
+        connection_type:
+          type: string
+
+    ProxyTrafficStats:
+      type: object
+      required: [limited, used_bytes, state, top_up_available, top_up_bytes, dashboard_url, request_url]
+      properties:
+        limited:
+          type: boolean
+        used_bytes:
+          type: integer
+          format: int64
+        limit_bytes:
+          type: integer
+          format: int64
+        remaining_bytes:
+          type: integer
+          format: int64
+        percent_used:
+          type: number
+          format: double
+        state:
+          type: string
+          enum: [ok, near_limit, exhausted, unavailable]
+        top_up_available:
+          type: boolean
+          description: >-
+            Whether this account may add proxy traffic from the app. Automatic
+            top-up is limited to internal accounts; every other account receives
+            false and a top_up_bytes of 0, and must request traffic through
+            request_url for the team to add manually. Clients must not offer an
+            automatic top-up control when this is false.
+        top_up_bytes:
+          type: integer
+          format: int64
+        dashboard_url:
+          type: string
+          format: uri
+        request_url:
+          type: string
+          format: uri
+          description: >-
+            Where an account requests more proxy traffic when automatic top-up is
+            unavailable. Points at the Clawbrowser Discord community.
+
+    # ──────────────────────────────────────────────
+    # Webhook schemas
+    # ──────────────────────────────────────────────
+
+    Auth0WebhookPayload:
+      type: object
+      required: [user_id, email]
+      properties:
+        user_id:
+          type: string
+          description: Auth0 user ID
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+
+    # ──────────────────────────────────────────────
+    # Shared schemas
+    # ──────────────────────────────────────────────
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code
+        message:
+          type: string
+          description: Human-readable error message

@@ -1,0 +1,84 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+diff --git a/third_party/blink/renderer/modules/plugins/dom_plugin_array.cc b/third_party/blink/renderer/modules/plugins/dom_plugin_array.cc
+--- a/third_party/blink/renderer/modules/plugins/dom_plugin_array.cc
++++ b/third_party/blink/renderer/modules/plugins/dom_plugin_array.cc
+@@ -20,6 +20,9 @@
+ 
+ #include "third_party/blink/renderer/modules/plugins/dom_plugin_array.h"
+ 
++#include <string>
++
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+@@ -35,24 +38,53 @@
+ namespace blink {
+ 
+ namespace {
+-DOMPlugin* MakeFakePlugin(String plugin_name, LocalDOMWindow* window) {
+-  String description = "Portable Document Format";
+-  String filename = "internal-pdf-viewer";
++DOMPlugin* MakePlugin(const String& plugin_name,
++                      const String& filename,
++                      const String& description,
++                      const Vector<String>& mime_types,
++                      const Vector<String>& extensions,
++                      LocalDOMWindow* window) {
+   auto* plugin_info =
+       MakeGarbageCollected<PluginInfo>(plugin_name, filename, description,
+                                        /*background_color=*/Color::kTransparent,
+                                        /*may_use_external_handler=*/false);
+-  Vector<String> extensions{"pdf"};
+-  for (const char* mime_type : {"application/pdf", "text/pdf"}) {
++  for (const auto& mime_type : mime_types) {
+     auto* mime_info = MakeGarbageCollected<MimeClassInfo>(
+         mime_type, description, *plugin_info, extensions);
+     plugin_info->AddMimeType(mime_info);
+   }
+   return MakeGarbageCollected<DOMPlugin>(window, *plugin_info);
+ }
++
++DOMPlugin* MakeFakePlugin(String plugin_name, LocalDOMWindow* window) {
++  Vector<String> mime_types{"application/pdf", "text/pdf"};
++  Vector<String> extensions{"pdf"};
++  return MakePlugin(plugin_name, "internal-pdf-viewer",
++                    "Portable Document Format", mime_types, extensions,
++                    window);
++}
+ }  // namespace
+ 
+ DOMPluginArray::DOMPluginArray(LocalDOMWindow* window) : window_(window) {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->surface_policy.plugins == "override" &&
++      !fp->plugins.empty()) {
++    // Real Chrome's built-in PDF entries each carry these two MIME types, and
++    // navigator.mimeTypes is derived from the first plugin's list. Building the
++    // spoofed plugins without them produced plugins.length == 5 alongside
++    // mimeTypes.length == 0 -- a pairing no genuine Chrome reports.
++    const Vector<String> mime_types{"application/pdf", "text/pdf"};
++    const Vector<String> extensions{"pdf"};
++    for (const auto& plugin : fp->plugins) {
++      dom_plugins_.push_back(MakePlugin(
++          String::FromUtf8(plugin.name.value_or(std::string())),
++          String::FromUtf8(plugin.filename.value_or(std::string())),
++          String::FromUtf8(plugin.description.value_or(std::string())),
++          mime_types, extensions, window));
++    }
++    return;
++  }
++
+   if (IsPdfViewerAvailable()) {
+     // See crbug.com/1164635 and https://github.com/whatwg/html/pull/6738.
+     // To reduce fingerprinting and make plugins/mimetypes more
+@@ -126,9 +158,8 @@ PluginData* DOMPluginArray::GetPluginData() const {
+ 
+ HeapVector<Member<DOMMimeType>> DOMPluginArray::GetFixedMimeTypeArray() {
+   HeapVector<Member<DOMMimeType>> mimetypes;
+-  if (dom_plugins_.empty())
++  if (dom_plugins_.empty() || dom_plugins_[0]->length() < 2u)
+     return mimetypes;
+-  DCHECK_EQ(dom_plugins_[0]->length(), 2u);
+   mimetypes.push_back(dom_plugins_[0]->item(0));
+   mimetypes.push_back(dom_plugins_[0]->item(1));
+   return mimetypes;

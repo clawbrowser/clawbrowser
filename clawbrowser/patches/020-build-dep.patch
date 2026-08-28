@@ -1,0 +1,98 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
+--- a/chrome/BUILD.gn
++++ b/chrome/BUILD.gn
+@@ -167,6 +167,7 @@ if (!is_android && !is_mac) {
+     public_deps = []
+     deps = [
+       "//build:chromeos_buildflags",
++      "//clawbrowser:clawbrowser_core",
+       "//printing/buildflags",
+     ]
+     data = [ "$root_out_dir/resources.pak" ]
+@@ -1144,6 +1145,7 @@ if (is_win) {
+     deps = [
+       ":dependencies",
+       "//build:chromeos_buildflags",
++      "//clawbrowser:clawbrowser_core",
+       "//chrome/app:command_ids",
+       "//chrome/browser:chrome_browser_application_mac",
+       "//chrome/browser:chrome_content_browser_client",
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -882,6 +882,8 @@ source_set("core") {
+     ":bad_message",
+     ":browser_about_handler",
+     ":browser_features",
++    "//clawbrowser:clawbrowser_core",
++    "//clawbrowser:clawbrowser_proxy_auth",
+     ":browser_process",
+     ":browser_process_impl",
+     ":browser_process_platform_part",
+diff --git a/chrome/browser/ui/BUILD.gn b/chrome/browser/ui/BUILD.gn
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -446,6 +446,7 @@ static_library("ui") {
+     ":tab_modal_confirm_dialog_delegate",
+     ":ui_features",
+     ":url_identity",
++    "//clawbrowser",
+     "//base",
+     "//base:i18n",
+     "//base/allocator:buildflags",
+diff --git a/content/gpu/BUILD.gn b/content/gpu/BUILD.gn
+--- a/content/gpu/BUILD.gn
++++ b/content/gpu/BUILD.gn
+@@ -46,6 +46,7 @@ target(link_target_type, "gpu_sources") {
+ 
+   deps = [
+     "//base",
++    "//clawbrowser:clawbrowser_core",
+     "//build:branding_buildflags",
+     "//components/performance_manager/scenario_api",
+     "//components/viz/service",
+diff --git a/content/renderer/BUILD.gn b/content/renderer/BUILD.gn
+--- a/content/renderer/BUILD.gn
++++ b/content/renderer/BUILD.gn
+@@ -228,6 +228,7 @@ target(link_target_type, "renderer") {
+ 
+   deps = [
+     "//base",
++    "//clawbrowser:clawbrowser_core",
+     "//base:i18n",
+     "//build:chromecast_buildflags",
+     "//cc",
+diff --git a/third_party/blink/renderer/core/BUILD.gn b/third_party/blink/renderer/core/BUILD.gn
+--- a/third_party/blink/renderer/core/BUILD.gn
++++ b/third_party/blink/renderer/core/BUILD.gn
+@@ -369,6 +369,7 @@ component("core") {
+   public_deps = [
+     ":buildflags",
+     ":core_generated",
++    "//clawbrowser:clawbrowser_runtime",
+     ":core_hot",
+     "//cc",
+     "//skia",
+diff --git a/third_party/blink/renderer/modules/BUILD.gn b/third_party/blink/renderer/modules/BUILD.gn
+--- a/third_party/blink/renderer/modules/BUILD.gn
++++ b/third_party/blink/renderer/modules/BUILD.gn
+@@ -201,6 +201,7 @@ component("modules") {
+   deps = [
+     ":make_modules_generated",
+     "//build:android_buildflags",
++    "//clawbrowser:clawbrowser_runtime",
+     "//cc",
+     "//components/webrtc:thread_wrapper",
+     "//gin",
+diff --git a/third_party/blink/renderer/platform/BUILD.gn b/third_party/blink/renderer/platform/BUILD.gn
+--- a/third_party/blink/renderer/platform/BUILD.gn
++++ b/third_party/blink/renderer/platform/BUILD.gn
+@@ -1812,6 +1812,7 @@ component("platform") {
+   deps = [
+     ":font_format_check",
+     "//base:base_static",
++    "//clawbrowser:clawbrowser_runtime",
+     "//base/allocator:buildflags",
+     "//build:chromecast_buildflags",
+     "//cc",

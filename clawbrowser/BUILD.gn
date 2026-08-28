@@ -1,0 +1,255 @@
+# Copyright 2026 The Clawbrowser Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Build rules for the clawbrowser browser component.
+#
+# This file lives at the Chromium source root alongside chrome/, content/, etc.
+# It is included from the top-level BUILD.gn via:
+#   deps += [ "//clawbrowser" ]
+
+import("//build/config/features.gni")
+import("//testing/test.gni")
+import("//tools/grit/grit_rule.gni")
+
+config("clawbrowser_backend_defaults") {
+  if (is_official_build) {
+    defines = [
+      "CLAWBROWSER_DEFAULT_API_BASE_URL=\"https://api.clawbrowser.ai\"",
+      "CLAWBROWSER_DEFAULT_DASHBOARD_URL=\"https://app.clawbrowser.ai\"",
+      "CLAWBROWSER_ENABLE_DEV_PROXY_URL_OVERRIDE=0",
+    ]
+  } else {
+    defines = [
+      "CLAWBROWSER_DEFAULT_API_BASE_URL=\"https://api.qa.clawbrowser.ai\"",
+      "CLAWBROWSER_DEFAULT_DASHBOARD_URL=\"https://app.qa.clawbrowser.ai\"",
+      "CLAWBROWSER_ENABLE_DEV_PROXY_URL_OVERRIDE=1",
+    ]
+  }
+}
+
+config("clawbrowser_windows_socket_libs") {
+  if (is_win) {
+    libs = [ "ws2_32.lib" ]
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Grit-generated resources for clawbrowser://* pages.
+# ---------------------------------------------------------------------------
+grit("clawbrowser_verify_resources") {
+  source = "verify/clawbrowser_verify.grd"
+  outputs = [
+    "grit/clawbrowser_verify_resources.h",
+    "clawbrowser_verify_resources.pak",
+  ]
+}
+
+action("check_generated_browser_types") {
+  script = "schemas/generate_browser_types.py"
+  outputs = [ "$target_gen_dir/generated_browser_types.stamp" ]
+  args = [
+    "--check",
+    "--schema",
+    rebase_path("schemas/browser_schema.json", root_build_dir),
+    "--header",
+    rebase_path("generated/fingerprint_types.h", root_build_dir),
+    "--source",
+    rebase_path("generated/fingerprint_types.cc", root_build_dir),
+    "--stamp",
+    rebase_path(outputs[0], root_build_dir),
+  ]
+  inputs = [
+    "schemas/browser_schema.json",
+    "schemas/generate_browser_types.py",
+    "generated/fingerprint_types.h",
+    "generated/fingerprint_types.cc",
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# clawbrowser_runtime — process-local shared state that must exist exactly once
+# per Chromium component build image.
+# ---------------------------------------------------------------------------
+component("clawbrowser_runtime") {
+  sources = [
+    "fingerprint_accessor.cc",
+    "fingerprint_accessor.h",
+  ]
+
+  defines = [ "IS_CLAWBROWSER_RUNTIME_IMPL" ]
+
+  public_deps = [
+    "//base",
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# clawbrowser_core — fast standalone shim code that can be tested without
+# pulling browser-facing code into the build.
+# ---------------------------------------------------------------------------
+source_set("clawbrowser_core") {
+  configs += [ ":clawbrowser_backend_defaults" ]
+  public_configs = [ ":clawbrowser_windows_socket_libs" ]
+
+  sources = [
+    # CLI modules
+    "cli/api_client.cc",
+    "cli/api_client.h",
+    "cli/args.cc",
+    "cli/args.h",
+    "cli/profile_manager.cc",
+    "cli/profile_manager.h",
+
+    # Core infrastructure
+    "fingerprint_loader.cc",
+    "fingerprint_loader.h",
+    "logging.cc",
+    "logging.h",
+    "paths.cc",
+    "paths.h",
+    "profile_envelope.cc",
+    "profile_envelope.h",
+    "startup.cc",
+    "startup.h",
+
+    # Generated types
+    "generated/fingerprint_types.cc",
+    "generated/fingerprint_types.h",
+
+    # Noise generation
+    "noise/prng.h",
+
+    # Cross-surface coherence helpers shared with the Chromium patches.
+    "fingerprint_coherence.h",
+
+    "proxy/proxy_config.cc",
+    "proxy/proxy_config.h",
+    "proxy/proxy_credentials_crypto.cc",
+    "proxy/proxy_credentials_crypto.h",
+    "proxy/socks5_auth_proxy_bridge.cc",
+    "proxy/socks5_auth_proxy_bridge.h",
+    "user_agent_metadata.h",
+  ]
+
+  public_deps = [
+    ":clawbrowser_runtime",
+    "//base",
+  ]
+
+  deps = [
+    ":check_generated_browser_types",
+    "//base:i18n",
+    "//crypto",
+    "//net",
+    "//services/network/public/cpp",
+  ]
+
+}
+
+# ---------------------------------------------------------------------------
+# clawbrowser_proxy_auth — browser-adjacent proxy auth delegate kept out of the
+# fast standalone unit-test lane.
+# ---------------------------------------------------------------------------
+source_set("clawbrowser_proxy_auth") {
+  sources = [
+    "proxy/proxy_auth_login_delegate.cc",
+    "proxy/proxy_auth_login_delegate.h",
+    "proxy/proxy_auth_preloader.cc",
+    "proxy/proxy_auth_preloader.h",
+  ]
+
+  deps = [
+    ":clawbrowser_core",
+    "//base",
+    "//content/public/browser",
+    "//net",
+    "//services/network/public/mojom",
+    "//url",
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# clawbrowser — browser-facing layer used after real Chromium integration.
+# ---------------------------------------------------------------------------
+static_library("clawbrowser") {
+  configs += [ ":clawbrowser_backend_defaults" ]
+
+  sources = [
+    "auth/auth_page.cc",
+    "auth/auth_page.h",
+    "verify/verify_page.cc",
+    "verify/verify_page.h",
+  ]
+
+  public_deps = [
+    ":clawbrowser_core",
+    ":clawbrowser_proxy_auth",
+    "//base",
+    "//content/public/browser",
+  ]
+
+  deps = [ ":clawbrowser_verify_resources" ]
+}
+
+# ---------------------------------------------------------------------------
+# Fast standalone unit tests for the core shim code.
+# ---------------------------------------------------------------------------
+test("clawbrowser_unittests") {
+  sources = [
+    "test/run_all_unittests.cc",
+    "test/api_client_unittest.cc",
+    "test/args_unittest.cc",
+    "test/fingerprint_coherence_unittest.cc",
+    "test/fingerprint_loader_unittest.cc",
+    "test/profile_envelope_unittest.cc",
+    "test/profile_manager_unittest.cc",
+    "test/prng_unittest.cc",
+    "test/proxy_config_unittest.cc",
+    "test/proxy_credentials_crypto_unittest.cc",
+    "test/socks5_auth_proxy_bridge_unittest.cc",
+    "test/startup_unittest.cc",
+  ]
+
+  deps = [
+    ":clawbrowser_core",
+    "//base/test:test_support",
+    "//mojo/core/embedder",
+    "//services/network:test_support",
+    "//testing/gtest",
+  ]
+
+  data = [ "test/fixtures/" ]
+}
+
+# ---------------------------------------------------------------------------
+# Lightweight browser-adjacent unit tests that still avoid verify-page GRIT.
+# ---------------------------------------------------------------------------
+test("clawbrowser_browser_unittests") {
+  configs += [ ":clawbrowser_backend_defaults" ]
+
+  sources = [
+    "test/auth_page_unittest.cc",
+    "test/run_all_unittests.cc",
+    "test/proxy_auth_login_delegate_unittest.cc",
+    "test/verify_page_unittest.cc",
+  ]
+
+  deps = [
+    ":clawbrowser",
+    ":clawbrowser_core",
+    ":clawbrowser_proxy_auth",
+    "//base/test:test_support",
+
+    # auth_page.cc / verify_page.cc reference chrome browser-layer symbols
+    # (g_browser_process, SystemNetworkContextManager, ExitIgnoreUnloadHandlers).
+    # In the shipping browser these resolve because //clawbrowser links into the
+    # chrome binary alongside //chrome/browser; this test must link the browser
+    # layer itself, so it uses the same scaffolding as //chrome/test:unit_tests.
+    "//chrome/test:test_support",
+    "//content/public/browser",
+    "//mojo/core/embedder",
+    "//net",
+    "//testing/gtest",
+  ]
+}

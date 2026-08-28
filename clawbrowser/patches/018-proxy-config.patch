@@ -1,0 +1,24 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -52,6 +52,8 @@
+ #include "build/android_buildflags.h"
+ #include "build/branding_buildflags.h"
+ #include "build/build_config.h"
++#include "clawbrowser/fingerprint_accessor.h"
++#include "clawbrowser/proxy/proxy_auth_login_delegate.h"
+ #include "build/config/chromebox_for_meetings/buildflags.h"  // PLATFORM_CFM
+ #include "chrome/browser/after_startup_task_utils.h"
+ #include "chrome/browser/ai/ai_manager.h"
+@@ -7015,6 +7017,11 @@
+   }
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
++  if (auth_info.is_proxy && clawbrowser::FingerprintAccessor::GetProxy()) {
++    return std::make_unique<clawbrowser::ProxyAuthLoginDelegate>(
++        auth_info, web_contents, std::move(auth_required_callback));
++  }
++
+   if (!http_auth_coordinator_) {
+     http_auth_coordinator_ = CreateHttpAuthCoordinator();
+   }

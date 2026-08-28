@@ -1,0 +1,20 @@
+{
+  "request": {
+    "proxy": {
+      "scheme": "http",
+      "host": "proxy.example.com",
+      "port": 8080,
+      "username": "user",
+      "password": "pass"
+    },
+    "expected_country": "US",
+    "expected_city": "New York"
+  },
+  "response": {
+    "match": true,
+    "actual_country": "US",
+    "actual_city": "New York",
+    "ipv4": "203.0.113.42",
+    "ipv6": "2001:db8::42"
+  }
+}

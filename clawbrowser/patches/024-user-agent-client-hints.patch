@@ -1,0 +1,24 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -242,6 +242,8 @@
+ #include "components/embedder_support/content_settings_utils.h"
+ #include "components/embedder_support/origin_trials/origin_trials_settings_storage.h"
+ #include "components/embedder_support/switches.h"
++#include "clawbrowser/fingerprint_accessor.h"
++#include "clawbrowser/user_agent_metadata.h"
+ #include "components/embedder_support/user_agent_utils.h"
+ #include "components/enterprise/buildflags/buildflags.h"
+ #include "components/enterprise/common/proto/connectors.pb.h"
+@@ -7524,6 +7526,11 @@
+ 
+ blink::UserAgentMetadata ChromeContentBrowserClient::GetUserAgentMetadata() {
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && !fp->user_agent.empty()) {
++    return clawbrowser::BuildUserAgentMetadata(*fp);
++  }
++
+   return embedder_support::GetUserAgentMetadata();
+ }
+ 

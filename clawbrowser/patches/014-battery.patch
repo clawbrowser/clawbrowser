@@ -1,0 +1,57 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+diff --git a/third_party/blink/renderer/modules/battery/battery_manager.cc b/third_party/blink/renderer/modules/battery/battery_manager.cc
+--- a/third_party/blink/renderer/modules/battery/battery_manager.cc
++++ b/third_party/blink/renderer/modules/battery/battery_manager.cc
+@@ -4,6 +4,9 @@
+ 
+ #include "third_party/blink/renderer/modules/battery/battery_manager.h"
+ 
++#include "clawbrowser/fingerprint_accessor.h"
++#include "clawbrowser/fingerprint_coherence.h"
++
+ #include "third_party/blink/public/mojom/frame/lifecycle.mojom-blink.h"
+ #include "third_party/blink/renderer/core/dom/dom_exception.h"
+ #include "third_party/blink/renderer/core/dom/events/event.h"
+@@ -80,18 +83,42 @@ ScriptPromise<BatteryManager> BatteryManager::StartRequest(
+ }
+ 
+ bool BatteryManager::charging() {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->battery && fp->battery->charging.has_value()) {
++    return *fp->battery->charging;
++  }
+   return battery_status_.Charging();
+ }
+ 
+ double BatteryManager::chargingTime() {
++  // Spoofing charging/level while this keeps reporting the host battery
++  // produces impossible states -- a "charging" battery that still reports a
++  // finite time until empty, for instance. Resolve both times from the same
++  // spoofed inputs so the four BatteryManager values cannot contradict.
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->battery) {
++    return clawbrowser::ResolveBatteryTimes(
++               *fp->battery, static_cast<uint64_t>(fp->canvas_seed))
++        .charging_time;
++  }
+   return battery_status_.charging_time().InSecondsF();
+ }
+ 
+ double BatteryManager::dischargingTime() {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->battery) {
++    return clawbrowser::ResolveBatteryTimes(
++               *fp->battery, static_cast<uint64_t>(fp->canvas_seed))
++        .discharging_time;
++  }
+   return battery_status_.discharging_time().InSecondsF();
+ }
+ 
+ double BatteryManager::level() {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->battery && fp->battery->level.has_value()) {
++    return *fp->battery->level;
++  }
+   return battery_status_.Level();
+ }
+ 

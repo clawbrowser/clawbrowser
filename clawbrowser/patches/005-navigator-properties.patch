@@ -1,0 +1,116 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+--- a/third_party/blink/renderer/core/execution_context/navigator_base.cc
++++ b/third_party/blink/renderer/core/execution_context/navigator_base.cc
+@@ -6,6 +6,8 @@
+ 
+ #include "base/feature_list.h"
+ #include "build/build_config.h"
++#include "clawbrowser/fingerprint_accessor.h"
++#include "clawbrowser/user_agent_metadata.h"
+ #include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/renderer/core/execution_context/execution_context.h"
+ #include "third_party/blink/renderer/core/frame/navigator_concurrent_hardware.h"
+@@ -47,6 +49,9 @@
+     : NavigatorLanguage(context), ExecutionContextClient(context) {}
+ 
+ String NavigatorBase::userAgent() const {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
++    return String::FromUtf8(fp->user_agent);
++
+   ExecutionContext* execution_context = GetExecutionContext();
+   return execution_context ? execution_context->UserAgent() : String();
+ }
+@@ -83,6 +88,10 @@
+ }
+ 
+ UserAgentMetadata NavigatorBase::GetUserAgentMetadata() const {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get()) {
++    return clawbrowser::BuildUserAgentMetadata(*fp);
++  }
++
+   ExecutionContext* execution_context = GetExecutionContext();
+   return execution_context ? execution_context->GetUserAgentMetadata()
+                            : blink::UserAgentMetadata();
+--- a/third_party/blink/renderer/core/frame/navigator.cc
++++ b/third_party/blink/renderer/core/frame/navigator.cc
+@@ -23,6 +23,7 @@
+ 
+ #include "third_party/blink/renderer/core/frame/navigator.h"
+ 
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "third_party/blink/renderer/bindings/core/v8/script_controller.h"
+ #include "third_party/blink/renderer/core/dom/document.h"
+ #include "third_party/blink/renderer/core/execution_context/navigator_base.h"
+@@ -56,6 +57,9 @@
+ }
+ 
+ String Navigator::platform() const {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
++    return String::FromUtf8(fp->platform);
++
+   // TODO(955620): Consider changing devtools overrides to only allow overriding
+   // the platform with a frozen platform to distinguish between
+   // mobile and desktop when ReduceUserAgent is enabled.
+--- a/third_party/blink/renderer/core/frame/navigator_concurrent_hardware.cc
++++ b/third_party/blink/renderer/core/frame/navigator_concurrent_hardware.cc
+@@ -5,10 +5,14 @@
+ #include "third_party/blink/renderer/core/frame/navigator_concurrent_hardware.h"
+ 
+ #include "base/system/sys_info.h"
++#include "clawbrowser/fingerprint_accessor.h"
+ 
+ namespace blink {
+ 
+ unsigned NavigatorConcurrentHardware::hardwareConcurrency() const {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
++    return static_cast<unsigned>(fp->hardware.concurrency);
++
+   return static_cast<unsigned>(base::SysInfo::NumberOfProcessors());
+ }
+ 
+--- a/third_party/blink/renderer/core/frame/navigator_device_memory.cc
++++ b/third_party/blink/renderer/core/frame/navigator_device_memory.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "third_party/blink/renderer/core/frame/navigator_device_memory.h"
+ 
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "third_party/blink/public/common/device_memory/approximated_device_memory.h"
+ #include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-shared.h"
+ #include "third_party/blink/renderer/core/dom/document.h"
+@@ -12,6 +13,9 @@
+ namespace blink {
+ 
+ float NavigatorDeviceMemory::deviceMemory() const {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
++    return static_cast<float>(fp->hardware.memory);
++
+   return ApproximatedDeviceMemory::GetApproximatedDeviceMemory();
+ }
+ 
+--- a/third_party/blink/renderer/core/frame/navigator_language.cc
++++ b/third_party/blink/renderer/core/frame/navigator_language.cc
+@@ -5,6 +5,7 @@
+ #include "third_party/blink/renderer/core/frame/navigator_language.h"
+ 
+ #include "base/command_line.h"
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "services/network/public/cpp/features.h"
+ #include "third_party/blink/public/common/switches.h"
+ #include "third_party/blink/renderer/core/frame/web_feature.h"
+@@ -83,6 +84,15 @@
+     return;
+   }
+ 
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && !fp->language.empty()) {
++    languages_.clear();
++    for (const auto& language : fp->language)
++      languages_.push_back(String::FromUtf8(language));
++    languages_dirty_ = false;
++    return;
++  }
++
+   if (languages_dirty_) {
+     languages_ = ParseAndSanitize(GetAcceptLanguages());
+     // Reduce the Accept-Language if the ReduceAcceptLanguage deprecation
