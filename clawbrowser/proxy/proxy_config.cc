@@ -10,6 +10,12 @@ namespace clawbrowser {
 
 namespace {
 
+// Normal browser traffic can use a proxy while WebRTC independently opens a
+// direct UDP/STUN route. Keep this Chromium policy alongside every proxy
+// launch as a release-safe defence in depth to prevent an ICE IP leak.
+constexpr char kForceWebRtcIpHandlingPolicy[] =
+    "--force-webrtc-ip-handling-policy=disable_non_proxied_udp";
+
 bool HasProxyEndpoint(const RuntimeProxyConfig& proxy) {
   return proxy.host.has_value() && !proxy.host->empty() &&
          proxy.port.has_value();
@@ -181,6 +187,7 @@ std::vector<std::string> GetProxyCommandLineFlags(
 
   std::vector<std::string> flags;
   flags.push_back("--proxy-server=" + *proxy_server);
+  flags.push_back(kForceWebRtcIpHandlingPolicy);
   return flags;
 }
 
@@ -198,6 +205,7 @@ std::vector<std::string> GetProxyCommandLineFlags(
 
   std::vector<std::string> flags;
   flags.push_back("--proxy-server=" + *proxy_server);
+  flags.push_back(kForceWebRtcIpHandlingPolicy);
   return flags;
 }
 
