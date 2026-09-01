@@ -43,8 +43,10 @@ TEST(ProxyConfigTest, GeneratesDefaultHttpProxyServerFlag) {
   proxy.password = "pass";
 
   auto flags = GetProxyCommandLineFlags(proxy);
-  EXPECT_EQ(flags.size(), 1u);
+  EXPECT_EQ(flags.size(), 2u);
   EXPECT_EQ(flags[0], "--proxy-server=http://proxy.example.com:3128");
+  EXPECT_EQ(flags[1],
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp");
 }
 
 TEST(ProxyConfigTest, GeneratesHttpProxyServerFlag) {
@@ -54,8 +56,10 @@ TEST(ProxyConfigTest, GeneratesHttpProxyServerFlag) {
   proxy.port = 3128;
 
   auto flags = GetProxyCommandLineFlags(proxy);
-  EXPECT_EQ(flags.size(), 1u);
+  EXPECT_EQ(flags.size(), 2u);
   EXPECT_EQ(flags[0], "--proxy-server=http://proxy.example.com:3128");
+  EXPECT_EQ(flags[1],
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp");
 }
 
 TEST(ProxyConfigTest, GeneratesSocks5ProxyServerFlag) {
@@ -65,8 +69,10 @@ TEST(ProxyConfigTest, GeneratesSocks5ProxyServerFlag) {
   proxy.port = 1080;
 
   auto flags = GetProxyCommandLineFlags(proxy);
-  EXPECT_EQ(flags.size(), 1u);
+  EXPECT_EQ(flags.size(), 2u);
   EXPECT_EQ(flags[0], "--proxy-server=socks5://proxy.example.com:1080");
+  EXPECT_EQ(flags[1],
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp");
 }
 
 TEST(ProxyConfigTest, AuthenticatedSocks5UsesHttpBridgeEndpoint) {
@@ -81,8 +87,10 @@ TEST(ProxyConfigTest, AuthenticatedSocks5UsesHttpBridgeEndpoint) {
 
   auto flags = GetProxyCommandLineFlags(
       proxy, ProxyBridgeEndpoint{.host = "127.0.0.1", .port = 43210});
-  EXPECT_EQ(flags.size(), 1u);
+  EXPECT_EQ(flags.size(), 2u);
   EXPECT_EQ(flags[0], "--proxy-server=http://127.0.0.1:43210");
+  EXPECT_EQ(flags[1],
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp");
   EXPECT_EQ(flags[0].find("user_abc"), std::string::npos);
   EXPECT_EQ(flags[0].find("pass_xyz"), std::string::npos);
 }
@@ -97,8 +105,10 @@ TEST(ProxyConfigTest, UnauthenticatedSocks5KeepsNativeSocksRoute) {
 
   auto flags = GetProxyCommandLineFlags(
       proxy, ProxyBridgeEndpoint{.host = "127.0.0.1", .port = 43210});
-  EXPECT_EQ(flags.size(), 1u);
+  EXPECT_EQ(flags.size(), 2u);
   EXPECT_EQ(flags[0], "--proxy-server=socks5://proxy.example.com:1080");
+  EXPECT_EQ(flags[1],
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp");
 }
 
 TEST(ProxyConfigTest, IncompleteSocks5CredentialsDoNotUseBridge) {
@@ -112,8 +122,10 @@ TEST(ProxyConfigTest, IncompleteSocks5CredentialsDoNotUseBridge) {
 
   auto flags = GetProxyCommandLineFlags(
       proxy, ProxyBridgeEndpoint{.host = "127.0.0.1", .port = 43210});
-  EXPECT_EQ(flags.size(), 1u);
+  EXPECT_EQ(flags.size(), 2u);
   EXPECT_EQ(flags[0], "--proxy-server=socks5://proxy.example.com:1080");
+  EXPECT_EQ(flags[1],
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp");
 }
 
 TEST(ProxyConfigTest, InvalidSchemeProducesNoProxyFlags) {
