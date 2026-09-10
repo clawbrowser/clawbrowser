@@ -92,6 +92,10 @@ async def test_cli_verbose_smoke():
             "--regenerate",
             "--verbose",
             "--enable-logging=stderr",
+            # The default mock contract requests this explicit location.
+            "--country=US",
+            "--city=New York",
+            "--connection-type=residential",
         ],
     ) as launch:
         assert launch["page"].url.startswith("http://127.0.0.1:")
