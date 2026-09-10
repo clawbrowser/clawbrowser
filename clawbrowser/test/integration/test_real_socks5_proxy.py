@@ -6,6 +6,7 @@ import os
 import pytest
 
 from conftest import _launch_browser_with_details
+from real_proxy_config import profile_proxy_from_url
 from webrtc_probe import assert_relay_only, collect_webrtc_observations
 
 
@@ -42,7 +43,7 @@ async def test_real_socks5_auth_proxy_exits_expected_ip():
         fixture_name="valid_fingerprint.json",
         backend_mode="mock",
         skip_verify=True,
-        extra_env={"CLAWBROWSER_DEV_PROXY_URL": proxy_url},
+        proxy_config=profile_proxy_from_url(proxy_url),
         headless=False,
     ) as launch:
         page = launch["page"]
@@ -88,7 +89,7 @@ async def test_real_socks5_auth_proxy_webrtc_uses_tcp_turn_relay():
         fixture_name="valid_fingerprint.json",
         backend_mode="mock",
         skip_verify=True,
-        extra_env={"CLAWBROWSER_DEV_PROXY_URL": proxy_url},
+        proxy_config=profile_proxy_from_url(proxy_url),
         headless=False,
     ) as launch:
         page = launch["page"]

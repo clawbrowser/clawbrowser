@@ -32,6 +32,11 @@ grep -q 'return 2;' "${verify_source}"
 grep -q 'onicecandidateerror' "${webrtc_probe}"
 grep -q 'hostCandidate' "${webrtc_probe}"
 grep -q 'require_relay=True' "${real_proxy_test}"
+grep -q 'proxy_config=profile_proxy_from_url(proxy_url)' "${real_proxy_test}"
+if grep -q 'CLAWBROWSER_DEV_PROXY_URL' "${real_proxy_test}"; then
+  printf 'Release proxy tests must use the normal profile, not a dev-only override\n' >&2
+  exit 1
+fi
 
 if grep -Eq 'stun\.l\.google\.com|stun\.cloudflare\.com' "${verify_js}"; then
   printf 'Built-in verifier must not contact a public STUN service\n' >&2
