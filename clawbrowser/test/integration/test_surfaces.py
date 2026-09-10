@@ -242,9 +242,13 @@ async def test_timezone(browser_with_fingerprint):
 
 
 @pytest.mark.asyncio
-async def test_webgl_vendor_renderer(browser_with_webgl_spoofing):
-    page, data = browser_with_webgl_spoofing
+async def test_webgl_uses_coherent_swiftshader_backend(
+    browser_with_isolated_webgl,
+):
+    page, data = browser_with_isolated_webgl
     fp = data["response"]["fingerprint"]
+    assert data["request"]["runtime_gpu"] == "swiftshader"
+    assert fp["surface_policy"]["webgl"]["mode"] == "native"
     result = await page.evaluate("""() => {
         const canvas = document.createElement('canvas');
         const gl = canvas.getContext('webgl');
@@ -255,23 +259,37 @@ async def test_webgl_vendor_renderer(browser_with_webgl_spoofing):
             maskedVendor: gl.getParameter(gl.VENDOR),
             maskedRenderer: gl.getParameter(gl.RENDERER),
             vendor: gl.getParameter(ext.UNMASKED_VENDOR_WEBGL),
-            renderer: gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
+            renderer: gl.getParameter(ext.UNMASKED_RENDERER_WEBGL),
+            maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+            maxRenderbufferSize: gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),
+            maxCombinedTextureUnits:
+                gl.getParameter(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS),
+            extensions: gl.getSupportedExtensions()
         };
     }""")
     assert result is not None
     assert result["maskedVendor"] == "WebKit"
     assert result["maskedRenderer"] == "WebKit WebGL"
-    assert result["vendor"] == fp["webgl"]["vendor"]
-    assert result["renderer"] == fp["webgl"]["renderer"]
+    assert "Google" in result["vendor"]
+    assert "SwiftShader" in result["renderer"]
+    assert "Apple" not in result["renderer"]
+    assert "AMD" not in result["renderer"]
+    assert "NVIDIA" not in result["renderer"]
+    assert result["maxTextureSize"] == 8192
+    assert result["maxRenderbufferSize"] == 8192
+    assert result["maxCombinedTextureUnits"] == 64
+    assert "WEBGL_debug_renderer_info" in result["extensions"]
 
 
 @pytest.mark.asyncio
-async def test_webgl_pixels_are_seeded_and_stable(browser_with_webgl_spoofing):
-    page, data = browser_with_webgl_spoofing
+async def test_webgl_pixels_are_native_and_preserve_alpha(
+    browser_with_isolated_webgl,
+):
+    page, data = browser_with_isolated_webgl
     fp = data["response"]["fingerprint"]
     assert fp["surface_policy"]["canvas"]["mode"] == "override"
 
-    stable = await page.evaluate("""() => {
+    result = await page.evaluate("""() => {
         const read = () => {
             const canvas = document.createElement('canvas');
             canvas.width = 8;
@@ -281,11 +299,30 @@ async def test_webgl_pixels_are_seeded_and_stable(browser_with_webgl_spoofing):
             gl.clear(gl.COLOR_BUFFER_BIT);
             const pixels = new Uint8Array(8 * 8 * 4);
             gl.readPixels(0, 0, 8, 8, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-            return Array.from(pixels).join(',');
+            return Array.from(pixels);
         };
-        return read() === read();
+        return {first: read(), second: read()};
     }""")
-    assert stable is True
+    assert result["first"] == result["second"]
+    assert all(alpha == 255 for alpha in result["first"][3::4])
+
+
+@pytest.mark.asyncio
+async def test_canvas_noise_preserves_alpha(browser_with_fingerprint):
+    page, data = browser_with_fingerprint
+    fp = data["response"]["fingerprint"]
+    assert fp["surface_policy"]["canvas"]["mode"] == "override"
+
+    pixel = await page.evaluate("""() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'rgba(50, 100, 150, 0.5)';
+        ctx.fillRect(0, 0, 1, 1);
+        return Array.from(ctx.getImageData(0, 0, 1, 1).data);
+    }""")
+    assert pixel[3] == 128
 
 
 @pytest.mark.asyncio

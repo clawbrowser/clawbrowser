@@ -493,8 +493,8 @@ async def browser_with_offset_window_fingerprint():
 
 
 @pytest_asyncio.fixture
-async def browser_with_webgl_spoofing():
-    """Launch with WebGL spoofing enabled by the profile surface policy."""
+async def browser_with_isolated_webgl():
+    """Launch a fingerprint profile on the host-independent WebGL backend."""
     async with _launch_browser(
         fixture_name="valid_fingerprint.json",
         backend_mode="mock",

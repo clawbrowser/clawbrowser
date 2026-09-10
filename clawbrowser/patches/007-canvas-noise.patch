@@ -24,7 +24,7 @@ diff --git a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering
  #include "third_party/blink/renderer/core/layout/geometry/physical_rect.h"
  #include "third_party/blink/renderer/core/layout/layout_replaced.h"
  #include "third_party/blink/renderer/core/layout/layout_theme.h"
-@@ -861,8 +866,25 @@ ImageData* CanvasRenderingContext2D::getImageDataInternal(
+@@ -861,8 +866,23 @@ ImageData* CanvasRenderingContext2D::getImageDataInternal(
        CreationAttributes().will_read_frequently ==
            CanvasContextCreationAttributesCore::WillReadFrequently::kTrue);
    TRACE_EVENT0("blink", "GetImageData");
@@ -33,17 +33,15 @@ diff --git a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering
        sx, sy, sw, sh, image_data_settings, exception_state);
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
 +      fp && fp->canvas_spoofing_enabled &&
-+      fp->surface_policy.canvas == "override" && image_data) {
++      fp->surface_policy.canvas == "override" && image_data &&
++      image_data->GetSkColorType() == kRGBA_8888_SkColorType) {
 +    clawbrowser::Prng prng(fp->canvas_seed);
 +    auto rgba = image_data->RawByteSpan();
-+    for (size_t offset = 0; offset + 3 < rgba.size(); offset += 4) {
-+      // Alpha is a structural value, not a color sample. Perturbing it makes
-+      // fully opaque pixels unexpectedly translucent and is trivially
-+      // detectable with a one-pixel canvas.
++    for (size_t pixel = 0; pixel + 3 < rgba.size(); pixel += 4) {
 +      for (size_t channel = 0; channel < 3; ++channel) {
-+        uint8_t& byte = rgba[offset + channel];
-+        byte = static_cast<uint8_t>(std::clamp(
-+            static_cast<int>(byte) + prng.PixelNoise(), 0, 255));
++        rgba[pixel + channel] = static_cast<uint8_t>(std::clamp(
++            static_cast<int>(rgba[pixel + channel]) + prng.PixelNoise(),
++            0, 255));
 +      }
 +    }
 +  }
@@ -67,7 +65,7 @@ diff --git a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc b
  #include "third_party/blink/renderer/platform/image-encoders/image_encoder_utils.h"
  #include "third_party/blink/renderer/platform/wtf/text/base64.h"
  #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
-@@ -96,6 +100,22 @@ ImageDataBuffer::ImageDataBuffer(scoped_refptr<StaticBitmapImage> image) {
+@@ -96,6 +100,26 @@ ImageDataBuffer::ImageDataBuffer(scoped_refptr<StaticBitmapImage> image) {
        return;
      MSAN_CHECK_MEM_IS_INITIALIZED(pixmap_.addr(), pixmap_.computeByteSize());
    }
@@ -78,12 +76,16 @@ diff --git a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc b
 +      (pixmap_.colorType() == kRGBA_8888_SkColorType ||
 +       pixmap_.colorType() == kBGRA_8888_SkColorType)) {
 +    clawbrowser::Prng prng(fp->canvas_seed);
-+    auto rgba = gfx::SkPixmapToWritableSpan(pixmap_);
-+    for (size_t offset = 0; offset + 3 < rgba.size(); offset += 4) {
-+      for (size_t channel = 0; channel < 3; ++channel) {
-+        uint8_t& byte = rgba[offset + channel];
-+        byte = static_cast<uint8_t>(
-+            std::clamp(static_cast<int>(byte) + prng.PixelNoise(), 0, 255));
++    auto pixels = gfx::SkPixmapToWritableSpan(pixmap_);
++    for (int y = 0; y < pixmap_.height(); ++y) {
++      for (int x = 0; x < pixmap_.width(); ++x) {
++        const size_t pixel = static_cast<size_t>(y) * pixmap_.rowBytes() +
++                             static_cast<size_t>(x) * 4;
++        for (size_t channel = 0; channel < 3; ++channel) {
++          pixels[pixel + channel] = static_cast<uint8_t>(std::clamp(
++              static_cast<int>(pixels[pixel + channel]) + prng.PixelNoise(),
++              0, 255));
++        }
 +      }
 +    }
 +  }

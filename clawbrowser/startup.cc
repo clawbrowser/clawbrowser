@@ -128,6 +128,33 @@ void ConfigureAuthStartup(base::CommandLine* command_line,
 void ConfigureVanillaUserDataDir(base::CommandLine* command_line,
                                  ProfileManager* profile_manager);
 
+bool IsSwiftShaderWebGLBackend(const base::CommandLine& command_line) {
+  const std::string use_gl = command_line.GetSwitchValueASCII("use-gl");
+  const std::string use_angle = command_line.GetSwitchValueASCII("use-angle");
+  return base::StartsWith(use_gl, "swiftshader",
+                          base::CompareCase::INSENSITIVE_ASCII) ||
+         base::StartsWith(use_angle, "swiftshader",
+                          base::CompareCase::INSENSITIVE_ASCII);
+}
+
+// A renderer string can only be spoofed coherently when all of the WebGL
+// capabilities behind it belong to the same adapter. Fingerprint profiles
+// therefore use ANGLE's bundled SwiftShader backend: it hides the host GPU at
+// the source and gives every platform a real, internally consistent software
+// adapter. Vanilla mode remains available when native GPU acceleration is
+// preferred over fingerprint isolation.
+void ApplyFingerprintWebGLIsolation(const ClawArgs& args,
+                                    base::CommandLine* command_line) {
+  if (args.list() || args.is_vanilla()) {
+    return;
+  }
+
+  command_line->RemoveSwitch("use-gl");
+  command_line->RemoveSwitch("use-angle");
+  command_line->AppendSwitchASCII("use-gl", "angle");
+  command_line->AppendSwitchASCII("use-angle", "swiftshader");
+}
+
 void ConfigureProfileStartupCommandLine(const ClawArgs& args,
                                         base::CommandLine* command_line,
                                         ProfileManager* profile_manager) {
@@ -152,6 +179,7 @@ void ConfigureProfileStartupCommandLine(const ClawArgs& args,
     return;
   }
 
+  ApplyFingerprintWebGLIsolation(args, command_line);
   command_line->AppendSwitchPath("user-data-dir",
                                  profile_manager->GetUserDataDir(fp_id));
 }
@@ -260,19 +288,21 @@ std::string RuntimeArch() {
 
 std::optional<std::string> RuntimeGPUHint(
     const base::CommandLine& command_line) {
+  if (command_line.HasSwitch("disable-gpu")) {
+    return "swiftshader";
+  }
+  if (IsSwiftShaderWebGLBackend(command_line)) {
+    return "swiftshader";
+  }
+  const std::string use_angle = command_line.GetSwitchValueASCII("use-angle");
+  // Command-line switches describe the adapter Chromium will actually use and
+  // must win over a stale operator hint.  Consult the environment only when no
+  // concrete software backend was selected above.
   auto env = base::Environment::Create();
   if (std::optional<std::string> runtime_gpu =
           env->GetVar("CLAWBROWSER_RUNTIME_GPU");
       runtime_gpu.has_value() && !runtime_gpu->empty()) {
     return runtime_gpu;
-  }
-  if (command_line.HasSwitch("disable-gpu")) {
-    return "swiftshader";
-  }
-  const std::string use_gl = command_line.GetSwitchValueASCII("use-gl");
-  const std::string use_angle = command_line.GetSwitchValueASCII("use-angle");
-  if (use_gl == "swiftshader" || use_angle == "swiftshader") {
-    return "swiftshader";
   }
 #if BUILDFLAG(IS_MAC)
   if (use_angle.empty() || use_angle == "metal") {
@@ -297,7 +327,10 @@ bool CachedProfileNeedsPrivacyUpgrade(ProfileManager* profile_manager,
     return true;
   }
   const auto& policy = cached->response.fingerprint.surface_policy;
-  return policy.webgl != "override" || policy.canvas != "override";
+  return policy.canvas != "override" ||
+         !cached->request.runtime_gpu.has_value() ||
+         !base::StartsWith(*cached->request.runtime_gpu, "swiftshader",
+                           base::CompareCase::INSENSITIVE_ASCII);
 }
 
 void ApplyGenerateRequestOverrides(const ClawArgs& args,
@@ -350,9 +383,10 @@ void ApplyRuntimeRequestHints(const base::CommandLine& command_line,
       request->runtime_arch = std::move(arch);
     }
   }
-  if (!request->runtime_gpu.has_value() || request->runtime_gpu->empty()) {
-    request->runtime_gpu = RuntimeGPUHint(command_line);
-  }
+  // The effective launch backend always wins over a value replayed from the
+  // cached request. Otherwise a one-time migration from Apple/D3D to
+  // SwiftShader would keep asking the backend for an incompatible renderer.
+  request->runtime_gpu = RuntimeGPUHint(command_line);
   request->runtime_headless = RuntimeHeadless(command_line);
 }
 
@@ -560,6 +594,12 @@ base::expected<StartupResult, std::string> RunStartup(
     return base::ok(std::move(result));
   }
 
+  // ConfigureEarlyStartup normally applied this before Chromium initialized
+  // the user-data directory.  Keep RunStartup self-contained as well: unit
+  // tests and embedders may call it directly, and the runtime hint sent to the
+  // backend must describe the adapter that will really be used.
+  ApplyFingerprintWebGLIsolation(args, command_line);
+
   if (needs_fetch) {
     std::optional<std::string> base_url = profile_manager.ResolveBaseUrl();
     if (!base_url.has_value()) {
@@ -571,12 +611,13 @@ base::expected<StartupResult, std::string> RunStartup(
 
     ApiClient client(*base_url, *api_key, url_loader_factory);
 
-    // Build request params (replay from cached profile if --regenerate)
+    // Replay cached targeting during explicit regeneration and automatic
+    // privacy migrations; only a genuinely new profile uses defaults.
     GenerateRequest params;
     params.platform = DefaultProfilePlatform();
     params.browser = kBackendBrowserName;
     params.country = "US";
-    if (args.regenerate() && profile_manager.HasCachedProfile(fp_id)) {
+    if (has_cached_profile) {
       auto cached = profile_manager.ReadProfile(fp_id);
       if (cached.has_value()) {
         params = cached->request;
@@ -659,9 +700,15 @@ base::expected<StartupResult, std::string> RunStartup(
       ResolveSurfaceSpoofing(
           args.canvas_spoofing_enabled(), args.canvas_spoofing_suppressed(),
           loaded && loaded->surface_policy.canvas == "override"),
-      ResolveSurfaceSpoofing(
-          args.webgl_spoofing_enabled(), args.webgl_spoofing_suppressed(),
-          loaded && loaded->surface_policy.webgl == "override"));
+      // SwiftShader already supplies a host-independent vendor, renderer,
+      // extension set, limits and pixels. Keep its native renderer string so
+      // those surfaces cannot contradict one another, even while rolling out
+      // against an older backend response that still requests an override.
+      !IsSwiftShaderWebGLBackend(*command_line) &&
+          ResolveSurfaceSpoofing(
+              args.webgl_spoofing_enabled(),
+              args.webgl_spoofing_suppressed(),
+              loaded && loaded->surface_policy.webgl == "override"));
 
   auto dev_proxy_result = ApplyDevProxyOverride();
   if (!dev_proxy_result.has_value()) {

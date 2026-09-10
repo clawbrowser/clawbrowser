@@ -4,6 +4,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 webgl_patch="${repo_root}/clawbrowser/patches/008-webgl-override.patch"
+canvas_patch="${repo_root}/clawbrowser/patches/007-canvas-noise.patch"
+startup_source="${repo_root}/clawbrowser/startup.cc"
 cdp_patch="${repo_root}/clawbrowser/patches/033-devtools-no-getter-preview.patch"
 renderer_loader_patch="${repo_root}/clawbrowser/patches/002-renderer-main-loader.patch"
 gpu_loader_patch="${repo_root}/clawbrowser/patches/003-gpu-main-loader.patch"
@@ -25,10 +27,26 @@ fi
 
 grep -q '!fp->webgl.renderer.empty()' "${webgl_patch}"
 grep -q '!fp->webgl.vendor.empty()' "${webgl_patch}"
+if grep -q 'ReadPixelsHelper\|PixelNoise' "${webgl_patch}"; then
+  echo "WebGL readPixels must remain native to the coherent SwiftShader backend." >&2
+  exit 1
+fi
 if grep -A8 'case GL_RENDERER:' "${webgl_patch}" | grep -q 'fp->webgl'; then
   echo "Masked GL_RENDERER must retain Chromium's standard value." >&2
   exit 1
 fi
+
+# Fingerprint profiles must select one real software adapter instead of only
+# replacing its renderer string. The backend selection also has to win over a
+# stale runtime_gpu value replayed from a cached request.
+grep -q 'AppendSwitchASCII("use-gl", "angle")' "${startup_source}"
+grep -q 'AppendSwitchASCII("use-angle", "swiftshader")' "${startup_source}"
+grep -q 'request->runtime_gpu = RuntimeGPUHint(command_line)' "${startup_source}"
+grep -q 'policy.canvas != "override"' "${startup_source}"
+grep -q '!IsSwiftShaderWebGLBackend' "${startup_source}"
+
+# Canvas noise may perturb color channels, but never the alpha byte.
+grep -q 'channel < 3' "${canvas_patch}"
 if grep -A8 'case GL_VENDOR:' "${webgl_patch}" | grep -q 'fp->webgl'; then
   echo "Masked GL_VENDOR must retain Chromium's standard value." >&2
   exit 1
