@@ -79,6 +79,14 @@ TEST(ArgsTest, ParseVerifyAutomation) {
   EXPECT_TRUE(args.verify_automation());
 }
 
+TEST(ArgsTest, ParseRequireProxy) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitch(kRequireProxySwitch);
+
+  ClawArgs args = ClawArgs::Parse(cmd);
+  EXPECT_TRUE(args.require_proxy());
+}
+
 TEST(ArgsTest, SpoofingFlagsDefaultOff) {
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
 

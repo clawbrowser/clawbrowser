@@ -740,6 +740,13 @@ base::expected<StartupResult, std::string> RunStartup(
   }
   std::optional<RuntimeProxyConfig> dev_proxy_override =
       std::move(*dev_proxy_result);
+  const auto* proxy = FingerprintAccessor::GetProxy();
+  if (args.require_proxy() && !proxy) {
+    return base::ok(FailManagedFingerprintStartup(
+        args, "required_proxy_missing",
+        "profile launch requires a proxy but the fingerprint response did "
+        "not include one"));
+  }
 
   // Set command-line flags for Clawbrowser
   command_line->AppendSwitch(kRequireFingerprintSwitch);
@@ -761,7 +768,6 @@ base::expected<StartupResult, std::string> RunStartup(
 #endif
 
   // Configure proxy flags
-  const auto* proxy = FingerprintAccessor::GetProxy();
   if (proxy) {
     auto bridge_endpoint = PrepareProxyBridge(*proxy);
     if (!bridge_endpoint.has_value()) {
@@ -777,6 +783,11 @@ base::expected<StartupResult, std::string> RunStartup(
                            ? GetProxyCommandLineFlags(*proxy,
                                                       bridge_endpoint->value())
                            : GetProxyCommandLineFlags(*proxy);
+    if (proxy_flags.empty()) {
+      return base::ok(FailManagedFingerprintStartup(
+          args, "invalid_proxy_config",
+          "fingerprint response included an incomplete or unsupported proxy"));
+    }
     for (const auto& flag : proxy_flags) {
       // Parse --key=value from flag string
       size_t eq = flag.find('=');

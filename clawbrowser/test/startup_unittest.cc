@@ -986,6 +986,48 @@ TEST_F(StartupTest, FingerprintApiCallSuccess) {
   EXPECT_EQ(saved.request.browser, "chrome");
 }
 
+TEST_F(StartupTest, RequiredProxyMissingFromApiResponseFailsClosed) {
+  WriteConfigJson("test_key");
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson("missing-proxy-ua"));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "required_proxy_profile");
+  cmd.AppendSwitch(kRequireProxySwitch);
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+  EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
+}
+
+TEST_F(StartupTest, IncompleteProxyResponseFailsClosed) {
+  WriteCachedProfile("incomplete_proxy_profile");
+  ProfileEnvelope envelope = ReadSavedProfile("incomplete_proxy_profile");
+  ASSERT_TRUE(envelope.response.proxy.has_value());
+  envelope.response.proxy->host.reset();
+  auto save_result =
+      CreateProfileManager().SaveProfile("incomplete_proxy_profile", envelope);
+  ASSERT_TRUE(save_result.has_value()) << save_result.error();
+
+  WriteConfigJson("test_key");
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "incomplete_proxy_profile");
+  cmd.AppendSwitch(kRequireProxySwitch);
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+  EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
+}
+
 TEST_F(StartupTest, FreshStartWithApiKeyRunsInImplicitFingerprintMode) {
   WriteConfigJson("test_key");
   env_->SetVar("CLAWBROWSER_API_KEY", "test_key");

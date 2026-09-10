@@ -99,6 +99,10 @@ grep -q 'fingerprint_api_unavailable' "${startup_source}"
 grep -q 'fingerprint_save_failed' "${startup_source}"
 grep -q 'fingerprint_load_failed' "${startup_source}"
 grep -q 'fingerprint_child_payload_failed' "${startup_source}"
+grep -q 'args.require_proxy() && !proxy' "${startup_source}"
+grep -q 'proxy_flags.empty()' "${startup_source}"
+grep -q 'required_proxy_missing' "${startup_source}"
+grep -q 'invalid_proxy_config' "${startup_source}"
 grep -q 'AppendSwitch(kRequireFingerprintSwitch)' "${startup_source}"
 grep -A35 'void ApplyFingerprintWebGLIsolation' "${startup_source}" |
   grep -q 'AppendSwitch(kDisableWebGLSpoofingSwitch)'
