@@ -400,6 +400,40 @@ async def test_fonts_detect_all_expected(browser_with_fingerprint):
 
 
 @pytest.mark.asyncio
+async def test_fonts_hide_non_allowlisted_system_families(browser_with_fingerprint):
+    """A classic width probe must not reveal common host-only fonts."""
+    page, data = browser_with_fingerprint
+    fp = data["response"]["fingerprint"]
+    candidates = [
+        "Menlo",          # macOS
+        "Segoe UI",       # Windows
+        "DejaVu Sans",    # Linux
+        "Liberation Sans",
+        "Ubuntu",
+    ]
+    candidates = [font for font in candidates if font not in fp["fonts"]]
+
+    leaked = await page.evaluate(
+        """fonts => fonts.filter(font => {
+            const width = family => {
+                const span = document.createElement('span');
+                span.style.cssText = 'position:absolute;visibility:hidden;font-size:72px';
+                span.style.fontFamily = family;
+                span.textContent = 'mmmmmmmmmmlliWW@@##';
+                document.body.appendChild(span);
+                const value = span.getBoundingClientRect().width;
+                span.remove();
+                return value;
+            };
+            return width(`"${font}", monospace`) !== width('monospace');
+        })""",
+        candidates,
+    )
+
+    assert leaked == [], f"non-allowlisted host fonts leaked: {leaked}"
+
+
+@pytest.mark.asyncio
 async def test_verify_page_waits_for_speech_result(
     verify_browser_with_fingerprint,
 ):

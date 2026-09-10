@@ -482,17 +482,11 @@ async def browser_with_fingerprint():
 
 @pytest_asyncio.fixture
 async def browser_with_webgl_spoofing():
-    """Launch with WebGL spoofing opted in.
-
-    WebGL vendor/renderer overrides are gated on --enable-webgl-spoofing (see
-    clawbrowser/cli/args.h), not on surface_policy.webgl, so a test that asserts
-    the spoofed values has to pass the switch explicitly.
-    """
+    """Launch with WebGL spoofing enabled by the profile surface policy."""
     async with _launch_browser(
         fixture_name="valid_fingerprint.json",
         backend_mode="mock",
         skip_verify=True,
-        extra_browser_args=("--enable-webgl-spoofing",),
     ) as result:
         yield result
 

@@ -154,7 +154,7 @@
           "mode": "native"
         },
         "webgl": {
-          "mode": "native"
+          "mode": "override"
         },
         "fonts": {
           "mode": "native_or_allowlist"
