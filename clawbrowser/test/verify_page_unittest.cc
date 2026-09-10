@@ -31,7 +31,28 @@ TEST(VerifyPageTest, ManagedProxyCapabilityRequiresCompleteLaunchContract) {
   EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, false),
             0);
   EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, true),
-            1);
+            0);
+
+  command_line.AppendSwitchASCII("webrtc-ip-handling-policy",
+                                 "disable_non_proxied_udp");
+  EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, true),
+            0);
+
+  command_line.AppendSwitchASCII("force-webrtc-ip-handling-policy",
+                                 "disable_non_proxied_udp");
+  EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, true),
+            2);
+}
+
+TEST(VerifyPageTest, ManagedProxyCapabilityRejectsWrongWebRtcPolicy) {
+  base::CommandLine command_line(base::CommandLine::NO_PROGRAM);
+  command_line.AppendSwitch(kRequireProxySwitch);
+  command_line.AppendSwitchASCII("proxy-server", "socks5://127.0.0.1:1080");
+  command_line.AppendSwitchASCII("webrtc-ip-handling-policy", "default");
+  command_line.AppendSwitchASCII("force-webrtc-ip-handling-policy",
+                                 "disable_non_proxied_udp");
+  EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, true),
+            0);
 }
 
 TEST(VerifyPageTest, ManagedProxyCapabilityRejectsConflictingProxySwitches) {
@@ -44,6 +65,10 @@ TEST(VerifyPageTest, ManagedProxyCapabilityRejectsConflictingProxySwitches) {
     command_line.AppendSwitch(kRequireProxySwitch);
     command_line.AppendSwitchASCII("proxy-server",
                                    "socks5://127.0.0.1:1080");
+    command_line.AppendSwitchASCII("webrtc-ip-handling-policy",
+                                   "disable_non_proxied_udp");
+    command_line.AppendSwitchASCII("force-webrtc-ip-handling-policy",
+                                   "disable_non_proxied_udp");
     command_line.AppendSwitch(conflicting_switch);
     EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, true),
               0)

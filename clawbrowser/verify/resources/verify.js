@@ -5,14 +5,16 @@
 // Runtime-owned capability used by nextctl before it trusts a managed
 // session. C++ derives it from the active fingerprint/proxy launch contract;
 // it must never be inferred from the browser version alone.
+function managedProxyPrivacyCapability(data) {
+  const parsed = Number.parseInt(
+    data && data.dataset.managedProxyPrivacy || '0', 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   const capabilityData = document.getElementById('expected-data');
-  const managedProxyPrivacy = Number.parseInt(
-    capabilityData && capabilityData.dataset.managedProxyPrivacy || '0', 10);
   window.__clawbrowser_capabilities = Object.freeze({
-    managed_proxy_privacy: Number.isFinite(managedProxyPrivacy)
-      ? managedProxyPrivacy
-      : 0,
+    managed_proxy_privacy: managedProxyPrivacyCapability(capabilityData),
   });
 }
 
@@ -285,6 +287,7 @@ if (typeof module !== 'undefined' && module.exports) {
     exhaustProxyRetries,
     formatProxyLocation,
     formatProxyScheme,
+    managedProxyPrivacyCapability,
     nextProxyRetryAction,
     iceCandidateType,
     iceCandidateRelatedAddress,
