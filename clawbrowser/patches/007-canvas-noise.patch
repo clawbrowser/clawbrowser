@@ -24,7 +24,7 @@ diff --git a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering
  #include "third_party/blink/renderer/core/layout/geometry/physical_rect.h"
  #include "third_party/blink/renderer/core/layout/layout_replaced.h"
  #include "third_party/blink/renderer/core/layout/layout_theme.h"
-@@ -861,8 +866,18 @@ ImageData* CanvasRenderingContext2D::getImageDataInternal(
+@@ -861,8 +866,25 @@ ImageData* CanvasRenderingContext2D::getImageDataInternal(
        CreationAttributes().will_read_frequently ==
            CanvasContextCreationAttributesCore::WillReadFrequently::kTrue);
    TRACE_EVENT0("blink", "GetImageData");
@@ -35,9 +35,16 @@ diff --git a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering
 +      fp && fp->canvas_spoofing_enabled &&
 +      fp->surface_policy.canvas == "override" && image_data) {
 +    clawbrowser::Prng prng(fp->canvas_seed);
-+    for (auto& byte : image_data->RawByteSpan()) {
-+      byte = static_cast<uint8_t>(std::clamp(
-+          static_cast<int>(byte) + prng.PixelNoise(), 0, 255));
++    auto rgba = image_data->RawByteSpan();
++    for (size_t offset = 0; offset + 3 < rgba.size(); offset += 4) {
++      // Alpha is a structural value, not a color sample. Perturbing it makes
++      // fully opaque pixels unexpectedly translucent and is trivially
++      // detectable with a one-pixel canvas.
++      for (size_t channel = 0; channel < 3; ++channel) {
++        uint8_t& byte = rgba[offset + channel];
++        byte = static_cast<uint8_t>(std::clamp(
++            static_cast<int>(byte) + prng.PixelNoise(), 0, 255));
++      }
 +    }
 +  }
 +  return image_data;
@@ -60,18 +67,24 @@ diff --git a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc b
  #include "third_party/blink/renderer/platform/image-encoders/image_encoder_utils.h"
  #include "third_party/blink/renderer/platform/wtf/text/base64.h"
  #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
-@@ -96,6 +100,16 @@ ImageDataBuffer::ImageDataBuffer(scoped_refptr<StaticBitmapImage> image) {
+@@ -96,6 +100,22 @@ ImageDataBuffer::ImageDataBuffer(scoped_refptr<StaticBitmapImage> image) {
        return;
      MSAN_CHECK_MEM_IS_INITIALIZED(pixmap_.addr(), pixmap_.computeByteSize());
    }
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
 +      fp && fp->canvas_spoofing_enabled &&
 +      fp->surface_policy.canvas == "override" &&
-+      pixmap_.writable_addr()) {
++      pixmap_.writable_addr() &&
++      (pixmap_.colorType() == kRGBA_8888_SkColorType ||
++       pixmap_.colorType() == kBGRA_8888_SkColorType)) {
 +    clawbrowser::Prng prng(fp->canvas_seed);
-+    for (uint8_t& pixel : gfx::SkPixmapToWritableSpan(pixmap_)) {
-+      pixel = static_cast<uint8_t>(
-+          std::clamp(static_cast<int>(pixel) + prng.PixelNoise(), 0, 255));
++    auto rgba = gfx::SkPixmapToWritableSpan(pixmap_);
++    for (size_t offset = 0; offset + 3 < rgba.size(); offset += 4) {
++      for (size_t channel = 0; channel < 3; ++channel) {
++        uint8_t& byte = rgba[offset + channel];
++        byte = static_cast<uint8_t>(
++            std::clamp(static_cast<int>(byte) + prng.PixelNoise(), 0, 255));
++      }
 +    }
 +  }
    is_valid_ = true;
