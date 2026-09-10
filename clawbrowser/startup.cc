@@ -795,7 +795,10 @@ base::expected<StartupResult, std::string> RunStartup(
   command_line->AppendSwitchPath(kFingerprintPathSwitch, fp_path);
   command_line->AppendSwitchPath(
       "user-data-dir", profile_manager.GetUserDataDir(fp_id));
-#if BUILDFLAG(IS_MAC)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+  // Linux renderers inherit the zygote sandbox before RendererMain and cannot
+  // reopen arbitrary profile files. Pass the credential-stripped payload just
+  // as on macOS, rather than weakening the sandbox or falling back to native.
   auto child_payload = dev_proxy_override.has_value()
                            ? BuildChildFingerprintPayload(fp_path,
                                                           *dev_proxy_override)
