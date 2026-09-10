@@ -29,6 +29,7 @@ assert_contains "${verify_html}" '<col class="expected-column">'
 assert_contains "${verify_html}" '<col class="actual-column">'
 assert_contains "${verify_html}" '<script src="verify_timezones.js"></script>'
 assert_contains "${verify_html}" '<script src="verify.js"></script>'
+assert_contains "${verify_html}" 'data-managed-proxy-privacy="$i18n{managed_proxy_privacy}"'
 
 assert_contains "${verify_css}" '#results th:nth-child(1),'
 assert_contains "${verify_css}" '#results td:nth-child(1) {'

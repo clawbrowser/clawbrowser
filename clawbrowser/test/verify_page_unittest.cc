@@ -1,4 +1,5 @@
 #include "base/command_line.h"
+#include "clawbrowser/cli/args.h"
 #include "clawbrowser/verify/proxy_expectation.h"
 #include "clawbrowser/verify/verify_page.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -15,6 +16,39 @@ TEST(VerifyPageTest, FailureExitEnabledWithAutomationSwitch) {
   base::CommandLine command_line(base::CommandLine::NO_PROGRAM);
   command_line.AppendSwitch("verify-automation");
   EXPECT_TRUE(VerifyFailureExitEnabledForCommandLine(command_line));
+}
+
+TEST(VerifyPageTest, ManagedProxyCapabilityRequiresCompleteLaunchContract) {
+  base::CommandLine command_line(base::CommandLine::NO_PROGRAM);
+  EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, true),
+            0);
+
+  command_line.AppendSwitch(kRequireProxySwitch);
+  EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, true),
+            0);
+
+  command_line.AppendSwitchASCII("proxy-server", "socks5://127.0.0.1:1080");
+  EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, false),
+            0);
+  EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, true),
+            1);
+}
+
+TEST(VerifyPageTest, ManagedProxyCapabilityRejectsConflictingProxySwitches) {
+  constexpr const char* kConflictingSwitches[] = {
+      "no-proxy-server", "proxy-pac-url", "proxy-auto-detect",
+      "proxy-bypass-list"};
+
+  for (const char* conflicting_switch : kConflictingSwitches) {
+    base::CommandLine command_line(base::CommandLine::NO_PROGRAM);
+    command_line.AppendSwitch(kRequireProxySwitch);
+    command_line.AppendSwitchASCII("proxy-server",
+                                   "socks5://127.0.0.1:1080");
+    command_line.AppendSwitch(conflicting_switch);
+    EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, true),
+              0)
+        << conflicting_switch;
+  }
 }
 
 TEST(VerifyPageTest, ProxyExpectationKeepsCountryOnlyRequestsCountryOnly) {

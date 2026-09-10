@@ -20,6 +20,8 @@ font_enum_patch="${repo_root}/clawbrowser/patches/011-fonts-filter.patch"
 css_font_patch="${repo_root}/clawbrowser/patches/034-css-font-probing.patch"
 font_fallback_patch="${repo_root}/clawbrowser/patches/035-font-fallback-probing.patch"
 verify_script="${repo_root}/clawbrowser/verify/resources/verify.js"
+verify_html="${repo_root}/clawbrowser/verify/resources/verify.html"
+verify_source="${repo_root}/clawbrowser/verify/verify_page.cc"
 
 if grep -q 'surface_policy.webgl == "override"' "${webgl_patch}"; then
   echo "WebGL backend values must not be hidden behind surface_policy.webgl." >&2
@@ -107,7 +109,10 @@ grep -q 'args.require_proxy() && !proxy' "${startup_source}"
 grep -q 'proxy_flags.empty()' "${startup_source}"
 grep -q 'required_proxy_missing' "${startup_source}"
 grep -q 'invalid_proxy_config' "${startup_source}"
-grep -q 'managed_proxy_privacy: 1' "${verify_script}"
+grep -q 'ManagedProxyPrivacyCapabilityForCommandLine' "${verify_source}"
+grep -q 'data-managed-proxy-privacy="\$i18n{managed_proxy_privacy}"' \
+  "${verify_html}"
+grep -q 'capabilityData.dataset.managedProxyPrivacy' "${verify_script}"
 grep -q 'AppendSwitch(kRequireFingerprintSwitch)' "${startup_source}"
 grep -A35 'void ApplyFingerprintWebGLIsolation' "${startup_source}" |
   grep -q 'AppendSwitch(kDisableWebGLSpoofingSwitch)'

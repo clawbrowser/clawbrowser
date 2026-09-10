@@ -2,12 +2,17 @@
 // Expected values injected by WebUI handler via window.__clawbrowser_expected.
 // Results exposed via window.__clawbrowser_verify for CDP automation.
 
-// Versioned, runtime-owned capability used by nextctl before it trusts a
-// managed session. Version 1 means the browser enforces the fail-closed proxy
-// launch contract. The WebRTC-hardening layer raises this to version 2.
-if (typeof window !== 'undefined') {
+// Runtime-owned capability used by nextctl before it trusts a managed
+// session. C++ derives it from the active fingerprint/proxy launch contract;
+// it must never be inferred from the browser version alone.
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  const capabilityData = document.getElementById('expected-data');
+  const managedProxyPrivacy = Number.parseInt(
+    capabilityData && capabilityData.dataset.managedProxyPrivacy || '0', 10);
   window.__clawbrowser_capabilities = Object.freeze({
-    managed_proxy_privacy: 1,
+    managed_proxy_privacy: Number.isFinite(managedProxyPrivacy)
+      ? managedProxyPrivacy
+      : 0,
   });
 }
 
