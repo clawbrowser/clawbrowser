@@ -94,9 +94,12 @@ def _seed_profile(
     *,
     fingerprint_id: str = FINGERPRINT_ID,
     created_at: Optional[str] = None,
+    proxy_config=None,
 ):
     fingerprint_path = FIXTURE_DIR / fixture_name
     fingerprint_data = _read_json(fingerprint_path)
+    if proxy_config is not None:
+        fingerprint_data["response"]["proxy"] = dict(proxy_config)
     if created_at is not None:
         fingerprint_data["created_at"] = created_at
     profile_dir = config_dir / "Browser" / fingerprint_id
@@ -297,6 +300,7 @@ async def _launch_browser(
     extra_browser_args=(),
     extra_env=None,
     headless=True,
+    proxy_config=None,
 ):
     async with _launch_browser_with_details(
         fixture_name=fixture_name,
@@ -310,6 +314,7 @@ async def _launch_browser(
         extra_browser_args=extra_browser_args,
         extra_env=extra_env,
         headless=headless,
+        proxy_config=proxy_config,
     ) as launch:
         yield launch["page"], launch["fingerprint_data"]
 
@@ -328,6 +333,7 @@ async def _launch_browser_with_details(
     extra_browser_args=(),
     extra_env=None,
     headless=True,
+    proxy_config=None,
 ):
     if expect_verify and skip_verify:
         raise ValueError("expect_verify and skip_verify are mutually exclusive")
@@ -356,6 +362,7 @@ async def _launch_browser_with_details(
                 config_dir,
                 fixture_name,
                 fingerprint_id=effective_fingerprint_id,
+                proxy_config=proxy_config,
             )
 
         mock_log_path = home_dir / "mock_server.log"
