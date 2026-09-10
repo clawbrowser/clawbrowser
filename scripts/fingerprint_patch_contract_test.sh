@@ -114,13 +114,26 @@ grep -A6 'bool ScreenDetailed::isPrimary() const' "${screen_patch}" | grep -q 'r
 grep -A7 'bool ScreenDetailed::isInternal() const' "${screen_patch}" | grep -q 'return false'
 grep -A5 'float ScreenDetailed::devicePixelRatio() const' "${screen_patch}" | grep -q 'fp->screen.pixel_ratio'
 grep -A7 'String ScreenDetailed::label() const' "${screen_patch}" | grep -q 'return String()'
+grep -A5 'float ScreenDetailed::hdrHeadroom() const' "${screen_patch}" | grep -q 'return 0.f'
+grep -A5 'float ScreenDetailed::highDynamicRangeHeadroom() const' "${screen_patch}" | grep -q 'return 1.f'
+grep -A5 'float ScreenDetailed::redPrimaryX() const' "${screen_patch}" | grep -q 'kSrgbRedPrimaryX'
+grep -A5 'float ScreenDetailed::whitePointY() const' "${screen_patch}" | grep -q 'kSrgbWhitePointY'
 grep -q 'const bool protect_topology' "${screen_patch}"
 grep -q 'display_id == new_infos.current_display_id' "${screen_patch}"
 grep -q 'dispatch_events && !protect_topology' "${screen_patch}"
+grep -q 'third_party/blink/renderer/modules/screen_orientation/screen_orientation_controller.cc' "${screen_patch}"
+grep -A12 'void ScreenOrientationController::UpdateOrientation()' "${screen_patch}" | grep -q 'fp->screen.height >= fp->screen.width'
+grep -A12 'void ScreenOrientationController::UpdateOrientation()' "${screen_patch}" | grep -q 'orientation_->SetAngle(0)'
+grep -A5 'void ScreenOrientationController::NotifyOrientationChanged()' "${screen_patch}" | grep -q 'FingerprintAccessor::Get()'
+grep -A5 'int LocalDOMWindow::orientation() const' "${screen_patch}" | grep -q 'return 0'
 grep -q 'if (fp && !command_line->HasSwitch("window-position"))' "${startup_source}"
 grep -q "check('screen.availLeft', 0, screen.availLeft)" "${verify_script}"
 grep -q "check('window.screenX', 0, window.screenX)" "${verify_script}"
+grep -q "check('screen.orientation.type', expectedOrientation, screen.orientation.type)" "${verify_script}"
+grep -q "check('screen.orientation.angle', 0, screen.orientation.angle)" "${verify_script}"
 grep -q 'fp->screen.width' "${css_screen_patch}"
+grep -A5 'bool MediaValues::CalculateDeviceSupportsHDR' "${css_screen_patch}" | grep -q 'return false'
+grep -A5 'ColorSpaceGamut MediaValues::CalculateColorGamut' "${css_screen_patch}" | grep -q 'ColorSpaceGamut::SRGB'
 grep -q 'ShouldFilterLocalFonts' "${font_enum_patch}"
 grep -q 'IsLocalFontBlocked' "${css_font_patch}"
 grep -q 'IsLocalFontBlocked' "${font_fallback_patch}"

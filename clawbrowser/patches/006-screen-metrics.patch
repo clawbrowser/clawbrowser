@@ -10,7 +10,27 @@ diff --git a/third_party/blink/renderer/core/frame/local_dom_window.cc b/third_p
  #include "cc/input/snap_selection_strategy.h"
  #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
  #include "net/storage_access_api/status.h"
-@@ -1764,6 +1765,9 @@ int LocalDOMWindow::innerWidth() const {
+@@ -1166,6 +1167,9 @@ void LocalDOMWindow::SendOrientationChangeEvent() {
+   DCHECK(RuntimeEnabledFeatures::OrientationEventEnabled());
+   DCHECK(GetFrame()->IsLocalRoot());
+ 
++  if (clawbrowser::FingerprintAccessor::Get())
++    return;
++
+   // Before dispatching the event, build a list of all frames in the page
+   // to send the event to, to mitigate side effects from event handlers
+   // potentially interfering with others.
+@@ -1187,6 +1191,9 @@ void LocalDOMWindow::SendOrientationChangeEvent() {
+ }
+ 
+ int LocalDOMWindow::orientation() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return 0;
++
+   LocalFrame* frame = GetFrame();
+   if (!frame) {
+     return 0;
+@@ -1765,6 +1772,9 @@ int LocalDOMWindow::innerWidth() const {
  }
  
  int LocalDOMWindow::screenX() const {
@@ -20,7 +40,7 @@ diff --git a/third_party/blink/renderer/core/frame/local_dom_window.cc b/third_p
    LocalFrame* frame = GetFrame();
    if (!frame) {
      return 0;
-@@ -1784,6 +1788,9 @@ int LocalDOMWindow::screenX() const {
+@@ -1785,6 +1795,9 @@ int LocalDOMWindow::screenX() const {
  }
  
  int LocalDOMWindow::screenY() const {
@@ -30,7 +50,7 @@ diff --git a/third_party/blink/renderer/core/frame/local_dom_window.cc b/third_p
    LocalFrame* frame = GetFrame();
    if (!frame) {
      return 0;
-@@ -1907,6 +1914,14 @@ CSSStyleDeclaration* LocalDOMWindow::getComputedStyle(
+@@ -1907,6 +1920,14 @@ CSSStyleDeclaration* LocalDOMWindow::getComputedStyle(
  }
  
  double LocalDOMWindow::devicePixelRatio() const {
@@ -149,7 +169,29 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.c
  #include "third_party/blink/renderer/core/frame/local_dom_window.h"
  #include "third_party/blink/renderer/core/frame/local_frame.h"
  #include "third_party/blink/renderer/core/frame/settings.h"
-@@ -25,6 +26,9 @@ ScreenDetailed::ScreenDetailed(LocalDOMWindow* window, int64_t display_id)
+@@ -19,6 +20,21 @@
+ 
+ namespace blink {
+ 
++namespace {
++
++// The fingerprint contract currently carries no display color-space data.
++// Use Chromium's normal SDR sRGB fallback instead of the host panel.
++constexpr float kSrgbRedPrimaryX = 0.64f;
++constexpr float kSrgbRedPrimaryY = 0.33f;
++constexpr float kSrgbGreenPrimaryX = 0.30f;
++constexpr float kSrgbGreenPrimaryY = 0.60f;
++constexpr float kSrgbBluePrimaryX = 0.15f;
++constexpr float kSrgbBluePrimaryY = 0.06f;
++constexpr float kSrgbWhitePointX = 0.3127f;
++constexpr float kSrgbWhitePointY = 0.3290f;
++
++}  // namespace
++
+ ScreenDetailed::ScreenDetailed(LocalDOMWindow* window, int64_t display_id)
+     : Screen(window, display_id) {}
+ 
+@@ -25,6 +41,9 @@ ScreenDetailed::ScreenDetailed(LocalDOMWindow* window, int64_t display_id)
  // static
  bool ScreenDetailed::AreWebExposedScreenDetailedPropertiesEqual(
      const display::ScreenInfo& prev,
@@ -159,7 +201,7 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.c
 +
    if (!Screen::AreWebExposedScreenPropertiesEqual(prev, current)) {
      return false;
-@@ -102,36 +106,61 @@ bool ScreenDetailed::AreHdrHeadroomEqual(const display::ScreenInfo& prev,
+@@ -102,36 +121,61 @@ bool ScreenDetailed::AreHdrHeadroomEqual(const display::ScreenInfo& prev,
  }
  
  int ScreenDetailed::left() const {
@@ -221,6 +263,80 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.c
    if (!DomWindow())
      return String();
    return String::FromUtf8(GetScreenInfo().label);
+@@ -140,43 +184,73 @@ String ScreenDetailed::label() const {
+ float ScreenDetailed::hdrHeadroom() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return 0.f;
++
+   return std::log2(std::max(
+       GetScreenInfo().display_color_spaces.GetHDRMaxLuminanceRelative(),
+       1.f));
+ }
+ 
+ float ScreenDetailed::highDynamicRangeHeadroom() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return 1.f;
++
+   return GetScreenInfo().display_color_spaces.GetHDRMaxLuminanceRelative();
+ }
+ 
+ float ScreenDetailed::redPrimaryX() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return kSrgbRedPrimaryX;
++
+   return GetScreenInfo().display_color_spaces.GetPrimaries().fRX;
+ }
+ 
+ float ScreenDetailed::redPrimaryY() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return kSrgbRedPrimaryY;
++
+   return GetScreenInfo().display_color_spaces.GetPrimaries().fRY;
+ }
+ 
+ float ScreenDetailed::greenPrimaryX() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return kSrgbGreenPrimaryX;
++
+   return GetScreenInfo().display_color_spaces.GetPrimaries().fGX;
+ }
+ 
+ float ScreenDetailed::greenPrimaryY() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return kSrgbGreenPrimaryY;
++
+   return GetScreenInfo().display_color_spaces.GetPrimaries().fGY;
+ }
+ 
+ float ScreenDetailed::bluePrimaryX() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return kSrgbBluePrimaryX;
++
+   return GetScreenInfo().display_color_spaces.GetPrimaries().fBX;
+ }
+ 
+ float ScreenDetailed::bluePrimaryY() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return kSrgbBluePrimaryY;
++
+   return GetScreenInfo().display_color_spaces.GetPrimaries().fBY;
+ }
+ 
+ float ScreenDetailed::whitePointX() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return kSrgbWhitePointX;
++
+   return GetScreenInfo().display_color_spaces.GetPrimaries().fWX;
+ }
+ 
+ float ScreenDetailed::whitePointY() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return kSrgbWhitePointY;
++
+   return GetScreenInfo().display_color_spaces.GetPrimaries().fWY;
+ }
+ 
+ }  // namespace blink
 diff --git a/third_party/blink/renderer/modules/screen_details/screen_details.cc b/third_party/blink/renderer/modules/screen_details/screen_details.cc
 --- a/third_party/blink/renderer/modules/screen_details/screen_details.cc
 +++ b/third_party/blink/renderer/modules/screen_details/screen_details.cc
@@ -285,3 +401,42 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_details.cc
      // Enqueue a change event if the current screen has changed.
      if (prev_screen_infos_.screen_infos.empty() ||
          prev_screen_infos_.current().display_id !=
+diff --git a/third_party/blink/renderer/modules/screen_orientation/screen_orientation_controller.cc b/third_party/blink/renderer/modules/screen_orientation/screen_orientation_controller.cc
+--- a/third_party/blink/renderer/modules/screen_orientation/screen_orientation_controller.cc
++++ b/third_party/blink/renderer/modules/screen_orientation/screen_orientation_controller.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <memory>
+ #include <utility>
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
+ #include "third_party/blink/public/platform/task_type.h"
+ #include "third_party/blink/renderer/core/dom/events/event.h"
+@@ -110,6 +111,16 @@ ScreenOrientationController::ComputeOrientation(const gfx::Rect& rect,
+ void ScreenOrientationController::UpdateOrientation() {
+   DCHECK(orientation_);
+   DCHECK(GetPage());
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get()) {
++    const auto orientation_type =
++        fp->screen.height >= fp->screen.width
++            ? display::mojom::blink::ScreenOrientation::kPortraitPrimary
++            : display::mojom::blink::ScreenOrientation::kLandscapePrimary;
++    orientation_->SetType(orientation_type);
++    orientation_->SetAngle(0);
++    return;
++  }
++
+   ChromeClient& chrome_client = GetPage()->GetChromeClient();
+   LocalFrame& frame = *DomWindow()->GetFrame();
+   const display::ScreenInfo& screen_info = chrome_client.GetScreenInfo(frame);
+@@ -169,6 +180,10 @@ void ScreenOrientationController::PageVisibilityChanged() {
+ }
+ 
+ void ScreenOrientationController::NotifyOrientationChanged() {
++  // Host rotation cannot alter the fingerprint-derived orientation.
++  if (clawbrowser::FingerprintAccessor::Get())
++    return;
++
+   // TODO(dcheng): Update this code to better handle instances when v8 memory
+   // is forcibly purged.
+   if (!DomWindow()) {

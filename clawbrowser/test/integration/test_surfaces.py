@@ -1,5 +1,6 @@
 """Integration tests: verify fingerprint surfaces via CDP."""
 
+import asyncio
 import json
 
 import pytest
@@ -170,21 +171,68 @@ async def test_screen_topology_uses_virtual_origin(
 
 
 @pytest.mark.asyncio
-async def test_screen_details_exposes_one_virtual_screen(browser_with_fingerprint):
-    page, data = browser_with_fingerprint
+async def test_screen_details_exposes_one_virtual_screen(
+    browser_with_screen_details_fingerprint,
+):
+    startup_page, data = browser_with_screen_details_fingerprint
     fp = data["response"]["fingerprint"]
-    cdp = await page.context.new_cdp_session(page)
-    origin = await page.evaluate("location.origin")
-    await cdp.send(
-        "Browser.grantPermissions",
-        {"permissions": ["windowManagement"], "origin": origin},
-    )
+    browser = startup_page.context.browser
+    assert browser is not None
+    browser_cdp = await browser.new_browser_cdp_session()
+    browser_context_id = None
 
     try:
+        browser_context_id = (
+            await browser_cdp.send("Target.createBrowserContext")
+        )["browserContextId"]
+        origin = await startup_page.evaluate("location.origin")
+        await browser_cdp.send(
+            "Browser.grantPermissions",
+            {
+                "permissions": ["windowManagement"],
+                "origin": origin,
+                "browserContextId": browser_context_id,
+            },
+        )
+
+        existing_page_ids = {
+            id(candidate)
+            for context in browser.contexts
+            for candidate in context.pages
+        }
+        await browser_cdp.send(
+            "Target.createTarget",
+            {
+                "url": startup_page.url,
+                "browserContextId": browser_context_id,
+            },
+        )
+        deadline = asyncio.get_running_loop().time() + 5
+        page = None
+        while asyncio.get_running_loop().time() < deadline:
+            page = next(
+                (
+                    candidate
+                    for context in browser.contexts
+                    for candidate in context.pages
+                    if id(candidate) not in existing_page_ids
+                ),
+                None,
+            )
+            if page is not None:
+                break
+            await asyncio.sleep(0.05)
+        assert page is not None, "CDP-created test target was not attached"
+        await page.wait_for_load_state("domcontentloaded")
+
         actual = await page.evaluate("""async () => {
+            const permission = await navigator.permissions.query({
+                name: 'window-management',
+            });
             const details = await getScreenDetails();
             const current = details.currentScreen;
             return {
+                permissionState: permission.state,
                 screenCount: details.screens.length,
                 currentIsOnlyScreen: details.screens[0] === current,
                 width: current.width,
@@ -200,13 +248,55 @@ async def test_screen_details_exposes_one_virtual_screen(browser_with_fingerprin
                 isPrimary: current.isPrimary,
                 isInternal: current.isInternal,
                 label: current.label,
+                hdrHeadroom: current.hdrHeadroom,
+                highDynamicRangeHeadroom: current.highDynamicRangeHeadroom,
+                redPrimaryX: current.redPrimaryX,
+                redPrimaryY: current.redPrimaryY,
+                greenPrimaryX: current.greenPrimaryX,
+                greenPrimaryY: current.greenPrimaryY,
+                bluePrimaryX: current.bluePrimaryX,
+                bluePrimaryY: current.bluePrimaryY,
+                whitePointX: current.whitePointX,
+                whitePointY: current.whitePointY,
+                dynamicRangeHigh: matchMedia('(dynamic-range: high)').matches,
+                colorGamutP3: matchMedia('(color-gamut: p3)').matches,
+                colorGamutSrgb: matchMedia('(color-gamut: srgb)').matches,
             };
         }""")
     finally:
-        await cdp.send("Browser.resetPermissions")
-        await cdp.detach()
+        if browser_context_id is not None:
+            await browser_cdp.send(
+                "Target.disposeBrowserContext",
+                {"browserContextId": browser_context_id},
+            )
+        await browser_cdp.detach()
 
-    assert actual == {
+    base_metrics = {
+        key: actual[key]
+        for key in (
+            "permissionState",
+            "screenCount",
+            "currentIsOnlyScreen",
+            "width",
+            "height",
+            "availWidth",
+            "availHeight",
+            "colorDepth",
+            "left",
+            "top",
+            "availLeft",
+            "availTop",
+            "devicePixelRatio",
+            "isPrimary",
+            "isInternal",
+            "label",
+            "dynamicRangeHigh",
+            "colorGamutP3",
+            "colorGamutSrgb",
+        )
+    }
+    assert base_metrics == {
+        "permissionState": "granted",
         "screenCount": 1,
         "currentIsOnlyScreen": True,
         # ScreenDetailed inherits these virtualized Screen accessors.
@@ -223,6 +313,39 @@ async def test_screen_details_exposes_one_virtual_screen(browser_with_fingerprin
         "isPrimary": True,
         "isInternal": False,
         "label": "",
+        "dynamicRangeHigh": False,
+        "colorGamutP3": False,
+        "colorGamutSrgb": True,
+    }
+    assert actual["hdrHeadroom"] == pytest.approx(0.0)
+    assert actual["highDynamicRangeHeadroom"] == pytest.approx(1.0)
+    assert actual["redPrimaryX"] == pytest.approx(0.64)
+    assert actual["redPrimaryY"] == pytest.approx(0.33)
+    assert actual["greenPrimaryX"] == pytest.approx(0.30)
+    assert actual["greenPrimaryY"] == pytest.approx(0.60)
+    assert actual["bluePrimaryX"] == pytest.approx(0.15)
+    assert actual["bluePrimaryY"] == pytest.approx(0.06)
+    assert actual["whitePointX"] == pytest.approx(0.3127)
+    assert actual["whitePointY"] == pytest.approx(0.3290)
+
+
+@pytest.mark.asyncio
+async def test_screen_orientation_matches_fingerprint(browser_with_fingerprint):
+    page, data = browser_with_fingerprint
+    screen = data["response"]["fingerprint"]["screen"]
+    is_portrait = screen["height"] >= screen["width"]
+    actual = await page.evaluate("""() => ({
+        type: screen.orientation.type,
+        angle: screen.orientation.angle,
+        hasLegacyOrientation: 'orientation' in window,
+        legacyOrientation: 'orientation' in window ? window.orientation : null,
+    })""")
+    assert actual == {
+        "type": "portrait-primary" if is_portrait else "landscape-primary",
+        "angle": 0,
+        "hasLegacyOrientation": actual["hasLegacyOrientation"],
+        # window.orientation is Android-only in stable Chromium.
+        "legacyOrientation": 0 if actual["hasLegacyOrientation"] else None,
     }
 
 

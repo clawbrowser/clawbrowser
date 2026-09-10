@@ -493,6 +493,20 @@ async def browser_with_offset_window_fingerprint():
 
 
 @pytest_asyncio.fixture
+async def browser_with_screen_details_fingerprint():
+    """Launch with experimental ScreenDetailed color accessors enabled."""
+    async with _launch_browser(
+        fixture_name="valid_fingerprint.json",
+        backend_mode="mock",
+        skip_verify=True,
+        extra_browser_args=(
+            "--enable-blink-features=ScreenDetailedHdrHeadroom,CanvasHDR",
+        ),
+    ) as result:
+        yield result
+
+
+@pytest_asyncio.fixture
 async def browser_with_isolated_webgl():
     """Launch a fingerprint profile on the host-independent WebGL backend."""
     async with _launch_browser(
