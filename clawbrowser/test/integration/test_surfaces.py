@@ -170,13 +170,40 @@ async def test_webgl_vendor_renderer(browser_with_webgl_spoofing):
         const ext = gl.getExtension('WEBGL_debug_renderer_info');
         if (!ext) return null;
         return {
+            maskedVendor: gl.getParameter(gl.VENDOR),
+            maskedRenderer: gl.getParameter(gl.RENDERER),
             vendor: gl.getParameter(ext.UNMASKED_VENDOR_WEBGL),
             renderer: gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
         };
     }""")
     assert result is not None
+    assert result["maskedVendor"] == "WebKit"
+    assert result["maskedRenderer"] == "WebKit WebGL"
     assert result["vendor"] == fp["webgl"]["vendor"]
     assert result["renderer"] == fp["webgl"]["renderer"]
+
+
+@pytest.mark.asyncio
+async def test_webgl_pixels_are_seeded_and_stable(browser_with_webgl_spoofing):
+    page, data = browser_with_webgl_spoofing
+    fp = data["response"]["fingerprint"]
+    assert fp["surface_policy"]["canvas"]["mode"] == "override"
+
+    stable = await page.evaluate("""() => {
+        const read = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 8;
+            canvas.height = 8;
+            const gl = canvas.getContext('webgl');
+            gl.clearColor(0.25, 0.5, 0.75, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            const pixels = new Uint8Array(8 * 8 * 4);
+            gl.readPixels(0, 0, 8, 8, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+            return Array.from(pixels).join(',');
+        };
+        return read() === read();
+    }""")
+    assert stable is True
 
 
 @pytest.mark.asyncio

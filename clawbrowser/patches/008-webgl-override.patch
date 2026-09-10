@@ -20,31 +20,7 @@ diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_ba
  #include "components/viz/common/gpu/raster_context_provider.h"
  #include "components/viz/common/resources/shared_image_format_utils.h"
  #include "device/vr/buildflags/buildflags.h"
-@@ -4095,6 +4099,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
-     case GL_RENDERBUFFER_BINDING:
-       return WebGLAny(script_state, renderbuffer_binding_.Get());
-     case GL_RENDERER:
-+      if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+          fp && fp->webgl_spoofing_enabled &&
-+          !fp->webgl.renderer.empty()) {
-+        return WebGLAny(script_state, String::FromUtf8(fp->webgl.renderer));
-+      }
-       return WebGLAny(script_state, String("WebKit WebGL"));
-     case GL_SAMPLE_ALPHA_TO_COVERAGE:
-       return GetBooleanParameter(script_state, pname);
-@@ -4173,6 +4182,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
-     case GC3D_UNPACK_COLORSPACE_CONVERSION_WEBGL:
-       return WebGLAny(script_state, unpack_colorspace_conversion_);
-     case GL_VENDOR:
-+      if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+          fp && fp->webgl_spoofing_enabled &&
-+          !fp->webgl.vendor.empty()) {
-+        return WebGLAny(script_state, String::FromUtf8(fp->webgl.vendor));
-+      }
-       return WebGLAny(script_state, String("WebKit"));
-     case GL_VERSION:
-       return WebGLAny(
-@@ -4191,6 +4205,12 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+@@ -4191,6 +4195,12 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
        return ScriptValue::CreateNull(script_state->GetIsolate());
      case WebGLDebugRendererInfo::kUnmaskedRendererWebgl:
        if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
@@ -57,7 +33,7 @@ diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_ba
          return WebGLAny(script_state,
                          String(ContextGL()->GetString(GL_RENDERER)));
        }
-@@ -4200,6 +4220,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+@@ -4200,6 +4210,11 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
        return ScriptValue::CreateNull(script_state->GetIsolate());
      case WebGLDebugRendererInfo::kUnmaskedVendorWebgl:
        if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
@@ -69,7 +45,7 @@ diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_ba
          return WebGLAny(script_state,
                          String(ContextGL()->GetString(GL_VENDOR)));
        }
-@@ -5347,6 +5372,17 @@ void WebGLRenderingContextBase::ReadPixelsHelper(GLint x,
+@@ -5347,6 +5362,17 @@ void WebGLRenderingContextBase::ReadPixelsHelper(GLint x,
      }
      ContextGL()->ReadPixels(x, y, width, height, format, type, data);
    }

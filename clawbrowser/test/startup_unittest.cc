@@ -153,6 +153,15 @@ class StartupTest : public testing::Test {
                                 json));
   }
 
+  void WriteLegacyPrivacyPolicyCachedProfile(const std::string& id) {
+    WriteCachedProfile(id);
+    ProfileEnvelope envelope = ReadSavedProfile(id);
+    envelope.response.fingerprint.surface_policy.canvas.mode = "native";
+    envelope.response.fingerprint.surface_policy.webgl.mode = "native";
+    auto save_result = CreateProfileManager().SaveProfile(id, envelope);
+    ASSERT_TRUE(save_result.has_value()) << save_result.error();
+  }
+
   void WriteCachedProfileWithProxy(const std::string& id,
                                    const std::string& username,
                                    const std::string& password) {
@@ -277,10 +286,10 @@ class StartupTest : public testing::Test {
           "Accept-Language": "en"
         },
         "surface_policy": {
-          "canvas": {"mode": "native"},
+          "canvas": {"mode": "override"},
           "audio": {"mode": "native"},
           "client_rects": {"mode": "native"},
-          "webgl": {"mode": "native"},
+          "webgl": {"mode": "override"},
           "fonts": {"mode": "native_or_allowlist"},
           "plugins": {"mode": "override"},
           "media_devices": {"mode": "override"},
@@ -399,6 +408,27 @@ TEST_F(StartupTest, FingerprintWithCachedProfile) {
 #else
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintChildDataSwitch));
 #endif
+}
+
+TEST_F(StartupTest, CachedNativeSurfacePolicyIsRegenerated) {
+  WriteLegacyPrivacyPolicyCachedProfile("legacy_privacy_profile");
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+  const std::string user_agent =
+      "Mozilla/5.0 AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36";
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson(user_agent));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "legacy_privacy_profile");
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+
+  ProfileEnvelope saved = ReadSavedProfile("legacy_privacy_profile");
+  EXPECT_EQ(saved.response.fingerprint.surface_policy.canvas.mode, "override");
+  EXPECT_EQ(saved.response.fingerprint.surface_policy.webgl.mode, "override");
 }
 
 TEST(SurfaceSpoofingResolutionTest, PolicyEnablesWithoutAnyFlag) {

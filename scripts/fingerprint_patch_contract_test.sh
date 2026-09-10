@@ -18,6 +18,14 @@ fi
 
 grep -q '!fp->webgl.renderer.empty()' "${webgl_patch}"
 grep -q '!fp->webgl.vendor.empty()' "${webgl_patch}"
+if grep -A8 'case GL_RENDERER:' "${webgl_patch}" | grep -q 'fp->webgl'; then
+  echo "Masked GL_RENDERER must retain Chromium's standard value." >&2
+  exit 1
+fi
+if grep -A8 'case GL_VENDOR:' "${webgl_patch}" | grep -q 'fp->webgl'; then
+  echo "Masked GL_VENDOR must retain Chromium's standard value." >&2
+  exit 1
+fi
 
 if [[ ! -f "${cdp_patch}" ]]; then
   echo "Missing CDP getter-preview suppression patch." >&2

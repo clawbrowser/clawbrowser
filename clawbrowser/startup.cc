@@ -328,6 +328,16 @@ bool RuntimeHeadless(const base::CommandLine& command_line) {
   return command_line.HasSwitch("headless");
 }
 
+bool CachedProfileNeedsPrivacyUpgrade(ProfileManager* profile_manager,
+                                      const std::string& profile_id) {
+  auto cached = profile_manager->ReadProfile(profile_id);
+  if (!cached.has_value()) {
+    return true;
+  }
+  const auto& policy = cached->response.fingerprint.surface_policy;
+  return policy.webgl != "override" || policy.canvas != "override";
+}
+
 void ApplyGenerateRequestOverrides(const ClawArgs& args,
                                    GenerateRequest* request) {
   if (args.has_location_overrides()) {
@@ -576,8 +586,11 @@ base::expected<StartupResult, std::string> RunStartup(
 
   // Fingerprint mode
   const std::string& fp_id = args.fingerprint_id();
-  const bool needs_fetch = args.regenerate() ||
-                           !profile_manager.HasCachedProfile(fp_id);
+  const bool has_cached_profile = profile_manager.HasCachedProfile(fp_id);
+  const bool needs_fetch =
+      args.regenerate() || !has_cached_profile ||
+      (has_cached_profile &&
+       CachedProfileNeedsPrivacyUpgrade(&profile_manager, fp_id));
   std::optional<std::string> api_key = profile_manager.ResolveApiKey();
   if (!api_key.has_value()) {
     StopSocks5AuthProxyBridge();

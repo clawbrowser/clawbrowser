@@ -145,7 +145,7 @@
       },
       "surface_policy": {
         "canvas": {
-          "mode": "native"
+          "mode": "override"
         },
         "audio": {
           "mode": "native"
