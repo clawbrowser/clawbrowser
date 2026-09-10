@@ -1,11 +1,14 @@
 #ifndef CLAWBROWSER_NOISE_CANVAS_NOISE_H_
 #define CLAWBROWSER_NOISE_CANVAS_NOISE_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <limits>
+#include <span>
 
+#include "base/compiler_specific.h"
+#include "base/numerics/byte_conversions.h"
 #include "clawbrowser/noise/prng.h"
 
 namespace clawbrowser {
@@ -43,8 +46,11 @@ inline void CanonicalizeUint8Lsb(uint8_t* channel, uint8_t canonical_lsb) {
 
 inline void CanonicalizeFloat16Lsb(uint8_t* channel,
                                    uint8_t canonical_lsb) {
-  uint16_t bits;
-  std::memcpy(&bits, channel, sizeof(bits));
+  // SAFETY: callers pass one complete two-byte component from a validated
+  // pixel span (or a uint16_t object in the unit tests).
+  auto bytes = UNSAFE_BUFFERS(std::span<uint8_t, sizeof(uint16_t)>(
+      channel, sizeof(uint16_t)));
+  const uint16_t bits = base::U16FromNativeEndian(bytes);
   constexpr uint16_t kSignMask = 0x8000u;
   constexpr uint16_t kExponentMask = 0x7c00u;
   constexpr uint16_t kMagnitudeMask = 0x7fffu;
@@ -68,13 +74,16 @@ inline void CanonicalizeFloat16Lsb(uint8_t* channel,
   if ((candidate & kMagnitudeMask) == 0)
     candidate = static_cast<uint16_t>((bits & kSignMask) | 0x0002u);
 
-  std::memcpy(channel, &candidate, sizeof(candidate));
+  std::ranges::copy(base::U16ToNativeEndian(candidate), bytes.begin());
 }
 
 inline void CanonicalizeFloat32Lsb(uint8_t* channel,
                                    uint8_t canonical_lsb) {
-  uint32_t bits;
-  std::memcpy(&bits, channel, sizeof(bits));
+  // SAFETY: callers pass one complete four-byte component from a validated
+  // pixel span (or a uint32_t object in the unit tests).
+  auto bytes = UNSAFE_BUFFERS(std::span<uint8_t, sizeof(uint32_t)>(
+      channel, sizeof(uint32_t)));
+  const uint32_t bits = base::U32FromNativeEndian(bytes);
   constexpr uint32_t kSignMask = 0x80000000u;
   constexpr uint32_t kExponentMask = 0x7f800000u;
   constexpr uint32_t kMagnitudeMask = 0x7fffffffu;
@@ -93,7 +102,7 @@ inline void CanonicalizeFloat32Lsb(uint8_t* channel,
   if ((candidate & kMagnitudeMask) == 0)
     candidate = (bits & kSignMask) | 0x00000002u;
 
-  std::memcpy(channel, &candidate, sizeof(candidate));
+  std::ranges::copy(base::U32ToNativeEndian(candidate), bytes.begin());
 }
 
 inline uint64_t PixelSeed(uint64_t base_seed, int64_t x, int64_t y) {
@@ -149,13 +158,17 @@ inline bool ApplyDeterministicCanvasNoise(uint8_t* pixels,
   if (byte_length < required_bytes)
     return false;
 
+  // SAFETY: the API accepts a caller-owned buffer with byte_length bytes.
+  // The layout checks above prove every row and pixel below is within it.
+  // Keep raw pointer conversion at this boundary; traversal is bounds-checked.
+  auto buffer = UNSAFE_BUFFERS(std::span<uint8_t>(pixels, byte_length));
   for (size_t y = 0; y < height; ++y) {
-    uint8_t* row = pixels + y * row_bytes;
+    auto row = buffer.subspan(y * row_bytes, active_row_bytes);
     for (size_t x = 0; x < width; ++x) {
       Prng prng(canvas_noise_internal::PixelSeed(
           seed, origin_x + static_cast<int64_t>(x),
           origin_y + static_cast<int64_t>(y)));
-      uint8_t* pixel = row + x * bytes_per_pixel;
+      auto pixel = row.subspan(x * bytes_per_pixel, bytes_per_pixel);
       for (size_t logical_channel = 0; logical_channel < 3;
            ++logical_channel) {
         const uint8_t canonical_lsb =
@@ -163,19 +176,21 @@ inline bool ApplyDeterministicCanvasNoise(uint8_t* pixels,
         switch (format) {
           case CanvasPixelFormat::kRgba8:
             canvas_noise_internal::CanonicalizeUint8Lsb(
-                pixel + logical_channel, canonical_lsb);
+                &pixel[logical_channel], canonical_lsb);
             break;
           case CanvasPixelFormat::kBgra8:
             canvas_noise_internal::CanonicalizeUint8Lsb(
-                pixel + (2 - logical_channel), canonical_lsb);
+                &pixel[2 - logical_channel], canonical_lsb);
             break;
           case CanvasPixelFormat::kRgbaF16:
             canvas_noise_internal::CanonicalizeFloat16Lsb(
-                pixel + logical_channel * sizeof(uint16_t), canonical_lsb);
+                pixel.subspan(logical_channel * sizeof(uint16_t),
+                              sizeof(uint16_t)).data(), canonical_lsb);
             break;
           case CanvasPixelFormat::kRgbaF32:
             canvas_noise_internal::CanonicalizeFloat32Lsb(
-                pixel + logical_channel * sizeof(float), canonical_lsb);
+                pixel.subspan(logical_channel * sizeof(float),
+                              sizeof(float)).data(), canonical_lsb);
             break;
         }
       }
