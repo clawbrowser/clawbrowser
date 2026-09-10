@@ -107,6 +107,7 @@ grep -q 'args.require_proxy() && !proxy' "${startup_source}"
 grep -q 'proxy_flags.empty()' "${startup_source}"
 grep -q 'required_proxy_missing' "${startup_source}"
 grep -q 'invalid_proxy_config' "${startup_source}"
+grep -q 'managed_proxy_privacy: 1' "${verify_script}"
 grep -q 'AppendSwitch(kRequireFingerprintSwitch)' "${startup_source}"
 grep -A35 'void ApplyFingerprintWebGLIsolation' "${startup_source}" |
   grep -q 'AppendSwitch(kDisableWebGLSpoofingSwitch)'

@@ -2,6 +2,15 @@
 // Expected values injected by WebUI handler via window.__clawbrowser_expected.
 // Results exposed via window.__clawbrowser_verify for CDP automation.
 
+// Versioned, runtime-owned capability used by nextctl before it trusts a
+// managed session. Version 1 means the browser enforces the fail-closed proxy
+// launch contract. The WebRTC-hardening layer raises this to version 2.
+if (typeof window !== 'undefined') {
+  window.__clawbrowser_capabilities = Object.freeze({
+    managed_proxy_privacy: 1,
+  });
+}
+
 function formatProxyLocation(country, city) {
   const normalizedCountry = country || 'N/A';
   return city ? `${normalizedCountry} (${city})` : normalizedCountry;
