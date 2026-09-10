@@ -65,7 +65,12 @@ if grep -q 'canvas_rendering_context_2d.cc' "${canvas_patch}"; then
   exit 1
 fi
 grep -q 'logical_channel < 3' "${canvas_helper}"
-grep -q 'pixel + (2 - logical_channel)' "${canvas_helper}"
+grep -Fq '&pixel[2 - logical_channel]' "${canvas_helper}"
+grep -q 'buffer.subspan' "${canvas_helper}"
+if grep -q 'std::memcpy' "${canvas_helper}"; then
+  echo "Canvas helper must use bounded byte conversions, not raw memcpy." >&2
+  exit 1
+fi
 grep -q 'PixelNoiseSeed\|PixelSeed' "${canvas_helper}"
 grep -q 'CanonicalizeUint8Lsb' "${canvas_helper}"
 grep -q 'CanonicalizeFloat16Lsb' "${canvas_helper}"
