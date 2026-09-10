@@ -207,6 +207,12 @@ grep -q 'local_font_face_source.cc' "${css_font_patch}"
 grep -A8 'bool LocalFontFaceSource::IsLocalFontAvailable' "${css_font_patch}" |
   grep -q 'IsLocalFontBlocked'
 grep -q 'IsLocalFontBlocked' "${font_fallback_patch}"
+grep -q 'third_party/blink/renderer/platform/fonts/font_cache.cc' \
+  "${font_fallback_patch}"
+grep -A12 'FontCache::GetFontPlatformData' "${font_fallback_patch}" |
+  grep -q 'AlternateFontName::kLocalUniqueFace'
+grep -A8 'FontCache::GetFontData' "${font_fallback_patch}" |
+  grep -q 'IsLocalFontBlocked'
 grep -A4 'const bool clawbrowser_blocked' "${font_fallback_patch}" |
   grep -q 'FamilyIsGeneric'
 grep -A10 'void CSSFontSelectorBase::WillUseFontData' "${css_font_patch}" |

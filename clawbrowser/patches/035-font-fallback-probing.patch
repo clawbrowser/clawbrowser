@@ -1,4 +1,29 @@
 # Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+diff --git a/third_party/blink/renderer/platform/fonts/font_cache.cc b/third_party/blink/renderer/platform/fonts/font_cache.cc
+--- a/third_party/blink/renderer/platform/fonts/font_cache.cc
++++ b/third_party/blink/renderer/platform/fonts/font_cache.cc
+@@ -47,2 +47,3 @@
+ #include "build/build_config.h"
++#include "clawbrowser/fingerprint_coherence.h"
+ #include "skia/ext/font_utils.h"
+@@ -158,2 +159,10 @@ const FontPlatformData* FontCache::GetFontPlatformData(
+     AlternateFontName alternate_font_name) {
++  // Keep the lowest-level unique-name path fail-closed as well. Today its
++  // web-facing callers are filtered before reaching FontCache, but guarding
++  // here prevents a new caller (or a retained FontMetadata object) from
++  // turning the cache into a local-font oracle.
++  if (alternate_font_name == AlternateFontName::kLocalUniqueFace &&
++      creation_params.CreationType() == kCreateFontByFamily &&
++      clawbrowser::IsLocalFontBlocked(creation_params.Family().Utf8()))
++    return nullptr;
+   TRACE_EVENT0("fonts", "FontCache::GetFontPlatformData");
+@@ -179,2 +188,6 @@ const SimpleFontData* FontCache::GetFontData(
+     AlternateFontName altername_font_name) {
++  if (altername_font_name == AlternateFontName::kLocalUniqueFace &&
++      clawbrowser::IsLocalFontBlocked(family.Utf8()))
++    return nullptr;
++
+   if (const FontPlatformData* platform_data = GetFontPlatformData(
 diff --git a/third_party/blink/renderer/platform/fonts/font_fallback_list.cc b/third_party/blink/renderer/platform/fonts/font_fallback_list.cc
 --- a/third_party/blink/renderer/platform/fonts/font_fallback_list.cc
 +++ b/third_party/blink/renderer/platform/fonts/font_fallback_list.cc
