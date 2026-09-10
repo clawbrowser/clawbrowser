@@ -187,14 +187,24 @@ function sdpIceCandidates(sdp) {
 }
 
 function isUnspecifiedIceAddress(address) {
-  const normalized = String(address || '').toLowerCase();
-  return !normalized || normalized === '0.0.0.0' ||
-    normalized === '::' || normalized === '[::]';
+  const normalized = String(address || '').trim().toLowerCase();
+  if (!normalized || normalized === '0.0.0.0' ||
+      normalized === '::' || normalized === '[::]') {
+    return true;
+  }
+
+  // RTCIceCandidateErrorEvent.hostCandidate is serialized as address:port.
+  // Accept only the port-bearing forms of the same unspecified addresses.
+  return /^0\.0\.0\.0:\d+$/.test(normalized) ||
+    /^\[::\]:\d+$/.test(normalized) || /^:::\d+$/.test(normalized);
 }
 
 function summarizeWebRtcCandidates(result) {
   const normalizedCandidates = result && Array.isArray(result.candidates)
     ? result.candidates
+    : [];
+  const iceErrors = result && Array.isArray(result.errors)
+    ? result.errors
     : [];
   const gatheringComplete = Boolean(result && result.complete);
   const candidateTypes = normalizedCandidates.map(iceCandidateType);
@@ -202,27 +212,33 @@ function summarizeWebRtcCandidates(result) {
   const relatedAddresses = normalizedCandidates
     .map(iceCandidateRelatedAddress)
     .filter(address => !isUnspecifiedIceAddress(address));
+  const exposedErrorAddresses = iceErrors.flatMap(error => [
+    error && error.address,
+    error && error.hostCandidate,
+  ]).filter(address => !isUnspecifiedIceAddress(address));
   const pass = gatheringComplete && unsafeTypes.length === 0 &&
-    relatedAddresses.length === 0;
-  const actual = candidateTypes.length === 0
-    ? (gatheringComplete
-        ? 'gathering complete; no ICE candidates exposed'
-        : 'ICE gathering timed out')
+    relatedAddresses.length === 0 && exposedErrorAddresses.length === 0;
+  let actual = candidateTypes.length === 0
+    ? 'gathering complete; no ICE candidates exposed'
     : `candidate types: ${Array.from(new Set(candidateTypes)).join(', ')}`;
 
   let detail = 'no direct or related address exposed';
-  if (!gatheringComplete) {
-    detail = 'ICE gathering did not complete';
-  } else if (unsafeTypes.length > 0) {
+  if (unsafeTypes.length > 0) {
     detail = `unsafe candidate types: ${Array.from(new Set(unsafeTypes)).join(', ')}`;
   } else if (relatedAddresses.length > 0) {
     detail = 'relay candidate exposed a related address';
+  } else if (exposedErrorAddresses.length > 0) {
+    actual = 'ICE candidate error exposed an address';
+    detail = 'ICE candidate error exposed an address';
+  } else if (!gatheringComplete) {
+    actual = 'ICE gathering timed out';
+    detail = 'ICE gathering did not complete';
   }
 
   return {
     surface: 'webrtc.iceCandidates',
     pass,
-    expected: 'completed gathering; relay candidates only; no related address',
+    expected: 'completed gathering; relay candidates only; no related or ICE error address',
     actual,
     detail,
   };
@@ -530,6 +546,7 @@ if (typeof document !== 'undefined') {
     return new Promise((resolve, reject) => {
       const peerConnection = new RTCPeerConnection({ iceServers });
       const candidates = [];
+      const errors = [];
       let resolved = false;
       let timeoutId;
       const finish = async complete => {
@@ -578,6 +595,7 @@ if (typeof document !== 'undefined') {
             ...sdpCandidates,
             ...statsCandidates,
           ],
+          errors,
           complete: complete && statsComplete,
         });
       };
@@ -595,6 +613,13 @@ if (typeof document !== 'undefined') {
           address: event.candidate.address || '',
           relatedAddress: event.candidate.relatedAddress || '',
           source: 'event',
+        });
+      };
+      peerConnection.onicecandidateerror = event => {
+        errors.push({
+          address: event.address || '',
+          hostCandidate: event.hostCandidate || '',
+          port: event.port || 0,
         });
       };
       peerConnection.onicegatheringstatechange = () => {
@@ -617,25 +642,15 @@ if (typeof document !== 'undefined') {
 
   async function verifyWebRtcCandidates() {
     try {
-      const [hostCandidates, stunCandidates] = await Promise.all([
-        collectIceCandidates([]),
-        collectIceCandidates([
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun.cloudflare.com:3478' },
-        ]),
-      ]);
-      setCheck(summarizeWebRtcCandidates({
-        candidates: [
-          ...hostCandidates.candidates,
-          ...stunCandidates.candidates,
-        ],
-        complete: hostCandidates.complete && stunCandidates.complete,
-      }));
+      // The built-in diagnostic must not contact a third-party STUN service.
+      // Controlled STUN/TURN endpoints belong in opt-in integration tests.
+      const observation = await collectIceCandidates([]);
+      setCheck(summarizeWebRtcCandidates(observation));
     } catch (error) {
       setCheck({
         surface: 'webrtc.iceCandidates',
         pass: false,
-        expected: 'completed gathering; relay candidates only; no related address',
+        expected: 'completed gathering; relay candidates only; no related or ICE error address',
         actual: 'check failed',
         detail: error && error.message ? error.message : String(error),
       });

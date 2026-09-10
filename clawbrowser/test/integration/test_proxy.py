@@ -1,6 +1,7 @@
-"""Integration tests: proxy and WebRTC leak prevention."""
+"""Integration tests: managed fingerprint proxies and WebRTC leak prevention."""
 
 import json
+import os
 
 import pytest
 
@@ -50,21 +51,37 @@ def json_surface(result, surface):
 
 
 @pytest.mark.asyncio
-async def test_webrtc_no_host_candidates(browser_with_fingerprint):
-    """Proxy mode must finish ICE gathering without exposing direct routes."""
+async def test_fingerprint_proxy_webrtc_no_direct_candidates(
+    browser_with_fingerprint,
+):
+    """A fingerprint-backed proxy must not expose direct WebRTC routes."""
     page, data = browser_with_fingerprint
     if "proxy" not in data["response"]:
         pytest.skip("No proxy in test fixture")
 
     observations = await collect_webrtc_observations(
         page,
-        [
-            [],
-            [
-                {"urls": "stun:stun.l.google.com:19302"},
-                {"urls": "stun:stun.cloudflare.com:3478"},
-            ],
-        ],
+        [[]],
+    )
+    assert_relay_only(observations)
+
+
+@pytest.mark.asyncio
+async def test_webrtc_controlled_stun_no_direct_candidates(
+    browser_with_fingerprint,
+):
+    """An opt-in controlled STUN probe must expose no direct route."""
+    stun_url = os.environ.get("CLAWBROWSER_REAL_STUN_URL")
+    if not stun_url:
+        pytest.skip("CLAWBROWSER_REAL_STUN_URL is not configured")
+
+    page, data = browser_with_fingerprint
+    if "proxy" not in data["response"]:
+        pytest.skip("No proxy in test fixture")
+
+    observations = await collect_webrtc_observations(
+        page,
+        [[{"urls": stun_url}]],
     )
     assert_relay_only(observations)
 
