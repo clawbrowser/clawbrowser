@@ -402,6 +402,10 @@ TEST_F(StartupTest, FingerprintWithCachedProfile) {
   EXPECT_TRUE(cmd.HasSwitch("proxy-server"));
   EXPECT_EQ(cmd.GetSwitchValueASCII("proxy-server"),
             "http://proxy.example.com:8080");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("webrtc-ip-handling-policy"),
+            "disable_non_proxied_udp");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("force-webrtc-ip-handling-policy"),
+            "disable_non_proxied_udp");
   EXPECT_TRUE(cmd.HasSwitch("lang"));
   EXPECT_TRUE(cmd.HasSwitch("accept-lang"));
   EXPECT_TRUE(cmd.HasSwitch("user-agent"));
@@ -612,6 +616,10 @@ TEST_F(StartupTest,
             std::string::npos);
   EXPECT_EQ(cmd.GetSwitchValueASCII("proxy-server").find("dev_pass"),
             std::string::npos);
+  EXPECT_EQ(cmd.GetSwitchValueASCII("webrtc-ip-handling-policy"),
+            "disable_non_proxied_udp");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("force-webrtc-ip-handling-policy"),
+            "disable_non_proxied_udp");
 
 #if BUILDFLAG(IS_MAC)
   ASSERT_TRUE(cmd.HasSwitch(kFingerprintChildDataSwitch));

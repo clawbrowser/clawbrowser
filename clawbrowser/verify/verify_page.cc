@@ -190,6 +190,7 @@ void VerifyPageUI::SetupDataSource(content::WebUIDataSource* source) {
   source->SetDefaultResource(IDR_CLAWBROWSER_VERIFY_HTML);
 
   source->AddString("has_expected_values", "false");
+  source->AddString("has_proxy", "false");
   source->AddString("user_agent", "");
   source->AddString("platform", "");
   source->AddString("language_primary", "");
@@ -236,6 +237,8 @@ void VerifyPageUI::SetupDataSource(content::WebUIDataSource* source) {
                     base::NumberToString(managed_proxy_privacy));
 
   source->AddString("has_expected_values", "true");
+  source->AddString("has_proxy",
+                    FingerprintAccessor::GetProxy() ? "true" : "false");
   source->AddString("user_agent", fp->user_agent);
   source->AddString("platform", fp->platform);
   source->AddString("language_primary",

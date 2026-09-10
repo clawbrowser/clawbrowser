@@ -1,0 +1,45 @@
+name: WebRTC proxy contract
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/webrtc-proxy-guard.yml"
+      - "clawbrowser/patches/017-webrtc-leak-prevention.patch"
+      - "clawbrowser/proxy/**"
+      - "clawbrowser/startup.cc"
+      - "clawbrowser/test/integration/test_proxy.py"
+      - "clawbrowser/test/integration/test_real_socks5_proxy.py"
+      - "clawbrowser/test/integration/webrtc_probe.py"
+      - "clawbrowser/test/proxy_config_unittest.cc"
+      - "clawbrowser/test/startup_unittest.cc"
+      - "clawbrowser/verify/**"
+      - "scripts/verify_page_assets_test.sh"
+      - "scripts/verify_proxy_render_test.js"
+      - "scripts/webrtc_proxy_guard_test.sh"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/webrtc-proxy-guard.yml"
+      - "clawbrowser/patches/017-webrtc-leak-prevention.patch"
+      - "clawbrowser/proxy/**"
+      - "clawbrowser/startup.cc"
+      - "clawbrowser/test/integration/test_proxy.py"
+      - "clawbrowser/test/integration/test_real_socks5_proxy.py"
+      - "clawbrowser/test/integration/webrtc_probe.py"
+      - "clawbrowser/test/proxy_config_unittest.cc"
+      - "clawbrowser/test/startup_unittest.cc"
+      - "clawbrowser/verify/**"
+      - "scripts/verify_page_assets_test.sh"
+      - "scripts/verify_proxy_render_test.js"
+      - "scripts/webrtc_proxy_guard_test.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/webrtc_proxy_guard_test.sh
