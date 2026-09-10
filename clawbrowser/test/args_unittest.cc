@@ -17,6 +17,7 @@ TEST(ArgsTest, ParseFingerprintId) {
   EXPECT_FALSE(args.list());
   EXPECT_FALSE(args.verbose());
   EXPECT_FALSE(args.skip_verify());
+  EXPECT_FALSE(args.require_proxy());
 }
 
 TEST(ArgsTest, ParsePathLikeFingerprintId) {

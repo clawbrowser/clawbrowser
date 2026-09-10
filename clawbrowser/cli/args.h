@@ -16,7 +16,7 @@ inline constexpr char kEnableWebGLSpoofingSwitch[] =
     "enable-webgl-spoofing";
 inline constexpr char kDisableWebGLSpoofingSwitch[] =
     "disable-webgl-spoofing";
-inline constexpr char kRequireProxySwitch[] = "require-proxy";
+inline constexpr char kRequireProxySwitch[] = "clawbrowser-require-proxy";
 
 // Parsed clawbrowser-specific CLI flags.
 // Unknown flags pass through to the browser engine unchanged.
