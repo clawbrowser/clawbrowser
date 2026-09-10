@@ -944,6 +944,49 @@ TEST_F(StartupTest, FingerprintNoApiKeyWithoutCachedProfileOpensAuth) {
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
 }
 
+TEST_F(StartupTest, RequiredProxyWithoutApiKeyFailsClosed) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "required_proxy_no_key");
+  cmd.AppendSwitch(kRequireProxySwitch);
+
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+  EXPECT_TRUE(cmd.GetArgs().empty());
+  EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
+}
+
+TEST_F(StartupTest, RequiredProxyRejectsBrowserNativeProxyOverrides) {
+  WriteConfigJson("test_key");
+  constexpr const char* kConflictingSwitches[] = {
+      "proxy-server",
+      "no-proxy-server",
+      "proxy-pac-url",
+      "proxy-auto-detect",
+      "proxy-bypass-list",
+      "webrtc-ip-handling-policy",
+      "force-webrtc-ip-handling-policy",
+  };
+
+  for (const char* switch_name : kConflictingSwitches) {
+    SCOPED_TRACE(switch_name);
+    base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+    cmd.AppendSwitchASCII("fingerprint", "required_proxy_conflict");
+    cmd.AppendSwitch(kRequireProxySwitch);
+    cmd.AppendSwitchASCII(switch_name, "caller-value");
+
+    auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+
+    ASSERT_TRUE(result.has_value()) << result.error();
+    EXPECT_TRUE(result->should_exit);
+    EXPECT_EQ(result->exit_code, 1);
+    EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+  }
+}
+
 TEST_F(StartupTest, FingerprintApiCallSuccess) {
   WriteConfigJson("test_key");
   env_->SetVar("CLAWBROWSER_API_KEY", "test_key");

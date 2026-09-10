@@ -262,6 +262,31 @@ StartupResult FailManagedFingerprintStartup(const ClawArgs& args,
   return result;
 }
 
+std::optional<std::string> ConflictingRequiredProxySwitch(
+    const base::CommandLine& command_line) {
+  // A require-proxy launch gets its complete proxy and WebRTC policy from the
+  // validated fingerprint response.  Reject browser-native alternatives at
+  // the process boundary: --no-proxy-server and PAC/auto-detect take
+  // precedence over --proxy-server, while a bypass list can silently route
+  // selected destinations directly.  Reject policy overrides as well instead
+  // of depending on duplicate-switch ordering.
+  constexpr const char* kConflictingSwitches[] = {
+      "proxy-server",
+      "no-proxy-server",
+      "proxy-pac-url",
+      "proxy-auto-detect",
+      "proxy-bypass-list",
+      "webrtc-ip-handling-policy",
+      "force-webrtc-ip-handling-policy",
+  };
+  for (const char* switch_name : kConflictingSwitches) {
+    if (command_line.HasSwitch(switch_name)) {
+      return std::string(switch_name);
+    }
+  }
+  return std::nullopt;
+}
+
 constexpr char kBackendBrowserName[] = "chrome";
 
 std::string DefaultProfilePlatform() {
@@ -585,6 +610,17 @@ base::expected<StartupResult, std::string> RunStartup(
   ClawArgs args = ClawArgs::Parse(*command_line);
   SetVerbose(args.verbose());
 
+  if (args.require_proxy()) {
+    if (std::optional<std::string> conflict =
+            ConflictingRequiredProxySwitch(*command_line);
+        conflict.has_value()) {
+      return base::ok(FailManagedFingerprintStartup(
+          args, "conflicting_proxy_switch",
+          "profile launch requires its validated proxy, but --" + *conflict +
+              " was also supplied"));
+    }
+  }
+
   CLAW_VLOG() << "starting with args: fingerprint="
               << args.fingerprint_id();
 
@@ -608,6 +644,12 @@ base::expected<StartupResult, std::string> RunStartup(
        CachedProfileNeedsPrivacyUpgrade(&profile_manager, fp_id));
   std::optional<std::string> api_key = profile_manager.ResolveApiKey();
   if (!api_key.has_value()) {
+    if (args.require_proxy()) {
+      return base::ok(FailManagedFingerprintStartup(
+          args, "required_proxy_missing",
+          "profile launch requires a proxy, but no API key is available to "
+          "acquire one"));
+    }
     StopSocks5AuthProxyBridge();
     ConfigureAuthStartup(command_line, &profile_manager);
     return base::ok(std::move(result));
