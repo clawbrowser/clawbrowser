@@ -25,5 +25,6 @@ jobs:
           python3 -m py_compile \
             clawbrowser/test/integration/conftest.py \
             clawbrowser/test/integration/test_surfaces.py
+          python3 scripts/integration_binary_resolution_test.py
           python3 -m json.tool \
             clawbrowser/test/fixtures/valid_fingerprint.json >/dev/null

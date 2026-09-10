@@ -75,6 +75,9 @@ component("clawbrowser_runtime") {
   sources = [
     "fingerprint_accessor.cc",
     "fingerprint_accessor.h",
+    "fingerprint_coherence.h",
+    "noise/canvas_noise.h",
+    "noise/prng.h",
   ]
 
   defines = [ "IS_CLAWBROWSER_RUNTIME_IMPL" ]
@@ -116,12 +119,6 @@ source_set("clawbrowser_core") {
     # Generated types
     "generated/fingerprint_types.cc",
     "generated/fingerprint_types.h",
-
-    # Noise generation
-    "noise/prng.h",
-
-    # Cross-surface coherence helpers shared with the Chromium patches.
-    "fingerprint_coherence.h",
 
     "proxy/proxy_config.cc",
     "proxy/proxy_config.h",
@@ -200,6 +197,7 @@ test("clawbrowser_unittests") {
     "test/run_all_unittests.cc",
     "test/api_client_unittest.cc",
     "test/args_unittest.cc",
+    "test/canvas_noise_unittest.cc",
     "test/fingerprint_coherence_unittest.cc",
     "test/fingerprint_loader_unittest.cc",
     "test/profile_envelope_unittest.cc",

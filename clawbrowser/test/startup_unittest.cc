@@ -19,6 +19,7 @@
 #include "clawbrowser/fingerprint_loader.h"
 #include "clawbrowser/logging.h"
 #include "clawbrowser/profile_envelope.h"
+#include "components/version_info/version_info.h"
 #include "net/base/net_errors.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_version.h"
@@ -447,6 +448,33 @@ TEST_F(StartupTest, CachedNativeCanvasOrHostGPUIsRegenerated) {
   EXPECT_EQ(*saved.request.connection_type, "residential");
 }
 
+TEST_F(StartupTest, CachedNativeFontsAreRegenerated) {
+  WriteCachedProfile("native_fonts_profile");
+  ProfileEnvelope envelope = ReadSavedProfile("native_fonts_profile");
+  envelope.response.fingerprint.surface_policy.canvas.mode = "override";
+  envelope.response.fingerprint.surface_policy.fonts.mode = "native";
+  envelope.request.runtime_gpu = "swiftshader";
+  auto save_result =
+      CreateProfileManager().SaveProfile("native_fonts_profile", envelope);
+  ASSERT_TRUE(save_result.has_value()) << save_result.error();
+
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson("fresh-ua"));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "native_fonts_profile");
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+
+  ProfileEnvelope saved = ReadSavedProfile("native_fonts_profile");
+  EXPECT_EQ(saved.response.fingerprint.surface_policy.fonts.mode,
+            "native_or_allowlist");
+}
+
 TEST(SurfaceSpoofingResolutionTest, PolicyEnablesWithoutAnyFlag) {
   // The regression this guards: spoofing used to require --enable-*-spoofing
   // even when the profile asked for "override", so a fingerprint could carry a
@@ -667,6 +695,7 @@ TEST_F(StartupTest, ConfigureEarlyStartupIsolatesFingerprintWebGL) {
   cmd.AppendSwitchASCII("fingerprint", "isolated_webgl_profile");
   cmd.AppendSwitchASCII("use-gl", "desktop");
   cmd.AppendSwitchASCII("use-angle", "metal");
+  cmd.AppendSwitchASCII("use-webgpu-adapter", "default");
   cmd.AppendSwitch(kDisableWebGLSpoofingSwitch);
 
   auto result = ConfigureEarlyStartup(&cmd);
@@ -674,6 +703,7 @@ TEST_F(StartupTest, ConfigureEarlyStartupIsolatesFingerprintWebGL) {
   EXPECT_FALSE(result->should_exit);
   EXPECT_EQ(cmd.GetSwitchValueASCII("use-gl"), "angle");
   EXPECT_EQ(cmd.GetSwitchValueASCII("use-angle"), "swiftshader");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-webgpu-adapter"), "swiftshader");
   EXPECT_TRUE(cmd.HasSwitch(kDisableWebGLSpoofingSwitch));
 }
 
@@ -689,6 +719,7 @@ TEST_F(StartupTest, ConfigureEarlyStartupKeepsDisableGPUWithSwiftShader) {
   EXPECT_TRUE(cmd.HasSwitch("disable-gpu"));
   EXPECT_EQ(cmd.GetSwitchValueASCII("use-gl"), "angle");
   EXPECT_EQ(cmd.GetSwitchValueASCII("use-angle"), "swiftshader");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-webgpu-adapter"), "swiftshader");
   EXPECT_TRUE(cmd.HasSwitch(kDisableWebGLSpoofingSwitch));
 }
 
@@ -1383,6 +1414,13 @@ TEST_F(StartupTest, FingerprintLoadFailureAfterSaveFailsClosed) {
 
 TEST_F(StartupTest, RegenerateReplaysStoredParams) {
   WriteCachedProfile("regen_profile");
+  ProfileEnvelope stale = ReadSavedProfile("regen_profile");
+  stale.request.runtime_browser_version = "120.0.0.0";
+  stale.request.runtime_os = "windows";
+  stale.request.runtime_os_version = "10.0";
+  stale.request.runtime_arch = "x86";
+  auto save_result = CreateProfileManager().SaveProfile("regen_profile", stale);
+  ASSERT_TRUE(save_result.has_value()) << save_result.error();
   env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
   env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
 
@@ -1420,6 +1458,28 @@ TEST_F(StartupTest, RegenerateReplaysStoredParams) {
   // New fingerprint should be loaded
   ASSERT_NE(FingerprintAccessor::Get(), nullptr);
   EXPECT_EQ(FingerprintAccessor::Get()->user_agent, "new-ua");
+
+  ProfileEnvelope saved = ReadSavedProfile("regen_profile");
+  ASSERT_TRUE(saved.request.runtime_browser_version.has_value());
+  EXPECT_EQ(*saved.request.runtime_browser_version,
+            version_info::GetVersionNumber());
+  ASSERT_TRUE(saved.request.runtime_os.has_value());
+#if BUILDFLAG(IS_MAC)
+  EXPECT_EQ(*saved.request.runtime_os, "macos");
+#elif BUILDFLAG(IS_WIN)
+  EXPECT_EQ(*saved.request.runtime_os, "windows");
+#elif BUILDFLAG(IS_LINUX)
+  EXPECT_EQ(*saved.request.runtime_os, "linux");
+#endif
+  EXPECT_FALSE(saved.request.runtime_os_version.has_value());
+  ASSERT_TRUE(saved.request.runtime_arch.has_value());
+#if defined(ARCH_CPU_ARM64)
+  EXPECT_EQ(*saved.request.runtime_arch, "arm64");
+#elif defined(ARCH_CPU_X86_64)
+  EXPECT_EQ(*saved.request.runtime_arch, "amd64");
+#elif defined(ARCH_CPU_X86)
+  EXPECT_EQ(*saved.request.runtime_arch, "x86");
+#endif
 }
 
 TEST_F(StartupTest, RegenerateOverwritesEncryptedProxyCredentials) {
@@ -1525,6 +1585,7 @@ TEST_F(StartupTest, FingerprintApiCallSendsRuntimeHintsFromLaunchFlags) {
   EXPECT_TRUE(cmd.HasSwitch("disable-gpu"));
   EXPECT_EQ(cmd.GetSwitchValueASCII("use-gl"), "angle");
   EXPECT_EQ(cmd.GetSwitchValueASCII("use-angle"), "swiftshader");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-webgpu-adapter"), "swiftshader");
 
   ProfileEnvelope saved = ReadSavedProfile("runtime_profile");
   ASSERT_TRUE(saved.request.runtime_browser_version.has_value());

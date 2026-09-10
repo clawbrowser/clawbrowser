@@ -1,6 +1,7 @@
 #include "clawbrowser/fingerprint_coherence.h"
 
 #include <cmath>
+#include <optional>
 
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -19,9 +20,10 @@ RuntimeFingerprint MakeFingerprint(std::vector<std::string> fonts,
 // Local font policy
 // ---------------------------------------------------------------------------
 
-TEST(LocalFontPolicyTest, NoAllowlistMeansNoFiltering) {
-  EXPECT_FALSE(ShouldFilterLocalFonts(MakeFingerprint({}, "override")));
-  EXPECT_FALSE(ShouldFilterLocalFonts(MakeFingerprint({}, "native_or_allowlist")));
+TEST(LocalFontPolicyTest, ProtectedEmptyAllowlistStillFilters) {
+  EXPECT_TRUE(ShouldFilterLocalFonts(MakeFingerprint({}, "override")));
+  EXPECT_TRUE(ShouldFilterLocalFonts(MakeFingerprint({}, "native_or_allowlist")));
+  EXPECT_FALSE(ShouldFilterLocalFonts(MakeFingerprint({}, "native")));
 }
 
 TEST(LocalFontPolicyTest, FilteringRequiresBothAllowlistAndPolicy) {
@@ -49,21 +51,18 @@ TEST(LocalFontPolicyTest, NonAllowlistedFontIsRejected) {
   EXPECT_FALSE(IsLocalFontAllowed(fp, "Arial2"));  // suffix, not a match
 }
 
-TEST(LocalFontPolicyTest, EmptyAllowlistAllowsEverything) {
+TEST(LocalFontPolicyTest, EmptyProtectedAllowlistAllowsNothing) {
   const RuntimeFingerprint fp = MakeFingerprint({}, "override");
-  EXPECT_TRUE(IsLocalFontAllowed(fp, "Anything"));
+  EXPECT_FALSE(IsLocalFontAllowed(fp, "Anything"));
 }
 
-TEST(LocalFontPolicyTest, GenericFamiliesAreRecognized) {
-  // Generic families must keep resolving or there is no fallback left to
-  // render with, which would be far more conspicuous than font probing.
-  EXPECT_TRUE(IsGenericFontFamily("serif"));
-  EXPECT_TRUE(IsGenericFontFamily("sans-serif"));
-  EXPECT_TRUE(IsGenericFontFamily("monospace"));
-  EXPECT_TRUE(IsGenericFontFamily("system-ui"));
-  EXPECT_TRUE(IsGenericFontFamily("SANS-SERIF"));
-  EXPECT_FALSE(IsGenericFontFamily("Arial"));
-  EXPECT_FALSE(IsGenericFontFamily(""));
+TEST(LocalFontPolicyTest, LiteralGenericNameDoesNotBypassLocalSourceFilter) {
+  FingerprintAccessor::Set(MakeFingerprint({"Arial"}, "override"),
+                           std::nullopt);
+  EXPECT_TRUE(IsLocalFontBlocked("serif"));
+  EXPECT_TRUE(IsLocalFontBlocked(""));
+  EXPECT_FALSE(IsLocalFontBlocked("Arial"));
+  FingerprintAccessor::Reset();
 }
 
 // ---------------------------------------------------------------------------

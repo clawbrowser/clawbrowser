@@ -60,14 +60,16 @@ def _resolve_browser_binary() -> str:
     candidates = [
         Path(binary).expanduser() if binary else None,
         WORKSPACE_ROOT / "out/CBProdMacArm64/Clawbrowser.app/Contents/MacOS/Clawbrowser",
-        WORKSPACE_ROOT / "out/CBProdMacArm64/Chromium.app/Contents/MacOS/Chromium",
         WORKSPACE_ROOT / "out/CBFast/Clawbrowser.app/Contents/MacOS/Clawbrowser",
-        WORKSPACE_ROOT / "out/CBFast/Chromium.app/Contents/MacOS/Chromium",
         WORKSPACE_ROOT / "out/Default/clawbrowser",
     ]
 
     for candidate in candidates:
-        if candidate and candidate.exists():
+        if (
+            candidate
+            and candidate.exists()
+            and candidate.name.casefold() in {"clawbrowser", "clawbrowser.exe"}
+        ):
             return str(candidate)
 
     searched = "\n".join(

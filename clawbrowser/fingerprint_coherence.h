@@ -26,11 +26,12 @@ namespace clawbrowser {
 // Local font policy
 // ---------------------------------------------------------------------------
 
-// True when the fingerprint carries an explicit font allowlist that should be
-// enforced against local font lookups.
+// True when the fingerprint policy requires local-font filtering. An empty
+// allowlist means "allow no concrete local fonts"; treating it as disabled
+// would turn a malformed or partially migrated profile into a host-font leak.
 inline bool ShouldFilterLocalFonts(const RuntimeFingerprint& fp) {
-  return !fp.fonts.empty() && (fp.surface_policy.fonts == "native_or_allowlist" ||
-                               fp.surface_policy.fonts == "override");
+  return fp.surface_policy.fonts == "native_or_allowlist" ||
+         fp.surface_policy.fonts == "override";
 }
 
 // Case-insensitive comparison; CSS family names and the Font Access table
@@ -50,7 +51,7 @@ inline bool FontNameMatches(std::string_view a, std::string_view b) {
 inline bool IsLocalFontAllowed(const RuntimeFingerprint& fp,
                                std::string_view name) {
   if (fp.fonts.empty()) {
-    return true;
+    return false;
   }
   for (const auto& allowed : fp.fonts) {
     if (FontNameMatches(allowed, name)) {
@@ -60,40 +61,22 @@ inline bool IsLocalFontAllowed(const RuntimeFingerprint& fp,
   return false;
 }
 
-// Generic CSS families must always resolve, otherwise there is nothing left to
-// fall back to and text stops rendering. These never reveal which fonts are
-// installed on their own -- the concrete family behind them comes from browser
-// settings, which the allowlist does not govern.
-inline bool IsGenericFontFamily(std::string_view name) {
-  static constexpr std::string_view kGeneric[] = {
-      "serif",      "sans-serif", "monospace",   "cursive",
-      "fantasy",    "system-ui",  "math",        "ui-serif",
-      "ui-sans-serif", "ui-monospace", "ui-rounded", "-webkit-body",
-      "-webkit-standard", "-webkit-pictograph", "emoji"};
-  for (std::string_view generic : kGeneric) {
-    if (FontNameMatches(generic, name)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// One-call predicate for the font-matching hooks: true when a local family
-// lookup must be refused for the currently loaded fingerprint.
+// One-call predicate for the font-matching hooks: true when a concrete local
+// family or unique-name lookup must be refused for the loaded fingerprint.
+// Call sites that hold a FontFamily must exempt generic families using Blink's
+// FamilyIsGeneric bit. A string such as `local("serif")` is a literal unique
+// name, not generic CSS syntax, and therefore must not be exempted here.
 //
 // Blink resolves a family through CSSFontSelector and, if that returns null,
 // retries against FontCache directly (font_fallback_list.cc). Filtering only
 // the selector therefore closes nothing -- every refusal is undone by the
 // retry. Both sites must consult this.
-inline bool IsLocalFontBlocked(std::string_view family) {
+inline bool IsLocalFontBlocked(std::string_view name) {
   const RuntimeFingerprint* fp = FingerprintAccessor::Get();
   if (!fp || !ShouldFilterLocalFonts(*fp)) {
     return false;
   }
-  if (family.empty() || IsGenericFontFamily(family)) {
-    return false;
-  }
-  return !IsLocalFontAllowed(*fp, family);
+  return !IsLocalFontAllowed(*fp, name);
 }
 
 // ---------------------------------------------------------------------------

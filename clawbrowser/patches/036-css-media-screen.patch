@@ -59,7 +59,27 @@ diff --git a/third_party/blink/renderer/core/css/media_values.cc b/third_party/b
    return frame->GetPage()
        ->GetChromeClient()
        .GetScreenInfo(*frame)
-@@ -385,6 +408,9 @@ int MediaValues::CalculateAvailableHoverTypes(LocalFrame* frame) {
+@@ -208,6 +231,9 @@ bool MediaValues::CalculateDeviceSupportsHDR(LocalFrame* frame) {
+ int MediaValues::CalculateColorBitsPerComponent(LocalFrame* frame) {
+   DCHECK(frame);
+   DCHECK(frame->GetPage());
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
++    return fp->screen.color_depth >= 3 ? fp->screen.color_depth / 3 : 1;
++
+   const display::ScreenInfo& screen_info =
+       frame->GetPage()->GetChromeClient().GetScreenInfo(*frame);
+   if (screen_info.is_monochrome) {
+@@ -219,6 +245,9 @@ int MediaValues::CalculateColorBitsPerComponent(LocalFrame* frame) {
+ int MediaValues::CalculateMonochromeBitsPerComponent(LocalFrame* frame) {
+   DCHECK(frame);
+   DCHECK(frame->GetPage());
++  if (clawbrowser::FingerprintAccessor::Get())
++    return 0;
++
+   const display::ScreenInfo& screen_info =
+       frame->GetPage()->GetChromeClient().GetScreenInfo(*frame);
+   if (!screen_info.is_monochrome) {
+@@ -385,6 +414,9 @@ int MediaValues::CalculateAvailableHoverTypes(LocalFrame* frame) {
  ColorSpaceGamut MediaValues::CalculateColorGamut(LocalFrame* frame) {
    DCHECK(frame);
    DCHECK(frame->GetPage());

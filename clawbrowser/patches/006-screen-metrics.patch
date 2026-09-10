@@ -1,28 +1,151 @@
 # Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+diff --git a/third_party/blink/renderer/core/events/mouse_event.cc b/third_party/blink/renderer/core/events/mouse_event.cc
+index 3628878213..e02f3282bb 100644
+--- a/third_party/blink/renderer/core/events/mouse_event.cc
++++ b/third_party/blink/renderer/core/events/mouse_event.cc
+@@ -22,6 +22,7 @@
+
+ #include "third_party/blink/renderer/core/events/mouse_event.h"
+
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "third_party/blink/public/common/input/web_pointer_properties.h"
+ #include "third_party/blink/renderer/bindings/core/v8/v8_mouse_event_init.h"
+ #include "third_party/blink/renderer/core/dom/element.h"
+@@ -31,6 +32,7 @@
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/frame/local_frame_view.h"
++#include "third_party/blink/renderer/core/frame/visual_viewport.h"
+ #include "third_party/blink/renderer/core/html/canvas/html_canvas_element.h"
+ #include "third_party/blink/renderer/core/html/html_frame_element_base.h"
+ #include "third_party/blink/renderer/core/html/media/html_media_element.h"
+@@ -46,7 +48,9 @@
+ #include "third_party/blink/renderer/platform/bindings/script_state.h"
+ #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
+ #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
++#include "third_party/blink/renderer/platform/widget/frame_widget.h"
+ #include "third_party/blink/renderer/platform/wtf/math_extras.h"
++#include "ui/gfx/geometry/rect_f.h"
+
+ namespace blink {
+
+@@ -96,6 +100,36 @@ unsigned ButtonsToWebInputEventModifiers(uint16_t buttons) {
+
+ }  // namespace
+
++gfx::PointF EventScreenPositionForFingerprint(
++    const gfx::PointF& platform_screen_point,
++    const gfx::PointF& position_in_root_frame,
++    LocalFrame* frame) {
++  if (!clawbrowser::FingerprintAccessor::Get())
++    return platform_screen_point;
++  if (!frame || !frame->GetPage())
++    return position_in_root_frame;
++
++  FrameWidget* widget = frame->GetWidgetForLocalRoot();
++  if (!widget)
++    return position_in_root_frame;
++
++  gfx::PointF viewport_point = position_in_root_frame;
++  if (frame->LocalFrameRoot().IsOutermostMainFrame()) {
++    viewport_point = frame->GetPage()->GetVisualViewport().RootFrameToViewport(
++        position_in_root_frame);
++  }
++
++  gfx::PointF result =
++      widget
++          ->BlinkSpaceToDIPs(gfx::RectF(viewport_point, gfx::SizeF()))
++          .origin();
++  const gfx::Rect view_rect = widget->ViewRect();
++  const gfx::Rect window_rect = widget->WindowRect();
++  result.Offset(view_rect.x() - window_rect.x(),
++                view_rect.y() - window_rect.y());
++  return result;
++}
++
+ MouseEvent* MouseEvent::Create(ScriptState* script_state,
+                                const AtomicString& type,
+                                const MouseEventInit* initializer) {
+@@ -201,10 +235,10 @@ void MouseEvent::SetCoordinatesFromWebPointerProperties(
+     MouseEventInit* initializer) {
+   gfx::PointF client_point;
+   gfx::PointF screen_point = web_pointer_properties.PositionInScreen();
++  gfx::PointF root_frame_point = web_pointer_properties.PositionInWidget();
++  LocalFrame* frame = dom_window ? dom_window->GetFrame() : nullptr;
+   float inverse_zoom_factor = 1.0f;
+-  if (dom_window && dom_window->GetFrame() && dom_window->GetFrame()->View()) {
+-    LocalFrame* frame = dom_window->GetFrame();
+-    gfx::PointF root_frame_point = web_pointer_properties.PositionInWidget();
++  if (frame && frame->View()) {
+     if (Page* p = frame->GetPage()) {
+       if (p->GetPointerLockController().GetElement() &&
+           !p->GetPointerLockController().LockPending()) {
+@@ -218,6 +252,9 @@ void MouseEvent::SetCoordinatesFromWebPointerProperties(
+     client_point = gfx::ScalePoint(frame_point, inverse_zoom_factor);
+   }
+
++  screen_point = EventScreenPositionForFingerprint(
++      screen_point, root_frame_point, frame);
++
+   initializer->setScreenX(screen_point.x());
+   initializer->setScreenY(screen_point.y());
+   initializer->setClientX(client_point.x());
+diff --git a/third_party/blink/renderer/core/events/mouse_event.h b/third_party/blink/renderer/core/events/mouse_event.h
+index 69f7e1fdda..81eca42141 100644
+--- a/third_party/blink/renderer/core/events/mouse_event.h
++++ b/third_party/blink/renderer/core/events/mouse_event.h
+@@ -31,15 +31,25 @@
+ #include "third_party/blink/renderer/core/events/ui_event_with_key_state.h"
+ #include "third_party/blink/renderer/platform/wtf/casting.h"
+ #include "ui/base/mojom/menu_source_type.mojom-blink.h"
++#include "ui/gfx/geometry/point_f.h"
+
+ namespace blink {
+
+ class DataTransfer;
+ class EventDispatcher;
+ class LocalDOMWindow;
++class LocalFrame;
+ class MouseEventInit;
+ class WebPointerProperties;
+
++// Returns host screen coordinates unchanged outside managed profiles. For a
++// managed profile, derives coordinates from the root-frame point and the
++// browser chrome inset, never from the host desktop origin.
++CORE_EXPORT gfx::PointF EventScreenPositionForFingerprint(
++    const gfx::PointF& platform_screen_point,
++    const gfx::PointF& position_in_root_frame,
++    LocalFrame* frame);
++
+ class CORE_EXPORT MouseEvent : public UIEventWithKeyState {
+   DEFINE_WRAPPERTYPEINFO();
+
 diff --git a/third_party/blink/renderer/core/frame/local_dom_window.cc b/third_party/blink/renderer/core/frame/local_dom_window.cc
+index 08db1e8620..1baf501f4d 100644
 --- a/third_party/blink/renderer/core/frame/local_dom_window.cc
 +++ b/third_party/blink/renderer/core/frame/local_dom_window.cc
-@@ -36,6 +36,7 @@
+@@ -36,6 +36,8 @@
  #include "base/trace_event/trace_id_helper.h"
  #include "base/trace_event/typed_macros.h"
  #include "build/build_config.h"
 +#include "clawbrowser/fingerprint_accessor.h"
++#include "clawbrowser/fingerprint_coherence.h"
  #include "cc/input/snap_selection_strategy.h"
  #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
  #include "net/storage_access_api/status.h"
-@@ -1166,6 +1167,9 @@ void LocalDOMWindow::SendOrientationChangeEvent() {
+@@ -1166,6 +1168,9 @@ void LocalDOMWindow::SendOrientationChangeEvent() {
    DCHECK(RuntimeEnabledFeatures::OrientationEventEnabled());
    DCHECK(GetFrame()->IsLocalRoot());
- 
+
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return;
 +
    // Before dispatching the event, build a list of all frames in the page
    // to send the event to, to mitigate side effects from event handlers
    // potentially interfering with others.
-@@ -1187,6 +1191,9 @@ void LocalDOMWindow::SendOrientationChangeEvent() {
+@@ -1187,6 +1192,9 @@ void LocalDOMWindow::SendOrientationChangeEvent() {
  }
- 
+
  int LocalDOMWindow::orientation() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return 0;
@@ -30,9 +153,49 @@ diff --git a/third_party/blink/renderer/core/frame/local_dom_window.cc b/third_p
    LocalFrame* frame = GetFrame();
    if (!frame) {
      return 0;
-@@ -1765,6 +1772,9 @@ int LocalDOMWindow::innerWidth() const {
+@@ -1672,6 +1680,19 @@ int LocalDOMWindow::outerHeight() const {
+     return innerHeight();
+   }
+
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get()) {
++    const int available = fp->screen.avail_height > 0
++                              ? fp->screen.avail_height
++                              : fp->screen.height;
++    const int available_width = fp->screen.avail_width > 0
++                                    ? fp->screen.avail_width
++                                    : fp->screen.width;
++    return clawbrowser::DeriveWindowSize(
++               available_width, available,
++               static_cast<uint64_t>(fp->canvas_seed))
++        .height;
++  }
++
+   Page* page = frame->GetPage();
+   if (!page) {
+     return 0;
+@@ -1699,6 +1720,19 @@ int LocalDOMWindow::outerWidth() const {
+     return innerWidth();
+   }
+
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get()) {
++    const int available = fp->screen.avail_width > 0
++                              ? fp->screen.avail_width
++                              : fp->screen.width;
++    const int available_height = fp->screen.avail_height > 0
++                                     ? fp->screen.avail_height
++                                     : fp->screen.height;
++    return clawbrowser::DeriveWindowSize(
++               available, available_height,
++               static_cast<uint64_t>(fp->canvas_seed))
++        .width;
++  }
++
+   Page* page = frame->GetPage();
+   if (!page) {
+     return 0;
+@@ -1765,6 +1799,9 @@ int LocalDOMWindow::innerWidth() const {
  }
- 
+
  int LocalDOMWindow::screenX() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return 0;
@@ -40,9 +203,9 @@ diff --git a/third_party/blink/renderer/core/frame/local_dom_window.cc b/third_p
    LocalFrame* frame = GetFrame();
    if (!frame) {
      return 0;
-@@ -1785,6 +1795,9 @@ int LocalDOMWindow::screenX() const {
+@@ -1785,6 +1822,9 @@ int LocalDOMWindow::screenX() const {
  }
- 
+
  int LocalDOMWindow::screenY() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return 0;
@@ -50,9 +213,9 @@ diff --git a/third_party/blink/renderer/core/frame/local_dom_window.cc b/third_p
    LocalFrame* frame = GetFrame();
    if (!frame) {
      return 0;
-@@ -1907,6 +1920,14 @@ CSSStyleDeclaration* LocalDOMWindow::getComputedStyle(
+@@ -1907,6 +1947,14 @@ CSSStyleDeclaration* LocalDOMWindow::getComputedStyle(
  }
- 
+
  double LocalDOMWindow::devicePixelRatio() const {
 +  // Guarded on > 0 so a fingerprint missing this field cannot report a device
 +  // pixel ratio of 0 here while CSS `resolution` falls back to the real value
@@ -66,18 +229,18 @@ diff --git a/third_party/blink/renderer/core/frame/local_dom_window.cc b/third_p
      return 0.0;
    }
 diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink/renderer/core/frame/screen.cc
+index 69ffc2b05f..40a69592d5 100644
 --- a/third_party/blink/renderer/core/frame/screen.cc
 +++ b/third_party/blink/renderer/core/frame/screen.cc
 @@ -29,6 +29,7 @@
  #include "third_party/blink/renderer/core/frame/screen.h"
- 
+
  #include "base/numerics/safe_conversions.h"
 +#include "clawbrowser/fingerprint_accessor.h"
  #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
  #include "third_party/blink/renderer/core/event_target_names.h"
  #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-@@ -46,6 +47,9 @@ Screen::Screen(LocalDOMWindow* window, int64_t display_id)
- // static
+@@ -47,6 +48,9 @@ Screen::Screen(LocalDOMWindow* window, int64_t display_id)
  bool Screen::AreWebExposedScreenPropertiesEqual(
      const display::ScreenInfo& prev,
      const display::ScreenInfo& current) {
@@ -86,9 +249,10 @@ diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink
 +
    // height() and width() use rect.size()
    if (prev.rect.size() != current.rect.size()) {
+     return false;
 @@ -79,12 +83,16 @@ bool Screen::AreWebExposedScreenPropertiesEqual(
  }
- 
+
  int Screen::height() const {
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
 +    return fp->screen.height;
@@ -96,7 +260,7 @@ diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink
      return 0;
    return GetRect(/*available=*/false).height();
  }
- 
+
  int Screen::width() const {
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
 +    return fp->screen.width;
@@ -106,16 +270,15 @@ diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink
 @@ -97,6 +105,8 @@ unsigned Screen::colorDepth() const {
    // https://drafts.csswg.org/cssom-view/#dom-screen-colordepth
    unsigned unknown_color_depth = 24u;
- 
+
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
 +    return static_cast<unsigned>(fp->screen.color_depth);
    if (!DomWindow()) {
      return unknown_color_depth;
    }
-@@ -109,25 +119,35 @@ unsigned Screen::pixelDepth() const {
-   return colorDepth();
+@@ -110,24 +120,34 @@ unsigned Screen::pixelDepth() const {
  }
- 
+
  int Screen::availLeft() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return 0;
@@ -124,7 +287,7 @@ diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink
      return 0;
    return GetRect(/*available=*/true).x();
  }
- 
+
  int Screen::availTop() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return 0;
@@ -133,7 +296,7 @@ diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink
      return 0;
    return GetRect(/*available=*/true).y();
  }
- 
+
  int Screen::availHeight() const {
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
 +    return fp->screen.avail_height;
@@ -141,16 +304,16 @@ diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink
      return 0;
    return GetRect(/*available=*/true).height();
  }
- 
+
  int Screen::availWidth() const {
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get())
 +    return fp->screen.avail_width;
    if (!DomWindow())
      return 0;
    return GetRect(/*available=*/true).width();
-@@ -147,6 +167,9 @@ ExecutionContext* Screen::GetExecutionContext() const {
+@@ -148,6 +168,9 @@ ExecutionContext* Screen::GetExecutionContext() const {
  }
- 
+
  bool Screen::isExtended() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return false;
@@ -158,21 +321,119 @@ diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink
    if (!DomWindow()) {
      return false;
    }
+diff --git a/third_party/blink/renderer/core/input/touch_event_manager.cc b/third_party/blink/renderer/core/input/touch_event_manager.cc
+index 9b52f901a7..503c316b54 100644
+--- a/third_party/blink/renderer/core/input/touch_event_manager.cc
++++ b/third_party/blink/renderer/core/input/touch_event_manager.cc
+@@ -12,6 +12,7 @@
+ #include "third_party/blink/renderer/core/dom/document.h"
+ #include "third_party/blink/renderer/core/dom/flat_tree_traversal.h"
+ #include "third_party/blink/renderer/core/dom/pseudo_element.h"
++#include "third_party/blink/renderer/core/events/mouse_event.h"
+ #include "third_party/blink/renderer/core/events/touch_event.h"
+ #include "third_party/blink/renderer/core/frame/event_handler_registry.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+@@ -213,10 +214,13 @@ Touch* TouchEventManager::CreateDomTouch(
+   gfx::SizeF adjusted_radius = gfx::ScaleSize(
+       gfx::SizeF(transformed_event.width / 2.f, transformed_event.height / 2.f),
+       scale_factor);
++  const gfx::PointF screen_point = EventScreenPositionForFingerprint(
++      transformed_event.PositionInScreen(),
++      transformed_event.PositionInWidget(), target_frame);
+
+   return MakeGarbageCollected<Touch>(
+       target_frame, touch_node, point_attr->event_.id,
+-      transformed_event.PositionInScreen(), document_point, adjusted_radius,
++      screen_point, document_point, adjusted_radius,
+       transformed_event.rotation_angle, transformed_event.force);
+ }
+
+diff --git a/third_party/blink/renderer/core/resize_observer/resize_observer_utilities.cc b/third_party/blink/renderer/core/resize_observer/resize_observer_utilities.cc
+index a2c1af6b25..748c2b89fd 100644
+--- a/third_party/blink/renderer/core/resize_observer/resize_observer_utilities.cc
++++ b/third_party/blink/renderer/core/resize_observer/resize_observer_utilities.cc
+@@ -4,6 +4,10 @@
+
+ #include "third_party/blink/renderer/core/resize_observer/resize_observer_utilities.h"
+
++#include <cmath>
++
++#include "clawbrowser/fingerprint_accessor.h"
++#include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/geometry/dom_rect_read_only.h"
+ #include "third_party/blink/renderer/core/layout/adjust_for_absolute_zoom.h"
+ #include "third_party/blink/renderer/core/layout/geometry/logical_offset.h"
+@@ -63,9 +67,30 @@ gfx::Size ResizeObserverUtilities::ComputeSnappedDevicePixelContentBox(
+     const LayoutObject& layout_object,
+     const ComputedStyle& style) {
+   LogicalOffset paint_offset = ComputePaintOffset(layout_object, style);
+-  return gfx::Size(
++  const gfx::Size native_size(
+       SnapSizeToPixel(box_size.inline_size, paint_offset.inline_offset),
+       SnapSizeToPixel(box_size.block_size, paint_offset.block_offset));
++
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  const LocalFrame* frame = layout_object.GetFrame();
++  if (!fp || fp->screen.pixel_ratio <= 0.0 || !frame)
++    return native_size;
++
++  // Layout pixel snapping already contains the host device scale factor.
++  // Replace only that factor so devicePixelContentBoxSize remains coherent
++  // with the virtual Window.devicePixelRatio while preserving CSS zoom and
++  // writing-mode behavior.
++  const double native_dpr = frame->DevicePixelRatio();
++  if (!(native_dpr > 0.0) || !std::isfinite(native_dpr))
++    return gfx::Size();
++  const double virtual_scale = fp->screen.pixel_ratio / native_dpr;
++  if (!(virtual_scale > 0.0) || !std::isfinite(virtual_scale))
++    return gfx::Size();
++  return gfx::Size(
++      SnapSizeToPixel(LayoutUnit(box_size.inline_size * virtual_scale),
++                      LayoutUnit(paint_offset.inline_offset * virtual_scale)),
++      SnapSizeToPixel(LayoutUnit(box_size.block_size * virtual_scale),
++                      LayoutUnit(paint_offset.block_offset * virtual_scale)));
+ }
+
+ // static
+diff --git a/third_party/blink/renderer/modules/csspaint/paint_worklet_global_scope.cc b/third_party/blink/renderer/modules/csspaint/paint_worklet_global_scope.cc
+index 652e8a5271..6390e5f5ee 100644
+--- a/third_party/blink/renderer/modules/csspaint/paint_worklet_global_scope.cc
++++ b/third_party/blink/renderer/modules/csspaint/paint_worklet_global_scope.cc
+@@ -4,6 +4,7 @@
+
+ #include "third_party/blink/renderer/modules/csspaint/paint_worklet_global_scope.h"
+
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "third_party/blink/renderer/bindings/core/v8/idl_types.h"
+ #include "third_party/blink/renderer/bindings/core/v8/native_value_traits_impl.h"
+ #include "third_party/blink/renderer/bindings/core/v8/v8_no_argument_constructor.h"
+@@ -246,6 +247,10 @@ CSSPaintDefinition* PaintWorkletGlobalScope::FindDefinition(
+ }
+
+ double PaintWorkletGlobalScope::devicePixelRatio() const {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->screen.pixel_ratio > 0.0) {
++    return fp->screen.pixel_ratio;
++  }
+   return IsMainThread()
+              ? GetFrame()->DevicePixelRatio()
+              : PaintWorkletProxyClient::From(Clients())->DevicePixelRatio();
 diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.cc b/third_party/blink/renderer/modules/screen_details/screen_detailed.cc
+index 490cda3600..6cfec771fe 100644
 --- a/third_party/blink/renderer/modules/screen_details/screen_detailed.cc
 +++ b/third_party/blink/renderer/modules/screen_details/screen_detailed.cc
 @@ -7,6 +7,7 @@
  #include <cmath>
- 
+
  #include "base/numerics/safe_conversions.h"
 +#include "clawbrowser/fingerprint_accessor.h"
  #include "third_party/blink/renderer/core/frame/local_dom_window.h"
  #include "third_party/blink/renderer/core/frame/local_frame.h"
  #include "third_party/blink/renderer/core/frame/settings.h"
 @@ -19,6 +20,21 @@
- 
+
  namespace blink {
- 
+
 +namespace {
 +
 +// The fingerprint contract currently carries no display color-space data.
@@ -190,9 +451,8 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.c
 +
  ScreenDetailed::ScreenDetailed(LocalDOMWindow* window, int64_t display_id)
      : Screen(window, display_id) {}
- 
-@@ -25,6 +41,9 @@ ScreenDetailed::ScreenDetailed(LocalDOMWindow* window, int64_t display_id)
- // static
+
+@@ -26,6 +42,9 @@ ScreenDetailed::ScreenDetailed(LocalDOMWindow* window, int64_t display_id)
  bool ScreenDetailed::AreWebExposedScreenDetailedPropertiesEqual(
      const display::ScreenInfo& prev,
      const display::ScreenInfo& current) {
@@ -201,9 +461,10 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.c
 +
    if (!Screen::AreWebExposedScreenPropertiesEqual(prev, current)) {
      return false;
-@@ -102,36 +121,61 @@ bool ScreenDetailed::AreHdrHeadroomEqual(const display::ScreenInfo& prev,
+   }
+@@ -102,80 +121,135 @@ bool ScreenDetailed::AreHdrHeadroomEqual(const display::ScreenInfo& prev,
  }
- 
+
  int ScreenDetailed::left() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return 0;
@@ -212,7 +473,7 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.c
      return 0;
    return GetRect(/*available=*/false).x();
  }
- 
+
  int ScreenDetailed::top() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return 0;
@@ -221,7 +482,7 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.c
      return 0;
    return GetRect(/*available=*/false).y();
  }
- 
+
  bool ScreenDetailed::isPrimary() const {
 +  // A fingerprinted renderer exposes one virtual screen, so that screen is
 +  // necessarily primary regardless of the host display backing the window.
@@ -232,7 +493,7 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.c
      return false;
    return GetScreenInfo().is_primary;
  }
- 
+
  bool ScreenDetailed::isInternal() const {
 +  // The fingerprint contract has no internal/external display distinction.
 +  // Do not inherit that stable hardware signal from the host.
@@ -243,7 +504,7 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.c
      return false;
    return GetScreenInfo().is_internal;
  }
- 
+
  float ScreenDetailed::devicePixelRatio() const {
 +  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
 +      fp && fp->screen.pixel_ratio > 0.0)
@@ -253,7 +514,7 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.c
      return 0.f;
    return GetScreenInfo().device_scale_factor;
  }
- 
+
  String ScreenDetailed::label() const {
 +  // Labels commonly contain the physical monitor model.  An empty label is
 +  // the only value supported by the current fingerprint contract.
@@ -263,7 +524,8 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.c
    if (!DomWindow())
      return String();
    return String::FromUtf8(GetScreenInfo().label);
-@@ -140,43 +184,73 @@ String ScreenDetailed::label() const {
+ }
+
  float ScreenDetailed::hdrHeadroom() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return 0.f;
@@ -272,78 +534,78 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.c
        GetScreenInfo().display_color_spaces.GetHDRMaxLuminanceRelative(),
        1.f));
  }
- 
+
  float ScreenDetailed::highDynamicRangeHeadroom() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return 1.f;
 +
    return GetScreenInfo().display_color_spaces.GetHDRMaxLuminanceRelative();
  }
- 
+
  float ScreenDetailed::redPrimaryX() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return kSrgbRedPrimaryX;
 +
    return GetScreenInfo().display_color_spaces.GetPrimaries().fRX;
  }
- 
+
  float ScreenDetailed::redPrimaryY() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return kSrgbRedPrimaryY;
 +
    return GetScreenInfo().display_color_spaces.GetPrimaries().fRY;
  }
- 
+
  float ScreenDetailed::greenPrimaryX() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return kSrgbGreenPrimaryX;
 +
    return GetScreenInfo().display_color_spaces.GetPrimaries().fGX;
  }
- 
+
  float ScreenDetailed::greenPrimaryY() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return kSrgbGreenPrimaryY;
 +
    return GetScreenInfo().display_color_spaces.GetPrimaries().fGY;
  }
- 
+
  float ScreenDetailed::bluePrimaryX() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return kSrgbBluePrimaryX;
 +
    return GetScreenInfo().display_color_spaces.GetPrimaries().fBX;
  }
- 
+
  float ScreenDetailed::bluePrimaryY() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return kSrgbBluePrimaryY;
 +
    return GetScreenInfo().display_color_spaces.GetPrimaries().fBY;
  }
- 
+
  float ScreenDetailed::whitePointX() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return kSrgbWhitePointX;
 +
    return GetScreenInfo().display_color_spaces.GetPrimaries().fWX;
  }
- 
+
  float ScreenDetailed::whitePointY() const {
 +  if (clawbrowser::FingerprintAccessor::Get())
 +    return kSrgbWhitePointY;
 +
    return GetScreenInfo().display_color_spaces.GetPrimaries().fWY;
  }
- 
- }  // namespace blink
+
 diff --git a/third_party/blink/renderer/modules/screen_details/screen_details.cc b/third_party/blink/renderer/modules/screen_details/screen_details.cc
+index cce3fa3395..1ef49809d4 100644
 --- a/third_party/blink/renderer/modules/screen_details/screen_details.cc
 +++ b/third_party/blink/renderer/modules/screen_details/screen_details.cc
 @@ -6,6 +6,7 @@
- 
+
  #include <algorithm>
- 
+
 +#include "clawbrowser/fingerprint_accessor.h"
  #include "third_party/blink/renderer/core/dom/events/event.h"
  #include "third_party/blink/renderer/core/frame/local_dom_window.h"
@@ -351,7 +613,7 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_details.cc
 @@ -70,6 +71,21 @@ void ScreenDetails::UpdateScreenInfosImpl(LocalDOMWindow* window,
    // Expect that all updates contain a non-zero set of screens.
    DCHECK(!new_infos.screen_infos.empty());
- 
+
 +  // A fingerprint describes a single virtual display.  Exposing the host's
 +  // remaining ScreenDetailed objects would reveal its monitor count and
 +  // topology even though the basic Screen metrics are virtualized.
@@ -369,7 +631,7 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_details.cc
 +
    // (1) Detect if screens were added or removed and update web exposed data.
    bool added_or_removed = false;
- 
+
 @@ -79,7 +95,8 @@ void ScreenDetails::UpdateScreenInfosImpl(LocalDOMWindow* window,
    // Check if any screens have been removed and remove them from `screens_`.
    for (wtf_size_t i = 0; i < screens_.size();
@@ -381,7 +643,7 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_details.cc
        ++i;
      } else {
 @@ -91,6 +108,9 @@ void ScreenDetails::UpdateScreenInfosImpl(LocalDOMWindow* window,
- 
+
    // Check if any screens have been added, and append them to `screens_`.
    for (const auto& info : new_infos.screen_infos) {
 +    if (!is_exposed_display(info.display_id))
@@ -402,17 +664,19 @@ diff --git a/third_party/blink/renderer/modules/screen_details/screen_details.cc
      if (prev_screen_infos_.screen_infos.empty() ||
          prev_screen_infos_.current().display_id !=
 diff --git a/third_party/blink/renderer/modules/screen_orientation/screen_orientation_controller.cc b/third_party/blink/renderer/modules/screen_orientation/screen_orientation_controller.cc
+index a8d9885cb4..aac422dd7c 100644
 --- a/third_party/blink/renderer/modules/screen_orientation/screen_orientation_controller.cc
 +++ b/third_party/blink/renderer/modules/screen_orientation/screen_orientation_controller.cc
-@@ -6,6 +6,7 @@
- 
+@@ -6,6 +6,8 @@
+
  #include <memory>
  #include <utility>
++
 +#include "clawbrowser/fingerprint_accessor.h"
  #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
  #include "third_party/blink/public/platform/task_type.h"
  #include "third_party/blink/renderer/core/dom/events/event.h"
-@@ -110,6 +111,16 @@ ScreenOrientationController::ComputeOrientation(const gfx::Rect& rect,
+@@ -110,6 +112,16 @@ ScreenOrientationController::ComputeOrientation(const gfx::Rect& rect,
  void ScreenOrientationController::UpdateOrientation() {
    DCHECK(orientation_);
    DCHECK(GetPage());
@@ -429,9 +693,9 @@ diff --git a/third_party/blink/renderer/modules/screen_orientation/screen_orient
    ChromeClient& chrome_client = GetPage()->GetChromeClient();
    LocalFrame& frame = *DomWindow()->GetFrame();
    const display::ScreenInfo& screen_info = chrome_client.GetScreenInfo(frame);
-@@ -169,6 +180,10 @@ void ScreenOrientationController::PageVisibilityChanged() {
+@@ -169,6 +181,10 @@ void ScreenOrientationController::PageVisibilityChanged() {
  }
- 
+
  void ScreenOrientationController::NotifyOrientationChanged() {
 +  // Host rotation cannot alter the fingerprint-derived orientation.
 +  if (clawbrowser::FingerprintAccessor::Get())

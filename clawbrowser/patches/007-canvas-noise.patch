@@ -1,94 +1,316 @@
 # Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
-diff --git a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
---- a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
-+++ b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
-@@ -33,9 +33,13 @@
- 
- #include "third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.h"
- 
-+#include <algorithm>
- #include <stddef.h>
- 
- #include <memory>
+diff --git a/third_party/blink/renderer/core/html/canvas/canvas_async_blob_creator.cc b/third_party/blink/renderer/core/html/canvas/canvas_async_blob_creator.cc
+index adb616defb..c6dc65558d 100644
+--- a/third_party/blink/renderer/core/html/canvas/canvas_async_blob_creator.cc
++++ b/third_party/blink/renderer/core/html/canvas/canvas_async_blob_creator.cc
+@@ -207,6 +207,14 @@ CanvasAsyncBlobCreator::CanvasAsyncBlobCreator(
+                            std::min(info.height(), max_dimension));
+         src_data_.reset(info, src_data_.addr(), src_data_.rowBytes());
+       }
 +
-+#include "clawbrowser/fingerprint_accessor.h"
-+#include "clawbrowser/noise/prng.h"
- #include <optional>
- #include <string_view>
- #include <utility>
-@@ -82,6 +86,7 @@
- #include "third_party/blink/renderer/core/html/canvas/canvas_performance_monitor.h"
- #include "third_party/blink/renderer/core/html/canvas/canvas_rendering_context.h"
- #include "third_party/blink/renderer/core/html/canvas/canvas_rendering_context_host.h"
-+#include "third_party/blink/renderer/core/html/canvas/image_data.h"
- #include "third_party/blink/renderer/core/layout/geometry/physical_rect.h"
- #include "third_party/blink/renderer/core/layout/layout_replaced.h"
- #include "third_party/blink/renderer/core/layout/layout_theme.h"
-@@ -861,8 +866,23 @@ ImageData* CanvasRenderingContext2D::getImageDataInternal(
-       CreationAttributes().will_read_frequently ==
-           CanvasContextCreationAttributesCore::WillReadFrequently::kTrue);
-   TRACE_EVENT0("blink", "GetImageData");
--  return BaseRenderingContext2D::getImageDataInternal(
-+  ImageData* image_data = BaseRenderingContext2D::getImageDataInternal(
-       sx, sy, sw, sh, image_data_settings, exception_state);
-+  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+      fp && fp->canvas_spoofing_enabled &&
-+      fp->surface_policy.canvas == "override" && image_data &&
-+      image_data->GetSkColorType() == kRGBA_8888_SkColorType) {
-+    clawbrowser::Prng prng(fp->canvas_seed);
-+    auto rgba = image_data->RawByteSpan();
-+    for (size_t pixel = 0; pixel + 3 < rgba.size(); pixel += 4) {
-+      for (size_t channel = 0; channel < 3; ++channel) {
-+        rgba[pixel + channel] = static_cast<uint8_t>(std::clamp(
-+            static_cast<int>(rgba[pixel + channel]) + prng.PixelNoise(),
-+            0, 255));
++      source_buffer_ = ImageDataBuffer::CreateForCanvas(src_data_);
++      if (source_buffer_) {
++        src_data_ = source_buffer_->Pixmap();
++      } else {
++        src_data_.reset();
++        static_bitmap_image_loaded_ = false;
 +      }
-+    }
+     }
+   }
+
+@@ -228,6 +236,7 @@ void CanvasAsyncBlobCreator::Dispose() {
+   script_promise_resolver_.Clear();
+   image_ = nullptr;
+   skia_image_ = nullptr;
++  source_buffer_.reset();
+   encoded_image_.clear();
+ }
+
+@@ -301,7 +310,7 @@ void CanvasAsyncBlobCreator::ScheduleAsyncBlobCreation(const double& quality) {
+       // we do not need to use background task runner to reduce load on main.
+       // So we just directly encode images on the worker thread.
+       Vector<unsigned char> encoded_image;
+-      if (!EncodeImage(ImageDataBuffer::Create(src_data_), mime_type_, quality,
++      if (!EncodeImage(std::move(source_buffer_), mime_type_, quality,
+                        &encoded_image)) {
+         context_->GetTaskRunner(TaskType::kCanvasBlobSerialization)
+             ->PostTask(
+@@ -324,7 +333,7 @@ void CanvasAsyncBlobCreator::ScheduleAsyncBlobCreation(const double& quality) {
+           FROM_HERE, CrossThreadBindOnce(
+                          &CanvasAsyncBlobCreator::EncodeImageOnEncoderThread,
+                          MakeCrossThreadHandle(this), parent_frame_task_runner_,
+-                         skia_image_, ImageDataBuffer::Create(src_data_),
++                         skia_image_, std::move(source_buffer_),
+                          mime_type_, quality));
+     }
+   } else {
+diff --git a/third_party/blink/renderer/core/html/canvas/canvas_async_blob_creator.h b/third_party/blink/renderer/core/html/canvas/canvas_async_blob_creator.h
+index 625c3204a0..afc1c60cc0 100644
+--- a/third_party/blink/renderer/core/html/canvas/canvas_async_blob_creator.h
++++ b/third_party/blink/renderer/core/html/canvas/canvas_async_blob_creator.h
+@@ -100,7 +100,9 @@ class CORE_EXPORT CanvasAsyncBlobCreator
+   // The following members are used for progressive/idle encoding,
+   // see comment above the implementation of ScheduleAsyncBlobCreation.
+   sk_sp<SkImage> skia_image_;
+-  SkPixmap src_data_;  // Holds a raw pointer owned by `skia_ìmage`.
++  // Holds a raw pointer kept alive by `source_buffer_` and/or `skia_image_`.
++  SkPixmap src_data_;
++  std::unique_ptr<ImageDataBuffer> source_buffer_;
+   std::unique_ptr<ImageEncoder> encoder_;
+   Vector<unsigned char> encoded_image_;
+   int num_rows_completed_;
+diff --git a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+index 4c784e3285..946ef1640f 100644
+--- a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
++++ b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+@@ -1293,7 +1293,7 @@ String HTMLCanvasElement::ToDataURLInternal(
+   scoped_refptr<StaticBitmapImage> image_bitmap = Snapshot(source_buffer);
+   if (image_bitmap) {
+     std::unique_ptr<ImageDataBuffer> data_buffer =
+-        ImageDataBuffer::Create(image_bitmap);
++        ImageDataBuffer::CreateForCanvas(image_bitmap);
+     if (!data_buffer)
+       return String("data:,");
+
+diff --git a/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc b/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
+index fd13b97510..2f0cc84aa8 100644
+--- a/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
++++ b/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
+@@ -4,6 +4,7 @@
+
+ #include "third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.h"
+
++#include <algorithm>
+ #include <cmath>
+ #include <cstdint>
+ #include <cstdlib>
+@@ -27,6 +28,8 @@
+ #include "cc/paint/paint_flags.h"
+ #include "cc/paint/paint_image.h"
+ #include "cc/paint/record_paint_canvas.h"
++#include "clawbrowser/fingerprint_accessor.h"
++#include "clawbrowser/noise/canvas_noise.h"
+ #include "components/viz/common/resources/shared_image_format_utils.h"
+ #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+ #include "third_party/blink/public/common/metrics/document_update_reason.h"
+@@ -113,6 +116,41 @@ class MemoryManagedPaintCanvas;
+
+ namespace {
+
++std::optional<clawbrowser::CanvasPixelFormat> CanvasNoiseFormatFor(
++    SkColorType color_type) {
++  switch (color_type) {
++    case kRGBA_8888_SkColorType:
++      return clawbrowser::CanvasPixelFormat::kRgba8;
++    case kBGRA_8888_SkColorType:
++      return clawbrowser::CanvasPixelFormat::kBgra8;
++    case kRGBA_F16_SkColorType:
++      return clawbrowser::CanvasPixelFormat::kRgbaF16;
++    case kRGBA_F32_SkColorType:
++      return clawbrowser::CanvasPixelFormat::kRgbaF32;
++    default:
++      return std::nullopt;
 +  }
++}
++
++void ApplyFingerprintNoise(ImageData* image_data,
++                           int64_t source_x,
++                           int64_t source_y) {
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  if (!fp || !fp->canvas_spoofing_enabled ||
++      fp->surface_policy.canvas != "override" || !image_data) {
++    return;
++  }
++
++  const auto format = CanvasNoiseFormatFor(image_data->GetSkColorType());
++  CHECK(format.has_value());
++
++  const SkPixmap pixmap = image_data->GetSkPixmap();
++  auto pixels = image_data->RawByteSpan();
++  const bool applied = clawbrowser::ApplyDeterministicCanvasNoise(
++      pixels.data(), pixels.size(), pixmap.rowBytes(), pixmap.width(),
++      pixmap.height(), *format, fp->canvas_seed, source_x, source_y);
++  CHECK(applied);
++}
+
+ bool IsContextProviderValid() {
+   base::WeakPtr<WebGraphicsContext3DProviderWrapper> context_provider_wrapper =
+@@ -334,8 +372,13 @@ ImageData* BaseRenderingContext2D::getImageData(
+     int sw,
+     int sh,
+     ExceptionState& exception_state) {
+-  return getImageDataInternal(sx, sy, sw, sh, /*image_data_settings=*/nullptr,
+-                              exception_state);
++  ImageData* image_data = getImageDataInternal(
++      sx, sy, sw, sh, /*image_data_settings=*/nullptr, exception_state);
++  ApplyFingerprintNoise(
++      image_data,
++      std::min<int64_t>(sx, static_cast<int64_t>(sx) + sw),
++      std::min<int64_t>(sy, static_cast<int64_t>(sy) + sh));
 +  return image_data;
  }
- 
- void CanvasRenderingContext2D::EnableAccelerationIfPossible() {
+
+ ImageData* BaseRenderingContext2D::getImageData(
+@@ -345,8 +388,13 @@ ImageData* BaseRenderingContext2D::getImageData(
+     int sh,
+     ImageDataSettings* image_data_settings,
+     ExceptionState& exception_state) {
+-  return getImageDataInternal(sx, sy, sw, sh, image_data_settings,
+-                              exception_state);
++  ImageData* image_data = getImageDataInternal(
++      sx, sy, sw, sh, image_data_settings, exception_state);
++  ApplyFingerprintNoise(
++      image_data,
++      std::min<int64_t>(sx, static_cast<int64_t>(sx) + sw),
++      std::min<int64_t>(sy, static_cast<int64_t>(sy) + sh));
++  return image_data;
+ }
+ perfetto::EventContext GetEventContext();
+
 diff --git a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc b/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
+index c76f6553e1..3a280becb1 100644
 --- a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
 +++ b/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
 @@ -32,8 +32,12 @@
- 
+
  #include "third_party/blink/renderer/platform/graphics/image_data_buffer.h"
- 
-+#include <algorithm>
+
++#include <optional>
 +
  #include "base/compiler_specific.h"
  #include "base/memory/ptr_util.h"
 +#include "clawbrowser/fingerprint_accessor.h"
-+#include "clawbrowser/noise/prng.h"
++#include "clawbrowser/noise/canvas_noise.h"
  #include "third_party/blink/renderer/platform/image-encoders/image_encoder_utils.h"
  #include "third_party/blink/renderer/platform/wtf/text/base64.h"
  #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
-@@ -96,6 +100,26 @@ ImageDataBuffer::ImageDataBuffer(scoped_refptr<StaticBitmapImage> image) {
-       return;
-     MSAN_CHECK_MEM_IS_INITIALIZED(pixmap_.addr(), pixmap_.computeByteSize());
-   }
-+  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+      fp && fp->canvas_spoofing_enabled &&
-+      fp->surface_policy.canvas == "override" &&
-+      pixmap_.writable_addr() &&
-+      (pixmap_.colorType() == kRGBA_8888_SkColorType ||
-+       pixmap_.colorType() == kBGRA_8888_SkColorType)) {
-+    clawbrowser::Prng prng(fp->canvas_seed);
-+    auto pixels = gfx::SkPixmapToWritableSpan(pixmap_);
-+    for (int y = 0; y < pixmap_.height(); ++y) {
-+      for (int x = 0; x < pixmap_.width(); ++x) {
-+        const size_t pixel = static_cast<size_t>(y) * pixmap_.rowBytes() +
-+                             static_cast<size_t>(x) * 4;
-+        for (size_t channel = 0; channel < 3; ++channel) {
-+          pixels[pixel + channel] = static_cast<uint8_t>(std::clamp(
-+              static_cast<int>(pixels[pixel + channel]) + prng.PixelNoise(),
-+              0, 255));
-+        }
-+      }
-+    }
+@@ -43,6 +47,26 @@
+
+ namespace blink {
+
++namespace {
++
++std::optional<clawbrowser::CanvasPixelFormat> CanvasNoiseFormatFor(
++    SkColorType color_type) {
++  switch (color_type) {
++    case kRGBA_8888_SkColorType:
++      return clawbrowser::CanvasPixelFormat::kRgba8;
++    case kBGRA_8888_SkColorType:
++      return clawbrowser::CanvasPixelFormat::kBgra8;
++    case kRGBA_F16_SkColorType:
++      return clawbrowser::CanvasPixelFormat::kRgbaF16;
++    case kRGBA_F32_SkColorType:
++      return clawbrowser::CanvasPixelFormat::kRgbaF32;
++    default:
++      return std::nullopt;
 +  }
-   is_valid_ = true;
++}
++
++}  // namespace
++
+ ImageDataBuffer::ImageDataBuffer(scoped_refptr<StaticBitmapImage> image) {
+   if (!image)
+     return;
+@@ -104,6 +128,46 @@ ImageDataBuffer::ImageDataBuffer(const SkPixmap& pixmap)
+       is_valid_(pixmap_.addr() &&
+                 !gfx::Size(pixmap.width(), pixmap.height()).IsEmpty()) {}
+
++bool ImageDataBuffer::ApplyCanvasFingerprintNoise() {
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  if (!fp || !fp->canvas_spoofing_enabled ||
++      fp->surface_policy.canvas != "override") {
++    return true;
++  }
++
++  SkColorType copy_color_type = pixmap_.colorType();
++  auto format = CanvasNoiseFormatFor(copy_color_type);
++  if (!format) {
++    // Do not silently export an unprotected uncommon Skia format.
++    copy_color_type = kRGBA_8888_SkColorType;
++    format = clawbrowser::CanvasPixelFormat::kRgba8;
++  }
++  const SkImageInfo copy_info = SkImageInfo::Make(
++      pixmap_.width(), pixmap_.height(), copy_color_type,
++      kUnpremul_SkAlphaType, pixmap_.info().refColorSpace());
++  const size_t row_bytes = copy_info.minRowBytes();
++  const size_t byte_length = copy_info.computeByteSize(row_bytes);
++  if (SkImageInfo::ByteSizeOverflowed(byte_length))
++    return false;
++
++  sk_sp<SkData> data = SkData::MakeUninitialized(byte_length);
++  if (!pixmap_.readPixels(copy_info, data->writable_data(), row_bytes, 0, 0))
++    return false;
++
++  const bool applied = clawbrowser::ApplyDeterministicCanvasNoise(
++      static_cast<uint8_t*>(data->writable_data()), byte_length, row_bytes,
++      copy_info.width(), copy_info.height(), *format, fp->canvas_seed);
++  if (!applied)
++    return false;
++
++  retained_image_ =
++      SkImages::RasterFromData(copy_info, std::move(data), row_bytes);
++  if (!retained_image_ || !retained_image_->peekPixels(&pixmap_))
++    return false;
++  MSAN_CHECK_MEM_IS_INITIALIZED(pixmap_.addr(), pixmap_.computeByteSize());
++  return true;
++}
++
+ std::unique_ptr<ImageDataBuffer> ImageDataBuffer::Create(
+     scoped_refptr<StaticBitmapImage> image) {
+   std::unique_ptr<ImageDataBuffer> buffer =
+@@ -122,6 +186,24 @@ std::unique_ptr<ImageDataBuffer> ImageDataBuffer::Create(
+   return buffer;
  }
- 
+
++std::unique_ptr<ImageDataBuffer> ImageDataBuffer::CreateForCanvas(
++    scoped_refptr<StaticBitmapImage> image) {
++  std::unique_ptr<ImageDataBuffer> buffer =
++      base::WrapUnique(new ImageDataBuffer(std::move(image)));
++  if (!buffer->IsValid() || !buffer->ApplyCanvasFingerprintNoise())
++    return nullptr;
++  return buffer;
++}
++
++std::unique_ptr<ImageDataBuffer> ImageDataBuffer::CreateForCanvas(
++    const SkPixmap& pixmap) {
++  std::unique_ptr<ImageDataBuffer> buffer =
++      base::WrapUnique(new ImageDataBuffer(pixmap));
++  if (!buffer->IsValid() || !buffer->ApplyCanvasFingerprintNoise())
++    return nullptr;
++  return buffer;
++}
++
+ base::span<const uint8_t> ImageDataBuffer::PixelData() const {
+   DCHECK(is_valid_);
+   return gfx::SkPixmapToSpan(pixmap_);
+diff --git a/third_party/blink/renderer/platform/graphics/image_data_buffer.h b/third_party/blink/renderer/platform/graphics/image_data_buffer.h
+index 7788473df7..f9038a2813 100644
+--- a/third_party/blink/renderer/platform/graphics/image_data_buffer.h
++++ b/third_party/blink/renderer/platform/graphics/image_data_buffer.h
+@@ -50,6 +50,9 @@ class PLATFORM_EXPORT ImageDataBuffer {
+   static std::unique_ptr<ImageDataBuffer> Create(
+       scoped_refptr<StaticBitmapImage>);
+   static std::unique_ptr<ImageDataBuffer> Create(const SkPixmap&);
++  static std::unique_ptr<ImageDataBuffer> CreateForCanvas(
++      scoped_refptr<StaticBitmapImage>);
++  static std::unique_ptr<ImageDataBuffer> CreateForCanvas(const SkPixmap&);
+
+   String ToDataURL(const ImageEncodingMimeType mime_type,
+                    const double& quality) const;
+@@ -58,12 +61,14 @@ class PLATFORM_EXPORT ImageDataBuffer {
+                    Vector<unsigned char>* encoded_image) const;
+
+   base::span<const uint8_t> PixelData() const;
++  const SkPixmap& Pixmap() const { return pixmap_; }
+
+  private:
+   ImageDataBuffer(const SkPixmap&);
+   ImageDataBuffer(scoped_refptr<StaticBitmapImage>);
+
+-  bool IsValid() { return is_valid_; }  // Only used by Create()
++  bool ApplyCanvasFingerprintNoise();
++  bool IsValid() { return is_valid_; }  // Only used by factory methods.
+
+   sk_sp<SkImage> retained_image_;
+   SkPixmap pixmap_;
+

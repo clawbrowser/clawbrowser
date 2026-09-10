@@ -5,19 +5,19 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 webgl_patch="${repo_root}/clawbrowser/patches/008-webgl-override.patch"
 canvas_patch="${repo_root}/clawbrowser/patches/007-canvas-noise.patch"
+canvas_helper="${repo_root}/clawbrowser/noise/canvas_noise.h"
+build_file="${repo_root}/clawbrowser/BUILD.gn"
 startup_source="${repo_root}/clawbrowser/startup.cc"
 cdp_patch="${repo_root}/clawbrowser/patches/033-devtools-no-getter-preview.patch"
 renderer_loader_patch="${repo_root}/clawbrowser/patches/002-renderer-main-loader.patch"
 gpu_loader_patch="${repo_root}/clawbrowser/patches/003-gpu-main-loader.patch"
 child_switch_patch="${repo_root}/clawbrowser/patches/004-child-process-flag-propagation.patch"
-startup_source="${repo_root}/clawbrowser/startup.cc"
 loader_source="${repo_root}/clawbrowser/fingerprint_loader.cc"
 screen_patch="${repo_root}/clawbrowser/patches/006-screen-metrics.patch"
 css_screen_patch="${repo_root}/clawbrowser/patches/036-css-media-screen.patch"
 font_enum_patch="${repo_root}/clawbrowser/patches/011-fonts-filter.patch"
 css_font_patch="${repo_root}/clawbrowser/patches/034-css-font-probing.patch"
 font_fallback_patch="${repo_root}/clawbrowser/patches/035-font-fallback-probing.patch"
-startup_source="${repo_root}/clawbrowser/startup.cc"
 verify_script="${repo_root}/clawbrowser/verify/resources/verify.js"
 
 if grep -q 'surface_policy.webgl == "override"' "${webgl_patch}"; then
@@ -41,12 +41,34 @@ fi
 # stale runtime_gpu value replayed from a cached request.
 grep -q 'AppendSwitchASCII("use-gl", "angle")' "${startup_source}"
 grep -q 'AppendSwitchASCII("use-angle", "swiftshader")' "${startup_source}"
+grep -q 'AppendSwitchASCII("use-webgpu-adapter", "swiftshader")' "${startup_source}"
 grep -q 'request->runtime_gpu = RuntimeGPUHint(command_line)' "${startup_source}"
 grep -q 'policy.canvas != "override"' "${startup_source}"
+grep -q 'policy.fonts != "native_or_allowlist"' "${startup_source}"
+grep -q 'request->runtime_browser_version = version_info::GetVersionNumber()' "${startup_source}"
+grep -q 'request->runtime_os_version.reset()' "${startup_source}"
 grep -q '!IsSwiftShaderWebGLBackend' "${startup_source}"
 
-# Canvas noise may perturb color channels, but never the alpha byte.
-grep -q 'channel < 3' "${canvas_patch}"
+# Canvas readback and export must share coordinate-stable, RGB-only noise.
+grep -q 'base_rendering_context_2d.cc' "${canvas_patch}"
+[[ "$(grep -c 'ApplyFingerprintNoise(' "${canvas_patch}")" -ge 3 ]]
+grep -q 'std::min<int64_t>(sx' "${canvas_patch}"
+grep -q 'CreateForCanvas(image_bitmap)' "${canvas_patch}"
+grep -q 'canvas_async_blob_creator.cc' "${canvas_patch}"
+grep -q 'std::move(source_buffer_)' "${canvas_patch}"
+grep -q 'ApplyCanvasFingerprintNoise' "${canvas_patch}"
+if grep -q 'canvas_rendering_context_2d.cc' "${canvas_patch}"; then
+  echo "Canvas noise must hook the shared BaseRenderingContext2D path." >&2
+  exit 1
+fi
+grep -q 'logical_channel < 3' "${canvas_helper}"
+grep -q 'pixel + (2 - logical_channel)' "${canvas_helper}"
+grep -q 'PixelNoiseSeed\|PixelSeed' "${canvas_helper}"
+grep -q 'CanonicalizeUint8Lsb' "${canvas_helper}"
+grep -q 'CanonicalizeFloat16Lsb' "${canvas_helper}"
+grep -q 'CanonicalizeFloat32Lsb' "${canvas_helper}"
+grep -q 'NextUint32() & 1u' "${canvas_helper}"
+grep -q 'kExponentMask' "${canvas_helper}"
 if grep -A8 'case GL_VENDOR:' "${webgl_patch}" | grep -q 'fp->webgl'; then
   echo "Masked GL_VENDOR must retain Chromium's standard value." >&2
   exit 1
@@ -126,6 +148,26 @@ grep -A12 'void ScreenOrientationController::UpdateOrientation()' "${screen_patc
 grep -A12 'void ScreenOrientationController::UpdateOrientation()' "${screen_patch}" | grep -q 'orientation_->SetAngle(0)'
 grep -A5 'void ScreenOrientationController::NotifyOrientationChanged()' "${screen_patch}" | grep -q 'FingerprintAccessor::Get()'
 grep -A5 'int LocalDOMWindow::orientation() const' "${screen_patch}" | grep -q 'return 0'
+grep -q 'third_party/blink/renderer/core/events/mouse_event.h' "${screen_patch}"
+grep -q 'third_party/blink/renderer/core/input/touch_event_manager.cc' "${screen_patch}"
+grep -A35 'gfx::PointF EventScreenPositionForFingerprint' "${screen_patch}" |
+  grep -q 'BlinkSpaceToDIPs'
+grep -A20 'void MouseEvent::SetCoordinatesFromWebPointerProperties' "${screen_patch}" |
+  grep -q 'EventScreenPositionForFingerprint'
+grep -A20 'Touch\* TouchEventManager::CreateDomTouch' "${screen_patch}" |
+  grep -q 'EventScreenPositionForFingerprint'
+grep -A18 'int LocalDOMWindow::outerHeight() const' "${screen_patch}" |
+  grep -q 'DeriveWindowSize'
+grep -A18 'int LocalDOMWindow::outerWidth() const' "${screen_patch}" |
+  grep -q 'DeriveWindowSize'
+grep -q 'third_party/blink/renderer/core/resize_observer/resize_observer_utilities.cc' "${screen_patch}"
+grep -A40 'ComputeSnappedDevicePixelContentBox(' "${screen_patch}" |
+  grep -q 'fp->screen.pixel_ratio / native_dpr'
+grep -q 'third_party/blink/renderer/modules/csspaint/paint_worklet_global_scope.cc' "${screen_patch}"
+grep -A7 'double PaintWorkletGlobalScope::devicePixelRatio() const' "${screen_patch}" |
+  grep -q 'fp->screen.pixel_ratio'
+grep -A12 'component("clawbrowser_runtime")' "${build_file}" |
+  grep -q 'fingerprint_coherence.h'
 grep -q 'if (fp && !command_line->HasSwitch("window-position"))' "${startup_source}"
 grep -q "check('screen.availLeft', 0, screen.availLeft)" "${verify_script}"
 grep -q "check('window.screenX', 0, window.screenX)" "${verify_script}"
@@ -134,6 +176,28 @@ grep -q "check('screen.orientation.angle', 0, screen.orientation.angle)" "${veri
 grep -q 'fp->screen.width' "${css_screen_patch}"
 grep -A5 'bool MediaValues::CalculateDeviceSupportsHDR' "${css_screen_patch}" | grep -q 'return false'
 grep -A5 'ColorSpaceGamut MediaValues::CalculateColorGamut' "${css_screen_patch}" | grep -q 'ColorSpaceGamut::SRGB'
+grep -A6 'int MediaValues::CalculateColorBitsPerComponent' "${css_screen_patch}" | grep -q 'fp->screen.color_depth'
+grep -A5 'int MediaValues::CalculateMonochromeBitsPerComponent' "${css_screen_patch}" | grep -q 'return 0'
 grep -q 'ShouldFilterLocalFonts' "${font_enum_patch}"
+grep -q 'FontMetadata.blob()' "${font_enum_patch}"
+grep -A12 'ShouldFilterLocalFonts' "${font_enum_patch}" |
+  grep -q 'resolver->Resolve(std::move(entries))'
+if grep -q 'element.full_name(), element.family()' "${font_enum_patch}"; then
+  echo "Font enumeration must not admit every face solely by family name." >&2
+  exit 1
+fi
 grep -q 'IsLocalFontBlocked' "${css_font_patch}"
+grep -q 'css_font_selector_base.cc' "${css_font_patch}"
+grep -q 'offscreen_font_selector.cc' "${css_font_patch}"
+grep -q 'local_font_face_source.cc' "${css_font_patch}"
+grep -A8 'bool LocalFontFaceSource::IsLocalFontAvailable' "${css_font_patch}" |
+  grep -q 'IsLocalFontBlocked'
 grep -q 'IsLocalFontBlocked' "${font_fallback_patch}"
+grep -A4 'const bool clawbrowser_blocked' "${font_fallback_patch}" |
+  grep -q 'FamilyIsGeneric'
+grep -A10 'void CSSFontSelectorBase::WillUseFontData' "${css_font_patch}" |
+  grep -q 'IsLocalFontBlocked'
+grep -q 'ValidateFingerprintForRuntime' "${loader_source}"
+grep -q 'protected font allowlist contains an empty' "${loader_source}"
+
+echo "PASS"

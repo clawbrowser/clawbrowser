@@ -11,7 +11,7 @@ diff --git a/third_party/blink/renderer/platform/fonts/font_fallback_list.cc b/t
  #include "base/timer/elapsed_timer.h"
  #include "third_party/blink/renderer/platform/font_family_names.h"
  #include "third_party/blink/renderer/platform/fonts/alternate_font_family.h"
-@@ -154,9 +156,16 @@ const FontData* FontFallbackList::GetFontData(
+@@ -154,9 +156,17 @@ const FontData* FontFallbackList::GetFontData(
  
    for (; curr_family; curr_family = curr_family->Next()) {
      family_index_++;
@@ -20,6 +20,7 @@ diff --git a/third_party/blink/renderer/platform/fonts/font_fallback_list.cc b/t
 +    // FontCache retries below would silently undo that refusal and hand back
 +    // the real installed face, leaving the probe wide open.
 +    const bool clawbrowser_blocked =
++        !curr_family->FamilyIsGeneric() &&
 +        clawbrowser::IsLocalFontBlocked(curr_family->FamilyName().Utf8());
 +
      if (!font_selector_) {
@@ -29,7 +30,7 @@ diff --git a/third_party/blink/renderer/platform/fonts/font_fallback_list.cc b/t
          if (auto* result = FontCache::Get().GetFontData(
                  font_description, curr_family->FamilyName())) {
            return result;
-@@ -168,7 +177,7 @@ const FontData* FontFallbackList::GetFontData(
+@@ -168,7 +178,7 @@ const FontData* FontFallbackList::GetFontData(
      const FontData* result =
          font_selector_->GetFontData(font_description, *curr_family);
      // Don't query system fonts for empty font family name.

@@ -5,7 +5,7 @@ diff --git a/third_party/blink/renderer/core/css/css_font_selector.cc b/third_pa
 @@ -26,6 +26,8 @@
  
  #include "third_party/blink/renderer/core/css/css_font_selector.h"
- 
+
 +#include "clawbrowser/fingerprint_coherence.h"
 +
  #include "build/build_config.h"
@@ -37,3 +37,98 @@ diff --git a/third_party/blink/renderer/core/css/css_font_selector.cc b/third_pa
    // Try to return the correct font based off our settings, in case we were
    // handed the generic font family name.
    AtomicString settings_family_name =
+
+diff --git a/third_party/blink/renderer/core/css/css_font_selector_base.cc b/third_party/blink/renderer/core/css/css_font_selector_base.cc
+--- a/third_party/blink/renderer/core/css/css_font_selector_base.cc
++++ b/third_party/blink/renderer/core/css/css_font_selector_base.cc
+@@ -5,5 +5,7 @@
+ #include "third_party/blink/renderer/core/css/css_font_selector_base.h"
+
++#include "clawbrowser/fingerprint_coherence.h"
++
+ #include "build/build_config.h"
+ #include "third_party/blink/renderer/core/css/css_segmented_font_face.h"
+ #include "third_party/blink/renderer/core/frame/web_feature.h"
+@@ -27,5 +29,9 @@ bool CSSFontSelectorBase::IsPlatformFamilyMatchAvailable(
+     const FontDescription& font_description,
+     const FontFamily& passed_family) {
++  if (!passed_family.FamilyIsGeneric() &&
++      clawbrowser::IsLocalFontBlocked(passed_family.FamilyName().Utf8()))
++    return false;
++
+   AtomicString family = FamilyNameFromSettings(font_description, passed_family);
+   if (family.empty()) {
+     family = passed_family.FamilyName();
+@@ -77,6 +83,10 @@ void CSSFontSelectorBase::WillUseFontData(
+     return;
+   }
+
++  if (clawbrowser::IsLocalFontBlocked(family.FamilyName().Utf8())) {
++    return;
++  }
++
+   if (family.IsPrewarmed()) {
+     return;
+   }
+
+diff --git a/third_party/blink/renderer/core/css/offscreen_font_selector.cc b/third_party/blink/renderer/core/css/offscreen_font_selector.cc
+--- a/third_party/blink/renderer/core/css/offscreen_font_selector.cc
++++ b/third_party/blink/renderer/core/css/offscreen_font_selector.cc
+@@ -5,5 +5,7 @@
+ #include "third_party/blink/renderer/core/css/offscreen_font_selector.h"
+
++#include "clawbrowser/fingerprint_coherence.h"
++
+ #include "build/build_config.h"
+ #include "third_party/blink/renderer/core/frame/settings.h"
+ #include "third_party/blink/renderer/platform/fonts/font_cache.h"
+@@ -38,10 +40,15 @@ void OffscreenFontSelector::UnregisterForInvalidationCallbacks(
+ const FontData* OffscreenFontSelector::GetFontData(
+     const FontDescription& font_description,
+     const FontFamily& font_family) {
+   const auto& family_name = font_family.FamilyName();
+   if (CSSSegmentedFontFace* face =
+           font_face_cache_->Get(font_description, family_name)) {
+     return face->GetFontData(font_description);
+   }
+
++  if (!font_family.FamilyIsGeneric() &&
++      clawbrowser::IsLocalFontBlocked(family_name.Utf8())) {
++    return nullptr;
++  }
++
+   // Try to return the correct font based off our settings, in case we were
+
+diff --git a/third_party/blink/renderer/core/css/local_font_face_source.cc b/third_party/blink/renderer/core/css/local_font_face_source.cc
+--- a/third_party/blink/renderer/core/css/local_font_face_source.cc
++++ b/third_party/blink/renderer/core/css/local_font_face_source.cc
+@@ -4,6 +4,8 @@
+
+ #include "third_party/blink/renderer/core/css/local_font_face_source.h"
+
++#include "clawbrowser/fingerprint_coherence.h"
++
+ #include "base/metrics/histogram_functions.h"
+ #include "build/build_config.h"
+ #include "third_party/blink/renderer/core/css/css_custom_font_data.h"
+@@ -33,5 +35,10 @@ LocalFontFaceSource::~LocalFontFaceSource() {}
+
+ bool LocalFontFaceSource::IsLocalNonBlocking() const {
++  // A blocked unique-name lookup must look synchronously unavailable. Letting
++  // it enter the asynchronous lookup path exposes a different FontFace state
++  // and timing signal for a font that the profile does not claim to have.
++  if (clawbrowser::IsLocalFontBlocked(font_name_.Utf8()))
++    return true;
+   FontUniqueNameLookup* unique_name_lookup =
+       FontGlobalContext::Get().GetFontUniqueNameLookup();
+   if (!unique_name_lookup) {
+@@ -42,6 +49,9 @@ bool LocalFontFaceSource::IsLocalNonBlocking() const {
+
+ bool LocalFontFaceSource::IsLocalFontAvailable(
+     const FontDescription& font_description) const {
++  if (clawbrowser::IsLocalFontBlocked(font_name_.Utf8()))
++    return false;
++
+   // TODO(crbug.com/1025945): Properly handle Windows prior to 10 and Android.
+   bool font_available = FontCache::Get().IsPlatformFontUniqueNameMatchAvailable(
+       font_description, font_name_);

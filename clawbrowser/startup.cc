@@ -151,8 +151,13 @@ void ApplyFingerprintWebGLIsolation(const ClawArgs& args,
 
   command_line->RemoveSwitch("use-gl");
   command_line->RemoveSwitch("use-angle");
+  command_line->RemoveSwitch("use-webgpu-adapter");
   command_line->AppendSwitchASCII("use-gl", "angle");
   command_line->AppendSwitchASCII("use-angle", "swiftshader");
+  // WebGPU selects a Dawn adapter independently from ANGLE. Pin it to the
+  // bundled fallback adapter as well; otherwise WebGL reports SwiftShader
+  // while navigator.gpu still exposes the host Metal/D3D/Vulkan device.
+  command_line->AppendSwitchASCII("use-webgpu-adapter", "swiftshader");
 
   // Renderer/GPU children reconstruct the surface policy from the profile and
   // raw command-line switches. Force the resolved native WebGL policy onto
@@ -337,6 +342,7 @@ bool CachedProfileNeedsPrivacyUpgrade(ProfileManager* profile_manager,
   }
   const auto& policy = cached->response.fingerprint.surface_policy;
   return policy.canvas != "override" ||
+         policy.fonts != "native_or_allowlist" ||
          !cached->request.runtime_gpu.has_value() ||
          !base::StartsWith(*cached->request.runtime_gpu, "swiftshader",
                            base::CompareCase::INSENSITIVE_ASCII);
@@ -376,21 +382,25 @@ void ApplyGenerateRequestOverrides(const ClawArgs& args,
 
 void ApplyRuntimeRequestHints(const base::CommandLine& command_line,
                               GenerateRequest* request) {
-  if (!request->runtime_browser_version.has_value() ||
-      request->runtime_browser_version->empty()) {
-    request->runtime_browser_version = version_info::GetVersionNumber();
+  // Targeting fields such as country/city are intentionally replayed from a
+  // cached request. Runtime facts are not: after a browser/OS update they must
+  // always describe the executable doing this launch, or regeneration can
+  // immediately create another stale fingerprint.
+  request->runtime_browser_version = version_info::GetVersionNumber();
+  std::string os = RuntimeOS();
+  if (!os.empty()) {
+    request->runtime_os = std::move(os);
+  } else {
+    request->runtime_os.reset();
   }
-  if (!request->runtime_os.has_value() || request->runtime_os->empty()) {
-    std::string os = RuntimeOS();
-    if (!os.empty()) {
-      request->runtime_os = std::move(os);
-    }
-  }
-  if (!request->runtime_arch.has_value() || request->runtime_arch->empty()) {
-    std::string arch = RuntimeArch();
-    if (!arch.empty()) {
-      request->runtime_arch = std::move(arch);
-    }
+  // We currently have no portable runtime OS-version probe. An absent hint is
+  // safer than replaying a value captured on a different host or OS release.
+  request->runtime_os_version.reset();
+  std::string arch = RuntimeArch();
+  if (!arch.empty()) {
+    request->runtime_arch = std::move(arch);
+  } else {
+    request->runtime_arch.reset();
   }
   // The effective launch backend always wins over a value replayed from the
   // cached request. Otherwise a one-time migration from Apple/D3D to

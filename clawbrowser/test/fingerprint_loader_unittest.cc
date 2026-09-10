@@ -182,6 +182,81 @@ TEST_F(FingerprintLoaderTest, LoadMalformedFile) {
   ASSERT_FALSE(result.has_value());
 }
 
+TEST_F(FingerprintLoaderTest, RejectsFingerprintValuesThatWouldLeakHostScreen) {
+  std::string json;
+  ASSERT_TRUE(base::ReadFileToString(GetFixturePath("valid_fingerprint.json"),
+                                    &json));
+  auto parsed = ProfileEnvelope::Parse(json);
+  ASSERT_TRUE(parsed.has_value()) << parsed.error();
+  const Fingerprint valid = parsed->response.fingerprint;
+
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+  int case_index = 0;
+  const auto expect_rejected = [&](Fingerprint fingerprint,
+                                   const std::string& expected_error) {
+    ProfileEnvelope envelope = *parsed;
+    envelope.response.fingerprint = std::move(fingerprint);
+    const base::FilePath path = temp_dir.GetPath().AppendASCII(
+        "invalid-" + std::to_string(case_index++) + ".json");
+    ASSERT_TRUE(base::WriteFile(path, envelope.Serialize()));
+
+    auto result = LoadFingerprint(path);
+    EXPECT_FALSE(result.has_value());
+    if (!result.has_value()) {
+      EXPECT_NE(result.error().find(expected_error), std::string::npos)
+          << result.error();
+    }
+    EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+
+    auto child_payload = BuildChildFingerprintPayload(path);
+    EXPECT_FALSE(child_payload.has_value());
+    if (!child_payload.has_value()) {
+      EXPECT_NE(child_payload.error().find(expected_error), std::string::npos)
+          << child_payload.error();
+    }
+  };
+
+  Fingerprint invalid = valid;
+  invalid.screen.width = 0;
+  expect_rejected(invalid, "screen dimensions must be positive");
+
+  invalid = valid;
+  invalid.screen.avail_width = invalid.screen.width + 1;
+  expect_rejected(invalid, "available screen exceeds full screen");
+
+  invalid = valid;
+  invalid.screen.pixel_ratio = 0.0;
+  expect_rejected(invalid, "screen pixel ratio must be finite and in");
+
+  invalid = valid;
+  invalid.screen.pixel_ratio = 10.5;
+  expect_rejected(invalid, "screen pixel ratio must be finite and in");
+
+  invalid = valid;
+  invalid.screen.color_depth = 0;
+  expect_rejected(invalid, "screen color depth must be 3-48 bits");
+
+  invalid = valid;
+  invalid.screen.color_depth = 25;
+  expect_rejected(invalid, "screen color depth must be 3-48 bits");
+
+  invalid = valid;
+  invalid.screen.width = 32769;
+  expect_rejected(invalid, "screen dimensions exceed runtime limits");
+
+  invalid = valid;
+  invalid.fonts.clear();
+  invalid.surface_policy.fonts.mode = "native_or_allowlist";
+  expect_rejected(invalid, "protected font allowlist is empty");
+
+  invalid = valid;
+  invalid.fonts = {"   \t"};
+  invalid.surface_policy.fonts.mode = "native_or_allowlist";
+  expect_rejected(invalid,
+                  "protected font allowlist contains an empty name");
+}
+
 TEST_F(FingerprintLoaderTest, AccessorReturnsNullWhenNotLoaded) {
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
 }
@@ -275,8 +350,8 @@ TEST_F(FingerprintLoaderTest, LoadFromChildPayloadPrefersChildData) {
       "screen": {
         "width": 1,
         "height": 2,
-        "avail_width": 3,
-        "avail_height": 4,
+        "avail_width": 1,
+        "avail_height": 2,
         "color_depth": 24,
         "pixel_ratio": 1.25
       },
