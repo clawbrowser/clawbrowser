@@ -395,6 +395,7 @@ TEST_F(StartupTest, FingerprintWithCachedProfile) {
   // Command line flags should be set
   EXPECT_TRUE(cmd.HasSwitch(kFingerprintPathSwitch));
   EXPECT_TRUE(cmd.HasSwitch(kRequireFingerprintSwitch));
+  EXPECT_TRUE(cmd.HasSwitch(kDisableWebGLSpoofingSwitch));
   EXPECT_FALSE(cmd.HasSwitch("clawbrowser-fp-data"));
   EXPECT_TRUE(cmd.HasSwitch("user-data-dir"));
   EXPECT_TRUE(cmd.HasSwitch("proxy-server"));
@@ -532,7 +533,7 @@ TEST_F(StartupTest, ExplicitWindowPositionIsNotOverridden) {
   EXPECT_EQ(cmd.GetSwitchValueASCII("window-position"), "317,223");
 }
 
-TEST_F(StartupTest, SpoofingFlagsApplyToLoadedBrowserFingerprint) {
+TEST_F(StartupTest, SwiftShaderDisablesWebGLStringSpoofingEvenWhenForced) {
   WriteCachedProfile("cached_profile");
   WriteConfigJson("test_key");
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
@@ -546,7 +547,9 @@ TEST_F(StartupTest, SpoofingFlagsApplyToLoadedBrowserFingerprint) {
   EXPECT_FALSE(result->should_exit);
   ASSERT_NE(FingerprintAccessor::Get(), nullptr);
   EXPECT_TRUE(FingerprintAccessor::Get()->canvas_spoofing_enabled);
-  EXPECT_TRUE(FingerprintAccessor::Get()->webgl_spoofing_enabled);
+  EXPECT_FALSE(FingerprintAccessor::Get()->webgl_spoofing_enabled);
+  EXPECT_TRUE(cmd.HasSwitch(kEnableWebGLSpoofingSwitch));
+  EXPECT_TRUE(cmd.HasSwitch(kDisableWebGLSpoofingSwitch));
 }
 
 TEST_F(StartupTest,
@@ -686,6 +689,7 @@ TEST_F(StartupTest, ConfigureEarlyStartupKeepsDisableGPUWithSwiftShader) {
   EXPECT_TRUE(cmd.HasSwitch("disable-gpu"));
   EXPECT_EQ(cmd.GetSwitchValueASCII("use-gl"), "angle");
   EXPECT_EQ(cmd.GetSwitchValueASCII("use-angle"), "swiftshader");
+  EXPECT_TRUE(cmd.HasSwitch(kDisableWebGLSpoofingSwitch));
 }
 
 TEST_F(StartupTest, ConfigureEarlyStartupUsesDefaultFingerprintEnv) {

@@ -329,6 +329,22 @@ TEST_F(FingerprintLoaderTest, CommandLineSpoofingFlagsApplyToChildPayload) {
   EXPECT_TRUE(FingerprintAccessor::Get()->webgl_spoofing_enabled);
 }
 
+TEST_F(FingerprintLoaderTest, DisableWebGLSwitchWinsInChildPayload) {
+  auto child_payload = BuildChildFingerprintPayload(
+      GetFixturePath("valid_fingerprint.json"));
+  ASSERT_TRUE(child_payload.has_value()) << child_payload.error();
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII(kFingerprintChildDataSwitch, *child_payload);
+  cmd.AppendSwitch(kEnableWebGLSpoofingSwitch);
+  cmd.AppendSwitch(kDisableWebGLSpoofingSwitch);
+
+  auto result = LoadFingerprintFromCommandLine(cmd);
+  ASSERT_TRUE(result.has_value()) << result.error();
+  ASSERT_NE(FingerprintAccessor::Get(), nullptr);
+  EXPECT_FALSE(FingerprintAccessor::Get()->webgl_spoofing_enabled);
+}
+
 TEST_F(FingerprintLoaderTest, ChildPayloadPreservesProxyConfig) {
   auto child_payload = BuildChildFingerprintPayload(
       GetFixturePath("valid_fingerprint.json"));

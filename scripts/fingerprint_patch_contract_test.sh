@@ -78,6 +78,8 @@ grep -q 'fingerprint_save_failed' "${startup_source}"
 grep -q 'fingerprint_load_failed' "${startup_source}"
 grep -q 'fingerprint_child_payload_failed' "${startup_source}"
 grep -q 'AppendSwitch(kRequireFingerprintSwitch)' "${startup_source}"
+grep -A35 'void ApplyFingerprintWebGLIsolation' "${startup_source}" |
+  grep -q 'AppendSwitch(kDisableWebGLSpoofingSwitch)'
 grep -q 'HasSwitch(kRequireFingerprintSwitch)' "${loader_source}"
 grep -q 'managed child process is missing fingerprint payload and path' \
   "${loader_source}"

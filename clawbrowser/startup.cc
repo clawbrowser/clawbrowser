@@ -153,6 +153,15 @@ void ApplyFingerprintWebGLIsolation(const ClawArgs& args,
   command_line->RemoveSwitch("use-angle");
   command_line->AppendSwitchASCII("use-gl", "angle");
   command_line->AppendSwitchASCII("use-angle", "swiftshader");
+
+  // Renderer/GPU children reconstruct the surface policy from the profile and
+  // raw command-line switches. Force the resolved native WebGL policy onto
+  // their command lines too, including while an older backend or cached
+  // profile still says "override". Otherwise those children would put the
+  // stale vendor/renderer overlay back on top of SwiftShader's real limits.
+  if (!command_line->HasSwitch(kDisableWebGLSpoofingSwitch)) {
+    command_line->AppendSwitch(kDisableWebGLSpoofingSwitch);
+  }
 }
 
 void ConfigureProfileStartupCommandLine(const ClawArgs& args,
