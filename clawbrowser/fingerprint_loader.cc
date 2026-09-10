@@ -338,6 +338,10 @@ base::expected<void, std::string> LoadFingerprintFromCommandLine(
   }
 
   if (!command_line.HasSwitch(kFingerprintPathSwitch)) {
+    if (command_line.HasSwitch(kRequireFingerprintSwitch)) {
+      return base::unexpected(
+          "managed child process is missing fingerprint payload and path");
+    }
     return base::ok();  // Vanilla mode — no fingerprint
   }
 

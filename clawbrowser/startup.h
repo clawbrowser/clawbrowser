@@ -16,7 +16,8 @@ namespace clawbrowser {
 
 // Result of startup orchestration.
 struct StartupResult {
-  bool should_exit = false;  // True if --list was handled (exit after print)
+  // True when startup was fully handled or a managed launch was blocked.
+  bool should_exit = false;
   int exit_code = 0;
 };
 
@@ -37,7 +38,9 @@ base::expected<std::optional<int>, std::string> HandleBasicStartupComplete(
 //       --lang, --accept-lang on command line for child-process loading
 // 4. If no --fingerprint: vanilla mode, set Default user-data-dir
 //
-// Errors print to stderr (and JSON to stdout if --output=json).
+// Managed fingerprint acquisition, persistence, and load errors fail closed:
+// they print to stderr (and JSON to stdout if --output=json) and return a
+// non-zero exit result instead of continuing with native browser surfaces.
 // Returns StartupResult indicating whether to continue or exit.
 base::expected<StartupResult, std::string> RunStartup(
     base::CommandLine* command_line,

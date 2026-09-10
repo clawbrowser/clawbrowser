@@ -1,7 +1,7 @@
 # Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -2833,6 +2833,30 @@
+@@ -2833,6 +2833,33 @@
        command_line->GetSwitchValueASCII(switches::kProcessType);
    const base::CommandLine& browser_command_line =
        *base::CommandLine::ForCurrentProcess();
@@ -16,6 +16,9 @@
 +        "clawbrowser-fp-child-data",
 +        browser_command_line.GetSwitchValueASCII(
 +            "clawbrowser-fp-child-data"));
++  }
++  if (browser_command_line.HasSwitch("clawbrowser-require-fingerprint")) {
++    command_line->AppendSwitch("clawbrowser-require-fingerprint");
 +  }
 +  if (browser_command_line.HasSwitch("enable-canvas-spoofing")) {
 +    command_line->AppendSwitch("enable-canvas-spoofing");

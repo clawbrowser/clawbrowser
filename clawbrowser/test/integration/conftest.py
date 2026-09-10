@@ -27,7 +27,7 @@ MISMATCH_PROXY_FIXTURE_PATH = PROJECT_ROOT / "api/mocks/proxy_mismatch.json"
 # Mirrors DefaultProfilePlatform() in clawbrowser/startup.cc: the value the
 # browser puts in GenerateRequest.platform on this host. Fixtures that pin
 # "platform" for mock request-matching have to use the same value or the mock
-# rejects the request with 400 and the browser silently falls back to vanilla.
+# rejects the request with 400 and managed browser startup fails closed.
 HOST_PROFILE_PLATFORM = {
     "win32": "windows",
     "darwin": "macos",

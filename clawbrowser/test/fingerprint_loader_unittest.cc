@@ -215,6 +215,48 @@ TEST_F(FingerprintLoaderTest, InlineCommandLineDataIsIgnored) {
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
 }
 
+TEST_F(FingerprintLoaderTest, ManagedChildWithoutFingerprintDataFails) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitch(kRequireFingerprintSwitch);
+
+  auto result = LoadFingerprintFromCommandLine(cmd);
+
+  ASSERT_FALSE(result.has_value());
+  EXPECT_NE(result.error().find("missing fingerprint payload and path"),
+            std::string::npos);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+}
+
+TEST_F(FingerprintLoaderTest, ManagedChildWithUnreadablePathFails) {
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitch(kRequireFingerprintSwitch);
+  cmd.AppendSwitchPath(kFingerprintPathSwitch,
+                       temp_dir.GetPath().AppendASCII("missing-profile.json"));
+
+  auto result = LoadFingerprintFromCommandLine(cmd);
+
+  ASSERT_FALSE(result.has_value());
+  EXPECT_NE(result.error().find("failed to read fingerprint file"),
+            std::string::npos);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+}
+
+TEST_F(FingerprintLoaderTest, ManagedChildWithCorruptPayloadFails) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitch(kRequireFingerprintSwitch);
+  cmd.AppendSwitchASCII(kFingerprintChildDataSwitch, "not-base64!");
+
+  auto result = LoadFingerprintFromCommandLine(cmd);
+
+  ASSERT_FALSE(result.has_value());
+  EXPECT_NE(result.error().find("decode child fingerprint payload"),
+            std::string::npos);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+}
+
 TEST_F(FingerprintLoaderTest, LoadFromChildPayloadPrefersChildData) {
   const std::string child_json = R"({
     "fingerprint": {

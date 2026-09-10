@@ -387,6 +387,7 @@ TEST_F(StartupTest, FingerprintWithCachedProfile) {
   ASSERT_NE(FingerprintAccessor::Get(), nullptr);
   // Command line flags should be set
   EXPECT_TRUE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_TRUE(cmd.HasSwitch(kRequireFingerprintSwitch));
   EXPECT_FALSE(cmd.HasSwitch("clawbrowser-fp-data"));
   EXPECT_TRUE(cmd.HasSwitch("user-data-dir"));
   EXPECT_TRUE(cmd.HasSwitch("proxy-server"));
@@ -684,6 +685,7 @@ TEST_F(StartupTest, ConfigureEarlyStartupRoutesCachedProfileToAuthWithoutApiKey)
   cmd.AppendSwitch("restore-last-session");
   cmd.AppendSwitch("no-startup-window");
   cmd.AppendArg("clawbrowser://verify/");
+  cmd.AppendArg("https://example.test/private");
 
   auto result = ConfigureEarlyStartup(&cmd);
 
@@ -834,6 +836,7 @@ TEST_F(StartupTest, FingerprintNoApiKeyWithoutCachedProfileOpensAuth) {
   cmd.AppendSwitch("restore-last-session");
   cmd.AppendSwitch("no-startup-window");
   cmd.AppendArg("clawbrowser://verify/");
+  cmd.AppendArg("https://example.test/private");
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value());
   EXPECT_FALSE(result->should_exit);
@@ -1070,7 +1073,7 @@ TEST_F(StartupTest, FingerprintApiCallWithoutConfiguredBaseUrlRespectsBuildDefau
   EXPECT_EQ(result->exit_code, 1);
 }
 
-TEST_F(StartupTest, FingerprintApiCall401) {
+TEST_F(StartupTest, FingerprintApiCall401FailsClosed) {
   env_->SetVar("CLAWBROWSER_API_KEY", "bad_key");
   env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
 
@@ -1083,6 +1086,7 @@ TEST_F(StartupTest, FingerprintApiCall401) {
   cmd.AppendSwitch("restore-last-session");
   cmd.AppendSwitch("no-startup-window");
   cmd.AppendArg("clawbrowser://verify/");
+  cmd.AppendArg("https://example.test/private");
   auto early = ConfigureEarlyStartup(&cmd);
   ASSERT_TRUE(early.has_value()) << early.error();
   EXPECT_FALSE(early->should_exit);
@@ -1092,19 +1096,24 @@ TEST_F(StartupTest, FingerprintApiCall401) {
 
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value());
-  EXPECT_FALSE(result->should_exit);
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
-  EXPECT_FALSE(cmd.HasSwitch("restore-last-session"));
-  EXPECT_FALSE(cmd.HasSwitch("no-startup-window"));
-  ASSERT_EQ(cmd.GetArgs().size(), 1u);
-  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://auth/"));
-  EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Auth"),
-            std::string::npos);
+  EXPECT_TRUE(cmd.HasSwitch("restore-last-session"));
+  EXPECT_TRUE(cmd.HasSwitch("no-startup-window"));
+  ASSERT_EQ(cmd.GetArgs().size(), 2u);
+  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://verify/"));
+  EXPECT_EQ(cmd.GetArgs()[1],
+            FILE_PATH_LITERAL("https://example.test/private"));
+  EXPECT_EQ(UserDataDirSwitch(cmd),
+            NormalizePathForComparison(
+                CreateProfileManager().GetUserDataDir("bad_key_profile")));
 }
 
-TEST_F(StartupTest, FingerprintApiCall403OpensAuth) {
+TEST_F(StartupTest, FingerprintApiCall403FailsClosed) {
   env_->SetVar("CLAWBROWSER_API_KEY", "forbidden_key");
   env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
 
@@ -1120,17 +1129,19 @@ TEST_F(StartupTest, FingerprintApiCall403OpensAuth) {
 
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value());
-  EXPECT_FALSE(result->should_exit);
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
-  ASSERT_EQ(cmd.GetArgs().size(), 1u);
-  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://auth/"));
-  EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Auth"),
-            std::string::npos);
+  EXPECT_TRUE(cmd.GetArgs().empty());
+  EXPECT_EQ(UserDataDirSwitch(cmd),
+            NormalizePathForComparison(CreateProfileManager().GetUserDataDir(
+                "forbidden_key_profile")));
 }
 
-TEST_F(StartupTest, FingerprintApiCall500FallsBackWithoutAuth) {
+TEST_F(StartupTest, FingerprintApiCall500FailsClosed) {
   env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
   env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
 
@@ -1140,22 +1151,30 @@ TEST_F(StartupTest, FingerprintApiCall500FallsBackWithoutAuth) {
 
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
   cmd.AppendSwitchASCII("fingerprint", "server_error_profile");
+  cmd.AppendSwitchASCII("output", "json");
   auto early = ConfigureEarlyStartup(&cmd);
   ASSERT_TRUE(early.has_value()) << early.error();
   EXPECT_FALSE(early->should_exit);
 
+  testing::internal::CaptureStdout();
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  std::string stdout_output = testing::internal::GetCapturedStdout();
   ASSERT_TRUE(result.has_value());
-  EXPECT_FALSE(result->should_exit);
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
+  EXPECT_NE(stdout_output.find("\"error\":\"fingerprint_api_error\""),
+            std::string::npos);
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
   EXPECT_TRUE(cmd.GetArgs().empty());
-  EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Default"),
-            std::string::npos);
+  EXPECT_EQ(UserDataDirSwitch(cmd),
+            NormalizePathForComparison(CreateProfileManager().GetUserDataDir(
+                "server_error_profile")));
 }
 
-TEST_F(StartupTest, FingerprintApiNetworkFailureFallsBackWithoutAuth) {
+TEST_F(StartupTest, FingerprintApiNetworkFailureFailsClosed) {
   env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
   env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
 
@@ -1172,17 +1191,20 @@ TEST_F(StartupTest, FingerprintApiNetworkFailureFallsBackWithoutAuth) {
 
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value());
-  EXPECT_FALSE(result->should_exit);
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
   EXPECT_TRUE(cmd.GetArgs().empty());
-  EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Default"),
-            std::string::npos);
+  EXPECT_EQ(UserDataDirSwitch(cmd),
+            NormalizePathForComparison(CreateProfileManager().GetUserDataDir(
+                "network_failure_profile")));
 }
 
 TEST_F(StartupTest,
-       FingerprintApiLargeSeedParseFailureFallsBackWithoutAuth) {
+       FingerprintApiLargeSeedParseFailureFailsClosed) {
   env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
   env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
 
@@ -1212,13 +1234,89 @@ TEST_F(StartupTest,
 
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value());
-  EXPECT_FALSE(result->should_exit);
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
   EXPECT_TRUE(cmd.GetArgs().empty());
-  EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Default"),
+  EXPECT_EQ(UserDataDirSwitch(cmd),
+            NormalizePathForComparison(CreateProfileManager().GetUserDataDir(
+                "large_seed_failure_profile")));
+}
+
+TEST_F(StartupTest, FingerprintSaveFailureFailsClosed) {
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson("save-failure-ua"));
+
+  const std::string profile_id = "save_failure_profile";
+  ProfileManager manager = CreateProfileManager();
+  const base::FilePath profile_dir = manager.GetUserDataDir(profile_id);
+  ASSERT_TRUE(base::CreateDirectory(profile_dir.DirName()));
+  // A regular file where the profile directory must be makes SaveProfile fail
+  // deterministically without relying on platform-specific permissions.
+  ASSERT_TRUE(base::WriteFile(profile_dir, "directory collision"));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", profile_id);
+  cmd.AppendSwitchASCII("output", "json");
+  testing::internal::CaptureStdout();
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  std::string stdout_output = testing::internal::GetCapturedStdout();
+
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
+  EXPECT_NE(stdout_output.find("\"error\":\"fingerprint_save_failed\""),
             std::string::npos);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+  EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
+  EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
+}
+
+TEST_F(StartupTest, FingerprintLoadFailureAfterSaveFailsClosed) {
+#if BUILDFLAG(IS_POSIX)
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson("load-failure-ua"));
+
+  const std::string profile_id = "load_failure_profile";
+  ProfileManager manager = CreateProfileManager();
+  const base::FilePath profile_dir = manager.GetUserDataDir(profile_id);
+  ASSERT_TRUE(base::CreateDirectory(profile_dir));
+  // SaveProfile can write through /dev/null, but the following read produces
+  // empty input. This reaches the post-save LoadFingerprint failure path.
+  ASSERT_TRUE(base::CreateSymbolicLink(
+      base::FilePath(FILE_PATH_LITERAL("/dev/null")),
+      profile_dir.AppendASCII("fingerprint.json")));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", profile_id);
+  cmd.AppendSwitchASCII("output", "json");
+  testing::internal::CaptureStdout();
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  std::string stdout_output = testing::internal::GetCapturedStdout();
+
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
+  EXPECT_NE(stdout_output.find("\"error\":\"fingerprint_load_failed\""),
+            std::string::npos);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+  EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
+  EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
+#else
+  GTEST_SKIP() << "The deterministic write-success/read-failure fixture uses "
+                  "/dev/null.";
+#endif
 }
 
 TEST_F(StartupTest, RegenerateReplaysStoredParams) {

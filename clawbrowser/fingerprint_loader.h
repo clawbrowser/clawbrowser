@@ -36,6 +36,11 @@ struct RuntimeProxyConfig;
 inline constexpr char kFingerprintPathSwitch[] = "clawbrowser-fp-path";
 inline constexpr char kFingerprintChildDataSwitch[] =
     "clawbrowser-fp-child-data";
+// Marks renderer/GPU command lines that must not continue without a loaded
+// fingerprint. This keeps an accidentally missing/corrupt payload from turning
+// a managed profile into a native-fingerprint child process.
+inline constexpr char kRequireFingerprintSwitch[] =
+    "clawbrowser-require-fingerprint";
 
 // Load fingerprint from file and store in FingerprintAccessor.
 // Must be called before sandbox lockdown in renderer/GPU processes.
@@ -51,8 +56,9 @@ base::expected<std::string, std::string> BuildChildFingerprintPayload(
     const base::FilePath& path,
     const RuntimeProxyConfig& proxy_override);
 
-// Load fingerprint if --clawbrowser-fp-path is present on command line.
-// Returns success even if the switch is absent (vanilla mode).
+// Load fingerprint from the managed child payload or profile path. Returns
+// success with no data only for vanilla command lines; a command carrying
+// --clawbrowser-require-fingerprint fails if neither source is present.
 base::expected<void, std::string> LoadFingerprintFromCommandLine(
     const base::CommandLine& command_line);
 

@@ -160,17 +160,6 @@ base::FilePath GetAuthUserDataDir(ProfileManager* profile_manager) {
   return profile_manager->GetVanillaUserDataDir().DirName().AppendASCII("Auth");
 }
 
-bool ShouldKeepVanillaStartupArg(
-    const base::CommandLine::StringType& arg) {
-  return arg != FILE_PATH_LITERAL("clawbrowser://verify/");
-}
-
-bool ShouldKeepAuthStartupArg(
-    const base::CommandLine::StringType& arg) {
-  return arg != FILE_PATH_LITERAL("clawbrowser://auth/") &&
-         arg != FILE_PATH_LITERAL("clawbrowser://verify/");
-}
-
 bool ShouldKeepAuthStartupSwitch(std::string_view switch_name) {
   return switch_name != "restore-last-session" &&
          switch_name != "user-data-dir" &&
@@ -178,25 +167,6 @@ bool ShouldKeepAuthStartupSwitch(std::string_view switch_name) {
 }
 
 void AppendAuthPage(base::CommandLine* command_line);
-
-void StripVerifyPage(base::CommandLine* command_line) {
-  if (!HasStartupUrl(command_line,
-                     FILE_PATH_LITERAL("clawbrowser://verify/"))) {
-    return;
-  }
-
-  base::CommandLine filtered(command_line->GetProgram());
-  for (const auto& [switch_name, switch_value] : command_line->GetSwitches()) {
-    filtered.AppendSwitchNative(switch_name, switch_value);
-  }
-  for (const auto& arg : command_line->GetArgs()) {
-    if (!ShouldKeepVanillaStartupArg(arg)) {
-      continue;
-    }
-    filtered.AppendArgNative(arg);
-  }
-  *command_line = filtered;
-}
 
 void ConfigureAuthStartup(base::CommandLine* command_line,
                           ProfileManager* profile_manager) {
@@ -207,12 +177,9 @@ void ConfigureAuthStartup(base::CommandLine* command_line,
     }
     filtered.AppendSwitchNative(switch_name, switch_value);
   }
-  for (const auto& arg : command_line->GetArgs()) {
-    if (!ShouldKeepAuthStartupArg(arg)) {
-      continue;
-    }
-    filtered.AppendArgNative(arg);
-  }
+  // Auth runs without a managed fingerprint. Never carry startup URL/file
+  // arguments into that profile: doing so could load the requested target with
+  // native browser surfaces before authentication completes.
   filtered.AppendSwitchPath("user-data-dir", GetAuthUserDataDir(profile_manager));
   AppendAuthPage(&filtered);
   *command_line = filtered;
@@ -240,22 +207,17 @@ void StopSocks5AuthProxyBridge() {
   ActiveSocks5AuthProxyBridge().reset();
 }
 
-StartupResult FallbackToVanillaBrowser(base::CommandLine* command_line,
-                                       ProfileManager* profile_manager,
-                                       bool append_auth_page) {
+StartupResult FailManagedFingerprintStartup(const ClawArgs& args,
+                                            const std::string& code,
+                                            const std::string& message) {
   StopSocks5AuthProxyBridge();
   FingerprintAccessor::Reset();
-  if (append_auth_page) {
-    ConfigureAuthStartup(command_line, profile_manager);
-    return StartupResult();
-  }
-  StripVerifyPage(command_line);
-  ConfigureVanillaUserDataDir(command_line, profile_manager);
-  return StartupResult();
-}
+  PrintError(args, code, message);
 
-void PrintWarning(const std::string& message) {
-  fprintf(stderr, "[clawbrowser] warning: %s\n", message.c_str());
+  StartupResult result;
+  result.should_exit = true;
+  result.exit_code = 1;
+  return result;
 }
 
 constexpr char kBackendBrowserName[] = "chrome";
@@ -601,12 +563,10 @@ base::expected<StartupResult, std::string> RunStartup(
   if (needs_fetch) {
     std::optional<std::string> base_url = profile_manager.ResolveBaseUrl();
     if (!base_url.has_value()) {
-      PrintError(args, "no_api_base_url",
-                 "API base URL not found. Set CLAWBROWSER_API_BASE_URL or add "
-                 "api_base_url to config.json");
-      result.should_exit = true;
-      result.exit_code = 1;
-      return base::ok(std::move(result));
+      return base::ok(FailManagedFingerprintStartup(
+          args, "no_api_base_url",
+          "API base URL not found. Set CLAWBROWSER_API_BASE_URL or add "
+          "api_base_url to config.json"));
     }
 
     ApiClient client(*base_url, *api_key, url_loader_factory);
@@ -650,11 +610,15 @@ base::expected<StartupResult, std::string> RunStartup(
         msg = "rate limited, try again later";
       else
         msg = "API server error: " + err.message;
-      PrintWarning(msg + (invalid_api_key ? "; opening auth page"
-                                          : "; falling back to vanilla browser"));
-      return base::ok(FallbackToVanillaBrowser(
-          command_line, &profile_manager,
-          /*append_auth_page=*/invalid_api_key));
+      std::string code = "fingerprint_api_error";
+      if (invalid_api_key) {
+        code = "invalid_api_key";
+      } else if (err.http_status == 0) {
+        code = "fingerprint_api_unavailable";
+      } else if (err.http_status == 429) {
+        code = "fingerprint_api_rate_limited";
+      }
+      return base::ok(FailManagedFingerprintStartup(args, code, msg));
     }
 
     // Save profile envelope
@@ -666,10 +630,9 @@ base::expected<StartupResult, std::string> RunStartup(
 
     auto save_result = profile_manager.SaveProfile(fp_id, envelope);
     if (!save_result.has_value()) {
-      PrintWarning("failed to save fingerprint profile: " + save_result.error() +
-                   "; falling back to vanilla browser");
-      return base::ok(FallbackToVanillaBrowser(
-          command_line, &profile_manager, /*append_auth_page=*/false));
+      return base::ok(FailManagedFingerprintStartup(
+          args, "fingerprint_save_failed",
+          "failed to save fingerprint profile: " + save_result.error()));
     }
   }
 
@@ -677,10 +640,9 @@ base::expected<StartupResult, std::string> RunStartup(
   base::FilePath fp_path = profile_manager.GetFingerprintPath(fp_id);
   auto load_result = LoadFingerprint(fp_path);
   if (!load_result.has_value()) {
-    PrintWarning("failed to load fingerprint profile: " + load_result.error() +
-                 "; falling back to vanilla browser");
-    return base::ok(FallbackToVanillaBrowser(
-        command_line, &profile_manager, /*append_auth_page=*/false));
+    return base::ok(FailManagedFingerprintStartup(
+        args, "fingerprint_load_failed",
+        "failed to load fingerprint profile: " + load_result.error()));
   }
   // The fingerprint's surface_policy is the backend's statement of which
   // surfaces this profile wants spoofed, so it supplies the default. Requiring
@@ -714,7 +676,8 @@ base::expected<StartupResult, std::string> RunStartup(
       std::move(*dev_proxy_result);
 
   // Set command-line flags for Clawbrowser
-  command_line->AppendSwitchPath("clawbrowser-fp-path", fp_path);
+  command_line->AppendSwitch(kRequireFingerprintSwitch);
+  command_line->AppendSwitchPath(kFingerprintPathSwitch, fp_path);
   command_line->AppendSwitchPath(
       "user-data-dir", profile_manager.GetUserDataDir(fp_id));
 #if BUILDFLAG(IS_MAC)
@@ -723,10 +686,10 @@ base::expected<StartupResult, std::string> RunStartup(
                                                           *dev_proxy_override)
                            : BuildChildFingerprintPayload(fp_path);
   if (!child_payload.has_value()) {
-    PrintWarning("failed to prepare child fingerprint payload: " +
-                 child_payload.error() + "; falling back to vanilla browser");
-    return base::ok(FallbackToVanillaBrowser(
-        command_line, &profile_manager, /*append_auth_page=*/false));
+    return base::ok(FailManagedFingerprintStartup(
+        args, "fingerprint_child_payload_failed",
+        "failed to prepare child fingerprint payload: " +
+            child_payload.error()));
   }
   command_line->AppendSwitchASCII(kFingerprintChildDataSwitch, *child_payload);
 #endif
