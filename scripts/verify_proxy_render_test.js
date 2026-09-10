@@ -2,6 +2,8 @@
 
 const assert = require('node:assert/strict');
 
+global.window = {};
+
 const {
   exhaustProxyRetries,
   iceCandidateRelatedAddress,
@@ -16,6 +18,11 @@ const {
   summarizeProxyResult,
 } = require('../clawbrowser/verify/resources/verify.js');
 
+assert.deepEqual(window.__clawbrowser_capabilities, {
+  managed_proxy_privacy: 2,
+});
+assert.equal(Object.isFrozen(window.__clawbrowser_capabilities), true);
+
 assert.equal(iceCandidateType({ type: 'relay' }), 'relay');
 assert.equal(
   iceCandidateType('candidate:1 1 UDP 1 192.0.2.1 12345 typ srflx'),
@@ -29,6 +36,8 @@ assert.equal(
 );
 assert.equal(isUnspecifiedIceAddress('0.0.0.0'), true);
 assert.equal(isUnspecifiedIceAddress('::'), true);
+assert.equal(isUnspecifiedIceAddress('0.0.0.0:9'), true);
+assert.equal(isUnspecifiedIceAddress('[::]:9'), true);
 assert.equal(isUnspecifiedIceAddress('192.0.2.8'), false);
 assert.deepEqual(sdpIceCandidates([
   'v=0',
@@ -41,11 +50,12 @@ assert.deepEqual(sdpIceCandidates([
 
 assert.deepEqual(summarizeWebRtcCandidates({
   candidates: [],
+  errors: [],
   complete: true,
 }), {
   surface: 'webrtc.iceCandidates',
   pass: true,
-  expected: 'completed gathering; relay candidates only; no related address',
+  expected: 'completed gathering; relay candidates only; no related or ICE error address',
   actual: 'gathering complete; no ICE candidates exposed',
   detail: 'no direct or related address exposed',
 });
@@ -85,6 +95,32 @@ const relatedAddressLeak = summarizeWebRtcCandidates({
 });
 assert.equal(relatedAddressLeak.pass, false);
 assert.equal(relatedAddressLeak.detail, 'relay candidate exposed a related address');
+
+const iceErrorAddressLeak = summarizeWebRtcCandidates({
+  candidates: [],
+  errors: [{ address: '192.0.2.8' }],
+  complete: true,
+});
+assert.equal(iceErrorAddressLeak.pass, false);
+assert.equal(iceErrorAddressLeak.actual, 'ICE candidate error exposed an address');
+assert.equal(iceErrorAddressLeak.detail, 'ICE candidate error exposed an address');
+
+const iceErrorHostCandidateLeak = summarizeWebRtcCandidates({
+  candidates: [],
+  errors: [{ hostCandidate: '192.0.2.8:50000' }],
+  complete: true,
+});
+assert.equal(iceErrorHostCandidateLeak.pass, false);
+assert.equal(
+  iceErrorHostCandidateLeak.detail,
+  'ICE candidate error exposed an address'
+);
+
+assert.equal(summarizeWebRtcCandidates({
+  candidates: [],
+  errors: [{ address: '0.0.0.0', hostCandidate: '[::]:9' }],
+  complete: true,
+}).pass, true);
 
 assert.equal(shouldValidateSurface('native', false), false);
 assert.equal(shouldValidateSurface('native', true), false);

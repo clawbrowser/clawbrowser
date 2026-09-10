@@ -4,6 +4,7 @@ WEBRTC_PROBE_SCRIPT = r"""async iceServerSets => {
     const gather = iceServers => new Promise((resolve, reject) => {
         const pc = new RTCPeerConnection({iceServers});
         const candidates = [];
+        const errors = [];
         let resolved = false;
         let timeoutId;
         const finish = async complete => {
@@ -45,7 +46,7 @@ WEBRTC_PROBE_SCRIPT = r"""async iceServerSets => {
                 clearTimeout(statsTimeoutId);
             }
             pc.close();
-            resolve({complete, candidates});
+            resolve({complete, candidates, errors});
         };
         pc.onicecandidate = event => {
             if (event.candidate) {
@@ -59,6 +60,13 @@ WEBRTC_PROBE_SCRIPT = r"""async iceServerSets => {
             } else if (pc.iceGatheringState === 'complete') {
                 void finish(true);
             }
+        };
+        pc.onicecandidateerror = event => {
+            errors.push({
+                address: event.address || '',
+                hostCandidate: event.hostCandidate || '',
+                port: event.port || 0,
+            });
         };
         pc.onicegatheringstatechange = () => {
             if (pc.iceGatheringState === 'complete') {
@@ -80,8 +88,21 @@ WEBRTC_PROBE_SCRIPT = r"""async iceServerSets => {
 }"""
 
 
+def _is_unspecified_address(address):
+    normalized = str(address or "").strip().lower()
+    if normalized in ("", "0.0.0.0", "::", "[::]"):
+        return True
+    if normalized.startswith("0.0.0.0:"):
+        return normalized.removeprefix("0.0.0.0:").isdigit()
+    if normalized.startswith("[::]:"):
+        return normalized.removeprefix("[::]:").isdigit()
+    if normalized.startswith(":::"):
+        return normalized.removeprefix(":::").isdigit()
+    return False
+
+
 async def collect_webrtc_observations(page, ice_server_sets):
-    """Gather ICE candidates from events, local SDP, and getStats."""
+    """Gather ICE candidates and error addresses from every exposed surface."""
     return await page.evaluate(WEBRTC_PROBE_SCRIPT, ice_server_sets)
 
 
@@ -106,9 +127,17 @@ def _related_address(candidate):
 
 
 def assert_relay_only(observations, *, require_relay=False):
-    """Reject incomplete gathering, direct candidates, and related addresses."""
+    """Reject incomplete gathering and every observable non-relay address."""
+    for observation in observations:
+        for error in observation.get("errors", []):
+            for field in ("address", "hostCandidate"):
+                address = error.get(field, "")
+                assert _is_unspecified_address(address), (
+                    f"ICE candidate error exposed {field}"
+                )
+
     assert all(item["complete"] for item in observations), (
-        f"ICE gathering did not complete: {observations}"
+        "ICE gathering did not complete"
     )
 
     relay_count = 0

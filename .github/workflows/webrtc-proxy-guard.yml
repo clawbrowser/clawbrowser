@@ -1,4 +1,4 @@
-name: WebRTC proxy contract
+name: WebRTC managed-proxy contract
 
 on:
   pull_request:
