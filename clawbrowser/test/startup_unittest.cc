@@ -413,7 +413,7 @@ TEST_F(StartupTest, FingerprintWithCachedProfile) {
   // override (patch 024) that returns BuildUserAgentMetadata(fingerprint).
   // That path is covered by clawbrowser/test/integration/test_surfaces.py
   // (test_navigator_user_agent_data, test_sec_ch_ua_headers).
-#if BUILDFLAG(IS_MAC)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   EXPECT_TRUE(cmd.HasSwitch(kFingerprintChildDataSwitch));
 #else
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintChildDataSwitch));
@@ -613,7 +613,7 @@ TEST_F(StartupTest,
   EXPECT_EQ(cmd.GetSwitchValueASCII("proxy-server").find("dev_pass"),
             std::string::npos);
 
-#if BUILDFLAG(IS_MAC)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   ASSERT_TRUE(cmd.HasSwitch(kFingerprintChildDataSwitch));
   std::string child_json;
   ASSERT_TRUE(base::Base64Decode(
