@@ -446,6 +446,13 @@ if (typeof document !== 'undefined') {
   check('screen.height', expected.screen_height, screen.height);
   check('screen.availWidth', expected.screen_avail_width, screen.availWidth);
   check('screen.availHeight', expected.screen_avail_height, screen.availHeight);
+  check('screen.availLeft', 0, screen.availLeft);
+  check('screen.availTop', 0, screen.availTop);
+  check('window.screenX', 0, window.screenX);
+  check('window.screenY', 0, window.screenY);
+  check('window.screenLeft', 0, window.screenLeft);
+  check('window.screenTop', 0, window.screenTop);
+  check('screen.isExtended', false, screen.isExtended);
   check('screen.colorDepth', expected.screen_color_depth, screen.colorDepth);
   check('window.devicePixelRatio', expected.pixel_ratio, window.devicePixelRatio);
 

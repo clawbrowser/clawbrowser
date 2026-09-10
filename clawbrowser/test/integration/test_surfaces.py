@@ -145,6 +145,88 @@ async def test_screen_dimensions(browser_with_fingerprint):
 
 
 @pytest.mark.asyncio
+async def test_screen_topology_uses_virtual_origin(
+    browser_with_offset_window_fingerprint,
+):
+    page, _ = browser_with_offset_window_fingerprint
+    actual = await page.evaluate("""() => ({
+        availLeft: screen.availLeft,
+        availTop: screen.availTop,
+        screenX: window.screenX,
+        screenY: window.screenY,
+        screenLeft: window.screenLeft,
+        screenTop: window.screenTop,
+        isExtended: screen.isExtended,
+    })""")
+    assert actual == {
+        "availLeft": 0,
+        "availTop": 0,
+        "screenX": 0,
+        "screenY": 0,
+        "screenLeft": 0,
+        "screenTop": 0,
+        "isExtended": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_screen_details_exposes_one_virtual_screen(browser_with_fingerprint):
+    page, data = browser_with_fingerprint
+    fp = data["response"]["fingerprint"]
+    cdp = await page.context.new_cdp_session(page)
+    origin = await page.evaluate("location.origin")
+    await cdp.send(
+        "Browser.grantPermissions",
+        {"permissions": ["windowManagement"], "origin": origin},
+    )
+
+    try:
+        actual = await page.evaluate("""async () => {
+            const details = await getScreenDetails();
+            const current = details.currentScreen;
+            return {
+                screenCount: details.screens.length,
+                currentIsOnlyScreen: details.screens[0] === current,
+                width: current.width,
+                height: current.height,
+                availWidth: current.availWidth,
+                availHeight: current.availHeight,
+                colorDepth: current.colorDepth,
+                left: current.left,
+                top: current.top,
+                availLeft: current.availLeft,
+                availTop: current.availTop,
+                devicePixelRatio: current.devicePixelRatio,
+                isPrimary: current.isPrimary,
+                isInternal: current.isInternal,
+                label: current.label,
+            };
+        }""")
+    finally:
+        await cdp.send("Browser.resetPermissions")
+        await cdp.detach()
+
+    assert actual == {
+        "screenCount": 1,
+        "currentIsOnlyScreen": True,
+        # ScreenDetailed inherits these virtualized Screen accessors.
+        "width": fp["screen"]["width"],
+        "height": fp["screen"]["height"],
+        "availWidth": fp["screen"]["avail_width"],
+        "availHeight": fp["screen"]["avail_height"],
+        "colorDepth": fp["screen"]["color_depth"],
+        "left": 0,
+        "top": 0,
+        "availLeft": 0,
+        "availTop": 0,
+        "devicePixelRatio": fp["screen"]["pixel_ratio"],
+        "isPrimary": True,
+        "isInternal": False,
+        "label": "",
+    }
+
+
+@pytest.mark.asyncio
 async def test_device_pixel_ratio(browser_with_fingerprint):
     page, data = browser_with_fingerprint
     fp = data["response"]["fingerprint"]

@@ -15,6 +15,8 @@ css_screen_patch="${repo_root}/clawbrowser/patches/036-css-media-screen.patch"
 font_enum_patch="${repo_root}/clawbrowser/patches/011-fonts-filter.patch"
 css_font_patch="${repo_root}/clawbrowser/patches/034-css-font-probing.patch"
 font_fallback_patch="${repo_root}/clawbrowser/patches/035-font-fallback-probing.patch"
+startup_source="${repo_root}/clawbrowser/startup.cc"
+verify_script="${repo_root}/clawbrowser/verify/resources/verify.js"
 
 if grep -q 'surface_policy.webgl == "override"' "${webgl_patch}"; then
   echo "WebGL backend values must not be hidden behind surface_policy.webgl." >&2
@@ -79,6 +81,25 @@ grep -q 'clawbrowser-require-fingerprint' "${child_switch_patch}"
 # packaging build before an artifact is published.
 grep -q 'fp->screen.width' "${screen_patch}"
 grep -q 'fp->screen.pixel_ratio' "${screen_patch}"
+grep -A4 'int Screen::availLeft() const' "${screen_patch}" | grep -q 'FingerprintAccessor::Get()'
+grep -A4 'int Screen::availTop() const' "${screen_patch}" | grep -q 'FingerprintAccessor::Get()'
+grep -A4 'int LocalDOMWindow::screenX() const' "${screen_patch}" | grep -q 'FingerprintAccessor::Get()'
+grep -A4 'int LocalDOMWindow::screenY() const' "${screen_patch}" | grep -q 'FingerprintAccessor::Get()'
+grep -A4 'bool Screen::isExtended() const' "${screen_patch}" | grep -q 'FingerprintAccessor::Get()'
+grep -q 'third_party/blink/renderer/modules/screen_details/screen_detailed.cc' "${screen_patch}"
+grep -q 'third_party/blink/renderer/modules/screen_details/screen_details.cc' "${screen_patch}"
+grep -A4 'int ScreenDetailed::left() const' "${screen_patch}" | grep -q 'FingerprintAccessor::Get()'
+grep -A4 'int ScreenDetailed::top() const' "${screen_patch}" | grep -q 'FingerprintAccessor::Get()'
+grep -A6 'bool ScreenDetailed::isPrimary() const' "${screen_patch}" | grep -q 'return true'
+grep -A7 'bool ScreenDetailed::isInternal() const' "${screen_patch}" | grep -q 'return false'
+grep -A5 'float ScreenDetailed::devicePixelRatio() const' "${screen_patch}" | grep -q 'fp->screen.pixel_ratio'
+grep -A7 'String ScreenDetailed::label() const' "${screen_patch}" | grep -q 'return String()'
+grep -q 'const bool protect_topology' "${screen_patch}"
+grep -q 'display_id == new_infos.current_display_id' "${screen_patch}"
+grep -q 'dispatch_events && !protect_topology' "${screen_patch}"
+grep -q 'if (fp && !command_line->HasSwitch("window-position"))' "${startup_source}"
+grep -q "check('screen.availLeft', 0, screen.availLeft)" "${verify_script}"
+grep -q "check('window.screenX', 0, window.screenX)" "${verify_script}"
 grep -q 'fp->screen.width' "${css_screen_patch}"
 grep -q 'ShouldFilterLocalFonts' "${font_enum_patch}"
 grep -q 'IsLocalFontBlocked' "${css_font_patch}"

@@ -745,8 +745,10 @@ base::expected<StartupResult, std::string> RunStartup(
   // the spoofed available area removes the mismatch at the source instead of
   // adding another lie on top of it.
   //
-  // An explicit --window-size from the caller always wins; that is a
-  // deliberate, controlled override.
+  // Explicit --window-size and --window-position values from the caller always
+  // win; those are deliberate, controlled overrides. Otherwise anchor every
+  // fingerprinted window at the virtual screen origin, including callers that
+  // supply only a custom size.
   if (fp && !command_line->HasSwitch("window-size")) {
     const int avail_width =
         fp->screen.avail_width > 0 ? fp->screen.avail_width : fp->screen.width;
@@ -760,12 +762,10 @@ base::expected<StartupResult, std::string> RunStartup(
       command_line->AppendSwitchASCII(
           "window-size", base::NumberToString(window.width) + "," +
                              base::NumberToString(window.height));
-      // Anchored at the origin so screenX/screenY + outer size stay within the
-      // spoofed screen bounds.
-      if (!command_line->HasSwitch("window-position")) {
-        command_line->AppendSwitchASCII("window-position", "0,0");
-      }
     }
+  }
+  if (fp && !command_line->HasSwitch("window-position")) {
+    command_line->AppendSwitchASCII("window-position", "0,0");
   }
 
   // Navigate to verify page on startup (unless --skip-verify)

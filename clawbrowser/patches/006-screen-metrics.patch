@@ -10,7 +10,27 @@ diff --git a/third_party/blink/renderer/core/frame/local_dom_window.cc b/third_p
  #include "cc/input/snap_selection_strategy.h"
  #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
  #include "net/storage_access_api/status.h"
-@@ -1907,6 +1908,14 @@ CSSStyleDeclaration* LocalDOMWindow::getComputedStyle(
+@@ -1764,6 +1765,9 @@ int LocalDOMWindow::innerWidth() const {
+ }
+ 
+ int LocalDOMWindow::screenX() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return 0;
++
+   LocalFrame* frame = GetFrame();
+   if (!frame) {
+     return 0;
+@@ -1784,6 +1788,9 @@ int LocalDOMWindow::screenX() const {
+ }
+ 
+ int LocalDOMWindow::screenY() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return 0;
++
+   LocalFrame* frame = GetFrame();
+   if (!frame) {
+     return 0;
+@@ -1907,6 +1914,14 @@ CSSStyleDeclaration* LocalDOMWindow::getComputedStyle(
  }
  
  double LocalDOMWindow::devicePixelRatio() const {
@@ -36,7 +56,17 @@ diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink
  #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
  #include "third_party/blink/renderer/core/event_target_names.h"
  #include "third_party/blink/renderer/core/frame/local_dom_window.h"
-@@ -79,12 +80,16 @@ bool Screen::AreWebExposedScreenPropertiesEqual(
+@@ -46,6 +47,9 @@ Screen::Screen(LocalDOMWindow* window, int64_t display_id)
+ // static
+ bool Screen::AreWebExposedScreenPropertiesEqual(
+     const display::ScreenInfo& prev,
+     const display::ScreenInfo& current) {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return true;
++
+   // height() and width() use rect.size()
+   if (prev.rect.size() != current.rect.size()) {
+@@ -79,12 +83,16 @@ bool Screen::AreWebExposedScreenPropertiesEqual(
  }
  
  int Screen::height() const {
@@ -53,7 +83,7 @@ diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink
    if (!DomWindow())
      return 0;
    return GetRect(/*available=*/false).width();
-@@ -97,6 +102,8 @@ unsigned Screen::colorDepth() const {
+@@ -97,6 +105,8 @@ unsigned Screen::colorDepth() const {
    // https://drafts.csswg.org/cssom-view/#dom-screen-colordepth
    unsigned unknown_color_depth = 24u;
  
@@ -62,7 +92,26 @@ diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink
    if (!DomWindow()) {
      return unknown_color_depth;
    }
-@@ -122,12 +129,16 @@ int Screen::availTop() const {
+@@ -109,25 +119,35 @@ unsigned Screen::pixelDepth() const {
+   return colorDepth();
+ }
+ 
+ int Screen::availLeft() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return 0;
++
+   if (!DomWindow())
+     return 0;
+   return GetRect(/*available=*/true).x();
+ }
+ 
+ int Screen::availTop() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return 0;
++
+   if (!DomWindow())
+     return 0;
+   return GetRect(/*available=*/true).y();
  }
  
  int Screen::availHeight() const {
@@ -79,3 +128,160 @@ diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink
    if (!DomWindow())
      return 0;
    return GetRect(/*available=*/true).width();
+@@ -147,6 +167,9 @@ ExecutionContext* Screen::GetExecutionContext() const {
+ }
+ 
+ bool Screen::isExtended() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return false;
++
+   if (!DomWindow()) {
+     return false;
+   }
+diff --git a/third_party/blink/renderer/modules/screen_details/screen_detailed.cc b/third_party/blink/renderer/modules/screen_details/screen_detailed.cc
+--- a/third_party/blink/renderer/modules/screen_details/screen_detailed.cc
++++ b/third_party/blink/renderer/modules/screen_details/screen_detailed.cc
+@@ -7,6 +7,7 @@
+ #include <cmath>
+ 
+ #include "base/numerics/safe_conversions.h"
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/frame/settings.h"
+@@ -25,6 +26,9 @@ ScreenDetailed::ScreenDetailed(LocalDOMWindow* window, int64_t display_id)
+ // static
+ bool ScreenDetailed::AreWebExposedScreenDetailedPropertiesEqual(
+     const display::ScreenInfo& prev,
+     const display::ScreenInfo& current) {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return true;
++
+   if (!Screen::AreWebExposedScreenPropertiesEqual(prev, current)) {
+     return false;
+@@ -102,36 +106,61 @@ bool ScreenDetailed::AreHdrHeadroomEqual(const display::ScreenInfo& prev,
+ }
+ 
+ int ScreenDetailed::left() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return 0;
++
+   if (!DomWindow())
+     return 0;
+   return GetRect(/*available=*/false).x();
+ }
+ 
+ int ScreenDetailed::top() const {
++  if (clawbrowser::FingerprintAccessor::Get())
++    return 0;
++
+   if (!DomWindow())
+     return 0;
+   return GetRect(/*available=*/false).y();
+ }
+ 
+ bool ScreenDetailed::isPrimary() const {
++  // A fingerprinted renderer exposes one virtual screen, so that screen is
++  // necessarily primary regardless of the host display backing the window.
++  if (clawbrowser::FingerprintAccessor::Get())
++    return true;
++
+   if (!DomWindow())
+     return false;
+   return GetScreenInfo().is_primary;
+ }
+ 
+ bool ScreenDetailed::isInternal() const {
++  // The fingerprint contract has no internal/external display distinction.
++  // Do not inherit that stable hardware signal from the host.
++  if (clawbrowser::FingerprintAccessor::Get())
++    return false;
++
+   if (!DomWindow())
+     return false;
+   return GetScreenInfo().is_internal;
+ }
+ 
+ float ScreenDetailed::devicePixelRatio() const {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && fp->screen.pixel_ratio > 0.0)
++    return fp->screen.pixel_ratio;
++
+   if (!DomWindow())
+     return 0.f;
+   return GetScreenInfo().device_scale_factor;
+ }
+ 
+ String ScreenDetailed::label() const {
++  // Labels commonly contain the physical monitor model.  An empty label is
++  // the only value supported by the current fingerprint contract.
++  if (clawbrowser::FingerprintAccessor::Get())
++    return String();
++
+   if (!DomWindow())
+     return String();
+   return String::FromUtf8(GetScreenInfo().label);
+diff --git a/third_party/blink/renderer/modules/screen_details/screen_details.cc b/third_party/blink/renderer/modules/screen_details/screen_details.cc
+--- a/third_party/blink/renderer/modules/screen_details/screen_details.cc
++++ b/third_party/blink/renderer/modules/screen_details/screen_details.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <algorithm>
+ 
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "third_party/blink/renderer/core/dom/events/event.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+@@ -70,6 +71,21 @@ void ScreenDetails::UpdateScreenInfosImpl(LocalDOMWindow* window,
+   // Expect that all updates contain a non-zero set of screens.
+   DCHECK(!new_infos.screen_infos.empty());
+ 
++  // A fingerprint describes a single virtual display.  Exposing the host's
++  // remaining ScreenDetailed objects would reveal its monitor count and
++  // topology even though the basic Screen metrics are virtualized.
++  const bool protect_topology =
++      clawbrowser::FingerprintAccessor::Get() != nullptr;
++  const auto is_exposed_display = [&](int64_t display_id) {
++    return !protect_topology || display_id == new_infos.current_display_id;
++  };
++
++  // Keep the one JS ScreenDetailed object stable when the host window crosses
++  // onto another physical display; object identity is observable by polling.
++  if (protect_topology && screens_.size() == 1) {
++    screens_[0]->UpdateDisplayId(new_infos.current_display_id);
++  }
++
+   // (1) Detect if screens were added or removed and update web exposed data.
+   bool added_or_removed = false;
+ 
+@@ -79,7 +95,8 @@ void ScreenDetails::UpdateScreenInfosImpl(LocalDOMWindow* window,
+   // Check if any screens have been removed and remove them from `screens_`.
+   for (wtf_size_t i = 0; i < screens_.size();
+        /*conditionally incremented*/) {
+-    if (std::ranges::contains(new_infos.screen_infos, screens_[i]->DisplayId(),
++    if (is_exposed_display(screens_[i]->DisplayId()) &&
++        std::ranges::contains(new_infos.screen_infos, screens_[i]->DisplayId(),
+                               &display::ScreenInfo::display_id)) {
+       ++i;
+     } else {
+@@ -91,6 +108,9 @@ void ScreenDetails::UpdateScreenInfosImpl(LocalDOMWindow* window,
+ 
+   // Check if any screens have been added, and append them to `screens_`.
+   for (const auto& info : new_infos.screen_infos) {
++    if (!is_exposed_display(info.display_id))
++      continue;
++
+     if (!std::ranges::contains(screens_, info.display_id,
+                                &ScreenDetailed::DisplayId)) {
+       screens_.push_back(
+@@ -117,7 +137,9 @@ void ScreenDetails::UpdateScreenInfosImpl(LocalDOMWindow* window,
+   // Enqueue events for dispatch if `dispatch_events` is true.
+   // Enqueuing event dispatch avoids recursion if screen changes occur while an
+   // event handler is running a nested event loop, e.g. via window.print().
+-  if (dispatch_events) {
++  // Physical screen changes do not change the fingerprint's single virtual
++  // screen and must not be observable through ScreenDetails event timing.
++  if (dispatch_events && !protect_topology) {
+     // Enqueue a change event if the current screen has changed.
+     if (prev_screen_infos_.screen_infos.empty() ||
+         prev_screen_infos_.current().display_id !=

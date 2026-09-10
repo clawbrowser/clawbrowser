@@ -492,7 +492,8 @@ TEST_F(StartupTest, WindowSizeFitsInsideSpoofedScreen) {
 }
 
 TEST_F(StartupTest, ExplicitWindowSizeIsNotOverridden) {
-  // A caller-supplied size is a deliberate, controlled override and must win.
+  // A caller-supplied size is a deliberate, controlled override and must win,
+  // while an unspecified position is still anchored at the virtual origin.
   WriteCachedProfile("cached_profile");
   WriteConfigJson("test_key");
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
@@ -502,6 +503,19 @@ TEST_F(StartupTest, ExplicitWindowSizeIsNotOverridden) {
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value()) << result.error();
   EXPECT_EQ(cmd.GetSwitchValueASCII("window-size"), "801,601");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("window-position"), "0,0");
+}
+
+TEST_F(StartupTest, ExplicitWindowPositionIsNotOverridden) {
+  WriteCachedProfile("cached_profile");
+  WriteConfigJson("test_key");
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "cached_profile");
+  cmd.AppendSwitchASCII("window-position", "317,223");
+
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_EQ(cmd.GetSwitchValueASCII("window-position"), "317,223");
 }
 
 TEST_F(StartupTest, SpoofingFlagsApplyToLoadedBrowserFingerprint) {
