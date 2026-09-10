@@ -2,9 +2,9 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -35,11 +35,6 @@ TEST(CanvasNoiseTest, FloatFormatsUseTheSameLogicalChannelSequence) {
   std::array<uint16_t, 4> rgba_f16 = {0x3400, 0x3800, 0x3a00, 0x3600};
   const auto original_f32 = rgba_f32;
   const auto original_f16 = rgba_f16;
-  uint32_t original_f32_bits[3];
-  for (size_t channel = 0; channel < 3; ++channel) {
-    std::memcpy(&original_f32_bits[channel], &original_f32[channel],
-                sizeof(uint32_t));
-  }
   const uint16_t original_f16_alpha = rgba_f16[3];
 
   ASSERT_TRUE(ApplyDeterministicCanvasNoise(
@@ -52,10 +47,10 @@ TEST(CanvasNoiseTest, FloatFormatsUseTheSameLogicalChannelSequence) {
   Prng expected_bits(canvas_noise_internal::PixelSeed(kSeed, 0, 0));
   for (size_t channel = 0; channel < 3; ++channel) {
     const uint32_t canonical_lsb = expected_bits.NextUint32() & 1u;
-    uint32_t actual_f32_bits;
-    std::memcpy(&actual_f32_bits, &rgba_f32[channel], sizeof(uint32_t));
+    const uint32_t actual_f32_bits = std::bit_cast<uint32_t>(rgba_f32[channel]);
     EXPECT_EQ(actual_f32_bits,
-              (original_f32_bits[channel] & 0xfffffffeu) | canonical_lsb);
+              (std::bit_cast<uint32_t>(original_f32[channel]) & 0xfffffffeu) |
+                  canonical_lsb);
     EXPECT_EQ(rgba_f16[channel],
               (original_f16[channel] & 0xfffeu) | canonical_lsb);
   }
