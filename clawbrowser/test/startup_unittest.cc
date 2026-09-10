@@ -1347,6 +1347,37 @@ TEST_F(StartupTest, FingerprintApiCallSendsRuntimeHintsFromLaunchFlags) {
   EXPECT_TRUE(*saved.request.runtime_headless);
 }
 
+TEST_F(StartupTest, FingerprintApiCallSendsNativeDesktopGPUHint) {
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+
+  const std::string user_agent =
+      "Mozilla/5.0 AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36";
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson(user_agent));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "native_gpu_profile");
+
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+
+  ProfileEnvelope saved = ReadSavedProfile("native_gpu_profile");
+#if BUILDFLAG(IS_MAC)
+  ASSERT_TRUE(saved.request.runtime_gpu.has_value());
+  EXPECT_EQ(*saved.request.runtime_gpu, "apple-metal");
+#elif BUILDFLAG(IS_WIN)
+  ASSERT_TRUE(saved.request.runtime_gpu.has_value());
+  EXPECT_EQ(*saved.request.runtime_gpu, "direct3d11");
+#else
+  EXPECT_FALSE(saved.request.runtime_gpu.has_value());
+#endif
+  ASSERT_TRUE(saved.request.runtime_headless.has_value());
+  EXPECT_FALSE(*saved.request.runtime_headless);
+}
+
 TEST_F(StartupTest, FingerprintApiCallAllowsCityOnlyOverrides) {
   env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
   env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);

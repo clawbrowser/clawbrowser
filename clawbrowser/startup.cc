@@ -312,6 +312,15 @@ std::optional<std::string> RuntimeGPUHint(
   if (use_gl == "swiftshader" || use_angle == "swiftshader") {
     return "swiftshader";
   }
+#if BUILDFLAG(IS_MAC)
+  if (use_angle.empty() || use_angle == "metal") {
+    return "apple-metal";
+  }
+#elif BUILDFLAG(IS_WIN)
+  if (use_angle.empty() || use_angle == "d3d11") {
+    return "direct3d11";
+  }
+#endif
   return std::nullopt;
 }
 
