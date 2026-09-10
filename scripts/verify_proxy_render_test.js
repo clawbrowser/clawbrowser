@@ -4,12 +4,87 @@ const assert = require('node:assert/strict');
 
 const {
   exhaustProxyRetries,
+  iceCandidateRelatedAddress,
+  iceCandidateType,
+  isUnspecifiedIceAddress,
   nextProxyRetryAction,
+  sdpIceCandidates,
   shouldRetryProxyResult,
   shouldValidateSurface,
+  summarizeWebRtcCandidates,
   surfaceSkipCheck,
   summarizeProxyResult,
 } = require('../clawbrowser/verify/resources/verify.js');
+
+assert.equal(iceCandidateType({ type: 'relay' }), 'relay');
+assert.equal(
+  iceCandidateType('candidate:1 1 UDP 1 192.0.2.1 12345 typ srflx'),
+  'srflx'
+);
+assert.equal(
+  iceCandidateRelatedAddress(
+    'candidate:1 1 UDP 1 203.0.113.5 12345 typ relay raddr 192.0.2.8 rport 9'
+  ),
+  '192.0.2.8'
+);
+assert.equal(isUnspecifiedIceAddress('0.0.0.0'), true);
+assert.equal(isUnspecifiedIceAddress('::'), true);
+assert.equal(isUnspecifiedIceAddress('192.0.2.8'), false);
+assert.deepEqual(sdpIceCandidates([
+  'v=0',
+  'a=candidate:1 1 UDP 1 192.0.2.1 12345 typ host',
+  '',
+].join('\r\n')), [{
+  candidate: 'candidate:1 1 UDP 1 192.0.2.1 12345 typ host',
+  source: 'sdp',
+}]);
+
+assert.deepEqual(summarizeWebRtcCandidates({
+  candidates: [],
+  complete: true,
+}), {
+  surface: 'webrtc.iceCandidates',
+  pass: true,
+  expected: 'completed gathering; relay candidates only; no related address',
+  actual: 'gathering complete; no ICE candidates exposed',
+  detail: 'no direct or related address exposed',
+});
+
+assert.equal(summarizeWebRtcCandidates({
+  candidates: [
+    { candidate: 'candidate:1 1 UDP 1 192.0.2.1 12345 typ relay' },
+  ],
+  complete: true,
+}).pass, true);
+
+const unsafeWebRtc = summarizeWebRtcCandidates({
+  candidates: [
+    { candidate: 'candidate:1 1 UDP 1 192.0.2.1 12345 typ host' },
+    { type: 'srflx' },
+  ],
+  complete: true,
+});
+assert.equal(unsafeWebRtc.pass, false);
+assert.equal(unsafeWebRtc.actual, 'candidate types: host, srflx');
+assert.equal(unsafeWebRtc.detail, 'unsafe candidate types: host, srflx');
+
+const incompleteWebRtc = summarizeWebRtcCandidates({
+  candidates: [],
+  complete: false,
+});
+assert.equal(incompleteWebRtc.pass, false);
+assert.equal(incompleteWebRtc.actual, 'ICE gathering timed out');
+
+const relatedAddressLeak = summarizeWebRtcCandidates({
+  candidates: [{
+    candidate: 'candidate:1 1 UDP 1 203.0.113.5 12345 typ relay',
+    type: 'relay',
+    relatedAddress: '192.0.2.8',
+  }],
+  complete: true,
+});
+assert.equal(relatedAddressLeak.pass, false);
+assert.equal(relatedAddressLeak.detail, 'relay candidate exposed a related address');
 
 assert.equal(shouldValidateSurface('native', false), false);
 assert.equal(shouldValidateSurface('native', true), false);

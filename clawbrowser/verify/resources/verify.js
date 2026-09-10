@@ -191,14 +191,92 @@ function surfaceSkipCheck(surface, policyMode, spoofingEnabled) {
   };
 }
 
+function iceCandidateType(candidate) {
+  const explicitType = String(candidate && candidate.type || '').toLowerCase();
+  if (explicitType) {
+    return explicitType;
+  }
+
+  const candidateLine = String(candidate && candidate.candidate || candidate || '');
+  const match = candidateLine.match(/\styp\s+(host|srflx|prflx|relay)(?:\s|$)/i);
+  return match ? match[1].toLowerCase() : 'unknown';
+}
+
+function iceCandidateRelatedAddress(candidate) {
+  const explicitAddress = String(
+    candidate && candidate.relatedAddress || ''
+  ).toLowerCase();
+  if (explicitAddress) {
+    return explicitAddress;
+  }
+
+  const candidateLine = String(candidate && candidate.candidate || candidate || '');
+  const match = candidateLine.match(/\sraddr\s+([^\s]+)/i);
+  return match ? match[1].toLowerCase() : '';
+}
+
+function sdpIceCandidates(sdp) {
+  return String(sdp || '')
+    .split(/\r?\n/)
+    .filter(line => /^a=candidate:/i.test(line))
+    .map(line => ({ candidate: line.slice(2), source: 'sdp' }));
+}
+
+function isUnspecifiedIceAddress(address) {
+  const normalized = String(address || '').toLowerCase();
+  return !normalized || normalized === '0.0.0.0' ||
+    normalized === '::' || normalized === '[::]';
+}
+
+function summarizeWebRtcCandidates(result) {
+  const normalizedCandidates = result && Array.isArray(result.candidates)
+    ? result.candidates
+    : [];
+  const gatheringComplete = Boolean(result && result.complete);
+  const candidateTypes = normalizedCandidates.map(iceCandidateType);
+  const unsafeTypes = candidateTypes.filter(type => type !== 'relay');
+  const relatedAddresses = normalizedCandidates
+    .map(iceCandidateRelatedAddress)
+    .filter(address => !isUnspecifiedIceAddress(address));
+  const pass = gatheringComplete && unsafeTypes.length === 0 &&
+    relatedAddresses.length === 0;
+  const actual = candidateTypes.length === 0
+    ? (gatheringComplete
+        ? 'gathering complete; no ICE candidates exposed'
+        : 'ICE gathering timed out')
+    : `candidate types: ${Array.from(new Set(candidateTypes)).join(', ')}`;
+
+  let detail = 'no direct or related address exposed';
+  if (!gatheringComplete) {
+    detail = 'ICE gathering did not complete';
+  } else if (unsafeTypes.length > 0) {
+    detail = `unsafe candidate types: ${Array.from(new Set(unsafeTypes)).join(', ')}`;
+  } else if (relatedAddresses.length > 0) {
+    detail = 'relay candidate exposed a related address';
+  }
+
+  return {
+    surface: 'webrtc.iceCandidates',
+    pass,
+    expected: 'completed gathering; relay candidates only; no related address',
+    actual,
+    detail,
+  };
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     exhaustProxyRetries,
     formatProxyLocation,
     formatProxyScheme,
     nextProxyRetryAction,
+    iceCandidateType,
+    iceCandidateRelatedAddress,
+    isUnspecifiedIceAddress,
+    sdpIceCandidates,
     shouldRetryProxyResult,
     shouldValidateSurface,
+    summarizeWebRtcCandidates,
     surfaceSkipCheck,
     summarizeProxyResult
   };
@@ -210,6 +288,7 @@ if (typeof document !== 'undefined') {
   const expected = !data || data.dataset.hasExpectedValues !== 'true'
     ? null
     : {
+        has_proxy: data.dataset.hasProxy === 'true',
         user_agent: data.dataset.userAgent || '',
         platform: data.dataset.platform || '',
         language_primary: data.dataset.languagePrimary || '',
@@ -483,6 +562,123 @@ if (typeof document !== 'undefined') {
     }
   }
 
+  function collectIceCandidates(iceServers) {
+    return new Promise((resolve, reject) => {
+      const peerConnection = new RTCPeerConnection({ iceServers });
+      const candidates = [];
+      let resolved = false;
+      let timeoutId;
+      const finish = async complete => {
+        if (resolved) {
+          return;
+        }
+        resolved = true;
+        clearTimeout(timeoutId);
+        const sdpCandidates = sdpIceCandidates(
+          peerConnection.localDescription && peerConnection.localDescription.sdp
+        );
+        const statsCandidates = [];
+        let statsComplete = true;
+        let statsTimeoutId;
+        try {
+          const stats = await Promise.race([
+            peerConnection.getStats(),
+            new Promise((_, reject) => {
+              statsTimeoutId = setTimeout(
+                () => reject(new Error('getStats timed out')),
+                2000
+              );
+            }),
+          ]);
+          stats.forEach(report => {
+            if (report.type !== 'local-candidate') {
+              return;
+            }
+            statsCandidates.push({
+              candidate: '',
+              type: report.candidateType || '',
+              address: report.address || report.ip || '',
+              relatedAddress: report.relatedAddress || '',
+              source: 'stats',
+            });
+          });
+        } catch (error) {
+          statsComplete = false;
+        } finally {
+          clearTimeout(statsTimeoutId);
+        }
+        peerConnection.close();
+        resolve({
+          candidates: [
+            ...candidates,
+            ...sdpCandidates,
+            ...statsCandidates,
+          ],
+          complete: complete && statsComplete,
+        });
+      };
+
+      peerConnection.onicecandidate = event => {
+        if (!event.candidate) {
+          if (peerConnection.iceGatheringState === 'complete') {
+            void finish(true);
+          }
+          return;
+        }
+        candidates.push({
+          candidate: event.candidate.candidate || '',
+          type: event.candidate.type || '',
+          address: event.candidate.address || '',
+          relatedAddress: event.candidate.relatedAddress || '',
+          source: 'event',
+        });
+      };
+      peerConnection.onicegatheringstatechange = () => {
+        if (peerConnection.iceGatheringState === 'complete') {
+          void finish(true);
+        }
+      };
+
+      peerConnection.createDataChannel('clawbrowser-webrtc-verify');
+      peerConnection.createOffer()
+        .then(offer => peerConnection.setLocalDescription(offer))
+        .catch(error => {
+          clearTimeout(timeoutId);
+          peerConnection.close();
+          reject(error);
+        });
+      timeoutId = setTimeout(() => void finish(false), 7000);
+    });
+  }
+
+  async function verifyWebRtcCandidates() {
+    try {
+      const [hostCandidates, stunCandidates] = await Promise.all([
+        collectIceCandidates([]),
+        collectIceCandidates([
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun.cloudflare.com:3478' },
+        ]),
+      ]);
+      setCheck(summarizeWebRtcCandidates({
+        candidates: [
+          ...hostCandidates.candidates,
+          ...stunCandidates.candidates,
+        ],
+        complete: hostCandidates.complete && stunCandidates.complete,
+      }));
+    } catch (error) {
+      setCheck({
+        surface: 'webrtc.iceCandidates',
+        pass: false,
+        expected: 'completed gathering; relay candidates only; no related address',
+        actual: 'check failed',
+        detail: error && error.message ? error.message : String(error),
+      });
+    }
+    completeAsyncCheck('webrtc');
+  }
+
   // Navigator
   check('navigator.userAgent', expected.user_agent, navigator.userAgent);
   check('navigator.platform', expected.platform, navigator.platform);
@@ -735,6 +931,11 @@ if (typeof document !== 'undefined') {
         finishVoices(speechSynthesis.getVoices());
       }, 3000);
     }
+  }
+
+  if (expected.has_proxy) {
+    beginAsyncCheck('webrtc');
+    void verifyWebRtcCandidates();
   }
 
   beginAsyncCheck('proxy');
