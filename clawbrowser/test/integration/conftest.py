@@ -259,6 +259,8 @@ def _stop_process(process: subprocess.Popen):
 
 
 def _resolve_backend(mode="auto"):
+    if mode == "vanilla":
+        return {"use_mock": True, "base_url": None, "api_key": None}
     base_url = os.environ.get("CLAWBROWSER_API_BASE_URL")
     api_key = os.environ.get("CLAWBROWSER_API_KEY")
     if mode == "mock":
@@ -374,6 +376,15 @@ async def _launch_browser_with_details(
 
         _seed_config(config_dir, config_base_url, backend["api_key"])
 
+        if fingerprints_fixture_path == DEFAULT_FINGERPRINTS_FIXTURE_PATH:
+            # Match the host request, without changing the response identity.
+            default_fixture = _read_json(fingerprints_fixture_path)
+            default_fixture["request"]["platform"] = HOST_PROFILE_PLATFORM
+            fingerprints_fixture_path = home_dir / "mock_fingerprints.json"
+            fingerprints_fixture_path.write_text(
+                json.dumps(default_fixture), encoding="utf-8"
+            )
+
         with mock_log_path.open("w", encoding="utf-8") as mock_log_file:
             mock_args = [
                 sys.executable,
@@ -428,6 +439,8 @@ async def _launch_browser_with_details(
                     }
                     if backend["api_key"]:
                         browser_env["CLAWBROWSER_API_KEY"] = backend["api_key"]
+                    elif backend_mode == "vanilla":
+                        browser_env.pop("CLAWBROWSER_API_KEY", None)
                     if extra_env:
                         browser_env.update(extra_env)
 
@@ -582,6 +595,6 @@ async def browser_with_absurd_fingerprint():
 @pytest_asyncio.fixture
 async def vanilla_browser():
     """Launch clawbrowser in vanilla mode (no fingerprint)."""
-    async with _launch_browser(backend_mode="mock") as result:
+    async with _launch_browser(backend_mode="vanilla") as result:
         page, _ = result
         yield page

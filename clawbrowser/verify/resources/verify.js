@@ -683,7 +683,7 @@ if (typeof document !== 'undefined') {
   check('screen.isExtended', false, screen.isExtended);
   check('screen.colorDepth', expected.screen_color_depth, screen.colorDepth);
   check('window.devicePixelRatio', expected.pixel_ratio, window.devicePixelRatio);
-  const expectedOrientation = expected.screen_height >= expected.screen_width
+  const expectedOrientation = Number(expected.screen_height) >= Number(expected.screen_width)
     ? 'portrait-primary'
     : 'landscape-primary';
   check('screen.orientation.type', expectedOrientation, screen.orientation.type);
