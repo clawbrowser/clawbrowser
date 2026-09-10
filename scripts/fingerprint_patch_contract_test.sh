@@ -112,7 +112,7 @@ grep -q 'invalid_proxy_config' "${startup_source}"
 grep -q 'ManagedProxyPrivacyCapabilityForCommandLine' "${verify_source}"
 grep -q 'data-managed-proxy-privacy="\$i18n{managed_proxy_privacy}"' \
   "${verify_html}"
-grep -q 'capabilityData.dataset.managedProxyPrivacy' "${verify_script}"
+grep -q 'dataset.managedProxyPrivacy' "${verify_script}"
 grep -q 'AppendSwitch(kRequireFingerprintSwitch)' "${startup_source}"
 grep -A35 'void ApplyFingerprintWebGLIsolation' "${startup_source}" |
   grep -q 'AppendSwitch(kDisableWebGLSpoofingSwitch)'

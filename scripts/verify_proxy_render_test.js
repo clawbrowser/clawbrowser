@@ -9,6 +9,7 @@ const {
   iceCandidateRelatedAddress,
   iceCandidateType,
   isUnspecifiedIceAddress,
+  managedProxyPrivacyCapability,
   nextProxyRetryAction,
   sdpIceCandidates,
   shouldRetryProxyResult,
@@ -18,10 +19,13 @@ const {
   summarizeProxyResult,
 } = require('../clawbrowser/verify/resources/verify.js');
 
-assert.deepEqual(window.__clawbrowser_capabilities, {
-  managed_proxy_privacy: 2,
-});
-assert.equal(Object.isFrozen(window.__clawbrowser_capabilities), true);
+assert.equal(managedProxyPrivacyCapability({
+  dataset: { managedProxyPrivacy: '2' },
+}), 2);
+assert.equal(managedProxyPrivacyCapability({
+  dataset: { managedProxyPrivacy: 'not-a-number' },
+}), 0);
+assert.equal(managedProxyPrivacyCapability(null), 0);
 
 assert.equal(iceCandidateType({ type: 'relay' }), 'relay');
 assert.equal(

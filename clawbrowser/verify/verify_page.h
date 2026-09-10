@@ -19,8 +19,9 @@ bool VerifyFailureExitEnabledForCommandLine(
     const base::CommandLine& command_line);
 
 // Returns the active managed-proxy privacy contract supported by this
-// process. Version 1 means that a fingerprint-backed proxy was loaded and the
-// browser was launched through the fail-closed proxy contract.
+// process. Version 2 means that a fingerprint-backed proxy was loaded and the
+// browser was launched through both the fail-closed proxy and WebRTC privacy
+// contracts.
 int ManagedProxyPrivacyCapabilityForCommandLine(
     const base::CommandLine& command_line,
     bool fingerprint_proxy_loaded);
