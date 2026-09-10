@@ -332,6 +332,10 @@ async def _launch_browser_with_details(
     if expect_verify and skip_verify:
         raise ValueError("expect_verify and skip_verify are mutually exclusive")
 
+    # Release validation must exercise a real desktop window even for fixtures
+    # whose normal fast-test default is headless.
+    if os.environ.get("CLAWBROWSER_TEST_HEADFUL") == "1":
+        headless = False
     binary = _resolve_browser_binary()
     browser_port = _reserve_port()
     mock_port = _reserve_port()
