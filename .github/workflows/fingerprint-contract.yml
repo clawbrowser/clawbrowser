@@ -17,6 +17,9 @@ jobs:
         run: |
           bash scripts/fingerprint_patch_contract_test.sh
           bash scripts/build_remote_prod_artifacts_test.sh
+          for patch in clawbrowser/patches/*.patch; do
+            git apply --numstat "${patch}" >/dev/null
+          done
       - name: Validate integration test sources
         run: |
           python3 -m py_compile \
