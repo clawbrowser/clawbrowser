@@ -14,7 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Verify runtime fingerprint patch contract
-        run: bash scripts/fingerprint_patch_contract_test.sh
+        run: |
+          bash scripts/fingerprint_patch_contract_test.sh
+          bash scripts/build_remote_prod_artifacts_test.sh
       - name: Validate integration test sources
         run: |
           python3 -m py_compile \
