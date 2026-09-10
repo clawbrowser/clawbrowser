@@ -366,8 +366,8 @@ bool CachedProfileNeedsPrivacyUpgrade(ProfileManager* profile_manager,
     return true;
   }
   const auto& policy = cached->response.fingerprint.surface_policy;
-  return policy.canvas != "override" ||
-         policy.fonts != "native_or_allowlist" ||
+  return policy.canvas.mode != "override" ||
+         policy.fonts.mode != "native_or_allowlist" ||
          !cached->request.runtime_gpu.has_value() ||
          !base::StartsWith(*cached->request.runtime_gpu, "swiftshader",
                            base::CompareCase::INSENSITIVE_ASCII);
