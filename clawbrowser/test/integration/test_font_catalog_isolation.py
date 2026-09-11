@@ -13,7 +13,34 @@ import sys
 
 import pytest
 
-from conftest import FIXTURE_DIR, _launch_browser_with_details
+from conftest import (FIXTURE_DIR, FINGERPRINT_ID, _launch_browser_with_details,
+                      _read_saved_profile)
+
+
+@pytest.mark.asyncio
+async def test_legacy_font_list_is_reconciled_before_child_launch(tmp_path):
+    if sys.platform != 'linux':
+        pytest.skip('bundled font profile migration is Linux-only')
+    fixture = json.loads((FIXTURE_DIR / 'valid_fingerprint.json').read_text())
+    fixture['response']['fingerprint']['fonts'] = ['Bitstream Vera Sans Mono']
+    fixture['request'].pop('runtime_font_catalog', None)
+    fixture_path = tmp_path / 'legacy-font-catalog.json'
+    fixture_path.write_text(json.dumps(fixture))
+    async with _launch_browser_with_details(
+            fixture_name=str(fixture_path), backend_mode='mock',
+            skip_verify=True, headless=False) as launch:
+        saved = _read_saved_profile(launch['config_dir'], FINGERPRINT_ID)
+        assert saved['request']['runtime_font_catalog'] == 'clawbrowser-fonts-prototype-2'
+        fonts = saved['response']['fingerprint']['fonts']
+        assert 'Bitstream Vera Sans Mono' not in fonts
+        assert all(name in fonts for name in ['Arimo', 'Tinos', 'Cousine'])
+        # This exercises the renderer's credential-stripped child payload, not
+        # just the normalized profile JSON on disk.
+        loaded = await launch['page'].evaluate('''async () => {
+            const face = new FontFace('migration-proof', 'local("Arimo-Regular")');
+            await face.load(); return face.status;
+        }''')
+        assert loaded == 'loaded'
 
 
 @pytest.mark.asyncio
