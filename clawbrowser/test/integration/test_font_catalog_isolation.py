@@ -48,7 +48,9 @@ async def test_bundled_local_faces_resolve_full_and_postscript_names(tmp_path):
     if sys.platform != 'linux':
         pytest.skip('bundled Fontconfig catalog is Linux-only')
     names = ['Arimo Regular', 'Arimo-Regular', 'Tinos Regular',
-             'Tinos-Regular', 'Cousine Regular', 'Cousine-Regular']
+             'Tinos-Regular', 'Cousine Regular', 'Cousine-Regular',
+             'DejaVuSans', 'Lohit-Devanagari',
+             'NotoSansThai-Regular', 'Noto Sans Thai Regular']
     fixture = json.loads((FIXTURE_DIR / 'valid_fingerprint.json').read_text())
     fixture['response']['fingerprint']['fonts'] = names
     fixture_path = tmp_path / 'bundled-local-fonts.json'
