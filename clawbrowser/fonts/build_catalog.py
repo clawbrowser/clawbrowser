@@ -9,6 +9,12 @@ from stage_fonts import stage
 
 def build(manifest, chromium, destination, header):
     raw=json.loads(manifest.read_text())
+    metadata=json.loads(manifest.with_name('catalog_build.json').read_text())
+    expected={'catalog_id':raw['catalog_id'],
+              'chromium_files':[f['file'] for f in raw['fonts'] if f.get('source','chromium')=='chromium'],
+              'vendor_files':[f['file'] for f in raw['fonts'] if f.get('source')=='vendor']}
+    if metadata!=expected:
+        raise ValueError('GN catalog metadata does not match pinned manifest')
     canonical=json.dumps(raw,indent=2)
     digest=hashlib.sha256(canonical.encode()).hexdigest()
     if destination.exists():

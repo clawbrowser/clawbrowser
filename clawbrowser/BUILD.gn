@@ -35,7 +35,7 @@ config("clawbrowser_windows_socket_libs") {
 }
 
 if (is_linux) {
-  font_catalog = read_file("fonts/catalog.json", "json")
+  font_catalog = read_file("fonts/catalog_build.json", "json")
   action("clawbrowser_font_catalog") {
     script = "fonts/build_catalog.py"
     catalog_dir = "$root_out_dir/clawbrowser-fonts/" + font_catalog.catalog_id
@@ -49,17 +49,18 @@ if (is_linux) {
     ]
     inputs = [
       "fonts/catalog.json",
+      "fonts/catalog_build.json",
       "fonts/stage_fonts.py",
       "fonts/font-vendor-prototype/NOTO-LICENSE",
       "//third_party/test_fonts/LICENSE",
     ]
-    foreach(font, font_catalog.fonts) {
-      outputs += [ "$catalog_dir/fonts/" + font.file ]
-      if (defined(font.source) && font.source == "vendor") {
-        inputs += [ "fonts/font-vendor-prototype/" + font.file ]
-      } else {
-        inputs += [ "//third_party/test_fonts/test_fonts/" + font.file ]
-      }
+    foreach(font, font_catalog.chromium_files) {
+      outputs += [ "$catalog_dir/fonts/" + font ]
+      inputs += [ "//third_party/test_fonts/test_fonts/" + font ]
+    }
+    foreach(font, font_catalog.vendor_files) {
+      outputs += [ "$catalog_dir/fonts/" + font ]
+      inputs += [ "fonts/font-vendor-prototype/" + font ]
     }
     args = [
       "--manifest", rebase_path("fonts/catalog.json", root_build_dir),
