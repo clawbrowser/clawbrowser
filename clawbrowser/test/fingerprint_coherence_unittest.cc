@@ -8,6 +8,24 @@
 namespace clawbrowser {
 namespace {
 
+TEST(BundledFontIdentityTest, RecognizesOnlyShippedNames) {
+  EXPECT_TRUE(IsBundledLinuxFontName("arimo"));
+  EXPECT_TRUE(IsBundledLinuxFontName("Tinos-Bold"));
+  EXPECT_FALSE(IsBundledLinuxFontName("Bitstream Vera Sans Mono"));
+  EXPECT_FALSE(IsBundledLinuxFontName("Arimo-ArbitrarySuffix"));
+}
+
+#if BUILDFLAG(IS_LINUX)
+TEST(BundledFontIdentityTest, FamilyAllowsShippedUniqueNamesOnly) {
+  RuntimeFingerprint fp;
+  fp.fonts = {"Arimo"};
+  EXPECT_TRUE(IsLocalFontAllowed(fp, "arimo-regular"));
+  EXPECT_TRUE(IsLocalFontAllowed(fp, "Arimo Bold"));
+  EXPECT_FALSE(IsLocalFontAllowed(fp, "Tinos-Regular"));
+  EXPECT_FALSE(IsLocalFontAllowed(fp, "Arimo-Fake"));
+}
+#endif
+
 RuntimeFingerprint MakeFingerprint(std::vector<std::string> fonts,
                                    const std::string& font_policy) {
   RuntimeFingerprint fp;

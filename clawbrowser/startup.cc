@@ -29,6 +29,7 @@
 #include "clawbrowser/fingerprint_coherence.h"
 #include "clawbrowser/fingerprint_loader.h"
 #include "clawbrowser/font_catalog.h"
+#include "clawbrowser/font_catalog_identity.h"
 #include "clawbrowser/logging.h"
 #include "clawbrowser/paths.h"
 #include "clawbrowser/proxy/proxy_config.h"
@@ -442,6 +443,11 @@ void ApplyRuntimeRequestHints(const base::CommandLine& command_line,
   // SwiftShader would keep asking the backend for an incompatible renderer.
   request->runtime_gpu = RuntimeGPUHint(command_line);
   request->runtime_headless = RuntimeHeadless(command_line);
+#if BUILDFLAG(IS_LINUX)
+  request->runtime_font_catalog = kLinuxFontCatalogID;
+#else
+  request->runtime_font_catalog.reset();
+#endif
 }
 
 std::string HeaderOrValue(const RuntimeFingerprint& fp,
@@ -795,6 +801,31 @@ base::expected<StartupResult, std::string> RunStartup(
     }
   }
 
+  // The installed catalog is authoritative even with cached profiles or an
+  // older backend that ignores the capability hint. Keep supported explicit
+  // subsets; replace an entirely incompatible legacy list with the bundle.
+#if BUILDFLAG(IS_LINUX)
+  auto font_profile = profile_manager.ReadProfile(fp_id);
+  if (!font_profile.has_value()) {
+    return base::ok(FailManagedFingerprintStartup(
+        args, "font_profile_load_failed", font_profile.error()));
+  }
+  std::vector<std::string> bundled_fonts;
+  for (const auto& name : font_profile->response.fingerprint.fonts) {
+    if (IsBundledLinuxFontName(name)) bundled_fonts.push_back(name);
+  }
+  if (bundled_fonts.empty()) bundled_fonts = LinuxFontCatalogFamilies();
+  if (bundled_fonts != font_profile->response.fingerprint.fonts ||
+      font_profile->request.runtime_font_catalog != kLinuxFontCatalogID) {
+    font_profile->response.fingerprint.fonts = std::move(bundled_fonts);
+    font_profile->request.runtime_font_catalog = kLinuxFontCatalogID;
+    auto saved = profile_manager.SaveProfile(fp_id, *font_profile);
+    if (!saved.has_value()) {
+      return base::ok(FailManagedFingerprintStartup(
+          args, "font_profile_save_failed", saved.error()));
+    }
+  }
+#endif
   // Load fingerprint into accessor
   base::FilePath fp_path = profile_manager.GetFingerprintPath(fp_id);
   auto load_result = LoadFingerprint(fp_path);

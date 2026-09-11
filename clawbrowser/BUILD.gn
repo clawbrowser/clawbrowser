@@ -113,6 +113,7 @@ component("clawbrowser_runtime") {
     "fingerprint_accessor.cc",
     "fingerprint_accessor.h",
     "fingerprint_coherence.h",
+    "font_catalog_identity.h",
     "noise/canvas_noise.h",
     "noise/prng.h",
   ]
