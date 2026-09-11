@@ -943,6 +943,7 @@ copy_linux_runtime() {
     --include='/locales/*.pak' \
     --include='/resources/***' \
     --include='/swiftshader/***' \
+    --include='/clawbrowser-fonts/***' \
     --include='/MEIPreload/***' \
     --exclude='/*.json' \
     --exclude='*' \
