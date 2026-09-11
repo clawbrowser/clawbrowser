@@ -17,13 +17,14 @@
  #include "components/viz/service/gl/gpu_log_message_manager.h"
  #include "components/viz/service/main/viz_main_impl.h"
  #include "content/child/child_process.h"
-@@ -229,6 +231,11 @@
+@@ -229,6 +231,12 @@
  
    const base::CommandLine& command_line = *parameters.command_line;
  
 +  if (auto result = clawbrowser::LoadFingerprintFromCommandLine(command_line);
 +      !result.has_value()) {
 +    LOG(ERROR) << "[clawbrowser] gpu: " << result.error();
++    return 1;
 +  }
 +
    gpu::GpuPreferences gpu_preferences;

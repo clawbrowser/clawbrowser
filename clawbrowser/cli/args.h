@@ -16,6 +16,7 @@ inline constexpr char kEnableWebGLSpoofingSwitch[] =
     "enable-webgl-spoofing";
 inline constexpr char kDisableWebGLSpoofingSwitch[] =
     "disable-webgl-spoofing";
+inline constexpr char kRequireProxySwitch[] = "clawbrowser-require-proxy";
 
 // Parsed clawbrowser-specific CLI flags.
 // Unknown flags pass through to the browser engine unchanged.
@@ -37,6 +38,7 @@ class ClawArgs {
   bool json_output() const { return json_output_; }
   bool skip_verify() const { return skip_verify_; }
   bool verify_automation() const { return verify_automation_; }
+  bool require_proxy() const { return require_proxy_; }
   // Whether --enable-*-spoofing was passed. This is a *forcing* switch; the
   // fingerprint's surface_policy supplies the default when it is absent.
   bool canvas_spoofing_enabled() const { return canvas_spoofing_enabled_; }
@@ -78,6 +80,7 @@ class ClawArgs {
   bool json_output_;
   bool skip_verify_;
   bool verify_automation_;
+  bool require_proxy_;
   bool canvas_spoofing_enabled_;
   bool webgl_spoofing_enabled_;
   bool canvas_spoofing_suppressed_;

@@ -11,7 +11,7 @@ REMOTE_CHROMIUM_DIR="${REMOTE_CHROMIUM_DIR:-/Users/m1/work/chromium}"
 REMOTE_BUILD_DIR="${REMOTE_BUILD_DIR:-${REMOTE_CHROMIUM_DIR}/src/out/CBFast}"
 REMOTE_LOG_DIR="${REMOTE_LOG_DIR:-/Users/m1/dev/clawbrowser-build-logs}"
 INTEGRATION_VENV_DIR="${INTEGRATION_VENV_DIR:-/Users/m1/.cache/clawbrowser/integration-venv}"
-INTEGRATION_FILTER="${INTEGRATION_FILTER:-user_agent or timezone or verify_page or proxy}"
+INTEGRATION_FILTER="${INTEGRATION_FILTER:-user_agent or timezone or verify_page or proxy or screen or font or canvas or webgl or webrtc}"
 SKIP_RSYNC=0
 
 log() {
@@ -245,6 +245,7 @@ run_step 06 integration-setup \
 
 run_step 07 integration-tests \
   env \
+    CLAWBROWSER_TEST_HEADFUL=1 \
     CLAWBROWSER_BINARY="\${build_dir}/Clawbrowser.app/Contents/MacOS/Clawbrowser" \
     CLAWBROWSER_PROJECT_DIR="\${repo_dir}" \
     "\${integration_venv_dir}/bin/python3" \

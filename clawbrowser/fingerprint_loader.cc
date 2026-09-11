@@ -4,12 +4,14 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include <cmath>
 #include <memory>
 
 #include "base/base64.h"
 #include "base/files/file_util.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/strings/string_util.h"
 #include "build/build_config.h"
 #include "clawbrowser/cli/args.h"
 #include "clawbrowser/fingerprint_accessor.h"
@@ -20,6 +22,57 @@
 namespace clawbrowser {
 
 namespace {
+
+base::expected<void, std::string> ValidateFingerprintForRuntime(
+    const Fingerprint& fingerprint) {
+  const auto& screen = fingerprint.screen;
+  if (screen.width <= 0 || screen.height <= 0 || screen.avail_width <= 0 ||
+      screen.avail_height <= 0) {
+    return base::unexpected(
+        "invalid fingerprint: screen dimensions must be positive");
+  }
+  if (screen.avail_width > screen.width ||
+      screen.avail_height > screen.height) {
+    return base::unexpected(
+        "invalid fingerprint: available screen exceeds full screen");
+  }
+  constexpr int kMaxScreenDimension = 32768;
+  if (screen.width > kMaxScreenDimension ||
+      screen.height > kMaxScreenDimension ||
+      screen.avail_width > kMaxScreenDimension ||
+      screen.avail_height > kMaxScreenDimension) {
+    return base::unexpected(
+        "invalid fingerprint: screen dimensions exceed runtime limits");
+  }
+  if (screen.color_depth < 3 || screen.color_depth > 48 ||
+      screen.color_depth % 3 != 0) {
+    return base::unexpected(
+        "invalid fingerprint: screen color depth must be 3-48 bits and "
+        "divisible by three");
+  }
+  if (!std::isfinite(screen.pixel_ratio) || screen.pixel_ratio <= 0.0 ||
+      screen.pixel_ratio > 10.0) {
+    return base::unexpected(
+        "invalid fingerprint: screen pixel ratio must be finite and in "
+        "(0, 10]");
+  }
+
+  const std::string& font_policy = fingerprint.surface_policy.fonts.mode;
+  if (font_policy == "native_or_allowlist" || font_policy == "override") {
+    if (fingerprint.fonts.empty()) {
+      return base::unexpected(
+          "invalid fingerprint: protected font allowlist is empty");
+    }
+    for (const std::string& font : fingerprint.fonts) {
+      if (base::TrimWhitespaceASCII(font, base::TRIM_ALL).empty()) {
+        return base::unexpected(
+            "invalid fingerprint: protected font allowlist contains an empty "
+            "name");
+      }
+    }
+  }
+  return base::ok();
+}
 
 void ApplyTimezoneOverride(const Fingerprint& fingerprint) {
   if (fingerprint.timezone.empty()) {
@@ -218,6 +271,12 @@ base::expected<void, std::string> LoadFingerprintContents(
             envelope->schema_version);
   }
 
+  auto validation =
+      ValidateFingerprintForRuntime(envelope->response.fingerprint);
+  if (!validation.has_value()) {
+    return validation;
+  }
+
   ApplyTimezoneOverride(envelope->response.fingerprint);
   FingerprintAccessor::Set(
       ToRuntimeFingerprint(envelope->response.fingerprint),
@@ -248,6 +307,11 @@ base::expected<void, std::string> LoadFingerprintFromChildPayload(
   if (!fingerprint.has_value()) {
     return base::unexpected("failed to parse child fingerprint payload: " +
                             fingerprint.error());
+  }
+
+  auto validation = ValidateFingerprintForRuntime(*fingerprint);
+  if (!validation.has_value()) {
+    return validation;
   }
 
   std::optional<ProxyConfig> proxy;
@@ -291,6 +355,12 @@ base::expected<std::string, std::string> BuildChildFingerprintPayloadInternal(
   auto envelope = ProfileEnvelope::Parse(contents);
   if (!envelope.has_value()) {
     return base::unexpected(envelope.error());
+  }
+
+  auto validation =
+      ValidateFingerprintForRuntime(envelope->response.fingerprint);
+  if (!validation.has_value()) {
+    return base::unexpected(validation.error());
   }
 
   base::DictValue payload_dict;
@@ -338,6 +408,10 @@ base::expected<void, std::string> LoadFingerprintFromCommandLine(
   }
 
   if (!command_line.HasSwitch(kFingerprintPathSwitch)) {
+    if (command_line.HasSwitch(kRequireFingerprintSwitch)) {
+      return base::unexpected(
+          "managed child process is missing fingerprint payload and path");
+    }
     return base::ok();  // Vanilla mode — no fingerprint
   }
 

@@ -1,0 +1,44 @@
+name: Fingerprint contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify executable WebUI regressions
+        run: |
+          node scripts/verify_fonts_test.js
+          node scripts/verify_screen_orientation_test.js
+          node scripts/verify_timezone_alias_test.js
+      - name: Verify runtime fingerprint patch contract
+        run: |
+          bash scripts/fingerprint_patch_contract_test.sh
+          bash scripts/build_remote_prod_artifacts_test.sh
+          for patch in clawbrowser/patches/*.patch; do
+            git apply --numstat "${patch}" >/dev/null
+          done
+      - name: Validate integration test sources
+        run: |
+          python3 -m py_compile \
+            clawbrowser/test/integration/conftest.py \
+            clawbrowser/test/integration/test_surfaces.py \
+            clawbrowser/test/integration/test_privacy_migration.py \
+            clawbrowser/test/integration/test_complex_font_fallback.py
+          python3 scripts/integration_binary_resolution_test.py
+          python3 -m json.tool \
+            clawbrowser/test/fixtures/valid_fingerprint.json >/dev/null
+      - name: Verify font catalog staging integrity
+        run: |
+          python3 clawbrowser/fonts/stage_fonts_test.py
+          python3 clawbrowser/fonts/build_catalog_test.py

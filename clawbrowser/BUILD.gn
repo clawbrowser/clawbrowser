@@ -34,6 +34,43 @@ config("clawbrowser_windows_socket_libs") {
   }
 }
 
+if (is_linux) {
+  font_catalog = read_file("fonts/catalog_build.json", "json")
+  action("clawbrowser_font_catalog") {
+    script = "fonts/build_catalog.py"
+    catalog_dir = "$root_out_dir/clawbrowser-fonts/" + font_catalog.catalog_id
+    outputs = [
+      "$target_gen_dir/font_catalog_build.h",
+      "$catalog_dir/manifest.json",
+      "$catalog_dir/STAGED",
+      "$catalog_dir/UPSTREAM-LICENSE",
+      "$catalog_dir/NOTO-LICENSE",
+      "$catalog_dir/fonts.conf",
+    ]
+    inputs = [
+      "fonts/catalog.json",
+      "fonts/catalog_build.json",
+      "fonts/stage_fonts.py",
+      "fonts/font-vendor-prototype/NOTO-LICENSE",
+      "//third_party/test_fonts/LICENSE",
+    ]
+    foreach(font, font_catalog.chromium_files) {
+      outputs += [ "$catalog_dir/fonts/" + font ]
+      inputs += [ "//third_party/test_fonts/test_fonts/" + font ]
+    }
+    foreach(font, font_catalog.vendor_files) {
+      outputs += [ "$catalog_dir/fonts/" + font ]
+      inputs += [ "fonts/font-vendor-prototype/" + font ]
+    }
+    args = [
+      "--manifest", rebase_path("fonts/catalog.json", root_build_dir),
+      "--chromium", rebase_path("//", root_build_dir),
+      "--destination", rebase_path(catalog_dir, root_build_dir),
+      "--header", rebase_path(outputs[0], root_build_dir),
+    ]
+  }
+}
+
 # ---------------------------------------------------------------------------
 # Grit-generated resources for clawbrowser://* pages.
 # ---------------------------------------------------------------------------
@@ -75,6 +112,10 @@ component("clawbrowser_runtime") {
   sources = [
     "fingerprint_accessor.cc",
     "fingerprint_accessor.h",
+    "fingerprint_coherence.h",
+    "font_catalog_identity.h",
+    "noise/canvas_noise.h",
+    "noise/prng.h",
   ]
 
   defines = [ "IS_CLAWBROWSER_RUNTIME_IMPL" ]
@@ -91,6 +132,9 @@ component("clawbrowser_runtime") {
 source_set("clawbrowser_core") {
   configs += [ ":clawbrowser_backend_defaults" ]
   public_configs = [ ":clawbrowser_windows_socket_libs" ]
+  if (is_linux) {
+    include_dirs = [ "$target_gen_dir" ]
+  }
 
   sources = [
     # CLI modules
@@ -102,6 +146,8 @@ source_set("clawbrowser_core") {
     "cli/profile_manager.h",
 
     # Core infrastructure
+    "font_catalog.cc",
+    "font_catalog.h",
     "fingerprint_loader.cc",
     "fingerprint_loader.h",
     "logging.cc",
@@ -116,12 +162,6 @@ source_set("clawbrowser_core") {
     # Generated types
     "generated/fingerprint_types.cc",
     "generated/fingerprint_types.h",
-
-    # Noise generation
-    "noise/prng.h",
-
-    # Cross-surface coherence helpers shared with the Chromium patches.
-    "fingerprint_coherence.h",
 
     "proxy/proxy_config.cc",
     "proxy/proxy_config.h",
@@ -144,6 +184,9 @@ source_set("clawbrowser_core") {
     "//net",
     "//services/network/public/cpp",
   ]
+  if (is_linux) {
+    deps += [ ":clawbrowser_font_catalog" ]
+  }
 
 }
 
@@ -200,8 +243,10 @@ test("clawbrowser_unittests") {
     "test/run_all_unittests.cc",
     "test/api_client_unittest.cc",
     "test/args_unittest.cc",
+    "test/canvas_noise_unittest.cc",
     "test/fingerprint_coherence_unittest.cc",
     "test/fingerprint_loader_unittest.cc",
+    "test/font_catalog_unittest.cc",
     "test/profile_envelope_unittest.cc",
     "test/profile_manager_unittest.cc",
     "test/prng_unittest.cc",

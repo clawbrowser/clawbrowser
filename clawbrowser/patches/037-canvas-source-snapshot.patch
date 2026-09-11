@@ -1,0 +1,106 @@
+diff --git a/third_party/blink/renderer/platform/graphics/image_data_buffer.h b/third_party/blink/renderer/platform/graphics/image_data_buffer.h
+--- a/third_party/blink/renderer/platform/graphics/image_data_buffer.h
++++ b/third_party/blink/renderer/platform/graphics/image_data_buffer.h
+@@ -55,6 +55,11 @@
+   static std::unique_ptr<ImageDataBuffer> CreateForCanvas(
+       scoped_refptr<StaticBitmapImage>);
+   static std::unique_ptr<ImageDataBuffer> CreateForCanvas(const SkPixmap&);
++  // Protect before handing canvas pixels to another API (including GPU
++  // texture upload). Never mutate the live backing store. Native policy
++  // returns the original image without a copy; failure must not expose it.
++  static scoped_refptr<StaticBitmapImage> ProtectCanvasSnapshot(
++      scoped_refptr<StaticBitmapImage>);
+ 
+   String ToDataURL(const ImageEncodingMimeType mime_type,
+                    const double& quality) const;
+diff --git a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc b/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
+--- a/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
++++ b/third_party/blink/renderer/platform/graphics/image_data_buffer.cc
+@@ -40,6 +40,7 @@
+ #include "base/memory/ptr_util.h"
+ #include "clawbrowser/fingerprint_accessor.h"
+ #include "clawbrowser/noise/canvas_noise.h"
++#include "third_party/blink/renderer/platform/graphics/unaccelerated_static_bitmap_image.h"
+ #include "third_party/blink/renderer/platform/image-encoders/image_encoder_utils.h"
+ #include "third_party/blink/renderer/platform/wtf/text/base64.h"
+ #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
+@@ -202,6 +203,25 @@
+   return buffer;
+ }
+ 
++scoped_refptr<StaticBitmapImage> ImageDataBuffer::ProtectCanvasSnapshot(
++    scoped_refptr<StaticBitmapImage> image) {
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  if (!image || !fp || !fp->canvas_spoofing_enabled ||
++      fp->surface_policy.canvas != "override") {
++    return image;
++  }
++  auto buffer = CreateForCanvas(image);
++  if (!buffer)
++    return nullptr;
++  auto protected_image = UnacceleratedStaticBitmapImage::Create(
++      buffer->retained_image_, image->Orientation());
++  if (!protected_image)
++    return nullptr;
++  // A protected copy is not permission to read an origin-tainted canvas.
++  protected_image->SetOriginClean(image->OriginClean());
++  return protected_image;
++}
++
+ base::span<const uint8_t> ImageDataBuffer::PixelData() const {
+   DCHECK(is_valid_);
+   return gfx::SkPixmapToSpan(pixmap_);
+diff --git a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+--- a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
++++ b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+@@ -1891,6 +1891,10 @@
+     }
+   }
+ 
++  // Also covers createImageBitmap(canvas), drawImage and GPU texture upload.
++  // Readback-only noise can be bypassed by a shader before readPixels.
++  image = ImageDataBuffer::ProtectCanvasSnapshot(std::move(image));
++
+   if (!image) {
+     // All other possible error statuses were checked earlier.
+     *status = kInvalidSourceImageStatus;
+diff --git a/third_party/blink/renderer/core/offscreencanvas/offscreen_canvas.cc b/third_party/blink/renderer/core/offscreencanvas/offscreen_canvas.cc
+--- a/third_party/blink/renderer/core/offscreencanvas/offscreen_canvas.cc
++++ b/third_party/blink/renderer/core/offscreencanvas/offscreen_canvas.cc
+@@ -46,6 +46,7 @@
+ #include "third_party/blink/renderer/platform/graphics/gpu/canvas_utils.h"
+ #include "third_party/blink/renderer/platform/graphics/gpu/shared_gpu_context.h"
+ #include "third_party/blink/renderer/platform/graphics/image.h"
++#include "third_party/blink/renderer/platform/graphics/image_data_buffer.h"
+ #include "third_party/blink/renderer/platform/graphics/static_bitmap_image.h"
+ #include "third_party/blink/renderer/platform/graphics/static_bitmap_image_transform.h"
+ #include "third_party/blink/renderer/platform/graphics/unaccelerated_static_bitmap_image.h"
+@@ -374,6 +375,7 @@
+   if (!image) {
+     image = CreateTransparentImage();
+   }
++  image = ImageDataBuffer::ProtectCanvasSnapshot(std::move(image));
+   *status = image ? kNormalSourceImageStatus : kInvalidSourceImageStatus;
+ 
+   return image;
+diff --git a/third_party/blink/renderer/modules/canvas/offscreencanvas2d/offscreen_canvas_rendering_context_2d.cc b/third_party/blink/renderer/modules/canvas/offscreencanvas2d/offscreen_canvas_rendering_context_2d.cc
+--- a/third_party/blink/renderer/modules/canvas/offscreencanvas2d/offscreen_canvas_rendering_context_2d.cc
++++ b/third_party/blink/renderer/modules/canvas/offscreencanvas2d/offscreen_canvas_rendering_context_2d.cc
+@@ -31,6 +31,7 @@
+ #include "third_party/blink/renderer/platform/graphics/canvas_resource_provider.h"
+ #include "third_party/blink/renderer/platform/graphics/gpu/canvas_utils.h"
+ #include "third_party/blink/renderer/platform/graphics/gpu/shared_gpu_context.h"
++#include "third_party/blink/renderer/platform/graphics/image_data_buffer.h"
+ #include "third_party/blink/renderer/platform/graphics/paint/paint_canvas.h"
+ #include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
+ #include "third_party/blink/renderer/platform/graphics/static_bitmap_image.h"
+@@ -371,7 +372,8 @@
+   if (!InitializeResourceProvider()) {
+     return nullptr;
+   }
+-  scoped_refptr<StaticBitmapImage> image = GetImage();
++  scoped_refptr<StaticBitmapImage> image =
++      ImageDataBuffer::ProtectCanvasSnapshot(GetImage());
+   if (!image)
+     return nullptr;
+   image->SetOriginClean(OriginClean());

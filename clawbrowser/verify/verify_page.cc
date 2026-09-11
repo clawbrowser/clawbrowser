@@ -11,6 +11,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/net/system_network_context_manager.h"
 #include "clawbrowser/cli/api_client.h"
+#include "clawbrowser/cli/args.h"
 #include "clawbrowser/cli/profile_manager.h"
 #include "clawbrowser/fingerprint_accessor.h"
 #include "clawbrowser/grit/clawbrowser_verify_resources.h"
@@ -139,6 +140,22 @@ bool VerifyFailureExitEnabledForCommandLine(
   return command_line.HasSwitch("verify-automation");
 }
 
+int ManagedProxyPrivacyCapabilityForCommandLine(
+    const base::CommandLine& command_line,
+    bool fingerprint_proxy_loaded) {
+  if (!fingerprint_proxy_loaded ||
+      !command_line.HasSwitch(kRequireProxySwitch) ||
+      command_line.GetSwitchValueASCII("proxy-server").empty() ||
+      command_line.HasSwitch("no-proxy-server") ||
+      command_line.HasSwitch("proxy-pac-url") ||
+      command_line.HasSwitch("proxy-auto-detect") ||
+      command_line.HasSwitch("proxy-bypass-list")) {
+    return 0;
+  }
+
+  return 1;
+}
+
 VerifyPageUI::VerifyPageUI(content::WebUI* web_ui)
     : content::WebUIController(web_ui) {
   automation_mode_ = VerifyFailureExitEnabledForCommandLine(
@@ -201,11 +218,22 @@ void VerifyPageUI::SetupDataSource(content::WebUIDataSource* source) {
   source->AddString("battery_level", "");
   source->AddString("speech_voices_json", "");
   source->AddString("speech_voices_count", "0");
+  source->AddString("managed_proxy_privacy", "0");
 
   // Inject expected fingerprint values as replacements in the HTML.
   const RuntimeFingerprint* fp = FingerprintAccessor::Get();
   if (!fp)
     return;
+
+  const base::CommandLine* command_line =
+      base::CommandLine::ForCurrentProcess();
+  const int managed_proxy_privacy =
+      command_line
+          ? ManagedProxyPrivacyCapabilityForCommandLine(
+                *command_line, FingerprintAccessor::GetProxy() != nullptr)
+          : 0;
+  source->AddString("managed_proxy_privacy",
+                    base::NumberToString(managed_proxy_privacy));
 
   source->AddString("has_expected_values", "true");
   source->AddString("user_agent", fp->user_agent);

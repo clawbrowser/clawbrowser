@@ -27,7 +27,7 @@ MISMATCH_PROXY_FIXTURE_PATH = PROJECT_ROOT / "api/mocks/proxy_mismatch.json"
 # Mirrors DefaultProfilePlatform() in clawbrowser/startup.cc: the value the
 # browser puts in GenerateRequest.platform on this host. Fixtures that pin
 # "platform" for mock request-matching have to use the same value or the mock
-# rejects the request with 400 and the browser silently falls back to vanilla.
+# rejects the request with 400 and managed browser startup fails closed.
 HOST_PROFILE_PLATFORM = {
     "win32": "windows",
     "darwin": "macos",
@@ -60,14 +60,16 @@ def _resolve_browser_binary() -> str:
     candidates = [
         Path(binary).expanduser() if binary else None,
         WORKSPACE_ROOT / "out/CBProdMacArm64/Clawbrowser.app/Contents/MacOS/Clawbrowser",
-        WORKSPACE_ROOT / "out/CBProdMacArm64/Chromium.app/Contents/MacOS/Chromium",
         WORKSPACE_ROOT / "out/CBFast/Clawbrowser.app/Contents/MacOS/Clawbrowser",
-        WORKSPACE_ROOT / "out/CBFast/Chromium.app/Contents/MacOS/Chromium",
         WORKSPACE_ROOT / "out/Default/clawbrowser",
     ]
 
     for candidate in candidates:
-        if candidate and candidate.exists():
+        if (
+            candidate
+            and candidate.exists()
+            and candidate.name.casefold() in {"clawbrowser", "clawbrowser.exe"}
+        ):
             return str(candidate)
 
     searched = "\n".join(
@@ -254,6 +256,8 @@ def _stop_process(process: subprocess.Popen):
 
 
 def _resolve_backend(mode="auto"):
+    if mode == "vanilla":
+        return {"use_mock": True, "base_url": None, "api_key": None}
     base_url = os.environ.get("CLAWBROWSER_API_BASE_URL")
     api_key = os.environ.get("CLAWBROWSER_API_KEY")
     if mode == "mock":
@@ -330,6 +334,10 @@ async def _launch_browser_with_details(
     if expect_verify and skip_verify:
         raise ValueError("expect_verify and skip_verify are mutually exclusive")
 
+    # Release validation must exercise a real desktop window even for fixtures
+    # whose normal fast-test default is headless.
+    if os.environ.get("CLAWBROWSER_TEST_HEADFUL") == "1":
+        headless = False
     binary = _resolve_browser_binary()
     browser_port = _reserve_port()
     mock_port = _reserve_port()
@@ -360,6 +368,15 @@ async def _launch_browser_with_details(
             config_base_url = f"http://127.0.0.1:{mock_port}"
 
         _seed_config(config_dir, config_base_url, backend["api_key"])
+
+        if fingerprints_fixture_path == DEFAULT_FINGERPRINTS_FIXTURE_PATH:
+            # Match the host request, without changing the response identity.
+            default_fixture = _read_json(fingerprints_fixture_path)
+            default_fixture["request"]["platform"] = HOST_PROFILE_PLATFORM
+            fingerprints_fixture_path = home_dir / "mock_fingerprints.json"
+            fingerprints_fixture_path.write_text(
+                json.dumps(default_fixture), encoding="utf-8"
+            )
 
         with mock_log_path.open("w", encoding="utf-8") as mock_log_file:
             mock_args = [
@@ -415,6 +432,8 @@ async def _launch_browser_with_details(
                     }
                     if backend["api_key"]:
                         browser_env["CLAWBROWSER_API_KEY"] = backend["api_key"]
+                    elif backend_mode == "vanilla":
+                        browser_env.pop("CLAWBROWSER_API_KEY", None)
                     if extra_env:
                         browser_env.update(extra_env)
 
@@ -481,18 +500,38 @@ async def browser_with_fingerprint():
 
 
 @pytest_asyncio.fixture
-async def browser_with_webgl_spoofing():
-    """Launch with WebGL spoofing opted in.
-
-    WebGL vendor/renderer overrides are gated on --enable-webgl-spoofing (see
-    clawbrowser/cli/args.h), not on surface_policy.webgl, so a test that asserts
-    the spoofed values has to pass the switch explicitly.
-    """
+async def browser_with_offset_window_fingerprint():
+    """Launch a fingerprinted window at a non-origin host position."""
     async with _launch_browser(
         fixture_name="valid_fingerprint.json",
         backend_mode="mock",
         skip_verify=True,
-        extra_browser_args=("--enable-webgl-spoofing",),
+        extra_browser_args=("--window-position=317,223",),
+    ) as result:
+        yield result
+
+
+@pytest_asyncio.fixture
+async def browser_with_screen_details_fingerprint():
+    """Launch with experimental ScreenDetailed color accessors enabled."""
+    async with _launch_browser(
+        fixture_name="valid_fingerprint.json",
+        backend_mode="mock",
+        skip_verify=True,
+        extra_browser_args=(
+            "--enable-blink-features=ScreenDetailedHdrHeadroom,CanvasHDR",
+        ),
+    ) as result:
+        yield result
+
+
+@pytest_asyncio.fixture
+async def browser_with_isolated_webgl():
+    """Launch a fingerprint profile on the host-independent WebGL backend."""
+    async with _launch_browser(
+        fixture_name="valid_fingerprint.json",
+        backend_mode="mock",
+        skip_verify=True,
     ) as result:
         yield result
 
@@ -549,6 +588,6 @@ async def browser_with_absurd_fingerprint():
 @pytest_asyncio.fixture
 async def vanilla_browser():
     """Launch clawbrowser in vanilla mode (no fingerprint)."""
-    async with _launch_browser(backend_mode="mock") as result:
+    async with _launch_browser(backend_mode="vanilla") as result:
         page, _ = result
         yield page

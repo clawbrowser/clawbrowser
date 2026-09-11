@@ -173,12 +173,9 @@ it before you spend a day rebasing patches.
 The browser sends its real runtime version to the backend on every fingerprint
 request (`ApplyRuntimeRequestHints` in `clawbrowser/startup.cc`). If the service
 has no header profiles for that Chromium version, it returns **HTTP 500
-`generation_failed`** and the browser **silently falls back to vanilla mode** —
-no fingerprint, no spoofing, plain Chromium. It still starts. `clawctl` still
-reports `ok`. The only visible signal is one warning line and this sentence on
-`clawbrowser://verify/`:
-
-> No expected values — not running in fingerprint mode
+`generation_failed`**. Managed startup now **fails closed** with a non-zero
+exit instead of opening a browser with native surfaces. `clawctl start` must
+report the failure; stderr (and `--output=json`) contains the API error.
 
 Check it directly, with your own API key:
 
@@ -639,13 +636,14 @@ Check `proxy-traffic` first; if `state` is `exhausted`, stop and top up rather
 than looping on failures.
 
 Then **open `clawbrowser://verify/` and read it.** This is the check that catches
-what nothing else does. If it says:
+what nothing else does. If a managed launch succeeds but it says:
 
 > No expected values — not running in fingerprint mode
 
-then the browser is running as vanilla Chromium with no fingerprint applied —
-almost certainly the service rejecting your new version (step 2). A green test
-suite and a successful build do not rule this out.
+then a fail-closed invariant has been bypassed and the release is blocked. A
+service rejection should terminate startup, not reach this page. A green test
+suite and a successful build do not rule out broken child-switch propagation,
+so treat this result as a runtime defect.
 
 Also confirm your seeded profile from step 0.2 still opens, restores its session,
 and keeps its history and downloads.

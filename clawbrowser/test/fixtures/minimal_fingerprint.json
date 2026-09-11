@@ -4,7 +4,8 @@
   "request": {
     "platform": "macos",
     "browser": "chrome",
-    "country": "US"
+    "country": "US",
+    "runtime_gpu": "swiftshader"
   },
   "response": {
     "fingerprint": {
@@ -106,7 +107,7 @@
       },
       "surface_policy": {
         "canvas": {
-          "mode": "native"
+          "mode": "override"
         },
         "audio": {
           "mode": "native"

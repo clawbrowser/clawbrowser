@@ -450,6 +450,21 @@ prepare_project() {
     --project-dir "${repo_dir}"
 }
 
+verify_fingerprint_patch_contract() {
+  cd "${repo_dir}"
+  bash scripts/fingerprint_patch_contract_test.sh
+}
+
+verify_staged_runtime() {
+  local staged_build_dir="$1"
+
+  cd "${repo_dir}"
+  bash scripts/clawbrowser_remote.sh integration-test \
+    --chromium-dir "${chromium_dir}" \
+    --project-dir "${repo_dir}" \
+    --build-dir "${staged_build_dir}"
+}
+
 resolve_ccache_bin() {
   if command -v ccache >/dev/null 2>&1; then
     command -v ccache
@@ -897,6 +912,7 @@ package_macos_arm64() {
   rewrite_macos_bundle_metadata "${staged_app}"
   overlay_macos_app_icons "${staged_app}"
   sign_macos_app_bundle "${staged_app}"
+  verify_staged_runtime "${stage_dir}"
 
   (
     cd "${stage_dir}"
@@ -927,6 +943,7 @@ copy_linux_runtime() {
     --include='/locales/*.pak' \
     --include='/resources/***' \
     --include='/swiftshader/***' \
+    --include='/clawbrowser-fonts/***' \
     --include='/MEIPreload/***' \
     --exclude='/*.json' \
     --exclude='*' \
@@ -1048,6 +1065,11 @@ package_linux_archives() {
 
   stage_linux_runtime_bundle "${linux_x64_build_dir}" "${bundle_x64}"
   stage_linux_runtime_bundle "${linux_arm64_build_dir}" "${bundle_arm64}"
+  # The x64 archive is runnable on the Linux builder, so exercise the exact
+  # staged release wrapper and payload before either architecture is archived.
+  # Both architectures are compiled from the same patched Chromium sources;
+  # the static contract above additionally guards the shared patch set.
+  verify_staged_runtime "${bundle_x64}"
 
   (
     cd "${package_root_x64}"
@@ -1097,6 +1119,7 @@ case "${remote_os}" in
 esac
 
 mark_runner_started
+run_step fingerprint_contract verify_fingerprint_patch_contract
 run_step prepare_project prepare_project
 
 case "${remote_os}" in

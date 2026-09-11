@@ -1,3 +1,4 @@
 playwright>=1.40.0
 pytest>=7.0.0
 pytest-asyncio>=0.21.0
+fonttools==4.59.0
