@@ -11,6 +11,10 @@ namespace {
 TEST(BundledFontIdentityTest, RecognizesOnlyShippedNames) {
   EXPECT_TRUE(IsBundledLinuxFontName("arimo"));
   EXPECT_TRUE(IsBundledLinuxFontName("Tinos-Bold"));
+  EXPECT_TRUE(IsBundledLinuxFontName("Noto Sans Thai Regular"));
+  EXPECT_TRUE(IsBundledLinuxFontName("NotoSansThai-Regular"));
+  EXPECT_EQ(LinuxFontAliasFamily("DejaVuSans"), "DejaVu Sans");
+  EXPECT_EQ(LinuxFontAliasFamily("Lohit-Devanagari"), "Lohit Devanagari");
   EXPECT_FALSE(IsBundledLinuxFontName("Bitstream Vera Sans Mono"));
   EXPECT_FALSE(IsBundledLinuxFontName("Arimo-ArbitrarySuffix"));
 }
