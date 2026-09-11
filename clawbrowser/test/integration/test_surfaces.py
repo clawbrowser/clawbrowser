@@ -1257,6 +1257,10 @@ async def test_fonts_block_non_allowlisted_local_sources(browser_with_fingerprin
         "LiberationSans",      # Linux PostScript name
         "Ubuntu",              # Linux full name
     ]
+    if sys.platform == 'linux':
+        # Exact PostScript alias of the now-bundled DejaVu Sans family.
+        # Its positive load is covered by the bundled-local-face regression.
+        allowed.add('dejavusans')
     candidates = [font for font in candidates if font.casefold() not in allowed]
 
     result = await page.evaluate(
