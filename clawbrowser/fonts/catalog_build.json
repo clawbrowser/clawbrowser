@@ -1,0 +1,23 @@
+{
+  "catalog_id": "clawbrowser-fonts-prototype-2",
+  "chromium_files": [
+    "Arimo-Regular.ttf",
+    "Arimo-Bold.ttf",
+    "Arimo-Italic.ttf",
+    "Arimo-BoldItalic.ttf",
+    "Tinos-Regular.ttf",
+    "Tinos-Bold.ttf",
+    "Tinos-Italic.ttf",
+    "Tinos-BoldItalic.ttf",
+    "Cousine-Regular.ttf",
+    "Cousine-Bold.ttf",
+    "Cousine-Italic.ttf",
+    "Cousine-BoldItalic.ttf",
+    "DejaVuSans.ttf",
+    "NotoSansCJK-VF.otf.ttc",
+    "Lohit-Devanagari.ttf"
+  ],
+  "vendor_files": [
+    "NotoSansThai-Regular.ttf"
+  ]
+}
