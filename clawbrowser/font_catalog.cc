@@ -27,6 +27,14 @@ bool SafeFontName(std::string_view name) {
   return base::EndsWith(name, ".ttf") || base::EndsWith(name, ".otf") ||
          base::EndsWith(name, ".ttc");
 }
+
+std::string XmlText(std::string_view value) {
+  std::string text(value);
+  base::ReplaceSubstringsAfterOffset(&text, 0, "&", "&amp;");
+  base::ReplaceSubstringsAfterOffset(&text, 0, "<", "&lt;");
+  base::ReplaceSubstringsAfterOffset(&text, 0, ">", "&gt;");
+  return text;
+}
 }  // namespace
 
 base::expected<std::string, std::string> ValidateFontCatalog(
@@ -83,5 +91,48 @@ base::expected<std::string, std::string> ValidateFontCatalog(
   if (actual_count != expected_files.size())
     return base::unexpected("incomplete font catalog");
   return base::ok(*id);
+}
+
+base::expected<std::string, std::string> BuildFontCatalogConfig(
+    const base::FilePath& catalog_dir,
+    const base::FilePath& cache_dir,
+    std::string_view expected_manifest_sha256) {
+  if (!catalog_dir.IsAbsolute() || !cache_dir.IsAbsolute())
+    return base::unexpected("font catalog paths must be absolute");
+  auto valid = ValidateFontCatalog(catalog_dir, expected_manifest_sha256);
+  if (!valid.has_value())
+    return base::unexpected(valid.error());
+  std::string manifest;
+  if (!base::ReadFileToStringWithMaxSize(
+          catalog_dir.AppendASCII("manifest.json"), &manifest, 1024 * 1024) ||
+      Digest(manifest) != expected_manifest_sha256) {
+    return base::unexpected("font catalog manifest changed during validation");
+  }
+  auto parsed = base::JSONReader::Read(manifest, base::JSON_PARSE_RFC);
+  if (!parsed || !parsed->is_dict())
+    return base::unexpected("invalid font catalog manifest");
+  const auto* generics = parsed->GetDict().FindDict("generics");
+  const auto* fallback = parsed->GetDict().FindList("fallback");
+  if (!generics || generics->empty() || !fallback || fallback->empty())
+    return base::unexpected("font catalog missing generic or fallback mapping");
+  std::string xml = "<?xml version=\"1.0\"?>\n<fontconfig><reset-dirs/><dir>" +
+      XmlText(catalog_dir.AppendASCII("fonts").AsUTF8Unsafe()) +
+      "</dir><cachedir>" + XmlText(cache_dir.AsUTF8Unsafe()) + "</cachedir>";
+  for (const auto item : *generics) {
+    if (!item.second.is_string() || item.second.GetString().empty())
+      return base::unexpected("invalid font generic mapping");
+    xml += "<alias binding=\"strong\"><family>" + XmlText(item.first) +
+        "</family><prefer><family>" + XmlText(item.second.GetString()) +
+        "</family></prefer></alias>";
+  }
+  for (const auto& family : *fallback) {
+    if (!family.is_string() || family.GetString().empty())
+      return base::unexpected("invalid font fallback mapping");
+    xml += "<match target=\"pattern\"><edit name=\"family\" mode=\"append\" "
+           "binding=\"weak\"><string>" + XmlText(family.GetString()) +
+           "</string></edit></match>";
+  }
+  xml += "</fontconfig>\n";
+  return base::ok(std::move(xml));
 }
 }  // namespace clawbrowser
