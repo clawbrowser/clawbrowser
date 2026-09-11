@@ -13,6 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify executable WebUI regressions
+        run: |
+          node scripts/verify_fonts_test.js
+          node scripts/verify_screen_orientation_test.js
+          node scripts/verify_timezone_alias_test.js
       - name: Verify runtime fingerprint patch contract
         run: |
           bash scripts/fingerprint_patch_contract_test.sh
