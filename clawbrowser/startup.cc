@@ -6,7 +6,11 @@
 #include <vector>
 
 #include "base/environment.h"
+#include "base/base_paths.h"
 #include "base/files/file_path.h"
+#include "base/files/file_util.h"
+#include "base/files/important_file_writer.h"
+#include "base/path_service.h"
 #include "base/i18n/time_formatting.h"
 #include "base/json/json_writer.h"
 #include "base/no_destructor.h"
@@ -24,12 +28,18 @@
 #include "clawbrowser/fingerprint_accessor.h"
 #include "clawbrowser/fingerprint_coherence.h"
 #include "clawbrowser/fingerprint_loader.h"
+#include "clawbrowser/font_catalog.h"
 #include "clawbrowser/logging.h"
 #include "clawbrowser/paths.h"
 #include "clawbrowser/proxy/proxy_config.h"
 #include "clawbrowser/proxy/socks5_auth_proxy_bridge.h"
 #include "components/version_info/version_info.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
+#include "crypto/hash.h"
+
+#if BUILDFLAG(IS_LINUX)
+#include "font_catalog_build.h"
+#endif
 
 namespace clawbrowser {
 
@@ -527,6 +537,40 @@ ApplyDevProxyOverride() {
   return base::ok(std::optional<RuntimeProxyConfig>(std::move(proxy)));
 }
 
+base::expected<void, std::string> ConfigureBundledFontsBeforeThreads() {
+#if BUILDFLAG(IS_LINUX)
+  base::FilePath executable_dir;
+  if (!base::PathService::Get(base::DIR_EXE, &executable_dir))
+    return base::unexpected("cannot locate bundled font catalog");
+  const auto catalog_dir = executable_dir.AppendASCII(kFontCatalogDirectory);
+  const auto config_dir = GetClawbrowserConfigDir().AppendASCII("fontconfig");
+  const auto cache_dir = config_dir.AppendASCII("cache");
+  auto xml = BuildFontCatalogConfig(catalog_dir, cache_dir,
+                                    kFontCatalogManifestHash);
+  if (!xml.has_value())
+    return base::unexpected(xml.error());
+  if (!base::CreateDirectory(config_dir))
+    return base::unexpected("cannot create managed font configuration directory");
+  // Content-address the file: simultaneous launches from different installs
+  // must not overwrite one another's absolute asset paths.
+  const auto digest = base::ToLowerASCII(
+      base::HexEncode(crypto::hash::Sha256(std::string_view(*xml))));
+  const auto config_path = config_dir.AppendASCII(digest + ".conf");
+  std::string existing;
+  if (!base::ReadFileToString(config_path, &existing) || existing != *xml) {
+    if (!base::ImportantFileWriter::WriteFileAtomically(config_path, *xml))
+      return base::unexpected("cannot write managed font configuration");
+  }
+  auto environment = base::Environment::Create();
+  if (!environment->UnSetVar("FONTCONFIG_SYSROOT") ||
+      !environment->UnSetVar("FONTCONFIG_PATH") ||
+      !environment->SetVar("FONTCONFIG_FILE", config_path.AsUTF8Unsafe())) {
+    return base::unexpected("cannot select managed font configuration");
+  }
+#endif
+  return base::ok();
+}
+
 base::expected<std::optional<ProxyBridgeEndpoint>, std::string>
 PrepareProxyBridge(const RuntimeProxyConfig& proxy) {
   StopSocks5AuthProxyBridge();
@@ -552,6 +596,19 @@ base::expected<std::optional<int>, std::string> HandleBasicStartupComplete(
   SetVerbose(args.verbose());
 
   if (!args.list()) {
+    // BasicStartupComplete runs before PreSandboxStartup/font initialization.
+    // Children inherit the browser's closed catalog; do not read profile auth
+    // or rewrite the font environment inside a sandboxed child process.
+    if (command_line.GetSwitchValueASCII("type").empty() &&
+        !command_line.HasSwitch("version") &&
+        !command_line.HasSwitch("help")) {
+      ProfileManager profile_manager(GetClawbrowserConfigDir());
+      if (profile_manager.ResolveApiKey().has_value()) {
+        auto fonts = ConfigureBundledFontsBeforeThreads();
+        if (!fonts.has_value())
+          return base::unexpected(fonts.error());
+      }
+    }
     return base::ok(std::nullopt);
   }
 
