@@ -17,7 +17,7 @@ def build(manifest, chromium, destination, header):
         raise ValueError('GN catalog metadata does not match pinned manifest')
     canonical=json.dumps(raw,indent=2)
     digest=hashlib.sha256(canonical.encode()).hexdigest()
-    if destination.exists():
+    if (destination/'manifest.json').exists():
         # A versioned output is immutable. A changed manifest needs a new ID;
         # corrupt or incomplete output must never be silently accepted.
         if (destination/'manifest.json').read_text()!=canonical:
@@ -38,7 +38,7 @@ def build(manifest, chromium, destination, header):
                 raise ValueError('corrupt staged font: '+entry['file'])
     else:
         destination.parent.mkdir(parents=True,exist_ok=True)
-        stage(manifest,chromium,destination)
+        stage(manifest,chromium,destination,allow_empty_directory=True)
     text=('#ifndef CLAWBROWSER_FONT_CATALOG_BUILD_H_\n'
           '#define CLAWBROWSER_FONT_CATALOG_BUILD_H_\n'
           'namespace clawbrowser {\n'
