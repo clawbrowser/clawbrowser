@@ -2,17 +2,47 @@
 
 Set CLAWBROWSER_TEST_FONTCONFIG_A/B to isolated Fontconfig XML files using
 different real catalogs. Do not point both variables to the same catalog.
-This optional environment-dependent test currently exposes the unresolved
-generic/character fallback gap; a skip is not a privacy acceptance pass.
+The differential gate guards generic/character fallback isolation; a skip is
+not a privacy acceptance pass.
 """
 
 import os
+import json
 from pathlib import Path
 import sys
 
 import pytest
 
-from conftest import _launch_browser_with_details
+from conftest import FIXTURE_DIR, _launch_browser_with_details
+
+
+@pytest.mark.asyncio
+async def test_bundled_local_faces_resolve_full_and_postscript_names(tmp_path):
+    if sys.platform != 'linux':
+        pytest.skip('bundled Fontconfig catalog is Linux-only')
+    names = ['Arimo Regular', 'Arimo-Regular', 'Tinos Regular',
+             'Tinos-Regular', 'Cousine Regular', 'Cousine-Regular']
+    fixture = json.loads((FIXTURE_DIR / 'valid_fingerprint.json').read_text())
+    fixture['response']['fingerprint']['fonts'] = names
+    fixture_path = tmp_path / 'bundled-local-fonts.json'
+    fixture_path.write_text(json.dumps(fixture))
+    async with _launch_browser_with_details(
+            fixture_name=str(fixture_path), backend_mode='mock',
+            skip_verify=True, headless=False) as launch:
+        results = await launch['page'].evaluate("""async names => {
+            const results = {};
+            for (const [index, name] of names.entries()) {
+                const face = new FontFace('probe' + index,
+                    'local(' + JSON.stringify(name) + ')');
+                try { await face.load(); results[name] = true; }
+                catch (_) { results[name] = false; }
+            }
+            return results;
+        }""", names + ['Arimo-Bold', 'Clawbrowser-Missing-Font'])
+    assert all(results[name] for name in names), results
+    # Arimo-Bold is shipped but not in this identity's explicit allowlist.
+    assert results['Arimo-Bold'] is False
+    assert results['Clawbrowser-Missing-Font'] is False
 
 
 @pytest.mark.asyncio
