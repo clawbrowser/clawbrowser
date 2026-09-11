@@ -8,7 +8,7 @@ import subprocess
 from xml.sax.saxutils import escape
 
 
-def stage(manifest_path, chromium, destination):
+def stage(manifest_path, chromium, destination, *, allow_empty_directory=False):
     manifest = json.loads(manifest_path.read_text())
     if manifest.get('release_ready') is not False:
         raise ValueError('only an explicitly non-release prototype is accepted')
@@ -44,9 +44,13 @@ def stage(manifest_path, chromium, destination):
     # Validate every input before creating output. Existing output is never reused
     # or overwritten. Any later I/O failure leaves a visibly incomplete directory.
     destination = destination.absolute()
-    destination.mkdir(mode=0o755)
+    if allow_empty_directory and destination.exists():
+        if destination.is_symlink() or not destination.is_dir() or any(
+                path.is_symlink() or not path.is_dir() for path in destination.rglob('*')):
+            raise ValueError('refusing nonempty or linked unstaged output')
+    destination.mkdir(mode=0o755, exist_ok=allow_empty_directory)
     fonts = destination / 'fonts'
-    fonts.mkdir()
+    fonts.mkdir(exist_ok=allow_empty_directory)
     for name, data in files:
         with (fonts / name).open('xb') as output:
             output.write(data)

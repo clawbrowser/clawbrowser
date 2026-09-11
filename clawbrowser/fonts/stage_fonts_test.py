@@ -27,10 +27,10 @@ class StageTests(unittest.TestCase):
         self.manifest_path=self.root/'manifest.json'
         self.output=self.root/'output'
 
-    def run_stage(self):
+    def run_stage(self, **kwargs):
         self.manifest_path.write_text(json.dumps(self.manifest))
         with patch.object(module.subprocess,'check_output',return_value='test\n'):
-            return module.stage(self.manifest_path,self.root,self.output)
+            return module.stage(self.manifest_path,self.root,self.output,**kwargs)
 
     def test_stage_and_xml(self):
         self.assertEqual(self.run_stage()['fonts'],1)
@@ -63,5 +63,16 @@ class StageTests(unittest.TestCase):
         (self.output/'sentinel').write_text('preserve')
         with self.assertRaises(FileExistsError): self.run_stage()
         self.assertEqual((self.output/'sentinel').read_text(),'preserve')
+
+    def test_ninja_precreated_empty_directories(self):
+        (self.output/'fonts').mkdir(parents=True)
+        self.assertEqual(self.run_stage(allow_empty_directory=True)['fonts'],1)
+
+    def test_partial_ninja_output_rejected(self):
+        (self.output/'fonts').mkdir(parents=True)
+        (self.output/'fonts/partial.ttf').write_bytes(b'partial')
+        with self.assertRaisesRegex(ValueError,'nonempty'):
+            self.run_stage(allow_empty_directory=True)
+        self.assertEqual((self.output/'fonts/partial.ttf').read_bytes(),b'partial')
 
 if __name__=='__main__': unittest.main()
