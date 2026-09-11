@@ -8,16 +8,25 @@
 
 namespace clawbrowser {
 // Describes the Linux bundle, not the host OS's installed font inventory.
-inline constexpr char kLinuxFontCatalogID[] = "clawbrowser-fonts-prototype-2";
+inline constexpr char kLinuxFontCatalogID[] = "clawbrowser-fonts-prototype-3";
 inline std::vector<std::string> LinuxFontCatalogFamilies() {
   return {"Arimo", "Tinos", "Cousine", "DejaVu Sans",
           "Noto Sans CJK JP", "Noto Sans CJK KR", "Noto Sans CJK SC",
           "Noto Sans CJK TC", "Noto Sans CJK HK",
-          "Lohit Devanagari", "Noto Sans Thai"};
+          "Lohit Devanagari", "Noto Sans Thai",
+          "Noto Color Emoji", "Noto Sans Bengali", "Noto Sans Ethiopic", "Noto Sans Gujarati", "Noto Sans Gurmukhi", "Noto Sans Kannada", "Noto Sans Khmer", "Noto Sans Malayalam", "Noto Sans Myanmar", "Noto Sans Sinhala", "Noto Sans Tamil", "Noto Sans Telugu"};
 }
 // Full/PostScript names are distinct from CSS family names. Match exact
 // shipped aliases, never arbitrary suffixes supplied by a page.
 inline std::string LinuxFontAliasFamily(std::string_view name) {
+  for (const auto& script : {"Bengali", "Ethiopic", "Gujarati", "Gurmukhi",
+                             "Kannada", "Khmer", "Malayalam", "Myanmar",
+                             "Sinhala", "Tamil", "Telugu"}) {
+    const std::string family = std::string("Noto Sans ") + script;
+    if (base::EqualsCaseInsensitiveASCII(name, family + " Regular") ||
+        base::EqualsCaseInsensitiveASCII(name,
+            std::string("NotoSans") + script + "-Regular")) return family;
+  }
   if (base::EqualsCaseInsensitiveASCII(name, "NotoSansThai-Regular") ||
       base::EqualsCaseInsensitiveASCII(name, "Noto Sans Thai Regular")) {
     return "Noto Sans Thai";

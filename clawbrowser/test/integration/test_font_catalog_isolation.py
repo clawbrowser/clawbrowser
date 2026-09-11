@@ -30,7 +30,7 @@ async def test_legacy_font_list_is_reconciled_before_child_launch(tmp_path):
             fixture_name=str(fixture_path), backend_mode='mock',
             skip_verify=True, headless=False) as launch:
         saved = _read_saved_profile(launch['config_dir'], FINGERPRINT_ID)
-        assert saved['request']['runtime_font_catalog'] == 'clawbrowser-fonts-prototype-2'
+        assert saved['request']['runtime_font_catalog'] == 'clawbrowser-fonts-prototype-3'
         fonts = saved['response']['fingerprint']['fonts']
         assert 'Bitstream Vera Sans Mono' not in fonts
         assert all(name in fonts for name in ['Arimo', 'Tinos', 'Cousine'])
