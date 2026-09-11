@@ -12,6 +12,10 @@ TEST(BundledFontIdentityTest, RecognizesOnlyShippedNames) {
   EXPECT_TRUE(IsBundledLinuxFontName("arimo"));
   EXPECT_TRUE(IsBundledLinuxFontName("Tinos-Bold"));
   EXPECT_TRUE(IsBundledLinuxFontName("Noto Sans Thai Regular"));
+  EXPECT_TRUE(IsBundledLinuxFontName("NotoSansBengali-Regular"));
+  EXPECT_TRUE(IsBundledLinuxFontName("Noto Sans Khmer Regular"));
+  EXPECT_TRUE(IsBundledLinuxFontName("Noto Color Emoji"));
+  EXPECT_FALSE(IsBundledLinuxFontName("NotoSansBengali-Bold"));
   EXPECT_TRUE(IsBundledLinuxFontName("NotoSansThai-Regular"));
   EXPECT_EQ(LinuxFontAliasFamily("DejaVuSans"), "DejaVu Sans");
   EXPECT_EQ(LinuxFontAliasFamily("Lohit-Devanagari"), "Lohit Devanagari");

@@ -1,5 +1,5 @@
 {
-  "catalog_id": "clawbrowser-fonts-prototype-2",
+  "catalog_id": "clawbrowser-fonts-prototype-3",
   "chromium_files": [
     "Arimo-Regular.ttf",
     "Arimo-Bold.ttf",
@@ -15,9 +15,21 @@
     "Cousine-BoldItalic.ttf",
     "DejaVuSans.ttf",
     "NotoSansCJK-VF.otf.ttc",
-    "Lohit-Devanagari.ttf"
+    "Lohit-Devanagari.ttf",
+    "NotoColorEmoji.ttf"
   ],
   "vendor_files": [
-    "NotoSansThai-Regular.ttf"
+    "NotoSansThai-Regular.ttf",
+    "NotoSansBengali-Regular.ttf",
+    "NotoSansEthiopic-Regular.ttf",
+    "NotoSansGujarati-Regular.ttf",
+    "NotoSansGurmukhi-Regular.ttf",
+    "NotoSansKannada-Regular.ttf",
+    "NotoSansKhmer-Regular.ttf",
+    "NotoSansMalayalam-Regular.ttf",
+    "NotoSansMyanmar-Regular.ttf",
+    "NotoSansSinhala-Regular.ttf",
+    "NotoSansTamil-Regular.ttf",
+    "NotoSansTelugu-Regular.ttf"
   ]
 }

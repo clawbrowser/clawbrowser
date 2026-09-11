@@ -15,7 +15,8 @@ def _expected_fixture_fonts(fp):
         return ['Arimo', 'Tinos', 'Cousine', 'DejaVu Sans',
                 'Noto Sans CJK JP', 'Noto Sans CJK KR', 'Noto Sans CJK SC',
                 'Noto Sans CJK TC', 'Noto Sans CJK HK',
-                'Lohit Devanagari', 'Noto Sans Thai']
+                'Lohit Devanagari', 'Noto Sans Thai',
+                "Noto Color Emoji", "Noto Sans Bengali", "Noto Sans Ethiopic", "Noto Sans Gujarati", "Noto Sans Gurmukhi", "Noto Sans Kannada", "Noto Sans Khmer", "Noto Sans Malayalam", "Noto Sans Myanmar", "Noto Sans Sinhala", "Noto Sans Tamil", "Noto Sans Telugu"]
     return fp['fonts']
 
 
@@ -1158,9 +1159,15 @@ async def test_fonts_detect_all_expected(browser_with_fingerprint):
             const el = document.createElement('span');
             el.id = 'catalog-font-' + i;
             el.style.font = '32px ' + JSON.stringify(family);
-            el.textContent = family.startsWith('Noto Sans CJK') ? '漢' :
+            const samples = {'Noto Color Emoji': '🚀', 'Noto Sans Bengali': 'ব',
+                'Noto Sans Ethiopic': 'አ', 'Noto Sans Gujarati': 'ગ',
+                'Noto Sans Gurmukhi': 'ਪ', 'Noto Sans Kannada': 'ಕ',
+                'Noto Sans Khmer': 'ខ', 'Noto Sans Malayalam': 'മ',
+                'Noto Sans Myanmar': 'မ', 'Noto Sans Sinhala': 'ස',
+                'Noto Sans Tamil': 'த', 'Noto Sans Telugu': 'త'};
+            el.textContent = samples[family] || (family.startsWith('Noto Sans CJK') ? '漢' :
                 family === 'Lohit Devanagari' ? 'क' :
-                family === 'Noto Sans Thai' ? 'ก' : 'A';
+                family === 'Noto Sans Thai' ? 'ก' : 'A');
             document.body.appendChild(el);
         })''', fonts)
         cdp = await page.context.new_cdp_session(page)
