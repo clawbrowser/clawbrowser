@@ -2,8 +2,21 @@
 
 import asyncio
 import json
+import sys
 
 import pytest
+
+
+def _expected_fixture_fonts(fp):
+    # The legacy fixture requests fonts absent from the Linux bundle. Startup
+    # migrates it to this explicit catalog. Keep this expectation independent
+    # of the browser's saved JSON so a wrong migration cannot bless itself.
+    if sys.platform == 'linux':
+        return ['Arimo', 'Tinos', 'Cousine', 'DejaVu Sans',
+                'Noto Sans CJK JP', 'Noto Sans CJK KR', 'Noto Sans CJK SC',
+                'Noto Sans CJK TC', 'Noto Sans CJK HK',
+                'Lohit Devanagari', 'Noto Sans Thai']
+    return fp['fonts']
 
 
 async def _echo_request_headers(page):
@@ -1174,7 +1187,8 @@ async def test_fonts_hide_non_allowlisted_system_families(browser_with_fingerpri
         "Liberation Sans",
         "Ubuntu",
     ]
-    candidates = [font for font in candidates if font not in fp["fonts"]]
+    candidates = [font for font in candidates if font not in _expected_fixture_fonts(fp)]
+    assert candidates, 'negative control must retain host-only font candidates'
 
     leaked = await page.evaluate(
         """fonts => fonts.filter(font => {
@@ -1443,5 +1457,5 @@ async def test_verify_page_fonts_require_all_expected(
     )
     assert font_check["pass"] is True
     assert font_check["detail"] == "0 missing"
-    assert json.loads(font_check["expected"]) == fp["fonts"]
-    assert json.loads(font_check["actual"]) == fp["fonts"]
+    assert json.loads(font_check["expected"]) == _expected_fixture_fonts(fp)
+    assert json.loads(font_check["actual"]) == _expected_fixture_fonts(fp)
