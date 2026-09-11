@@ -18,6 +18,16 @@ inline std::vector<std::string> LinuxFontCatalogFamilies() {
 // Full/PostScript names are distinct from CSS family names. Match exact
 // shipped aliases, never arbitrary suffixes supplied by a page.
 inline std::string LinuxFontAliasFamily(std::string_view name) {
+  if (base::EqualsCaseInsensitiveASCII(name, "NotoSansThai-Regular") ||
+      base::EqualsCaseInsensitiveASCII(name, "Noto Sans Thai Regular")) {
+    return "Noto Sans Thai";
+  }
+  if (base::EqualsCaseInsensitiveASCII(name, "Lohit-Devanagari")) {
+    return "Lohit Devanagari";
+  }
+  if (base::EqualsCaseInsensitiveASCII(name, "DejaVuSans")) {
+    return "DejaVu Sans";
+  }
   for (const auto& family : {"Arimo", "Tinos", "Cousine"}) {
     for (const auto& style : {"Regular", "Bold", "Italic", "BoldItalic"}) {
       if (base::EqualsCaseInsensitiveASCII(name, std::string(family) + "-" + style) ||

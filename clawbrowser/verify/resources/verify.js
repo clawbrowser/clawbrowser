@@ -16,6 +16,42 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   });
 }
 
+async function detectExpectedFonts(fontsExpected) {
+  const measure = family => {
+    const span = document.createElement('span');
+    // Generic monospace otherwise defaults to a different size. Compare three
+    // fallbacks so the bundled monospace face can itself be detected too.
+    span.style.cssText = 'position:absolute;visibility:hidden;font-size:72px;';
+    span.style.fontFamily = family;
+    span.textContent = 'mmmmmmmmmmlliWW0123漢字कกالعربية';
+    document.body.appendChild(span);
+    const width = span.getBoundingClientRect().width;
+    span.remove();
+    return width;
+  };
+  const bases = ['monospace', 'serif', 'sans-serif'];
+  const widths = bases.map(measure);
+  const detected = [];
+  for (const font of fontsExpected) {
+    // A script-specific face can also be the fallback for every generic, so
+    // equal widths alone do not prove it is missing. Try actual local faces.
+    let localLoaded = false;
+    for (const name of [font, `${font} Regular`]) {
+      try {
+        await new FontFace('ClawbrowserVerifyLocal',
+          `local(${JSON.stringify(name)})`).load();
+        localLoaded = true;
+        break;
+      } catch (_) {}
+    }
+    if (localLoaded || bases.some((base, index) =>
+      measure(`${JSON.stringify(font)}, ${base}`) !== widths[index])) {
+      detected.push(font);
+    }
+  }
+  return detected;
+}
+
 function formatProxyLocation(country, city) {
   const normalizedCountry = country || 'N/A';
   return city ? `${normalizedCountry} (${city})` : normalizedCountry;
@@ -608,29 +644,8 @@ if (typeof document !== 'undefined') {
 
   if (expected.fonts) {
     const fontsExpected = JSON.parse(expected.fonts);
-    const detectedFonts = [];
-    const missingFonts = [];
-    for (const font of fontsExpected) {
-      const testSpan = document.createElement('span');
-      testSpan.style.fontFamily = `"${font}", monospace`;
-      testSpan.textContent = 'mmmmmmmmmmlli';
-      document.body.appendChild(testSpan);
-      const width = testSpan.offsetWidth;
-      document.body.removeChild(testSpan);
-
-      const monoSpan = document.createElement('span');
-      monoSpan.style.fontFamily = 'monospace';
-      monoSpan.textContent = 'mmmmmmmmmmlli';
-      document.body.appendChild(monoSpan);
-      const monoWidth = monoSpan.offsetWidth;
-      document.body.removeChild(monoSpan);
-
-      if (width !== monoWidth) {
-        detectedFonts.push(font);
-      } else {
-        missingFonts.push(font);
-      }
-    }
+    const detectedFonts = await detectExpectedFonts(fontsExpected);
+    const missingFonts = fontsExpected.filter(font => !detectedFonts.includes(font));
 
     setCheck({
       surface: 'fonts',
