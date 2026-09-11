@@ -105,6 +105,8 @@ source_set("clawbrowser_core") {
     "cli/profile_manager.h",
 
     # Core infrastructure
+    "font_catalog.cc",
+    "font_catalog.h",
     "fingerprint_loader.cc",
     "fingerprint_loader.h",
     "logging.cc",
@@ -200,6 +202,7 @@ test("clawbrowser_unittests") {
     "test/canvas_noise_unittest.cc",
     "test/fingerprint_coherence_unittest.cc",
     "test/fingerprint_loader_unittest.cc",
+    "test/font_catalog_unittest.cc",
     "test/profile_envelope_unittest.cc",
     "test/profile_manager_unittest.cc",
     "test/prng_unittest.cc",
