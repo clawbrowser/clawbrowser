@@ -8,6 +8,8 @@
 #include <string_view>
 
 #include "clawbrowser/fingerprint_accessor.h"
+#include "build/build_config.h"
+#include "clawbrowser/font_catalog_identity.h"
 #include "clawbrowser/noise/prng.h"
 
 // Helpers shared between the Chromium patches and the standalone shim so the
@@ -58,6 +60,12 @@ inline bool IsLocalFontAllowed(const RuntimeFingerprint& fp,
       return true;
     }
   }
+#if BUILDFLAG(IS_LINUX)
+  const auto family = LinuxFontAliasFamily(name);
+  for (const auto& allowed : fp.fonts) {
+    if (!family.empty() && FontNameMatches(allowed, family)) return true;
+  }
+#endif
   return false;
 }
 

@@ -39,6 +39,7 @@ struct GenerateRequest {
   std::optional<std::string> runtime_arch;
   std::optional<std::string> runtime_gpu;
   std::optional<bool> runtime_headless;
+  std::optional<std::string> runtime_font_catalog;
 
   static base::expected<GenerateRequest, std::string> FromDict(
       const base::DictValue& dict);

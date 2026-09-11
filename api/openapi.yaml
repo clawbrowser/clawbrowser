@@ -980,6 +980,9 @@ components:
           description: Runtime GPU backend hint, for example apple-metal, d3d11-nvidia, or swiftshader
         runtime_headless:
           type: boolean
+        runtime_font_catalog:
+          type: string
+          description: Exact bundled font catalog capability, absent for legacy runtimes.
 
     GenerateResponse:
       type: object
