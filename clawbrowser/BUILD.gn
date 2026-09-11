@@ -34,6 +34,42 @@ config("clawbrowser_windows_socket_libs") {
   }
 }
 
+if (is_linux) {
+  font_catalog = read_file("fonts/catalog.json", "json")
+  action("clawbrowser_font_catalog") {
+    script = "fonts/build_catalog.py"
+    catalog_dir = "$root_out_dir/clawbrowser-fonts/" + font_catalog.catalog_id
+    outputs = [
+      "$target_gen_dir/font_catalog_build.h",
+      "$catalog_dir/manifest.json",
+      "$catalog_dir/STAGED",
+      "$catalog_dir/UPSTREAM-LICENSE",
+      "$catalog_dir/NOTO-LICENSE",
+      "$catalog_dir/fonts.conf",
+    ]
+    inputs = [
+      "fonts/catalog.json",
+      "fonts/stage_fonts.py",
+      "fonts/font-vendor-prototype/NOTO-LICENSE",
+      "//third_party/test_fonts/LICENSE",
+    ]
+    foreach(font, font_catalog.fonts) {
+      outputs += [ "$catalog_dir/fonts/" + font.file ]
+      if (defined(font.source) && font.source == "vendor") {
+        inputs += [ "fonts/font-vendor-prototype/" + font.file ]
+      } else {
+        inputs += [ "//third_party/test_fonts/test_fonts/" + font.file ]
+      }
+    }
+    args = [
+      "--manifest", rebase_path("fonts/catalog.json", root_build_dir),
+      "--chromium", rebase_path("//", root_build_dir),
+      "--destination", rebase_path(catalog_dir, root_build_dir),
+      "--header", rebase_path(outputs[0], root_build_dir),
+    ]
+  }
+}
+
 # ---------------------------------------------------------------------------
 # Grit-generated resources for clawbrowser://* pages.
 # ---------------------------------------------------------------------------
@@ -94,6 +130,9 @@ component("clawbrowser_runtime") {
 source_set("clawbrowser_core") {
   configs += [ ":clawbrowser_backend_defaults" ]
   public_configs = [ ":clawbrowser_windows_socket_libs" ]
+  if (is_linux) {
+    include_dirs = [ "$target_gen_dir" ]
+  }
 
   sources = [
     # CLI modules
@@ -143,6 +182,9 @@ source_set("clawbrowser_core") {
     "//net",
     "//services/network/public/cpp",
   ]
+  if (is_linux) {
+    deps += [ ":clawbrowser_font_catalog" ]
+  }
 
 }
 
