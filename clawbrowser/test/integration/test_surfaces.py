@@ -1152,12 +1152,43 @@ async def test_fonts_detect_all_expected(browser_with_fingerprint):
     page, data = browser_with_fingerprint
     fp = data["response"]["fingerprint"]
 
+    if sys.platform == 'linux':
+        fonts = _expected_fixture_fonts(fp)
+        await page.evaluate('''fonts => fonts.forEach((family, i) => {
+            const el = document.createElement('span');
+            el.id = 'catalog-font-' + i;
+            el.style.font = '32px ' + JSON.stringify(family);
+            el.textContent = family.startsWith('Noto Sans CJK') ? '漢' :
+                family === 'Lohit Devanagari' ? 'क' :
+                family === 'Noto Sans Thai' ? 'ก' : 'A';
+            document.body.appendChild(el);
+        })''', fonts)
+        cdp = await page.context.new_cdp_session(page)
+        try:
+            await cdp.send('DOM.enable')
+            await cdp.send('CSS.enable')
+            root = (await cdp.send('DOM.getDocument'))['root']['nodeId']
+            for i, family in enumerate(fonts):
+                node = (await cdp.send('DOM.querySelector', {
+                    'nodeId': root, 'selector': f'#catalog-font-{i}',
+                }))['nodeId']
+                actual = (await cdp.send('CSS.getPlatformFontsForNode', {
+                    'nodeId': node,
+                }))['fonts']
+                assert actual, family
+                assert all(font['familyName'] == family and font['glyphCount'] > 0
+                           for font in actual), (family, actual)
+        finally:
+            await cdp.detach()
+        return
+
     detected = await page.evaluate(
         """fonts => {
         return fonts.filter(font => {
             const measureWidth = fontFamily => {
                 const span = document.createElement('span');
                 span.style.fontFamily = fontFamily;
+                span.style.fontSize = '32px';
                 span.textContent = 'mmmmmmmmmmlli';
                 document.body.appendChild(span);
                 const width = span.offsetWidth;
