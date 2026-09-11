@@ -808,7 +808,8 @@ base::expected<StartupResult, std::string> RunStartup(
   auto font_profile = profile_manager.ReadProfile(fp_id);
   if (!font_profile.has_value()) {
     return base::ok(FailManagedFingerprintStartup(
-        args, "font_profile_load_failed", font_profile.error()));
+        args, "fingerprint_load_failed",
+        "failed to load fingerprint profile: " + font_profile.error()));
   }
   std::vector<std::string> bundled_fonts;
   for (const auto& name : font_profile->response.fingerprint.fonts) {
