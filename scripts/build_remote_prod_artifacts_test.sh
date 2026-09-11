@@ -391,6 +391,7 @@ run_linux_success_scenario() {
   assert_contains "${SCENARIO_RUNNER_BODY}" 'write_linux_appimage_desktop_file() {'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'package_linux_appimage() {'
   assert_contains "${SCENARIO_RUNNER_BODY}" "--include='/vk_swiftshader_icd.json'"
+  assert_contains "${SCENARIO_RUNNER_BODY}" "--include='/clawbrowser-fonts/***'"
   assert_contains "${SCENARIO_RUNNER_BODY}" "--include='/locales/'"
   assert_contains "${SCENARIO_RUNNER_BODY}" "--include='/locales/*.pak'"
   assert_contains "${SCENARIO_RUNNER_BODY}" "--exclude='/*.json'"
