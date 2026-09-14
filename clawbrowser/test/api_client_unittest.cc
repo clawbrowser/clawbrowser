@@ -72,10 +72,32 @@ class ApiClientTest : public testing::Test {
         network::URLLoaderCompletionStatus(net::OK));
   }
 
-  base::test::TaskEnvironment task_environment_;
+  base::test::TaskEnvironment task_environment_{
+      base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   network::TestURLLoaderFactory url_loader_factory_;
   std::unique_ptr<ApiClient> client_;
 };
+
+TEST_F(ApiClientTest, GenerationAllowsSlowBackendButRemainsBounded) {
+  base::test::TestFuture<base::expected<GenerateResponse, ApiError>> future;
+  client_->GenerateFingerprint(MakeGenerateRequest(), future.GetCallback());
+  task_environment_.FastForwardBy(base::Seconds(16));
+  EXPECT_FALSE(future.IsReady());
+  task_environment_.FastForwardBy(base::Seconds(20));
+  ASSERT_TRUE(future.IsReady());
+  EXPECT_FALSE(future.Get().has_value());
+  EXPECT_NE(future.Get().error().message.find("ERR_TIMED_OUT"), std::string::npos);
+}
+
+TEST_F(ApiClientTest, ProxyVerificationAllowsBackendLookupBudget) {
+  base::test::TestFuture<base::expected<VerifyProxyResponse, ApiError>> future;
+  client_->VerifyProxy(MakeVerifyProxyRequest(), future.GetCallback());
+  task_environment_.FastForwardBy(base::Seconds(16));
+  EXPECT_FALSE(future.IsReady());
+  task_environment_.FastForwardBy(base::Seconds(5));
+  ASSERT_TRUE(future.IsReady());
+  EXPECT_FALSE(future.Get().has_value());
+}
 
 TEST_F(ApiClientTest, GenerateFingerprintSuccess) {
   std::string response_json = R"({
