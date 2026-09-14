@@ -79,6 +79,37 @@ failed. Please clarify how fallback-equivalent candidate names are interpreted.
 
 ## Evidence and scope
 
+### Exact protected-candidate predicate diagnosis
+
+A fresh normal run on the extracted a984314 archive with the real QA backend
+loaded both AmIUnique and PixelScan (HTTP 200). PixelScan again returned the
+negative font result with `canvas=false`. The site's ordinary telemetry did
+not contain the complete masking predicate list.
+
+A separate **instrumented diagnostic**, `archive-mask-locals-a984-r2`, read the
+already-computed booleans at the frontend's masking dispatch using a conditional
+debugger breakpoint. It did not replace classifier inputs or change its return
+value. This instrumentation is not an uninstrumented acceptance run. The first
+attempt timed out and is not evidence of a completed scan; the second completed.
+
+| Predicate | Observed |
+| --- | --- |
+| Font classifier | false |
+| Canvas exact-color check | false |
+| WebGL status and fixed red WebGL rectangle | true, true |
+| Worker comparison and iframe comparison | true, true |
+| HTTP/JS User-Agent and Client Hints | true, true |
+| Navigator object and OS match | true, true |
+| Platform, locale and hardware checks | true, true, true |
+
+Thus only fonts and canvas failed among the predicates evaluated in this run.
+This is narrower than claiming all possible fingerprint checks pass, or that
+the font classifier is necessarily wrong in every environment. No additional
+runtime patch, font expansion, or disabling of canvas protection was made to
+obtain this observation. The remaining engineering choice is a validated
+normalized-rendering strategy versus the present detectable pixel protection;
+turning the latter off alone would not resolve the font result.
+
 Lab evidence directory: `stock-minimal-launch-full-fonts` contains the screenshot
 and report captured before browser teardown. The process subsequently reported
 a temporary-profile cleanup race; the recorded page and API results were already
