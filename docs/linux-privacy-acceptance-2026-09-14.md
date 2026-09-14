@@ -45,6 +45,23 @@ its registration is removed after the check. This is a real renderer/runtime
 test against a controlled fixture, not a desktop account or external-site E2E.
 This extension changes tests only; the verified binary is unchanged.
 
+### QA archive round trip
+
+Archive SHA-256:
+`4f10c3424b86cd56c486cc75834b15b63b0fceedaa558be61afa165976a949a1`.
+The extracted tree matched the source tree byte-for-byte, including executable
+`4880b44`. Headful worker/font/complex-text checks: **10 passed**, 14.81s.
+An initial font test returned an empty CDP glyph-usage list before layout;
+the test now awaits font readiness and forces sample layout before querying
+used fonts. The catalog test then passed ten consecutive runs without a binary
+change. The initial failure is retained in the QA evidence.
+
+The real API/proxy run from the extracted tree was **1 passed, 1 failed**:
+one launch hit `ERR_TIMED_OUT`. Corresponding backend logs now report caller
+context cancellation after approximately ten seconds, not a generator-budget
+timeout. Archive integrity does not close this intermittent launch issue.
+This manually assembled QA archive is not the signed release pipeline output.
+
 ## Tested artifact
 
 - Linux x86_64, Ubuntu 26.04, headful under Xvfb, sandbox enabled.
