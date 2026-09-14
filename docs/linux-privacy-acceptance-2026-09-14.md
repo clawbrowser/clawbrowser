@@ -146,6 +146,15 @@ This executes the release staging functions, not the full ARM64/AppImage pipelin
 
 ## Remaining release gates
 
+Fresh site run on the c0e9cfa active-catalog archive (September14): internal
+Verify active checks passed with3 WebGL policy skips. AmIUnique and PixelScan
+both loaded200; HTTP and JS UA agree, screen is2560x1440 versus Xvfb1440x1000.
+PixelScan still reports masking/inconsistency. Its WebRTC checker labels proxy
+IPv4 71.227.65.176 as Potential Leak while all ICE/STUN/TURN fields are empty;
+the same address is returned by its HTTP /s/api/wr endpoint and matches proxy
+verification, not the QA host IP. This is not a functional TURN test or an
+all-clear detector result. These are operator integration tests, not desktop OAuth.
+
 - Validate rollout timeout overrides and actual desktop startup on the new
   deadline contract; bounded proxy failures remain possible.
 - Complete the real desktop app lifecycle/update-guard journey. Backend test
