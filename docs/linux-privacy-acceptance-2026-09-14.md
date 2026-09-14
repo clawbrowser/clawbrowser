@@ -340,6 +340,24 @@ formats or policies have identical bytes, or prove cross-machine rendering
 equivalence. Canvas protection remains enabled in the protected case; this
 is not evidence that PixelScan's noise detection is resolved.
 
+PNG and origin-security follow-up on the same archive:
+`test_canvas_png_formats.py`, `test_canvas_origin_clean.py`, and the color-format
+test passed together (6 passed, 25.07 s;
+`canvas-formats-origin-final-a984.xml`). PNG coverage has 24 observations across
+both policies, both color spaces/backing formats, and DOM/Offscreen/Worker:
+repeat exports are stable, live canvas reads unchanged, all eight alpha levels
+preserved, and decoded pixels agree across contexts. All 12 corresponding
+protected/native decoded hashes differ in the initial PNG evidence; no
+lossless float16-to-PNG RGB claim is made.
+
+The origin-security test serves a real local image without CORS permission,
+with same-origin positive controls. Its 80 checks cover both policies,
+DOM/Offscreen/createImageBitmap/transferToImageBitmap sources, and getImageData,
+PNG export and WebGL1/2 upload. Cross-origin operations raise SecurityError;
+the corresponding same-origin operations succeed. These are local headful
+integration checks, not external-site or desktop-login acceptance. PR CI
+compiles these test sources; execution evidence comes from the QA host.
+
 Fresh site run on the c0e9cfa active-catalog archive (September14): internal
 Verify active checks passed with3 WebGL policy skips. AmIUnique and PixelScan
 both loaded200; HTTP and JS UA agree, screen is2560x1440 versus Xvfb1440x1000.
