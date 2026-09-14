@@ -715,6 +715,26 @@ TEST_F(StartupTest, ConfigureEarlyStartupIsolatesFingerprintWebGL) {
   EXPECT_TRUE(cmd.HasSwitch(kDisableWebGLSpoofingSwitch));
 }
 
+TEST_F(StartupTest, ConfigureEarlyStartupPinsLinuxCanvasRasterizer) {
+  WriteConfigJson("test_key");
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "isolated_canvas_profile");
+  auto result = ConfigureEarlyStartup(&cmd);
+  ASSERT_TRUE(result.has_value()) << result.error();
+#if BUILDFLAG(IS_LINUX)
+  EXPECT_TRUE(cmd.HasSwitch("disable-accelerated-2d-canvas"));
+#else
+  EXPECT_FALSE(cmd.HasSwitch("disable-accelerated-2d-canvas"));
+#endif
+}
+
+TEST_F(StartupTest, ConfigureEarlyStartupKeepsVanillaCanvasRasterizer) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  auto result = ConfigureEarlyStartup(&cmd);
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(cmd.HasSwitch("disable-accelerated-2d-canvas"));
+}
+
 TEST_F(StartupTest, ConfigureEarlyStartupKeepsDisableGPUWithSwiftShader) {
   WriteConfigJson("test_key");
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
