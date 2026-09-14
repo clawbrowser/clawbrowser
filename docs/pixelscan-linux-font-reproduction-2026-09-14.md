@@ -141,8 +141,15 @@ and four compositing operators. Seeds are fixed and all five drawings must
 produce distinct hashes. Each recipe is compared across the same 24 combinations
 per policy: 240 complete-buffer observations overall. The corpus passed all
 three tests in 100.59 seconds on the same extracted archive
-(`canvas-seeded-corpus-a984.xml`). This broadens coverage but does not remove
-the single-physical-host or pixel-format limitations above.
+(`canvas-seeded-corpus-a984.xml`). This broadens drawing coverage but does not
+remove the single-physical-host limitation.
+
+Subsequent format coverage passed sRGB/Display-P3, unorm8/float16 backing
+stores, both pixel read formats, and PNG alpha/export checks across Window
+and Worker. The combined format/PNG/origin-security run passed six tests in
+25.07 seconds (`canvas-formats-origin-final-a984.xml`); details and boundaries
+are in the Linux privacy acceptance report. These tests do not alter the
+PixelScan observation or establish normalized rendering on other hardware.
 
 Lab evidence directory: `stock-minimal-launch-full-fonts` contains the screenshot
 and report captured before browser teardown. The process subsequently reported

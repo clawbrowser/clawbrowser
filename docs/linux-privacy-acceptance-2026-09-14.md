@@ -358,6 +358,14 @@ the corresponding same-origin operations succeed. These are local headful
 integration checks, not external-site or desktop-login acceptance. PR CI
 compiles these test sources; execution evidence comes from the QA host.
 
+The subsequent whole-directory run after these additions reported **106 passed,
+12 skipped in 120.26 s** (`integration-b9201d2-a984.xml`). The twelve skips are
+four host-font-control cases (no catalog-control environment in this run),
+seven opt-in backend/proxy/STUN/TURN cases, and the native-policy test with the
+normal protected fixture. These are not twelve passes. Configured evidence
+for these separate scopes is recorded above; counts overlap and should not be
+added. The runtime binary and archive remain unchanged.
+
 Fresh site run on the c0e9cfa active-catalog archive (September14): internal
 Verify active checks passed with3 WebGL policy skips. AmIUnique and PixelScan
 both loaded200; HTTP and JS UA agree, screen is2560x1440 versus Xvfb1440x1000.
