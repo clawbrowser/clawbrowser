@@ -328,6 +328,18 @@ socket and must not be misclassified as a browser leak.
 
 The archive is a QA candidate, not a published or signed all-platform release.
 
+Additional Canvas color-format regression on the same extracted archive:
+`test_canvas_color_formats.py` passed both native and protected policies
+(2 passed, 15.28 s; `canvas-color-formats-a984.xml`). The 96 observations cover
+sRGB/Display-P3, unorm8/float16 backing stores, both getImageData pixel formats,
+both read-frequency hints, and DOM/Offscreen/Worker contexts. Actual context
+and image metadata are asserted to prevent silent format fallback. Repeated
+reads are byte-stable and hashes agree across contexts/read-frequency hints
+for each matching format combination. This does not assert that different
+formats or policies have identical bytes, or prove cross-machine rendering
+equivalence. Canvas protection remains enabled in the protected case; this
+is not evidence that PixelScan's noise detection is resolved.
+
 Fresh site run on the c0e9cfa active-catalog archive (September14): internal
 Verify active checks passed with3 WebGL policy skips. AmIUnique and PixelScan
 both loaded200; HTTP and JS UA agree, screen is2560x1440 versus Xvfb1440x1000.
