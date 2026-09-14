@@ -170,6 +170,14 @@ a strict single-variable network experiment. Evidence directories:
 `mask-diagnostic-c0e9cfa`, `mask-buildbranch-ee7fff4`, `mask-detail-ee7fff4`.
 No browser privacy guard was disabled and no production service was changed.
 
+The follow-up `mask-fontinput-ee7fff4` run captured the known font-check request
+fields: `platform="Linux x86_64"`, `fonts=["DejaVu Sans"]`, `canvas=false`.
+The canvas-test predicate is also required by the masking conjunction, so both
+negative predicates need characterization. The exact failing canvas invariant
+has not yet been identified. PixelScan probes a fixed candidate-font list;
+this is not a complete enumeration of the bundled catalog or evidence of host
+font exposure. The full backend `go test ./...` suite also passed.
+
 ## Remaining release gates
 
 Fresh site run on the c0e9cfa active-catalog archive (September14): internal
