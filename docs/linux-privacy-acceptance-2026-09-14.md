@@ -247,6 +247,26 @@ See [the standalone reproduction report](pixelscan-linux-font-reproduction-2026-
 for environment, API result, automation and teardown limitations. No upstream
 message was sent. A green PixelScan result remains unachieved.
 
+## Trusted TURN/TLS repeated on a984314
+
+On September 14 at 16:13 UTC, the headful Linux operator test repeated actual
+DataChannel echo through both authorized HTTP and SOCKS5 proxies using executable
+SHA256 `a98431433f88fdd5152e8cadb50c1887ab12c0f84825575e24571d63ea6bc62a`.
+Both runs passed: two selected relay/relay pairs, TLS relay protocol, positive
+sent/received byte counts, relay-only emitted candidates and successful echo.
+The sandbox remained enabled and the existing trusted IP certificate was used.
+
+The initial runs exchanged data but failed the immediate stats assertion with
+`in-progress`. The operator harness now polls for at most five seconds after
+echo, retaining the requirement that both selected pairs reach `succeeded`.
+Both reruns passed that unchanged requirement. Raw initial and rerun records
+remain private; sanitized evidence is `turn-tls-a984314.json` in the QA evidence
+directory. The temporary relay was stopped afterward.
+
+This is a mock-identity fixture with real proxies and a real TLS relay, not
+desktop OAuth acceptance. No fresh packet capture was taken; this result must
+not be described as independent packet-level proof against every IP leak.
+
 ## Remaining release gates
 
 Fresh site run on the c0e9cfa active-catalog archive (September14): internal
