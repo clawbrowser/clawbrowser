@@ -2,6 +2,38 @@
 
 Status: **Draft; not release approval.** No production deployment or merge.
 
+## Worker platform correction (10:34 UTC)
+
+A new Dedicated Worker regression failed on the previously tested binary:
+the fixture's page reported `MacIntel`, but its worker reported the host's
+`Linux x86_64`. The other seven compared identity fields agreed. This is a
+real cross-context platform disclosure, not an explanation of PixelScan's
+masking verdict for the same-platform Linux profile.
+
+Commit `83013e04ac7a1ff8189f63247e651f6cf6772091` adds the fingerprint platform
+override in `NavigatorBase::platform()` and the regression test. Incremental
+Chromium build completed successfully in 5m36s. New executable SHA-256:
+`4880b44c98a172232b2ef81bd1bd0c8448b95409f5d81c50d3821eba4f95c5d7`.
+The prior relocated artifact was retained; the new copy contains refreshed
+binary, snapshots and resource packs. It uses the same pinned font bundle.
+
+Retest results on Linux, sandbox enabled:
+
+- Dedicated Worker regression and adjacent navigator checks: **8 passed**,
+  headful, 9.20s.
+- Entire `test_surfaces.py`: **43 passed, 1 skipped**, headful, 56.84s. The
+  skipped native-canvas case is inapplicable to this override-policy fixture.
+- Compiled C++ suite: **211 passed**.
+- Real candidate backend/API/proxy integration: **2 passed**, 5.214s, using
+  backend `e876e082f36ec743c23a910383ab733a9bfd0f8f`.
+
+The first relocated launch encountered the host's missing per-path AppArmor
+user-namespace permission. Adding the same exact-path rule as the previous
+artifact resolved this environment failure without disabling Chromium sandbox.
+This is not a signed release package, a Shared/Service Worker test, desktop UI
+acceptance, or cross-platform verification. Remaining release gates below still
+apply. Earlier external-site screenshots were captured on the older binary.
+
 ## Tested artifact
 
 - Linux x86_64, Ubuntu 26.04, headful under Xvfb, sandbox enabled.
