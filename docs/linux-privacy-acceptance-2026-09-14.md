@@ -366,6 +366,30 @@ normal protected fixture. These are not twelve passes. Configured evidence
 for these separate scopes is recorded above; counts overlap and should not be
 added. The runtime binary and archive remain unchanged.
 
+### Final archive browser-only STUN packet capture
+
+A subsequent capture tested the extracted a984314 binary with normal HTTP and
+SOCKS5 proxy configurations, headful and sandboxed. Independent STUN binding
+controls first succeeded against both IPv4 and IPv6 listeners on UDP 3479.
+Only afterwards was the browser-phase capture started, with listening confirmed
+before launching either test. Both proxy schemes completed both ICE probes with
+candidate counts `[0, 0]` and passed the relay-only candidate assertion.
+
+The browser-only capture contained **0 packets**, with **0 kernel drops**;
+independent reading of the pcap confirmed zero records. A separate positive
+capture using the same interface/filter then recorded **4 packets** from the
+operator's two successful STUN request/response controls (IPv4 and IPv6), also
+with zero kernel drops. This validates the capture path and live endpoints
+without mixing control traffic into browser evidence.
+
+Private files `stun-a984314-final.pcap` and
+`stun-a984314-positive-control.pcap` have mode 0600. The bounded capture and
+STUN services were explicitly stopped and confirmed inactive. This is scoped
+evidence for direct UDP STUN traffic to the controlled endpoints, not a claim
+that every protocol/destination is leak-free, and not a substitute for the
+separate successful TURN/TLS DataChannel echo tests. It does not resolve the
+PixelScan masking classification or validate another platform.
+
 Fresh site run on the c0e9cfa active-catalog archive (September14): internal
 Verify active checks passed with3 WebGL policy skips. AmIUnique and PixelScan
 both loaded200; HTTP and JS UA agree, screen is2560x1440 versus Xvfb1440x1000.
