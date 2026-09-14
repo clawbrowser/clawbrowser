@@ -203,6 +203,34 @@ Evidence: `canvas-font-ab-c0e9cfa.xml` (including palette observations).
 The actual QA backend `ee7fff4` and proxy tests also passed2/2 in6.727s on
 this binary (`real-backend-ee7fff4-final.xml`).
 
+## Linux Canvas2D raster-path follow-up
+
+An explicit diagnostic-only native-canvas response control made PixelScan's
+canvas test positive, but its font classification and masking verdict remained
+negative. Therefore disabling canvas protection alone is not a fix. The normal
+backend policy remains `override`. The font canvas-probe labels raster groups
+with their first candidate name; its reported Abyssinica SIL could not be loaded
+through local FontFace. Do not treat that label as proof of an exposed host font.
+
+The diagnostic matrix found an independent coherence issue: switching between
+GPU and CPU Canvas2D changes output with identical bundled fonts. Linux managed
+startup now pins `disable-accelerated-2d-canvas`; non-managed startup is unchanged.
+This retains pixel protection and does not add a detector-specific exception.
+The new startup test failed before the change. The non-root C++ suite passes
+215 tests afterwards. Initial root execution invalidated a filesystem-permission
+test; that run is not the acceptance result.
+
+New executable SHA256:
+`a98431433f88fdd5152e8cadb50c1887ab12c0f84825575e24571d63ea6bc62a`.
+Relocated candidate (not a final release archive) passed54 headful tests with1
+existing native-canvas-policy skip in79.82s. This includes the six-run native
+canvas diagnostic matrix without manually pinning the rasterizer in the test,
+protected palette and GPU-upload checks, worker/screen surfaces, host-font
+isolation, local fonts and complex fallback. Internal Verify also passed with
+the real QA backend; PixelScan's normal policy still yields negative canvas
+and font predicates. Hardware/architecture independence is not established by
+the single-host raster-option matrix.
+
 ## Remaining release gates
 
 Fresh site run on the c0e9cfa active-catalog archive (September14): internal
