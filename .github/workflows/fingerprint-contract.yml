@@ -11,11 +11,15 @@ permissions:
 jobs:
   contract:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Verify executable WebUI regressions
         run: |
           node scripts/verify_fonts_test.js
@@ -42,3 +46,9 @@ jobs:
         run: |
           python3 clawbrowser/fonts/stage_fonts_test.py
           python3 clawbrowser/fonts/build_catalog_test.py
+          python3 scripts/linux_runtime_fonts_test.py
+      - name: Run network control unit regressions (no browser or secrets)
+        run: |
+          python3 -m pip install -r clawbrowser/test/integration/requirements.txt
+          python3 -m compileall -q clawbrowser/test/integration
+          python3 -m pytest clawbrowser/test/integration/test_stun_control.py -q
