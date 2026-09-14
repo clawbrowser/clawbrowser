@@ -30,9 +30,20 @@ Retest results on Linux, sandbox enabled:
 The first relocated launch encountered the host's missing per-path AppArmor
 user-namespace permission. Adding the same exact-path rule as the previous
 artifact resolved this environment failure without disabling Chromium sandbox.
-This is not a signed release package, a Shared/Service Worker test, desktop UI
+This is not a signed release package, desktop UI
 acceptance, or cross-platform verification. Remaining release gates below still
 apply. Earlier external-site screenshots were captured on the older binary.
+
+### Additional worker contexts (10:53 UTC)
+
+The identity regression now covers Dedicated, Shared and Service Workers.
+All three passed headful on `4880b44` in 3.57s. Separate negative-control runs
+on `93b36fd` reproduce `MacIntel` versus host `Linux x86_64` in both Shared and
+Service Workers (the original Dedicated negative was already recorded).
+The service worker runs from the integration fixture's loopback HTTP origin;
+its registration is removed after the check. This is a real renderer/runtime
+test against a controlled fixture, not a desktop account or external-site E2E.
+This extension changes tests only; the verified binary is unchanged.
 
 ## Tested artifact
 

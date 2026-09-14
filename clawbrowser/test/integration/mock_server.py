@@ -115,6 +115,31 @@ class MockHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if self.path == "/__identity-worker.js":
+            source = b"""
+self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
+self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
+self.addEventListener('message', event => event.waitUntil((async () => {
+  const result = {
+    ua: navigator.userAgent, platform: navigator.platform,
+    languages: [...navigator.languages], cores: navigator.hardwareConcurrency,
+    memory: navigator.deviceMemory,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    offset: new Date().getTimezoneOffset(),
+    hints: navigator.userAgentData ? await navigator.userAgentData.getHighEntropyValues(
+      ['fullVersionList', 'platformVersion', 'architecture', 'bitness']) : null,
+  };
+  event.ports[0].postMessage(result);
+})()));
+"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/javascript")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(source)))
+            self.end_headers()
+            self.wfile.write(source)
+            return
+
         if self.path == "/__blank":
             blank_html = b"<!DOCTYPE html><html><body></body></html>\n"
             self.send_response(200)
