@@ -112,10 +112,30 @@ unexpected old executable. Captured UA, `uaFullVersion` and Chrome/Chromium
 `fullVersionList` values agree. Focused backend version/header tests passed.
 This does not establish the cause of the general Masking detected verdict.
 
+## Startup deadline follow-up
+
+The observed cancellation was preceded by proxy geo lookup, not evidence of a
+15-second Python hang. Browser requests allowed only10s while proxy discovery
+allowed15s. Backend PR3 now bounds generation end-to-end at30s and defaults its
+HTTP write timeout to40s; explicitly overridden deployments need the same review.
+Browser PR31 allows35s for generation and20s for verification. Portable nextctl
+readiness allows60s; caller cancellation remains respected.
+
+New Linux executable SHA256:
+`c0e9cfad3f6ebe254be3ff24b4d781a9dc801e62833045c3e674835f7fe944c1`.
+213 C++ tests passed. Two new deadline tests fail with the old10s implementation
+and pass with the change. A loopback relay delaying real backend generation
+responses11s produced two ERR_TIMED_OUT failures on4880b44 and two passes on
+c0e9cfa. Ordinary real backend tests also passed2/2. This is a controlled response
+delay, not a claim that an unreliable external proxy can never time out.
+Headful surfaces passed45 with1 existing native-canvas-policy skip in56.00s.
+QA backend image4427c2f is running; the previous container was retained. The
+temporary delay relay is stopped. No production deployment or merge performed.
+
 ## Remaining release gates
 
-- Investigate the intermittent 15-second BrowserForge timeout. An unchanged
-  retry passed; this is not a timeout fix or a reproduction of its root cause.
+- Validate rollout timeout overrides and actual desktop startup on the new
+  deadline contract; bounded proxy failures remain possible.
 - Complete the real desktop app lifecycle/update-guard journey. Backend test
   credentials are not a substitute for actual desktop login acceptance.
 - Resolve or explicitly characterize the general fingerprint detector result.
