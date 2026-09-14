@@ -236,6 +236,17 @@ native-canvas site run confirmed `canvas=true`, `osFontsStatus=false` and
 as acceptance. The temporary response-control relay is stopped. No production
 canvas policy or font catalog was changed to obtain a detector result.
 
+## Stock Chrome reference
+
+The negative Linux font classification also reproduced on stock Google Chrome
+153.0.8010.36, including a minimal native launch with webdriver=false and a
+richer standard Ubuntu font set. The UI still showed Masking detected but
+No automated behavior detected. This is evidence that the font result is not
+unique to ClawBrowser patches, not proof that every warning is incorrect.
+See [the standalone reproduction report](pixelscan-linux-font-reproduction-2026-09-14.md)
+for environment, API result, automation and teardown limitations. No upstream
+message was sent. A green PixelScan result remains unachieved.
+
 ## Remaining release gates
 
 Fresh site run on the c0e9cfa active-catalog archive (September14): internal
