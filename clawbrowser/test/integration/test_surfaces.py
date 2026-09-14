@@ -1233,6 +1233,16 @@ async def test_fonts_detect_all_expected(browser_with_fingerprint):
                 family === 'Noto Sans Thai' ? 'ก' : 'A');
             document.body.appendChild(el);
         })''', fonts)
+        # PlatformFonts reports fonts used by laid-out text, not merely CSS
+        # declarations. Force layout before consulting CDP's glyph usage.
+        await page.evaluate('''async () => {
+            await document.fonts.ready;
+            for (const node of document.querySelectorAll('[id^="catalog-font-"]')) {
+                if (node.getBoundingClientRect().width <= 0) {
+                    throw new Error('Font sample has no laid-out width');
+                }
+            }
+        }''')
         cdp = await page.context.new_cdp_session(page)
         try:
             await cdp.send('DOM.enable')
