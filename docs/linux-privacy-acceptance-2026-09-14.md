@@ -132,6 +132,18 @@ Headful surfaces passed45 with1 existing native-canvas-policy skip in56.00s.
 QA backend image4427c2f is running; the previous container was retained. The
 temporary delay relay is stopped. No production deployment or merge performed.
 
+## Active-catalog packaging
+
+The release copy function previously included stale font catalogs from an
+incremental build output. It now reads the active catalog ID from catalog_build.json,
+rejects unsafe IDs and missing active manifests, and copies only that directory.
+Three packaging regressions failed before and passed after (macOS and Linux).
+The rebuilt archive contains only prototype-3; the browser executable is unchanged.
+Archive SHA256: `a4f6d98c9fd5e85912ac2158f122778c9aa0ac34cf2712628d3d08c7d5f4ca8b`.
+Fresh extraction matched staged contents and passed both real API/proxy tests.
+Seven headful font/complex-script/emoji tests passed in10.84s after extraction.
+This executes the release staging functions, not the full ARM64/AppImage pipeline.
+
 ## Remaining release gates
 
 - Validate rollout timeout overrides and actual desktop startup on the new
