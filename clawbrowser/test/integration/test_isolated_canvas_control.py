@@ -1,4 +1,4 @@
-"""Diagnostic gate for native canvas on an isolated Linux renderer.
+"""Canvas corpus with separate Linux font-isolation and native-host gates.
 
 Passing this limited matrix alone does not authorize changing the default policy.
 It is not a hardware/architecture independence proof.
@@ -77,13 +77,30 @@ async def test_canvas_window_offscreen_worker_controls(tmp_path, record_property
     configs = [os.environ.get("CLAWBROWSER_TEST_FONTCONFIG_" + x) for x in ("A", "B")]
     if sys.platform != "linux" or not all(configs):
         pytest.skip("requires two Linux host-font controls")
+    await _canvas_context_corpus(
+        tmp_path, record_property, canvas_mode,
+        [{"FONTCONFIG_FILE": config} for config in configs], "linux-two-font-controls",
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("canvas_mode", ["native", "override"])
+async def test_canvas_window_offscreen_worker_native_host(tmp_path, record_property, canvas_mode):
+    # This is a portability/cross-context gate, NOT host-font isolation evidence.
+    # Keep the separate Linux two-fontconfig gate above unchanged in scope.
+    await _canvas_context_corpus(
+        tmp_path, record_property, canvas_mode, [{}], "native-host",
+    )
+
+
+async def _canvas_context_corpus(tmp_path, record_property, canvas_mode, environments, scope):
     path, mock = canvas_control_files(tmp_path, canvas_mode)
     observations = []
-    for config in configs:
+    for control_index, environment in enumerate(environments):
         for args in ((), ("--disable-skia-runtime-opts",)):
             async with _launch_browser_with_details(
                 fixture_name=str(path), backend_mode="mock", skip_verify=True,
-                headless=False, extra_env={"FONTCONFIG_FILE": config},
+                headless=False, extra_env=environment,
                 extra_browser_args=args, fingerprints_fixture_path=mock,
             ) as launch:
                 result = await launch["page"].evaluate(r"""async () => {
@@ -155,9 +172,12 @@ async def test_canvas_window_offscreen_worker_controls(tmp_path, record_property
                     assert len(set(pixels)) > 64, "Control drawing must not be empty or uniform"
                 hashes = {key: hashlib.sha256(bytes(pixels)).hexdigest()
                           for key, pixels in result.items()}
-                observations.append({"font_control": configs.index(config), "args": args,
+                observations.append({"font_control": control_index, "args": args,
                                      "hashes": hashes})
-    record_property("cross_context_control", json.dumps({"mode": canvas_mode, "observations": observations}))
+    record_property("cross_context_control", json.dumps({
+        "mode": canvas_mode, "scope": scope, "host_platform": sys.platform,
+        "font_control_count": len(environments), "observations": observations,
+    }))
     by_seed = {}
     for row in observations:
         for key, value in row["hashes"].items():

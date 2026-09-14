@@ -36,9 +36,11 @@ is an acceptable substitute for a verified engineering fix.
 
 ## Next evidence needed
 
-- A verified macOS builder identity and a build of the actual candidate source.
-  Its configured SSH endpoint currently presents a changed host key. Confirm
-  through the owner/provider console; do not bypass host verification.
+- A macOS build of the actual candidate source. The configured remote builder
+  presents a changed SSH host key; do not bypass host verification. An isolated
+  local arm64 build is now in progress at pinned Chromium revision
+  `28a7a6c409e03c701d3474ef9e3b1f0be6249039`, with SDK 26.5 and working Metal.
+  Preparation and compilation progress are not a completed binary or test pass.
 - A second physical rendering environment for the normalized-rendering
   experiment. Compare the same native-policy corpus and font catalog against
   the Linux baseline before considering replacement of per-profile noise.
@@ -58,3 +60,19 @@ conflict-free branches are necessary but insufficient for blanket readiness.
 Keep these gates visible when handing the work to the platform build team.
 Do not label the full issue set fixed, approve all-platform release, or equate
 the separately tested macOS Electron package with a tested macOS Chromium build.
+
+## Portable corpus preparation
+
+The canvas corpus now has a separately named native-host entry point, because
+the existing two-fontconfig test deliberately skips on non-Linux systems.
+Both use the exact same rendering recipe and cross-context/hash assertions.
+The native-host gate records its platform, scope and single host-font environment;
+it must not be represented as a two-font isolation result.
+
+Regression on the Linux candidate above: **5 passed, 0 skipped, 144.45 seconds**.
+This includes the original three checks plus two native-host modes. The original
+cross-context matrix retains 240 pixel observations; the native-host entry adds
+120 overlapping observations on the same machine, not another hardware sample.
+JUnit artifact: `canvas-native-host-portability.xml`. Its properties were parsed
+and verified despite pytest's xunit2 compatibility warning. macOS execution of
+this corpus remains pending the new binary.
