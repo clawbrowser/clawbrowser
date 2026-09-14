@@ -230,6 +230,11 @@ isolation, local fonts and complex fallback. Internal Verify also passed with
 the real QA backend; PixelScan's normal policy still yields negative canvas
 and font predicates. Hardware/architecture independence is not established by
 the single-host raster-option matrix.
+The new binary's real backend/proxy tests passed too. A repeated diagnostic
+native-canvas site run confirmed `canvas=true`, `osFontsStatus=false` and
+`Masking detected`; the initial control's navigation errors are not counted
+as acceptance. The temporary response-control relay is stopped. No production
+canvas policy or font catalog was changed to obtain a detector result.
 
 ## Remaining release gates
 
