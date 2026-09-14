@@ -76,3 +76,11 @@ cross-context matrix retains 240 pixel observations; the native-host entry adds
 JUnit artifact: `canvas-native-host-portability.xml`. Its properties were parsed
 and verified despite pytest's xunit2 compatibility warning. macOS execution of
 this corpus remains pending the new binary.
+
+The portable blocked-family fallback test also passed on that Linux candidate
+(1 test, 1.74 seconds). It compares 15 requested-family/text pairs with the
+generic-family control, including Arabic, CJK, Devanagari and joined emoji;
+records actual CDP platform-font provenance; and requires matching glyph fonts
+and widths. This is not proof of independence from the OS fallback catalog, nor
+does a family absent on the host provide a positive installed-font control.
+Its macOS run is still pending. Artifact: `portable-font-fallback.xml`.
