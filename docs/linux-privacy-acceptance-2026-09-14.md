@@ -267,6 +267,28 @@ This is a mock-identity fixture with real proxies and a real TLS relay, not
 desktop OAuth acceptance. No fresh packet capture was taken; this result must
 not be described as independent packet-level proof against every IP leak.
 
+### Repeating the portable test
+
+`clawbrowser/test/integration/test_real_turn_tls.py` now contains the opt-in
+regression, without QA-server paths or credentials. Set private configuration
+file paths in `CLAWBROWSER_QA_TURN_TLS_CONFIG`,
+`CLAWBROWSER_QA_HTTP_PROXY_CONFIG`, and `CLAWBROWSER_QA_SOCKS5_PROXY_CONFIG`.
+The TURN file is an RTC iceServer object with only `turns:` URLs; proxy files
+use the usual fingerprint-profile proxy schema. Provide the candidate through
+`CLAWBROWSER_BINARY`, then run the test in a visible display or Xvfb:
+
+```sh
+python -m pytest clawbrowser/test/integration/test_real_turn_tls.py -q \
+  -o junit_family=xunit1 --junitxml=turn-tls.xml
+```
+
+No credentials should be put in command arguments or committed config files.
+The test does not set `iceTransportPolicy: relay`, so it checks that the
+browser's policy suppresses direct candidates. Saved observations exclude
+addresses, SDP and secrets. Without operator configuration both cases skip.
+On the a984314 candidate the committed portable implementation passed both
+schemes in 16.94 seconds; the unconfigured run skipped both as expected.
+
 ## Remaining release gates
 
 Fresh site run on the c0e9cfa active-catalog archive (September14): internal
