@@ -144,6 +144,32 @@ Fresh extraction matched staged contents and passed both real API/proxy tests.
 Seven headful font/complex-script/emoji tests passed in10.84s after extraction.
 This executes the release staging functions, not the full ARM64/AppImage pipeline.
 
+## PixelScan classification follow-up
+
+Captured same-domain response diagnostics on the unchanged c0e9cfa binary.
+PixelScan `/s/api/co` returns `comparedResult.match=true` (Linux) but
+`osFontsStatus=false`. Its loaded public fingerprint component combines the
+font result with other checks using logical AND. Thus this font classification
+is a sufficient cause of the negative masking result, not proof of host-font
+leakage. Other failing predicates have not been ruled out. The component's
+hardware-memory allowlist includes both16 and32; do not clamp these to8 to
+appease a presumed outdated detector. `/cbv` `legitimate=false` belongs to a
+separate browser-classification path, not that masking conjunction.
+
+Backend PR3 commit `ee7fff4` improves version coherence independently: prefer
+known patch alternatives on the runtime build branch rather than early builds
+of the same major. A regression failed with151.0.7874.0 before the fix. The
+fingerprint/provider/app/API Go suites pass afterwards. Added7922 patch versions
+were verified against the official Chrome-for-Testing catalog on September14.
+
+A separate QA backend on loopback18081 produced151.0.7922.77, with matching
+Window/Worker UA and Client Hints and passing internal Verify. PixelScan still
+reports masking and the same negative font classification. This version change
+does NOT resolve that verdict. Proxy geography varied between runs; this is not
+a strict single-variable network experiment. Evidence directories:
+`mask-diagnostic-c0e9cfa`, `mask-buildbranch-ee7fff4`, `mask-detail-ee7fff4`.
+No browser privacy guard was disabled and no production service was changed.
+
 ## Remaining release gates
 
 Fresh site run on the c0e9cfa active-catalog archive (September14): internal
