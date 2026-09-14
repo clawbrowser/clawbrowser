@@ -110,6 +110,31 @@ obtain this observation. The remaining engineering choice is a validated
 normalized-rendering strategy versus the present detectable pixel protection;
 turning the latter off alone would not resolve the font result.
 
+### Cross-context canvas normalization experiment
+
+The diagnostic matrix in `test_isolated_canvas_control.py` now also compares
+complete RGBA buffers from Window Canvas, main-thread OffscreenCanvas and a
+Worker OffscreenCanvas. Each runs with default and `willReadFrequently` contexts,
+two host-font configurations and normal/disabled Skia runtime optimizations.
+The drawing includes multilingual text, a gradient, subpixel Bezier curves,
+rotation, alpha compositing, ellipse strokes and a blurred shadow.
+
+Both explicit native and protected policies produced internally identical
+hashes across their respective 24 combinations on the a984314 Linux archive.
+This does not mean native and protected hashes are identical to each other.
+The original six-launch font/raster control also passed. The complete file
+reported 3 passed in 31.18 seconds (`canvas-cross-context-a984-final.xml`).
+Array size and nonuniformity assertions prevent empty drawings from satisfying
+the comparison. The tested Chromium source consumes `kDisableSkiaRuntimeOpts`
+in `content/common/skia_utils.cc` and forwards it to renderer/GPU processes;
+this is not an invented or ignored test flag. This remains one physical x86_64 machine,
+not cross-processor, cross-architecture or cross-platform acceptance.
+
+No heuristic exempts PixelScan's colors, canvas dimensions, domain, or probe.
+No product policy changed. A future normalized-renderer policy needs broader
+hardware coverage and a defined profile-identity contract before replacing
+per-profile noise; this experiment is supporting evidence, not that approval.
+
 Lab evidence directory: `stock-minimal-launch-full-fonts` contains the screenshot
 and report captured before browser teardown. The process subsequently reported
 a temporary-profile cleanup race; the recorded page and API results were already
