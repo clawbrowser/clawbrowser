@@ -169,6 +169,40 @@ async def test_navigator_device_memory(browser_with_fingerprint):
 
 
 @pytest.mark.asyncio
+async def test_navigator_identity_matches_dedicated_worker(browser_with_fingerprint):
+    page, _ = browser_with_fingerprint
+    actual = await page.evaluate("""async () => {
+        const probe = async () => ({
+            ua: navigator.userAgent, platform: navigator.platform,
+            languages: [...navigator.languages],
+            cores: navigator.hardwareConcurrency, memory: navigator.deviceMemory,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            offset: new Date().getTimezoneOffset(),
+            hints: navigator.userAgentData ? await navigator.userAgentData
+                .getHighEntropyValues(['fullVersionList', 'platformVersion',
+                                      'architecture', 'bitness']) : null,
+        });
+        const url = URL.createObjectURL(new Blob([
+            `onmessage = async () => postMessage(await (${probe.toString()})())`
+        ], {type: 'text/javascript'}));
+        const worker = new Worker(url);
+        try {
+            const result = await new Promise((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('Worker timed out')), 10000);
+                worker.onmessage = event => { clearTimeout(timer); resolve(event.data); };
+                worker.onerror = event => { clearTimeout(timer); reject(new Error(event.message)); };
+                worker.postMessage(null);
+            });
+            return {window: await probe(), worker: result};
+        } finally {
+            worker.terminate();
+            URL.revokeObjectURL(url);
+        }
+    }""")
+    assert actual['window'] == actual['worker']
+
+
+@pytest.mark.asyncio
 async def test_screen_dimensions(browser_with_fingerprint):
     page, data = browser_with_fingerprint
     fp = data["response"]["fingerprint"]
