@@ -178,6 +178,31 @@ has not yet been identified. PixelScan probes a fixed candidate-font list;
 this is not a complete enumeration of the bundled catalog or evidence of host
 font exposure. The full backend `go test ./...` suite also passed.
 
+## Canvas noise characterization and font-isolation recheck
+
+The loaded PixelScan 2D test paints small solid-color tiles, exports PNG,
+decodes it, and requires original channel values to remain exact. The new
+`test_canvas_palette_roundtrip.py` distinguishes this requirement from unstable
+readback or a broken PNG round trip, using native and protected controls on
+the same c0e9cfa executable without visiting an external site.
+
+Both controls passed: native pixels are unchanged; the protected fixture changes
+554 channels by at most1. Alpha is unchanged, repeat readback/export are stable,
+and the protected PNG round trip has zero mismatches. Both `toDataURL` methods
+remain native with signature length38. The detector's exact-color requirement
+conflicts with the intentional pixel protection for this input. This is not an
+unfixed round-trip defect; it is also not a claim that every canvas path is safe.
+No policy change to suppress protection on detector inputs was made.
+
+The combined headful palette, GPU-upload snapshot, font-catalog and complex
+fallback suite passed8/8 in11.32s. The two independent host font configurations
+resolve monospace to Noto Sans Mono and Liberation Mono respectively, but the
+protected text metrics are equal across them. This rechecks host-catalog
+isolation; it does not imply PixelScan accepts the bundled font selection.
+Evidence: `canvas-font-ab-c0e9cfa.xml` (including palette observations).
+The actual QA backend `ee7fff4` and proxy tests also passed2/2 in6.727s on
+this binary (`real-backend-ee7fff4-final.xml`).
+
 ## Remaining release gates
 
 Fresh site run on the c0e9cfa active-catalog archive (September14): internal
