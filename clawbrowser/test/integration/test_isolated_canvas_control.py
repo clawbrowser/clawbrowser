@@ -87,7 +87,7 @@ async def test_canvas_window_offscreen_worker_controls(tmp_path, record_property
                 extra_browser_args=args, fingerprints_fixture_path=mock,
             ) as launch:
                 result = await launch["page"].evaluate(r"""async () => {
-                    function render(canvas, frequent) {
+                    function render(canvas, frequent, seed) {
                         canvas.width=192; canvas.height=128;
                         const c=canvas.getContext('2d', {willReadFrequently:frequent});
                         const gradient=c.createLinearGradient(.25,.75,180.5,110.25);
@@ -107,15 +107,32 @@ async def test_canvas_window_offscreen_worker_controls(tmp_path, record_property
                         c.shadowColor='rgba(20,90,180,.4)'; c.shadowBlur=3.5;
                         c.strokeStyle='#65deab'; c.lineWidth=1.25;
                         c.beginPath(); c.ellipse(91.25,86.75,33.5,17.25,.23,0,Math.PI*2); c.stroke();
+                        let state=seed;
+                        const random=()=>((state=(Math.imul(state,1664525)+1013904223)>>>0)/4294967296);
+                        const color=()=>`rgba(${Math.floor(random()*256)},${Math.floor(random()*256)},${Math.floor(random()*256)},${.2+random()*.8})`;
+                        for(let i=0;seed && i<16;i++) {
+                            c.save();
+                            c.globalCompositeOperation=['source-over','multiply','screen','xor'][i%4];
+                            c.shadowBlur=random()*7; c.shadowColor=color();
+                            const g=c.createRadialGradient(random()*192,random()*128,0,96,64,40+random()*120);
+                            g.addColorStop(0,color()); g.addColorStop(.37,color()); g.addColorStop(1,color());
+                            c.fillStyle=g;
+                            c.beginPath(); c.moveTo(random()*192,random()*128);
+                            c.bezierCurveTo(random()*240-24,random()*180-26,
+                                random()*240-24,random()*180-26,random()*192,random()*128);
+                            c.lineTo(random()*192,random()*128); c.closePath(); c.fill();
+                            c.restore();
+                        }
                         return Array.from(c.getImageData(0,0,192,128).data);
                     }
                     const results={};
+                    for (const seed of [0,7,101,2027,65537]) {
                     for (const frequent of [false,true]) {
-                    const label=frequent?'readback':'default';
-                    results[label+'-dom']=render(document.createElement('canvas'),frequent);
-                    results[label+'-offscreen']=render(new OffscreenCanvas(192,128),frequent);
+                    const label=seed+'/'+(frequent?'readback':'default');
+                    results[label+'-dom']=render(document.createElement('canvas'),frequent,seed);
+                    results[label+'-offscreen']=render(new OffscreenCanvas(192,128),frequent,seed);
                     const url=URL.createObjectURL(new Blob([
-                        'onmessage=e=>postMessage(('+render.toString()+')(new OffscreenCanvas(192,128),e.data))'
+                        'onmessage=e=>postMessage(('+render.toString()+')(new OffscreenCanvas(192,128),e.data.frequent,e.data.seed))'
                     ],{type:'text/javascript'}));
                     const worker=new Worker(url);
                     let timer;
@@ -124,14 +141,15 @@ async def test_canvas_window_offscreen_worker_controls(tmp_path, record_property
                             timer=setTimeout(()=>reject(new Error('worker canvas timeout')),10000);
                             worker.onmessage=e=>resolve(e.data);
                             worker.onerror=()=>reject(new Error('worker canvas failed'));
-                            worker.postMessage(frequent);
+                            worker.postMessage({frequent,seed});
                         });
                         results[label+'-worker']=pixels;
                     } finally {clearTimeout(timer); worker.terminate(); URL.revokeObjectURL(url);}
                     }
+                    }
                     return results;
                 }""")
-                assert len(result) == 6
+                assert len(result) == 30
                 for pixels in result.values():
                     assert len(pixels) == 192 * 128 * 4
                     assert len(set(pixels)) > 64, "Control drawing must not be empty or uniform"
@@ -140,4 +158,10 @@ async def test_canvas_window_offscreen_worker_controls(tmp_path, record_property
                 observations.append({"font_control": configs.index(config), "args": args,
                                      "hashes": hashes})
     record_property("cross_context_control", json.dumps({"mode": canvas_mode, "observations": observations}))
-    assert len({value for row in observations for value in row["hashes"].values()}) == 1, observations
+    by_seed = {}
+    for row in observations:
+        for key, value in row["hashes"].items():
+            by_seed.setdefault(key.split("/")[0], set()).add(value)
+    assert len(by_seed) == 5
+    assert all(len(values) == 1 for values in by_seed.values()), observations
+    assert len(set.union(*by_seed.values())) == 5, "Recipes must produce distinct drawings"
