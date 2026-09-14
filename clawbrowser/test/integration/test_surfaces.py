@@ -169,9 +169,10 @@ async def test_navigator_device_memory(browser_with_fingerprint):
 
 
 @pytest.mark.asyncio
-async def test_navigator_identity_matches_dedicated_worker(browser_with_fingerprint):
+@pytest.mark.parametrize('worker_kind', ['dedicated', 'shared', 'service'])
+async def test_navigator_identity_matches_worker(browser_with_fingerprint, worker_kind):
     page, _ = browser_with_fingerprint
-    actual = await page.evaluate("""async () => {
+    actual = await page.evaluate("""async workerKind => {
         const probe = async () => ({
             ua: navigator.userAgent, platform: navigator.platform,
             languages: [...navigator.languages],
@@ -182,23 +183,51 @@ async def test_navigator_identity_matches_dedicated_worker(browser_with_fingerpr
                 .getHighEntropyValues(['fullVersionList', 'platformVersion',
                                       'architecture', 'bitness']) : null,
         });
-        const url = URL.createObjectURL(new Blob([
-            `onmessage = async () => postMessage(await (${probe.toString()})())`
-        ], {type: 'text/javascript'}));
-        const worker = new Worker(url);
+        if (workerKind === 'service') {
+            const registration = await navigator.serviceWorker.register('/__identity-worker.js');
+            const channel = new MessageChannel();
+            try {
+                const active = registration.active || registration.installing || registration.waiting;
+                if (!active) throw new Error('Missing service worker');
+                if (active.state !== 'activated') await new Promise((resolve, reject) => {
+                    const timer = setTimeout(() => reject(new Error('Activation timeout')), 10000);
+                    active.addEventListener('statechange', () => {
+                        if (active.state === 'activated') { clearTimeout(timer); resolve(); }
+                    });
+                });
+                const result = await new Promise((resolve, reject) => {
+                    const timer = setTimeout(() => reject(new Error('Service worker timeout')), 10000);
+                    channel.port1.onmessage = event => { clearTimeout(timer); resolve(event.data); };
+                    active.postMessage(null, [channel.port2]);
+                });
+                return {window: await probe(), worker: result};
+            } finally {
+                channel.port1.close();
+                await registration.unregister();
+            }
+        }
+        const source = workerKind === 'shared'
+            ? `onconnect = e => { const p = e.ports[0]; p.onmessage = async () => {
+                p.postMessage(await (${probe.toString()})()); close(); }; p.start(); }`
+            : `onmessage = async () => postMessage(await (${probe.toString()})())`;
+        const url = URL.createObjectURL(new Blob([source], {type: 'text/javascript'}));
+        const worker = workerKind === 'shared' ? new SharedWorker(url) : new Worker(url);
+        const channel = workerKind === 'shared' ? worker.port : worker;
         try {
             const result = await new Promise((resolve, reject) => {
                 const timer = setTimeout(() => reject(new Error('Worker timed out')), 10000);
-                worker.onmessage = event => { clearTimeout(timer); resolve(event.data); };
+                channel.onmessage = event => { clearTimeout(timer); resolve(event.data); };
                 worker.onerror = event => { clearTimeout(timer); reject(new Error(event.message)); };
-                worker.postMessage(null);
+                if (workerKind === 'shared') channel.start();
+                channel.postMessage(null);
             });
             return {window: await probe(), worker: result};
         } finally {
-            worker.terminate();
+            if (workerKind === 'shared') channel.close();
+            else worker.terminate();
             URL.revokeObjectURL(url);
         }
-    }""")
+    }""", worker_kind)
     assert actual['window'] == actual['worker']
 
 
