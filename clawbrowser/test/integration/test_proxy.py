@@ -4,6 +4,7 @@ import json
 import os
 
 import pytest
+from stun_control import assert_stun_server_responds
 
 from clawbrowser.test.integration.test_surfaces import _timezones_match
 from clawbrowser.test.integration.webrtc_probe import (
@@ -74,6 +75,10 @@ async def test_webrtc_controlled_stun_no_direct_candidates(
     stun_url = os.environ.get("CLAWBROWSER_REAL_STUN_URL")
     if not stun_url:
         pytest.skip("CLAWBROWSER_REAL_STUN_URL is not configured")
+
+    # Empty browser candidates are meaningful only with a live endpoint.
+    # This unprotected operator-side control is not a browser leak.
+    assert_stun_server_responds(stun_url)
 
     page, data = browser_with_fingerprint
     if "proxy" not in data["response"]:

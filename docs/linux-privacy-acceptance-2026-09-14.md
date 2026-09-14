@@ -291,6 +291,43 @@ schemes in 16.94 seconds; the unconfigured run skipped both as expected.
 
 ## Remaining release gates
 
+### September 14 final Linux archive checks
+
+The release staging functions produced `release-a984314-final.tar.gz` (238 MiB),
+SHA256 `cb074da7ae821de6dd75448b036237cba0006b9dfbbcd18a24d6c222a25b2607`.
+The archive was extracted to a fresh directory. Its executable retains SHA256
+`a98431433f88fdd5152e8cadb50c1887ab12c0f84825575e24571d63ea6bc62a`, and the
+only bundled font catalog is `clawbrowser-fonts-prototype-3`. No source-tree
+runtime path was used for these browser launches; the sandbox stayed enabled.
+
+| Check on extracted archive | Result | Evidence filename |
+| --- | --- | --- |
+| Selected headful privacy matrix | 54 passed, 1 expected policy skip, 74.54 s | archive-a984314-headful.xml |
+| Entire integration directory before new STUN-control unit tests | 90 passed, 8 skipped, 104.60 s | archive-a984314-all-integration.xml |
+| Real QA backend and proxy verification | 2 passed | real-backend-archive-a984314-final.xml |
+| Real HTTP/SOCKS5 TURN/TLS DataChannel echo | 2 passed, 15.61 s | archive-turn-tls-a984314.xml |
+| Independent SOCKS5 exit-IP comparison and TURN candidates | 2 passed | archive-a984314-socks.xml |
+| Live controlled IPv4 and IPv6 STUN endpoints | 1 passed each | archive-a984314-stun-live-ipv4.xml, archive-a984314-stun-live-ipv6.xml |
+| New STUN control helper unit tests | 12 passed | stun-control-unit.xml |
+
+Seven of the eight broad-run skips are opt-in external tests subsequently
+executed above. The remaining skip requires native canvas policy while the
+normal fixture deliberately has protection enabled. These counts overlap;
+they must not be summed as distinct tests. Native canvas also has its separate
+diagnostic matrix, not a change to the shipping default.
+
+The STUN retest found a test-quality issue: an empty-candidate result passed
+even though the original relay configuration listened only on IPv4. That first
+IPv6 pass is invalid evidence. The test now requires an independent UDP binding
+response with the matching transaction ID, cookie, response type and length.
+It fails against the unavailable IPv6 listener, then passes with the bounded
+dual-stack relay and successful independent controls on both families. The
+relay was stopped. This is observable-candidate evidence, not a fresh packet
+capture. The helper control itself intentionally uses the operator's direct
+socket and must not be misclassified as a browser leak.
+
+The archive is a QA candidate, not a published or signed all-platform release.
+
 Fresh site run on the c0e9cfa active-catalog archive (September14): internal
 Verify active checks passed with3 WebGL policy skips. AmIUnique and PixelScan
 both loaded200; HTTP and JS UA agree, screen is2560x1440 versus Xvfb1440x1000.

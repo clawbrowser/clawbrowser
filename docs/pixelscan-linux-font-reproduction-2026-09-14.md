@@ -50,6 +50,23 @@ Adding fonts did not make this reference pass. No personal account was used.
 
 ## Questions for the detector maintainer
 
+A second control used official Chrome for Testing **151.0.7922.77**, matching
+the product's Chromium 151 build branch rather than the newer installed Chrome
+153. It reproduced `osFontsStatus=false`, `canvas=true`, OS match true and
+webdriver=false with the same richer font set. Both navigation and teardown
+completed successfully. This rules out the 151-versus-153 difference as the
+sole explanation for the observed font result; it is not an uninstrumented
+desktop or all-Linux claim.
+
+The download URL was resolved from Google's
+[known-good versions manifest](https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json).
+The downloaded Linux ZIP SHA256 is
+`60a324a6e1d27b20f2035a2cdaf71641a739fe1f5571f63794773225820bce8a`.
+Evidence directory: `stock-cft151-full-fonts`. The screenshot also contains
+unrelated direct-server network/timezone warnings and unavailable WebGL fields;
+it must not be presented as a fully consistent stock desktop. The isolated
+font observation comes from `/s/api/co`, separately from those UI warnings.
+
 1. Which Linux/font-rendering invariant causes this response to be false?
 2. Are current Ubuntu font versions and Chrome 153 covered by the classifier?
 3. Can the UI distinguish an unfamiliar font signature from an actual
