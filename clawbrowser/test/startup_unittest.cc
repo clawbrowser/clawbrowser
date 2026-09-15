@@ -409,6 +409,36 @@ TEST_F(StartupTest, HandleBasicStartupCompleteListsProfiles) {
   EXPECT_NE(stdout_output.find("\"id\": \"list_profile\""), std::string::npos);
 }
 
+#if BUILDFLAG(IS_MAC)
+TEST_F(StartupTest, MissingMacCatalogStopsManagedStartup) {
+  WriteCachedProfile("missing_catalog");
+  WriteConfigJson("test_key");
+  base::apple::SetOverrideFrameworkBundlePath(temp_dir_.GetPath());
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "missing_catalog");
+  cmd.AppendArg("https://example.com/");
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  EXPECT_FALSE(result.has_value());
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+}
+
+TEST_F(StartupTest, CorruptMacCatalogStopsManagedStartup) {
+  WriteCachedProfile("corrupt_catalog");
+  WriteConfigJson("test_key");
+  const auto resources = temp_dir_.GetPath().AppendASCII("Resources");
+  ASSERT_TRUE(base::CopyDirectory(
+      CatalogBundle().GetPath().AppendASCII("Resources"), resources, true));
+  ASSERT_TRUE(base::WriteFile(resources.AppendASCII("clawbrowser-fonts")
+      .AppendASCII(kLinuxFontCatalogID).AppendASCII("manifest.json"), "{}"));
+  base::apple::SetOverrideFrameworkBundlePath(temp_dir_.GetPath());
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "corrupt_catalog");
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  EXPECT_FALSE(result.has_value());
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+}
+#endif
+
 TEST_F(StartupTest, FingerprintWithCachedProfile) {
   WriteCachedProfile("cached_profile");
   WriteConfigJson("test_key");
