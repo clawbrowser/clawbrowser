@@ -2,6 +2,7 @@
 #define CLAWBROWSER_FONT_CATALOG_TYPEFACES_H_
 
 #include <string>
+#include <string_view>
 #include <vector>
 #include "base/types/expected.h"
 #include "clawbrowser/font_catalog.h"
@@ -23,5 +24,19 @@ struct CatalogTypeface {
 // a family and permitting an accidental system fallback.
 base::expected<std::vector<CatalogTypeface>, std::string>
 CreateCatalogTypefaces(const ValidatedFontCatalog& catalog);
+
+sk_sp<SkTypeface> MatchCatalogFamily(
+    const std::vector<CatalogTypeface>& faces,
+    std::string_view family,
+    const SkFontStyle& style);
+
+// Tries only the supplied families in order, selecting the closest CSS style
+// among faces that contain the character. No match returns nullptr; callers
+// must not reinterpret that as permission to consult the host font manager.
+sk_sp<SkTypeface> MatchCatalogCharacter(
+    const std::vector<CatalogTypeface>& faces,
+    const std::vector<std::string>& families,
+    const SkFontStyle& style,
+    SkUnichar character);
 }  // namespace clawbrowser
 #endif

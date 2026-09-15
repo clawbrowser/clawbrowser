@@ -1,12 +1,64 @@
 #include "clawbrowser/font_catalog_typefaces.h"
 
+#include "base/strings/string_util.h"
 #include "third_party/skia/include/core/SkData.h"
+#include "third_party/skia/include/core/SkFontMgr.h"
 #include "third_party/skia/include/core/SkStream.h"
 #include "third_party/skia/include/core/SkString.h"
 #include "third_party/skia/include/ports/SkFontScanner_Fontations.h"
 #include "third_party/skia/include/ports/SkTypeface_fontations.h"
 
 namespace clawbrowser {
+namespace {
+class CatalogStyleSet final : public SkFontStyleSet {
+ public:
+  std::vector<const CatalogTypeface*> faces;
+  int count() override { return static_cast<int>(faces.size()); }
+  void getStyle(int index, SkFontStyle* style, SkString* name) override {
+    if (style) *style = faces[index]->style;
+    if (name) name->reset();
+  }
+  sk_sp<SkTypeface> createTypeface(int index) override {
+    return faces[index]->typeface;
+  }
+  sk_sp<SkTypeface> matchStyle(const SkFontStyle& style) override {
+    return faces.empty() ? nullptr : matchStyleCSS3(style);
+  }
+};
+}  // namespace
+
+sk_sp<SkTypeface> MatchCatalogFamily(
+    const std::vector<CatalogTypeface>& faces,
+    std::string_view family,
+    const SkFontStyle& style) {
+  CatalogStyleSet choices;
+  for (const auto& face : faces) {
+    if (face.typeface && base::EqualsCaseInsensitiveASCII(face.family, family))
+      choices.faces.push_back(&face);
+  }
+  return choices.matchStyle(style);
+}
+
+sk_sp<SkTypeface> MatchCatalogCharacter(
+    const std::vector<CatalogTypeface>& faces,
+    const std::vector<std::string>& families,
+    const SkFontStyle& style,
+    SkUnichar character) {
+  if (character < 0 || character > 0x10ffff ||
+      (character >= 0xd800 && character <= 0xdfff))
+    return nullptr;
+  for (const auto& family : families) {
+    CatalogStyleSet choices;
+    for (const auto& face : faces) {
+      if (face.typeface && base::EqualsCaseInsensitiveASCII(face.family, family) &&
+          face.typeface->unicharToGlyph(character))
+        choices.faces.push_back(&face);
+    }
+    if (auto result = choices.matchStyle(style)) return result;
+  }
+  return nullptr;
+}
+
 base::expected<std::vector<CatalogTypeface>, std::string>
 CreateCatalogTypefaces(const ValidatedFontCatalog& catalog) {
   if (catalog.fonts.empty())

@@ -58,7 +58,16 @@ or omission of the failing variation was used.
 Both tests pass on macOS against all 28 pinned files (49,709,560 bytes),
 manifest SHA256 `7997598edceb7eab61bdbab53fa1ee923770ab349c4b8a5034c16b5dc540bbc7`.
 Use `CLAWBROWSER_TEST_CATALOG_DIR` and `CLAWBROWSER_TEST_CATALOG_SHA256` for
-this opt-in unit target. Linux validation is pending for this new helper.
+this opt-in unit target. The same two tests also passed on Linux against the
+catalog from the extracted QA archive.
+
+The reader now exposes `MatchCatalogFamily` (case-insensitive catalog lookup
+and Skia CSS3 style matching) and `MatchCatalogCharacter` (explicit ordered
+families, glyph coverage, then CSS style). Unknown families, unsupported
+characters and invalid Unicode scalar values return no match. Tests cover
+regular/bold/italic, an absent host family, family ordering and emoji fallback.
+These are scalar-character selection tests, not full shaping/variation-selector
+or script-cluster acceptance.
 
 **This reader is not yet connected to FontCache or automatic fallback.**
 Family/style selection, bundle packaging, renderer cache lifetime/memory use
