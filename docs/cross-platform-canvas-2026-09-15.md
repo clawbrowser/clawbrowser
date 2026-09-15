@@ -888,3 +888,62 @@ This is not universal rendering/release acceptance. The broad Linux suite is
 the next gate, the protected float16 performance cost is unresolved, and the
 Mac reference has not been rebuilt with 050/051 because local build access
 remains blocked by the Xcode license prerequisite.
+
+The extracted 051 artifact then passed the broad headful Linux suite:
+**135 passed / 21 skipped in 410.47s** (`full-suite-051.xml`). The same two
+standalone diagnostic modules were excluded; no acceptance test was weakened.
+Skips include opt-in timing/step diagnostics, macOS-only checks, external
+backend/proxy/STUN/TURN checks needing their separate configuration, and a
+non-native-policy fixture. They are not counted as passes or fresh network
+proof. Strict comparisons against the matching existing Mac reports passed
+**614 comparable observations**: 120 corpus/format, 32 primitives, 16 SVG,
+30 bitmap and 416 blend. Other unmatched observations are not cross-host proof.
+
+051 float16 ABBA timings also completed all 16 opt-in cases:
+
+| CPU / policy | Old 049, two runs (ms) | New 051, two runs (ms) |
+| --- | --- | --- |
+| Default / native | 0.2107, 0.1775 | 0.1725, 0.1894 |
+| Default / protected | 0.5870, 0.5612 | 0.7720, 0.7157 |
+| Baseline / native | 0.6037, 0.6100 | 0.6449, 0.6531 |
+| Baseline / protected | 0.9726, 0.9626 | 1.2155, 1.2007 |
+
+Thus the protected float16 cost remains approximately 25–30% in this fixture;
+correct blend output does not imply performance neutrality. Ordinary unorm8
+timing is a separate experiment, not interchangeable with these numbers.
+
+Managed-profile retest of the same 051 executable passed internal Verify
+**35/35**. `/proc` executable resolution confirmed the extracted candidate,
+not another browser. The ordinary, uninstrumented PixelScan run still shows
+**Inconsistent / Masking detected**, with **No proxy detected / No automated
+behavior detected**. Screenshot and private local summary were preserved as
+`pixelscan-exact-reciprocal-051.{png,json}`; the image was visually inspected.
+No website-specific renderer exception or disabled Canvas protection was used.
+Cross-host fixture equality must not be reported as a green PixelScan result.
+The previous instrumented font/Canvas predicate diagnosis was not rerun here.
+
+Ordinary unorm8 ABBA also completed 16 cases. Native/default old/new ranges
+were 0.1542–0.1600 / 0.1526–0.1835 ms; protected/default was
+0.5273–0.5453 / 0.6858–0.6998 ms. Native/baseline was
+0.3350–0.3461 / 0.3350–0.3412 ms; protected/baseline was
+0.7198–0.7262 / 0.8693–0.8811 ms. Therefore the protected-mode slowdown is
+not confined to half-float backing stores.
+
+An isolated `perf` CPU-clock comparison (2,629 old samples, no lost samples)
+identified `ApplyDeterministicCanvasNoise` as the largest hotspot: 50.10% of
+old CPU samples versus 58.19% of new samples. Importantly, disassembling that
+function found **302 identical normalized instructions** in both artifacts,
+with the same 0x483-byte size. Only placement/relocations differ. This does
+not establish that half conversion or division caused the protected-mode
+slowdown; code layout/cache effects remain a hypothesis. Next optimize the
+generic per-pixel/per-channel dispatch while preserving every output byte,
+and compare against both artifacts rather than changing noise semantics.
+
+Fresh controlled networking on 051 passed as well: independent IPv4/IPv6 STUN
+controls produced four captured records, and browser HTTP/SOCKS5 phases
+produced zero direct STUN records. TURN/TLS echo passed both proxy schemes
+with positive relay bytes and verified TLS. The direct-TCP positive control
+captured seven packets; the browser phase captured zero direct and 300
+proxy-origin packets, with zero kernel drops. These are controlled-endpoint
+claims, not proof about all Internet routes. Both bounded network services
+were confirmed inactive after the tests.
