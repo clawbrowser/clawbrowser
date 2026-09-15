@@ -84,6 +84,14 @@ The hook compiled and the app packaged successfully. Candidate
 provenance, blocked-family equivalence, cached-profile migration and local
 full/PostScript-name loading. The Linux-only differential Fontconfig test was
 skipped, not passed. Full browser acceptance is still pending.
+The expanded font suite subsequently passed 8 tests (complex scripts,
+emoji composition, enumeration, local-name/worker isolation and verify-page
+contract). The full rerun passed 113, failed the two pre-existing native
+canvas equality controls, and skipped 14 in 241.89 seconds. Protected canvas
+controls passed. The native failures are retained, not marked successful.
+Missing/corrupt bundle negative controls bring the C++ suite to 218 passing.
+An actual rendered sample screenshot is retained alongside the local XML
+evidence; it is a fixture screenshot, not a PixelScan report.
 The new macOS provenance test requires actual Latin, Arabic, CJK, Devanagari
 and composed emoji rendering from the catalog. Migration and local-name tests
 now also run on macOS. Standalone startup unit tests supply an isolated resource
