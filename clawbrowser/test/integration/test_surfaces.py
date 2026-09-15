@@ -3,6 +3,7 @@
 import asyncio
 import json
 import sys
+from urllib.parse import urljoin
 
 import pytest
 
@@ -134,6 +135,20 @@ async def test_sec_ch_ua_headers(browser_with_fingerprint):
     assert headers["sec-ch-ua-mobile"] == fp["headers"]["Sec-CH-UA-Mobile"]
     assert headers["sec-ch-ua-platform"] == fp["headers"]["Sec-CH-UA-Platform"]
     assert headers["sec-ch-ua"] == fp["headers"]["Sec-CH-UA"]
+
+
+@pytest.mark.asyncio
+async def test_navigation_sec_ch_ua_headers(browser_with_fingerprint):
+    # Navigation headers come from the browser-process delegate, whereas fetch
+    # uses the renderer metadata. Testing fetch alone misses this divergence.
+    page, data = browser_with_fingerprint
+    fp = data["response"]["fingerprint"]
+    response = await page.goto(urljoin(page.url, '/__headers'), wait_until='load')
+    assert response is not None and response.ok
+    payload = await response.json()
+    headers = {key.lower(): value for key, value in payload['headers'].items()}
+    for name in ('User-Agent', 'Sec-CH-UA', 'Sec-CH-UA-Mobile', 'Sec-CH-UA-Platform'):
+        assert headers[name.lower()] == fp['headers'][name], (name, headers)
 
 
 @pytest.mark.asyncio

@@ -22,3 +22,23 @@
    return embedder_support::GetUserAgentMetadata();
  }
  
+--- a/components/client_hints/browser/client_hints.cc
++++ b/components/client_hints/browser/client_hints.cc
+@@ -19,8 +19,10 @@
+ #include "components/content_settings/core/common/content_settings_utils.h"
+ #include "components/embedder_support/user_agent_utils.h"
+ #include "content/public/browser/browser_thread.h"
++#include "content/public/browser/content_browser_client.h"
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/render_process_host.h"
++#include "content/public/common/content_client.h"
+ #include "services/network/public/cpp/client_hints.h"
+ #include "services/network/public/cpp/features.h"
+ #include "services/network/public/cpp/is_potentially_trustworthy.h"
+@@ -153,3 +155,5 @@
+ blink::UserAgentMetadata ClientHints::GetUserAgentMetadata() {
+-  return embedder_support::GetUserAgentMetadata();
++  // Match renderer metadata through the embedder's browser client. Calling
++  // embedder_support directly bypasses ClawBrowser's loaded fingerprint.
++  return content::GetContentClient()->browser()->GetUserAgentMetadata();
+ }
