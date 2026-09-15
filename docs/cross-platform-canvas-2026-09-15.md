@@ -365,8 +365,28 @@ results but did **not** improve baseline performance. Do not present those
 as a successful speedup: candidate `e636472` took about 2.33–2.37ms native /
 2.72–2.73ms protected, and `db46d7e` about 2.52–2.62ms / 2.81–2.95ms on
 the forced-baseline workload. Ordinary runtime measurements overlapped the
-previous candidate. The vectorized revision is under build/runtime QA;
-performance and full-suite acceptance remain pending.
+previous candidate. The vectorized revision's measured results follow.
+
+The vectorized candidate is now built: ELF
+`5f7fb6e5686c78c775f58f2fdbbdc8202e5b67b5f46cf5b17e8bd2b04d393bb8`,
+archive `6393c8e5f6dcd1177fbe663de248fc68d391dd693bcd89f5077db329c7f9a7ba`.
+Four targeted tests pass in 49.43s (per-draw CPU comparison, native/managed
+vertical metrics, 40 Canvas stage goldens). CI passes both contract jobs.
+The standalone ABBA benchmark uses 045 / new / new / 045, seven samples of
+300 iterations, with no concurrent QA workloads:
+
+| CPU path / policy | 045 medians, ms | New medians, ms |
+| --- | --- | --- |
+| Default / native | 0.4763 / 0.4457 | 0.4540 / 0.4290 |
+| Default / protected | 0.7280 / 0.8210 | 0.7733 / 0.7207 |
+| Forced baseline / native | 0.8340 / 0.7813 | 1.8937 / 1.9203 |
+| Forced baseline / protected | 1.0763 / 1.0797 | 2.3337 / 2.4227 |
+
+Vectorization improves on the scalar candidates but still leaves a roughly
+2.2–2.5x forced-baseline regression. Default-path timings overlap. These
+measurements do not justify declaring performance ready; the baseline cost
+remains an explicit release risk. Full-suite and network tests on this exact
+artifact are reported below.
 
 The build helpers now support resetting explicitly patch-created Skia files,
 which are absent from upstream nested HEAD. They continue rejecting unexpected
@@ -382,3 +402,50 @@ drops. Real TURN/TLS echo passes both proxy schemes, 2 tests / 18.05s, with
 successful selected relay pairs and positive sent/received bytes. Both bounded
 test services were stopped and verified inactive. These results do not turn
 PixelScan's still-negative fonts/canvas classification into a pass.
+
+### Vectorized candidate `5f7fb6e` acceptance
+
+The extracted, sandboxed candidate completes the full Linux headful suite:
+**131 passed, 19 skipped in 313.32s**. Both host Fontconfig variants were
+configured. The skips include macOS-only experiments, opt-in timing/diagnostics
+and separately configured real-network/API tests; they are not passes.
+Against Mac reference binary `945d653`, all **120 common PNG/color/seeded-corpus
+observations and 32 raster primitives match**, with no differing hashes.
+The 40 stage and 84 managed vertical-metric golden assertions also pass.
+This does not replace a rebuild/acceptance of the latest changes on Mac or Windows.
+
+Separate real-network runs on this same artifact pass:
+
+- Controlled IPv4/IPv6 STUN: 4 independent positive-control packets, 0 browser
+  packets across HTTP/SOCKS5, 0 capture drops.
+- TURN/TLS: both HTTP/SOCKS5 echo tests pass, with two selected relay pairs per
+  test and positive sent/received bytes. The test page does not request relay-only
+  policy; the product enforces it. Public certificate verification stays enabled.
+- Direct-TCP exclusion at the controlled TURN endpoint: 7 positive-control
+  packets, 0 browser direct packets, 254 proxy-origin inbound packets, 0 drops.
+  The first wrapper attempt rejected an incorrect assumed port before starting
+  the service. The successful capture uses the existing endpoint's port 443 and
+  filters both its address and port, excluding unrelated HTTPS traffic.
+- Both bounded STUN/TURN services were verified inactive afterwards.
+
+The managed QA profile runs this exact extracted executable and passes all
+35 built-in verification checks. Its optional Remote Control child reports
+`401 invalid_auth`; the browser/profile itself is running and independently
+verified. No credential workaround was used. Navigation HTTP identity matches
+window/Worker identity, without exposing the raw runtime patch version.
+
+An unmodified PixelScan scan still reports **inconsistent / Masking detected**,
+with no proxy or automated-behavior classification. A separate instrumented
+diagnostic again finds only the fonts and canvas predicates false; the other
+11 predicates are true. The diagnostic is not the unmodified screenshot proof.
+Canvas protection remains enabled; no checker-specific exceptions were added.
+PixelScan, the forced-baseline performance risk and latest Mac/Windows binary
+acceptance remain open. This is not a merge or release recommendation.
+
+The separate PixelScan WebRTC checker shows a red warning despite submitting
+empty ICE-address lists. Its success condition requires the HTTP public IP
+to occur in a STUN/TURN list; the displayed IP is the proxy address, not the
+QA host. Source and decoded request/response evidence are documented in the
+[WebRTC checker diagnosis](pixelscan-webrtc-empty-candidates-2026-09-15.md).
+Do not interpret that UI warning as a demonstrated host-IP leak in this run,
+or claim that the site returned a green result.
