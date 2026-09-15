@@ -776,3 +776,26 @@ the local `clawbrowser-linux-c067039` evidence set. Next steps are isolated
 numeric conversion regressions, an exact portable conversion candidate, then
 rebuilding and rerunning this matrix before broader acceptance/performance.
 The latest Mac/Windows engine builds and PixelScan remain separate open gates.
+
+### Patch 050 candidate: exact baseline binary16 conversion
+
+The candidate replaces only raster paths lacking hardware half conversion with
+round-to-nearest/ties-to-even float-to-half and exact half-to-float conversion.
+It preserves signed zero and subnormals, handles overflow/infinities and quiets
+NaNs. AVX2/ARM64 hardware branches are unchanged. It does not change Canvas
+policy, formats, noise, domain handling or the approximate reciprocal helpers.
+
+`skia_half_test.sh` extracts the actual added header from patch 050. Its
+independent reference decodes half values with `ldexp` and chooses the nearest
+representable half by searching that decoded table. It checks all 65,536 half
+encodings, neighbors of every positive finite half midpoint with both signs,
+overflow boundaries and one million seeded float bit patterns. On macOS
+Apple Clang and Linux GCC it passes **65,536 decodes / 1,256,004 encodes**.
+The old truncating/flushing expression disagrees in 400,946 applicable cases,
+providing a negative control. The test is added to the numerical CI matrix.
+
+Browser compilation/acceptance and baseline float16 performance remain pending
+for this candidate. The opt-in bitmap timing fixture now accepts a float16
+backing-store selection and asserts that the requested format was obtained.
+Do not infer that the 120 observed blend differences are resolved from the
+standalone numerical result.

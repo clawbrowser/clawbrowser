@@ -15,13 +15,15 @@ async def test_bitmap_source_over_timing(tmp_path, record_property, mode):
     if os.environ.get('CLAWBROWSER_QA_BITMAP_TIMING') != '1':
         pytest.skip('opt-in comparative bitmap timing only')
     baseline = os.environ.get('CLAWBROWSER_QA_RASTER_BASELINE') == '1'
+    color_type = os.environ.get('CLAWBROWSER_QA_BITMAP_COLOR_TYPE', 'unorm8')
+    assert color_type in ('unorm8', 'float16')
     fixture, mock = canvas_control_files(tmp_path, mode)
     async with _launch_browser_with_details(
         fixture_name=str(fixture), backend_mode='mock', skip_verify=True,
         headless=False, fingerprints_fixture_path=mock,
         extra_browser_args=['--disable-skia-runtime-opts'] if baseline else [],
     ) as launch:
-        result = await launch['page'].evaluate('''async () => {
+        result = await launch['page'].evaluate('''async (colorType) => {
             const src=document.createElement('canvas');src.width=src.height=109;
             const sc=src.getContext('2d'),data=sc.createImageData(109,109);
             let seed=20270915;
@@ -31,7 +33,7 @@ async def test_bitmap_source_over_timing(tmp_path, record_property, mode):
             sc.putImageData(data,0,0);
             const img=new Image();img.src=src.toDataURL();await img.decode();
             const canvas=document.createElement('canvas');canvas.width=256;canvas.height=160;
-            const c=canvas.getContext('2d',{willReadFrequently:true});
+            const c=canvas.getContext('2d',{willReadFrequently:true,colorType});
             c.imageSmoothingEnabled=true;c.imageSmoothingQuality='low';
             const draw=()=>{
                 c.fillStyle='#cadbec';c.fillRect(0,0,256,160);
@@ -45,11 +47,13 @@ async def test_bitmap_source_over_timing(tmp_path, record_property, mode):
                 const start=performance.now();for(let i=0;i<1000;i++)length=draw();
                 samples.push((performance.now()-start)/1000);
             }
-            return {samples,length};
-        }''')
+            return {samples,length,colorType:c.getContextAttributes().colorType};
+        }''', color_type)
+    assert result['colorType'] == color_type
     assert result['length'] == 256*160*4
     assert len(result['samples']) == 7 and all(x > 0 for x in result['samples'])
     record_property('bitmap_raster_timing', json.dumps({
         'mode': mode, 'baseline_cpu': baseline, 'iterations_per_sample': 1000,
+        'color_type': color_type,
         'samples_ms': result['samples'], 'median_ms': statistics.median(result['samples']),
     }))

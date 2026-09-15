@@ -1,0 +1,103 @@
+--- a/third_party/skia/gn/core.gni
++++ b/third_party/skia/gn/core.gni
+@@ -671,3 +671,4 @@
+   "$_src/opts/SkClawbrowserFma.h",
+   "$_src/opts/SkClawbrowserSrcOver.h",
++  "$_src/opts/SkClawbrowserHalf.h",
+   "$_src/opts/SkSwizzler_opts.inc",
+--- /dev/null
++++ b/third_party/skia/src/opts/SkClawbrowserHalf.h
+@@ -0,0 +1,48 @@
++// IEEE binary16 conversion for raster paths without hardware half support.
++#ifndef SkClawbrowserHalf_DEFINED
++#define SkClawbrowserHalf_DEFINED
++#include <bit>
++#include <cstdint>
++namespace skia_private {
++inline uint16_t ClawbrowserFloatToHalf(float f) {
++    const uint32_t bits = std::bit_cast<uint32_t>(f);
++    const uint32_t sign = (bits >> 16) & 0x8000;
++    const uint32_t exponent = (bits >> 23) & 255;
++    uint32_t mantissa = bits & 0x7fffff;
++    if (exponent == 255) {
++        return sign | 0x7c00 | (mantissa ? ((mantissa >> 13) | 0x200) : 0);
++    }
++    if (exponent > 142) return sign | 0x7c00;
++    if (exponent < 102) return sign;
++    if (exponent < 113) {
++        mantissa |= 0x800000;
++        const unsigned shift = 126 - exponent;  // 14..24, never an invalid shift.
++        const uint32_t truncated = mantissa >> shift;
++        const uint32_t remainder = mantissa & ((1u << shift) - 1);
++        const uint32_t halfway = 1u << (shift - 1);
++        return sign | (truncated + (remainder > halfway ||
++                                    (remainder == halfway && (truncated & 1))));
++    }
++    // Round to nearest, ties to even. Carry may increment the half exponent.
++    return sign | (((exponent - 112) << 10) +
++                   ((mantissa + 0xfff + ((mantissa >> 13) & 1)) >> 13));
++}
++inline float ClawbrowserHalfToFloat(uint16_t half) {
++    const uint32_t sign = uint32_t(half & 0x8000) << 16;
++    uint32_t exponent = (half >> 10) & 31;
++    uint32_t mantissa = half & 1023;
++    uint32_t bits;
++    if (exponent == 31) {
++        bits = sign | 0x7f800000 | (mantissa << 13) | (mantissa ? 0x400000 : 0);
++    } else if (exponent == 0) {
++        if (mantissa == 0) return std::bit_cast<float>(sign);
++        int unbiased = -14;
++        while ((mantissa & 1024) == 0) { mantissa <<= 1; --unbiased; }
++        bits = sign | (uint32_t(unbiased + 127) << 23) | ((mantissa & 1023) << 13);
++    } else {
++        bits = sign | ((exponent + 112) << 23) | (mantissa << 13);
++    }
++    return std::bit_cast<float>(bits);
++}
++}  // namespace skia_private
++#endif
+--- a/third_party/skia/src/opts/SkRasterPipeline_opts.h
++++ b/third_party/skia/src/opts/SkRasterPipeline_opts.h
+@@ -19,3 +19,4 @@
+ #include "src/shaders/SkPerlinNoiseShaderType.h"
+ #include "src/opts/SkClawbrowserFma.h"
++#include "src/opts/SkClawbrowserHalf.h"
+ #include "src/sksl/tracing/SkSLTraceHook.h"
+@@ -1440,11 +1441,9 @@
+ #else
+-    // Remember, a half is 1-5-10 (sign-exponent-mantissa) with 15 exponent bias.
+-    U32 sem = expand(h),
+-        s   = sem & 0x8000,
+-         em = sem ^ s;
+-
+-    // Convert to 1-8-23 float with 127 bias, flushing denorm halfs (including zero) to zero.
+-    auto denorm = (I32)em < 0x0400;      // I32 comparison is often quicker, and always safe here.
+-    return if_then_else(denorm, F0
+-                              , sk_bit_cast<F>( (s<<16) + (em<<13) + ((127-15)<<23) ));
++    uint16_t source[sizeof(U16) / sizeof(uint16_t)];
++    float result[sizeof(F) / sizeof(float)];
++    memcpy(source, &h, sizeof(h));
++    for (size_t i = 0; i < sizeof(F) / sizeof(float); ++i) {
++        result[i] = skia_private::ClawbrowserHalfToFloat(source[i]);
++    }
++    return sk_unaligned_load<F>(result);
+ #endif
+@@ -1463,11 +1462,9 @@
+ #else
+-    // Remember, a float is 1-8-23 (sign-exponent-mantissa) with 127 exponent bias.
+-    U32 sem = sk_bit_cast<U32>(f),
+-        s   = sem & 0x80000000,
+-         em = sem ^ s;
+-
+-    // Convert to 1-5-10 half with 15 bias, flushing denorm halfs (including zero) to zero.
+-    auto denorm = (I32)em < 0x38800000;  // I32 comparison is often quicker, and always safe here.
+-    return pack((U32)if_then_else(denorm, I32_(0)
+-                                        , (I32)((s>>16) + (em>>13) - ((127-15)<<10))));
++    float source[sizeof(F) / sizeof(float)];
++    uint16_t result[sizeof(U16) / sizeof(uint16_t)];
++    memcpy(source, &f, sizeof(f));
++    for (size_t i = 0; i < sizeof(F) / sizeof(float); ++i) {
++        result[i] = skia_private::ClawbrowserFloatToHalf(source[i]);
++    }
++    return sk_unaligned_load<U16>(result);
+ #endif
