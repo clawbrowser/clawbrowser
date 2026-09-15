@@ -587,6 +587,14 @@ An approximate `/256` negative control differs 3,604,033 times. The tests are
 added to the Linux/macOS/Windows numerical CI matrix. Browser build and
 cross-host acceptance of this patch are still pending.
 
+The first Chromium compile caught a portability detail absent from the original
+standalone test: Skia selects its AVX2 translation unit with target pragmas,
+which do not define `__AVX2__`. The helper now also recognizes Skia's target
+level and is forced inline to avoid cross-target helper symbol selection.
+A baseline-compiled Clang test using the same target-pragma mechanism passes
+all 17,777,216 scalar/SSE2/AVX2 comparisons. Linux Clang CI runs that case when
+the runner advertises AVX2; a browser rebuild is still required.
+
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
 positive control 4 packets, browser 0 packets through HTTP/SOCKS5, zero kernel
 drops. Real TURN/TLS echo passes both proxy schemes, 2 tests / 18.05s, with

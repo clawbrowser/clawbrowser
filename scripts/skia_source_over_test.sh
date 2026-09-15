@@ -10,6 +10,9 @@ flags=(-std=c++20 -O2)
 if [[ "$(uname -m)" == x86_64 ]]; then
   flags+=(-msse2 -mno-avx -DCLAWBROWSER_TEST_REQUIRE_SSE2=1)
   if [[ "${CLAWBROWSER_TEST_AVX2:-0}" == 1 ]]; then flags+=(-mavx2); fi
+  if [[ "${CLAWBROWSER_TEST_PRAGMA_AVX2:-0}" == 1 ]]; then
+    flags+=(-DCLAWBROWSER_TEST_PRAGMA_AVX2=1)
+  fi
 fi
 "${CXX:-c++}" "${flags[@]}" -I"$source_over_test_dir/third_party/skia" \
   "$repo_root/clawbrowser/test/unit/skia_source_over_test.cc" -o "$source_over_test_dir/source-over-test"

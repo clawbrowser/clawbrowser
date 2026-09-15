@@ -7,7 +7,7 @@
    "$_src/opts/SkSwizzler_opts.inc",
 --- /dev/null
 +++ b/third_party/skia/src/opts/SkClawbrowserSrcOver.h
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,59 @@
 +// Exact unorm8 source-over for bitmap blitters, matching the NEON path.
 +#ifndef SkClawbrowserSrcOver_DEFINED
 +#define SkClawbrowserSrcOver_DEFINED
@@ -17,8 +17,13 @@
 +#include <immintrin.h>
 +#define SK_CLAWBROWSER_HAS_SRCOVER4 1
 +#endif
++#if defined(_MSC_VER)
++#define SK_CLAWBROWSER_SRCOVER_INLINE __forceinline
++#else
++#define SK_CLAWBROWSER_SRCOVER_INLINE inline __attribute__((always_inline))
++#endif
 +namespace skia_private {
-+inline uint32_t ClawbrowserSrcOver(uint32_t src, uint32_t dst) {
++SK_CLAWBROWSER_SRCOVER_INLINE uint32_t ClawbrowserSrcOver(uint32_t src, uint32_t dst) {
 +    const unsigned inverse_alpha = 255 - (src >> 24);
 +    uint32_t result = 0;
 +    for (unsigned shift = 0; shift < 32; shift += 8) {
@@ -29,7 +34,7 @@
 +    return result;
 +}
 +#if defined(SK_CLAWBROWSER_HAS_SRCOVER4)
-+inline __m128i ClawbrowserSrcOver4(__m128i src, __m128i dst) {
++SK_CLAWBROWSER_SRCOVER_INLINE __m128i ClawbrowserSrcOver4(__m128i src, __m128i dst) {
 +    __m128i scale = _mm_sub_epi32(_mm_set1_epi32(255), _mm_srli_epi32(src, 24));
 +    scale = _mm_or_si128(scale, _mm_slli_epi32(scale, 16));
 +    auto divide255 = [](__m128i product) {
@@ -43,8 +48,10 @@
 +    return _mm_adds_epu8(src, _mm_or_si128(rb, _mm_slli_epi16(ga, 8)));
 +}
 +#endif
-+#if defined(__AVX2__)
-+inline __m256i ClawbrowserSrcOver8(__m256i src, __m256i dst) {
++#if defined(__AVX2__) || (defined(SK_CPU_X64_LEVEL) && \
++    defined(SK_CPU_X64_LEVEL_AVX2) && SK_CPU_X64_LEVEL >= SK_CPU_X64_LEVEL_AVX2)
++#define SK_CLAWBROWSER_HAS_SRCOVER8 1
++SK_CLAWBROWSER_SRCOVER_INLINE __m256i ClawbrowserSrcOver8(__m256i src, __m256i dst) {
 +    __m256i scale = _mm256_sub_epi32(_mm256_set1_epi32(255), _mm256_srli_epi32(src, 24));
 +    scale = _mm256_or_si256(scale, _mm256_slli_epi32(scale, 16));
 +    auto divide255 = [](__m256i product) {
@@ -58,6 +65,7 @@
 +}
 +#endif
 +}  // namespace skia_private
++#undef SK_CLAWBROWSER_SRCOVER_INLINE
 +#endif
 --- a/third_party/skia/src/opts/SkBlitRow_opts.h
 +++ b/third_party/skia/src/opts/SkBlitRow_opts.h

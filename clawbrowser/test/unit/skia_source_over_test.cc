@@ -1,3 +1,9 @@
+#if defined(CLAWBROWSER_TEST_PRAGMA_AVX2)
+// Skia selects optimized TUs through target pragmas, not compiler -mavx2.
+#define SK_CPU_X64_LEVEL 8
+#define SK_CPU_X64_LEVEL_AVX2 8
+#pragma clang attribute push(__attribute__((target("avx2"))), apply_to = function)
+#endif
 #include "src/opts/SkClawbrowserSrcOver.h"
 #include <cstdio>
 #include <cstdlib>
@@ -32,7 +38,7 @@ void check(uint32_t s, uint32_t d) {
     for (int i = 0; i < 8; ++i) if (actual[i] != expected[i]) std::abort();
     sse_checked += 8;
 #endif
-#if defined(__AVX2__)
+#if defined(SK_CLAWBROWSER_HAS_SRCOVER8)
     alignas(32) uint32_t avx[8];
     _mm256_store_si256(reinterpret_cast<__m256i*>(avx),
         skia_private::ClawbrowserSrcOver8(
@@ -43,6 +49,9 @@ void check(uint32_t s, uint32_t d) {
 #endif
     lane = 0;
 }
+#if defined(CLAWBROWSER_TEST_PRAGMA_AVX2)
+#pragma clang attribute pop
+#endif
 
 int main() {
     // Exhaust every byte channel / source-alpha combination, including

@@ -31,6 +31,9 @@ jobs:
           "$CXX" --version
           bash scripts/skia_fma_rounding_test.sh
           bash scripts/skia_source_over_test.sh
+          if [[ "$RUNNER_OS" == Linux ]] && grep -qw avx2 /proc/cpuinfo; then
+            CLAWBROWSER_TEST_PRAGMA_AVX2=1 bash scripts/skia_source_over_test.sh
+          fi
 
   raster-portability-windows:
     runs-on: windows-latest
