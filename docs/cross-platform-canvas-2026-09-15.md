@@ -840,3 +840,37 @@ with **262,144 mixed decode lanes and 5,024,016 mixed encode lanes**, alongside
 the previous scalar/reference tests. Linux GCC passes with `-msse2 -mno-avx`;
 macOS ARM64 retains scalar coverage. Rebuilt-browser performance is still
 required before claiming the slowdown fixed.
+
+The SSE2 follow-up was built and staged as `exact-half-050-v2`: ELF SHA-256
+`2cbd2d711f672315f2c5ad7bb0e8ca2a474bb7864298010425652497de899b14`,
+archive SHA-256
+`ed2005aa0985db289beb1fe108142a333ce250875485c93f5ba53710bb39d78b`.
+The headful sandboxed blend run completed in 38.15s. All **416 observations
+are identical to 050 v1**, confirming that the SIMD optimization preserved
+this fixture's pixels. The strict regression still fails: the same 16
+default-CPU observations differ from the Mac reference (color-burn in both
+formats, hue/saturation in float16). This is not overall acceptance. Comparative
+ABBA performance is evaluated separately.
+
+The 050 v2 ABBA run completed all 16 timing cases with no concurrent build.
+Per-iteration medians (milliseconds):
+
+| CPU / policy | Old 049, two runs | New 050 v2, two runs |
+| --- | --- | --- |
+| Default / native | 0.1887, 0.1889 | 0.1737, 0.1830 |
+| Default / protected | 0.5459, 0.5548 | 0.7153, 0.7097 |
+| Baseline / native | 0.6112, 0.6373 | 0.6998, 0.6572 |
+| Baseline / protected | 0.9638, 0.9423 | 1.2154, 1.1698 |
+
+Baseline conversion improved relative to v1, but this is **not a resolved
+performance gate**: protected mode is still about 25% slower on baseline CPU
+and 29% on default CPU in this run. The earlier v1 default-path result must
+not be substituted for this artifact's measured result. Reports are retained
+as `half-abba-050-v2-cpu{0,1}-{0,1,2,3}.xml`.
+
+Patch 051 is a separate experimental candidate replacing `rcp_fast`'s
+architecture-dependent estimate/refinement with vector division on all paths.
+It leaves `rsqrt` and existing direct `rcp_precise` callers unchanged. The
+remaining failing blend cases use this reciprocal helper. Compilation and
+the unchanged strict blend matrix are required to test this hypothesis;
+cross-platform correctness and performance are not yet established.
