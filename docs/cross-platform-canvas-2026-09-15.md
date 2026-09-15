@@ -109,6 +109,45 @@ The full run does not replace the separately configured real TURN/TLS and
 packet-capture tests. Mac rebuild remains blocked by unaccepted Xcode license;
 the existing Mac candidate was used for comparison, not a new Mac build.
 
+## Text metrics attribution
+
+The bundled Arimo-Regular.ttf bytes match on both hosts (SHA256
+`eafef8c99e94d10f17506c125e24d98a84256e0e665e6c659498eca96b19e148`).
+The staged diagnostic now records `text_metrics` in addition to pixel hashes.
+For `17px Arimo`, `Latin 0123 Привет`, macOS width is 140.814453125; Linux
+default is 138. With `geometricPrecision`, Linux width becomes 140.814453125,
+but glyph bounds still differ. Reports: `canvas-corpus-metrics.xml` on Mac and
+`coverage-rounding-metrics.xml` on Linux; per-host assertions passed in
+12.17s / 24.18s.
+
+There are two distinct source leads: Linux `CreateSkFont` consumes system
+`WebFontRenderStyle`, whereas Mac sets subpixel and linear metrics directly;
+`skia_text_metrics.cc` also explicitly uses path bounds on Apple versus
+integer glyph bounds elsewhere. Matching only the advance width therefore
+cannot establish identical rasterization or all metric surfaces.
+
+Patch 042 is a Linux QA candidate aligning protected Fontations strike defaults
+with the existing managed Mac path, while preserving native policy. This is
+not a complete cross-platform font fix. It does not
+change metric-bound helpers, Windows behavior, Canvas noise, or any website.
+
+The candidate built in 4m39s (47 steps), binary SHA256
+`eefc94ed2b0eb5dad04281bf26d306b8c73ce092d02310dd6043b21040d6d7ee`,
+archive SHA256 `8a879e932150567412e4e49b21505bc8e1a0d6e907403ecc003822d65d783cef`.
+It was extracted separately with its own AppArmor user-namespace rule.
+
+The new linear-advance assertion fails on the previous Linux candidate
+(`font-advance-old-negative.xml`, 25.26s) and passes on Mac (12.50s). The new
+Linux candidate passes that assertion and both native/closed-catalog policy
+tests: **3 passed / 26.21s**. The recorded native-policy metrics are identical
+before and after. Closed-catalog Latin width is now 140.814453125 in both
+rendering modes, matching Mac. The pixel comparison still differs in 24/40
+staged observations, so advance normalization alone is insufficient.
+
+Full Linux regression is running separately. Next: policy-scoped path-bound
+normalization in `skia_text_metrics.cc`, while preserving native glyph metrics,
+then distinguish remaining coverage/position differences from font selection.
+
 ## New artifact network acceptance
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
