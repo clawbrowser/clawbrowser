@@ -152,6 +152,22 @@ async def test_navigation_sec_ch_ua_headers(browser_with_fingerprint):
 
 
 @pytest.mark.asyncio
+async def test_navigation_high_entropy_client_hints(browser_with_fingerprint):
+    page, data = browser_with_fingerprint
+    expected = data['response']['fingerprint']['user_agent_data']
+    await page.goto(urljoin(page.url, '/__headers-hints'), wait_until='load')
+    response = await page.goto(urljoin(page.url, '/__headers'), wait_until='load')
+    assert response is not None and response.ok
+    payload = await response.json()
+    headers = {key.lower(): value for key, value in payload['headers'].items()}
+    brands = ', '.join(f'"{item["brand"]}";v="{item["version"]}"'
+                       for item in expected['fullVersionList'])
+    assert headers.get('sec-ch-ua-full-version-list') == brands, headers
+    assert headers.get('sec-ch-ua-arch') == json.dumps(expected['architecture']), headers
+    assert headers.get('sec-ch-ua-bitness') == json.dumps(expected['bitness']), headers
+
+
+@pytest.mark.asyncio
 async def test_navigator_language(browser_with_fingerprint):
     page, data = browser_with_fingerprint
     fp = data["response"]["fingerprint"]
