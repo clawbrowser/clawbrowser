@@ -1,6 +1,9 @@
 """Locate the first cross-host divergence in the fixed text/shape recipe."""
+import base64
 import hashlib
 import json
+import os
+import zlib
 
 import pytest
 
@@ -13,9 +16,12 @@ from test_isolated_canvas_control import canvas_control_files
 async def test_canvas_corpus_stages(tmp_path, record_property, mode):
     fixture, mock = canvas_control_files(tmp_path, mode)
     seed = json.loads(fixture.read_text())['response']['fingerprint']['canvas_seed']
+    gamma_control = os.environ.get('CLAWBROWSER_QA_TEXT_GAMMA_CONTROL') == '1'
+    record_property('text_gamma_control', str(gamma_control))
     async with _launch_browser_with_details(
         fixture_name=str(fixture), backend_mode='mock', skip_verify=True,
         headless=False, fingerprints_fixture_path=mock,
+        extra_browser_args=['--text-contrast=0', '--text-gamma=0'] if gamma_control else [],
     ) as launch:
         rows = await launch['page'].evaluate('''() => {
             const rows=[];
@@ -71,6 +77,14 @@ async def test_canvas_corpus_stages(tmp_path, record_property, mode):
     record_property('text_metrics', json.dumps([
         {k: row[k] for k in ('stage','colorType','willReadFrequently','textRendering','metrics')}
         for row in rows if row['stage'] in ('latin','fallback')]))
+    if os.environ.get('CLAWBROWSER_QA_FONT_PIXELS') == '1':
+        # Synthetic fixture drawings only; opt-in to keep ordinary JUnit small.
+        record_property('font_pixel_controls', json.dumps({
+            'width':192, 'height':128, 'seed':seed,
+            'rgba_zlib_base64': {
+                row['textRendering']: base64.b64encode(zlib.compress(bytes(row['pixels']))).decode()
+                for row in rows if row['stage'] == 'latin' and
+                row['colorType'] == 'unorm8' and not row['willReadFrequently']}}))
     assert len(observations) == 40
     assert all(len(hashes) == 1 for hashes in groups.values()), observations
     # Closed-catalog text uses linear advances, not host hinting preferences.
