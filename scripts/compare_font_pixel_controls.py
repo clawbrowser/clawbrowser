@@ -25,7 +25,12 @@ def read_control(path):
         decoded[mode] = pixels
     gamma = [p.get('value') for p in ET.parse(path).getroot().iter('property')
              if p.get('name') == 'text_gamma_control']
-    return (width, height, control['seed']), decoded, gamma[0] if gamma else 'False'
+    composite = [p.get('value') for p in ET.parse(path).getroot().iter('property')
+                 if p.get('name') == 'text_composite_control']
+    return (width, height, control['seed']), decoded, {
+        'gamma': gamma[0] if gamma else 'False',
+        'composite': composite[0] if composite else 'multiply',
+        'canvas_policy':control.get('canvas_policy', 'override')}
 
 
 def main():
@@ -33,10 +38,12 @@ def main():
     parser.add_argument('left')
     parser.add_argument('right')
     args = parser.parse_args()
-    identity, left, left_gamma = read_control(args.left)
-    other_identity, right, right_gamma = read_control(args.right)
-    if identity != other_identity or left.keys() != right.keys() or not left:
-        raise ValueError('Control dimensions, seeds, or rendering modes differ')
+    identity, left, left_controls = read_control(args.left)
+    other_identity, right, right_controls = read_control(args.right)
+    if (identity != other_identity or left.keys() != right.keys() or not left or
+            left_controls['composite'] != right_controls['composite'] or
+            left_controls['canvas_policy'] != right_controls['canvas_policy']):
+        raise ValueError('Control dimensions, seeds, policies, blend modes, or rendering modes differ')
     width, height, seed = identity
     results = []
     for mode in sorted(left):
@@ -53,7 +60,7 @@ def main():
                         'mean_absolute_delta':sum(deltas) / len(deltas),
                         'difference_bounds_inclusive':bounds})
     print(json.dumps({'width':width, 'height':height, 'seed':seed,
-                      'left_gamma_control':left_gamma, 'right_gamma_control':right_gamma,
+                      'left_controls':left_controls, 'right_controls':right_controls,
                       'results':results}, indent=2))
     return int(any(row['different_pixels'] for row in results))
 

@@ -159,10 +159,11 @@ differences lie inside the text region (x=4..143, y=31..47).
 
 A separate **diagnostic-only** `CLAWBROWSER_QA_TEXT_GAMMA_CONTROL=1` supplies
 the existing `--text-contrast=0 --text-gamma=0` switches. Skia's Linux/Mac build
-defaults differ, and Chromium forwards these switches to the renderer. This
-experiment produced identical pixel-difference counts: changing these values
-did not resolve the observed mismatch. It is not a product fix or acceptance
-run. Mac pixel export passed in 12.07s; ordinary Linux export 24.30s; gamma
+defaults differ. **Correction after auditing the surrounding preprocessor
+guard:** Chromium forwards these switches to the renderer only on Windows.
+The Linux experiment therefore did not establish that renderer gamma changed;
+its unchanged pixels cannot rule out gamma as a cause. It is not a product fix
+or acceptance run. Mac pixel export passed in 12.07s; ordinary Linux export 24.30s; gamma
 control 24.23s. The comparison output labels whether either side used the
 gamma control. No global gamma defaults were changed.
 
@@ -186,9 +187,34 @@ ascent and descent in this fixture.
 
 Text pixel differences are unchanged (727/771), establishing that fixing
 these metric surfaces is separate from the remaining raster mismatch.
-Full Linux regression is running. This does not fix the separate
+Full Linux regression passed **124 tests, 18 skipped, zero failures in 288.59s**.
+This does not fix the separate
 `fontBoundingBoxAscent/Descent` host-specific vertical-metric adjustments in
 `FontMetrics::AscentDescentWithHacks`, nor prove all scripts or platforms equal.
+
+## Coverage and text-transfer isolation
+
+The source-over control (`CLAWBROWSER_QA_TEXT_SOURCE_OVER=1`) still differs
+across hosts: 628/666 Latin pixels, maximum channel delta 18. Both hosts use
+the same changed recipe; it is not compared to the default multiply recipe.
+Mac passes in 11.96s, Linux in 24.15s. The comparator now rejects mismatched
+blend-control metadata.
+
+`test_font_mask_controls.py` draws black text on white, independently varying
+integer/fractional x and y and text rendering mode. All eight cases still
+differ (640/656/680/683 pixels depending on settings; max delta 68; alpha
+unchanged). Mac passes in 3.22s, Linux in 2.52s. Across these controls, all
+5,318 differing red-channel samples are darker on Linux, with none darker
+on Mac (comparing values after dropping the noise LSB). This is evidence of
+a systematic coverage/transfer difference, not proof of its exact cause.
+
+Patch 044 is a new QA candidate setting explicit surface properties on both
+protected Canvas2D providers: unknown LCD geometry, zero contrast, sRGB text
+gamma (Skia gamma 0). It keeps native and non-2D surface properties unchanged.
+Opaque protected canvases also use grayscale coverage to avoid host LCD
+geometry. Unlike the earlier ineffective CLI experiment, this change acts
+directly where the renderer constructs raster surfaces. Build/runtime
+validation is pending; no global Skia gamma defaults or Canvas noise change.
 
 ## New artifact network acceptance
 

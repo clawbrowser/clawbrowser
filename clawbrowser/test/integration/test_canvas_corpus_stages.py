@@ -17,13 +17,15 @@ async def test_canvas_corpus_stages(tmp_path, record_property, mode):
     fixture, mock = canvas_control_files(tmp_path, mode)
     seed = json.loads(fixture.read_text())['response']['fingerprint']['canvas_seed']
     gamma_control = os.environ.get('CLAWBROWSER_QA_TEXT_GAMMA_CONTROL') == '1'
+    source_over = os.environ.get('CLAWBROWSER_QA_TEXT_SOURCE_OVER') == '1'
     record_property('text_gamma_control', str(gamma_control))
+    record_property('text_composite_control', 'source-over' if source_over else 'multiply')
     async with _launch_browser_with_details(
         fixture_name=str(fixture), backend_mode='mock', skip_verify=True,
         headless=False, fingerprints_fixture_path=mock,
         extra_browser_args=['--text-contrast=0', '--text-gamma=0'] if gamma_control else [],
     ) as launch:
-        rows = await launch['page'].evaluate('''() => {
+        rows = await launch['page'].evaluate('''(sourceOver) => {
             const rows=[];
             for (const textRendering of ['auto','geometricPrecision']) {
             for (const colorType of ['unorm8','float16']) {
@@ -52,7 +54,7 @@ async def test_canvas_corpus_stages(tmp_path, record_property, mode):
                 c.beginPath();c.moveTo(3.2,11.7);
                 c.bezierCurveTo(97.2,-20.8,154.9,130.1,171.4,68.6);
                 c.lineTo(18.8,92.2);c.closePath();c.fill();c.restore();capture('curve');
-                c.globalCompositeOperation='multiply';
+                c.globalCompositeOperation=sourceOver?'source-over':'multiply';
                 c.font='17px Arimo';c.fillStyle='#395ac7';
                 c.fillText('Latin 0123 Привет',3.25,43.75);capture('latin');
                 c.font='16px sans-serif';c.fillText('العربية 漢字 🧭',4.5,78.25);capture('fallback');
@@ -63,7 +65,7 @@ async def test_canvas_corpus_stages(tmp_path, record_property, mode):
                 c.stroke();capture('shadow');
             }}}
             return rows;
-        }''')
+        }''', source_over)
     observations, groups = [], {}
     for row in rows:
         assert row['actualType'] == row['colorType']
