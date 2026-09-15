@@ -15,6 +15,10 @@ def observations(path):
         name = case.get('name', '')
         if '[override]' not in name:
             continue
+        if case.find('failure') is not None or case.find('error') is not None:
+            raise ValueError(f'Failed protected test cannot provide acceptance evidence: {name}')
+        if case.find('skipped') is not None:
+            continue
         for prop in case.findall('./properties/property'):
             if prop.get('name') not in ('cross_context_control', 'color_format_matrix', 'png_format_matrix', 'raster_primitive_matrix'):
                 continue
@@ -28,6 +32,9 @@ def observations(path):
                     fields = {k: v for k, v in row.items() if k != 'hash'}
                     identity = (name, json.dumps(fields, sort_keys=True))
                     result.setdefault(identity, set()).add(row['hash'])
+    for (name, _), digests in result.items():
+        if len(digests) != 1:
+            raise ValueError(f'Non-deterministic protected observation: {name}')
     return result
 
 
@@ -36,7 +43,11 @@ def main():
     parser.add_argument('left')
     parser.add_argument('right')
     args = parser.parse_args()
-    left, right = observations(args.left), observations(args.right)
+    try:
+        left, right = observations(args.left), observations(args.right)
+    except (ValueError, ET.ParseError, OSError, KeyError, TypeError) as error:
+        print(json.dumps({'error': str(error)}))
+        return 2
     common = sorted(left.keys() & right.keys())
     different = [key for key in common if left[key] != right[key]]
     print(json.dumps({
