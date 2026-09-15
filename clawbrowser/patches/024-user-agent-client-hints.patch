@@ -22,23 +22,29 @@
    return embedder_support::GetUserAgentMetadata();
  }
  
---- a/components/client_hints/browser/client_hints.cc
-+++ b/components/client_hints/browser/client_hints.cc
-@@ -19,8 +19,10 @@
- #include "components/content_settings/core/common/content_settings_utils.h"
- #include "components/embedder_support/user_agent_utils.h"
- #include "content/public/browser/browser_thread.h"
-+#include "content/public/browser/content_browser_client.h"
- #include "content/public/browser/render_frame_host.h"
- #include "content/public/browser/render_process_host.h"
-+#include "content/public/common/content_client.h"
- #include "services/network/public/cpp/client_hints.h"
- #include "services/network/public/cpp/features.h"
- #include "services/network/public/cpp/is_potentially_trustworthy.h"
-@@ -153,3 +155,5 @@
- blink::UserAgentMetadata ClientHints::GetUserAgentMetadata() {
--  return embedder_support::GetUserAgentMetadata();
-+  // Match renderer metadata through the embedder's browser client. Calling
-+  // embedder_support directly bypasses ClawBrowser's loaded fingerprint.
-+  return content::GetContentClient()->browser()->GetUserAgentMetadata();
- }
+--- a/chrome/browser/client_hints/client_hints_factory.cc
++++ b/chrome/browser/client_hints/client_hints_factory.cc
+@@ -5,1 +5,3 @@
+ #include "chrome/browser/client_hints/client_hints_factory.h"
++#include "clawbrowser/fingerprint_accessor.h"
++#include "clawbrowser/user_agent_metadata.h"
+@@ -16,1 +18,14 @@
+ namespace {
++
++class ClawBrowserClientHints : public client_hints::ClientHints {
++ public:
++  using client_hints::ClientHints::ClientHints;
++
++  blink::UserAgentMetadata GetUserAgentMetadata() override {
++    if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++        fp && !fp->user_agent.empty()) {
++      return clawbrowser::BuildUserAgentMetadata(*fp);
++    }
++    return client_hints::ClientHints::GetUserAgentMetadata();
++  }
++};
+@@ -58,3 +73,3 @@
+   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+-  return std::make_unique<client_hints::ClientHints>(
++  return std::make_unique<ClawBrowserClientHints>(
+       context, g_browser_process->network_quality_tracker(),
