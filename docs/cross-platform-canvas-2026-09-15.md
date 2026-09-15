@@ -37,6 +37,13 @@ Next: inspect and isolate the low-precision software blend implementation,
 including rounding and format conversions. Do not globally replace backing
 formats, disable noise, or claim the issue solved solely from this diagnostic.
 
+Source lead: Skia's `SkRasterPipeline_opts.h` explicitly implements `div255`
+with accurate rounding on NEON but an approximation on other architectures.
+The shared low-precision `lerp` uses that helper. The default `screen` blend
+itself uses `div255_accurate`, so blaming that blend instruction alone would
+be premature; edge coverage interpolation is a candidate to isolate next.
+This is source evidence of differing arithmetic, not yet runtime attribution.
+
 ## New artifact network acceptance
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
