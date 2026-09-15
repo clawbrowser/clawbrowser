@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from conftest import _launch_browser_with_details
+from conftest import FIXTURE_DIR, _launch_browser_with_details
 from test_isolated_canvas_control import canvas_control_files
 
 
@@ -34,3 +34,11 @@ async def test_font_vertical_metrics(tmp_path, record_property, font_policy):
     record_property('font_vertical_metrics', json.dumps({'policy':font_policy,'rows':rows}))
     assert len(rows) == 84
     assert all(row['ascent'] > 0 and row['descent'] >= 0 for row in rows)
+    if font_policy != 'native':
+        reference = json.loads((FIXTURE_DIR / 'font_vertical_reference.json').read_text())
+        assert len(reference['rows']) == len(rows)
+        for actual, expected in zip(rows, reference['rows']):
+            assert {k:actual[k] for k in ('family','size','textRendering')} == {
+                k:expected[k] for k in ('family','size','textRendering')}
+            assert (actual['ascent'], actual['descent']) == pytest.approx(
+                (expected['ascent'], expected['descent']), abs=1e-6), actual
