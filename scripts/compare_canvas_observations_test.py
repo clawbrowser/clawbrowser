@@ -61,6 +61,20 @@ class EvidenceTest(unittest.TestCase):
         self.assertEqual(self.compare(self.report('a.xml'),
                                     self.report('b.xml', status='skipped'))[0], 2)
 
+    def test_blend_matrix_retains_cpu_and_context_identity(self):
+        path = self.report('blend.xml')
+        tree = ET.parse(path)
+        prop = tree.find('./testcase/properties/property')
+        prop.set('name', 'blend_matrix')
+        prop.set('value', json.dumps({'observations': [
+            {'operation': 'overlay', 'args': args, 'kind': kind, 'hash': 'aaa'}
+            for args in ([], ['--disable-skia-runtime-opts'])
+            for kind in ('dom', 'offscreen')
+        ]}))
+        tree.write(path)
+        self.assertEqual(len(observations(path)), 4)
+        self.assertEqual(self.compare(path, path)[1]['comparable'], 4)
+
 
 if __name__ == '__main__':
     unittest.main()

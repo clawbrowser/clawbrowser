@@ -16,6 +16,12 @@ with a rebuild of these latest patches, or site diagnostics with a green scan.
 The additional SVG/PNG mismatch found outside the earlier corpus is fixed in
 this latest Linux artifact; see patch 049's rebuilt-browser result below.
 
+**New coverage failure:** the subsequent 26-operation translucent blend matrix
+fails on this same Linux artifact, although the earlier 198 observations still
+match. In particular, baseline x86 float16 rendering differs from normal CPU
+dispatch. See the final section; do not extend the earlier corpus result to
+all blends or half-float surfaces.
+
 ## Latest managed-site check (patch 049)
 
 The extracted `c067039` Linux executable was also verified through the managed
@@ -730,3 +736,43 @@ QA host. Source and decoded request/response evidence are documented in the
 [WebRTC checker diagnosis](pixelscan-webrtc-empty-candidates-2026-09-15.md).
 Do not interpret that UI warning as a demonstrated host-IP leak in this run,
 or claim that the site returned a green result.
+
+## New translucent blend matrix: unresolved half-float/CPU difference
+
+`test_canvas_blend_matrix.py` covers 26 Porter-Duff and artistic blend operations
+over a translucent three-stop gradient and a fractional ellipse. It records
+both unorm8 and float16 backing stores, DOM/Offscreen contexts, both readback
+hints and default/baseline CPU dispatch: **416 observations per host**.
+Actual context type, repeated-read equality, nonuniform alpha and distinct
+operation outputs guard against blank or unsupported fixtures. No fonts or
+external sites are involved. Pixel protection remains enabled.
+
+The existing Mac `945d653` reference passes the within-host matrix in 21.54s.
+Linux `c067039` fails its CPU-path equality assertion in 39.20s. An earlier
+Linux invocation had an inaccessible `/root` working directory and is not
+evidence; the reported run uses the readable QA checkout as non-root `builder`.
+Neither invocation disabled the browser sandbox. This is the same extracted
+Linux executable, not a new engine candidate.
+
+Diagnostic inspection of the failing report (not accepted by the strict
+cross-report comparator) finds 120 cross-host differing observations:
+
+| Path | Differing observations |
+| --- | ---: |
+| Default CPU, unorm8 | 4 (color-burn) |
+| Default CPU, float16 | 12 (color-burn, hue, saturation) |
+| Baseline CPU, float16 | 104 (all 26 operations) |
+| Baseline CPU, unorm8 | 0 |
+
+DOM/Offscreen and readback hints agree within each CPU path. The source contains
+two concrete leads in `SkRasterPipeline_opts.h`: baseline `to_half` truncates
+mantissa bits and flushes subnormals while AVX2/ARM64 use hardware conversions;
+blend operations including color-burn and hue/saturation use architecture-
+dependent approximate reciprocal helpers. These are investigation leads, not
+a validated fix. The new failing regression is retained without xfail or skip.
+
+Reports: `linux-blend-matrix-049.xml` and `mac-reference-blend-matrix.xml` in
+the local `clawbrowser-linux-c067039` evidence set. Next steps are isolated
+numeric conversion regressions, an exact portable conversion candidate, then
+rebuilding and rerunning this matrix before broader acceptance/performance.
+The latest Mac/Windows engine builds and PixelScan remain separate open gates.
