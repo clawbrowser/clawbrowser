@@ -40,6 +40,14 @@ int main() {
             std::fprintf(stderr, "float=%08x got=%04x expected=%04x\n", bits, ClawbrowserFloatToHalf(f), expected);
             std::exit(1);
         }
+#if defined(__SSE2__) || defined(_M_X64)
+        alignas(16) uint16_t half_lanes[8];
+        _mm_store_si128(reinterpret_cast<__m128i*>(half_lanes),
+            skia_private::ClawbrowserFloatToHalf4(_mm_setr_ps(f, -f, .25f, -.75f)));
+        if (half_lanes[0] != expected || half_lanes[1] != (expected ^ 0x8000) ||
+            half_lanes[2] != ClawbrowserFloatToHalf(.25f) ||
+            half_lanes[3] != ClawbrowserFloatToHalf(-.75f)) return std::exit(6);
+#endif
         unsigned mag = bits & 0x7fffffff;
         if (std::isfinite(f) && value <= 65504) {
             unsigned old = mag < 0x38800000 ? 0 : sign + (mag >> 13) - (112 << 10);
@@ -57,6 +65,16 @@ int main() {
             if (std::bit_cast<unsigned>(got) != std::bit_cast<unsigned>(expected)) return 4;
         }
         check(got);
+#if defined(__SSE2__) || defined(_M_X64)
+        alignas(16) float lanes[4];
+        _mm_store_ps(lanes, skia_private::ClawbrowserHalfToFloat4(
+            _mm_setr_epi16(h, h ^ 0x8000, 0x3c00, -32768, 0, 0, 0, 0)));
+        const uint16_t inputs[] = {uint16_t(h), uint16_t(h ^ 0x8000), 0x3c00, 0x8000};
+        for (int i = 0; i < 4; ++i) {
+            if (std::bit_cast<unsigned>(lanes[i]) !=
+                std::bit_cast<unsigned>(ClawbrowserHalfToFloat(inputs[i]))) return 7;
+        }
+#endif
     }
     for (unsigned h = 0; h < 0x7bff; ++h) {
         float midpoint = float((positive[h] + positive[h + 1]) / 2);
@@ -72,4 +90,7 @@ int main() {
     }
     if (!old_mismatches) return 5;
     std::printf("PASS half decode=65536 encode=%zu old-formula-mismatches=%zu\n", checked, old_mismatches);
+#if defined(__SSE2__) || defined(_M_X64)
+    std::printf("PASS SSE2 mixed lanes decode=262144 encode=%zu\n", checked * 4);
+#endif
 }
