@@ -20,7 +20,7 @@ def observations(path):
         if case.find('skipped') is not None:
             continue
         for prop in case.findall('./properties/property'):
-            if prop.get('name') not in ('cross_context_control', 'color_format_matrix', 'png_format_matrix', 'raster_primitive_matrix'):
+            if prop.get('name') not in ('cross_context_control', 'color_format_matrix', 'png_format_matrix', 'raster_primitive_matrix', 'svg_font_canvas'):
                 continue
             value = json.loads(prop.get('value'))
             for row in value['observations']:
