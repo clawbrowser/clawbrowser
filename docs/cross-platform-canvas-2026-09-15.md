@@ -830,3 +830,13 @@ bit arithmetic while retaining the tested scalar special/subnormal handling,
 then repeat both numerical and browser/timing gates. Do not drop subnormals or
 weaken correctness to recover speed. This candidate remains unsuitable for
 release acceptance.
+
+Patch 050's follow-up candidate adds an SSE2-only common path for normal and
+zero lanes, using integer bit operations for exact rounding/conversion. A group
+containing a subnormal, infinity, NaN or out-of-range float still uses the
+scalar reference. Helpers are forced inline to avoid cross-target out-of-line
+selection. The numerical test now verifies the actual extracted SIMD helper
+with **262,144 mixed decode lanes and 5,024,016 mixed encode lanes**, alongside
+the previous scalar/reference tests. Linux GCC passes with `-msse2 -mno-avx`;
+macOS ARM64 retains scalar coverage. Rebuilt-browser performance is still
+required before claiming the slowdown fixed.
