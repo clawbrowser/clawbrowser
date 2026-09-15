@@ -1,0 +1,137 @@
+--- a/third_party/skia/gn/core.gni
++++ b/third_party/skia/gn/core.gni
+@@ -670,2 +670,3 @@
+   "$_src/opts/SkRasterPipeline_opts.h",
++  "$_src/opts/SkClawbrowserFma.h",
+   "$_src/opts/SkSwizzler_opts.inc",
+--- /dev/null
++++ b/third_party/skia/src/opts/SkClawbrowserFma.h
+@@ -0,0 +1,106 @@
++// Correctly rounded binary32 FMA for baseline software raster paths.
++#ifndef SkClawbrowserFma_DEFINED
++#define SkClawbrowserFma_DEFINED
++#include <cmath>
++#include <cstdint>
++#include <cstring>
++#include <limits>
++#if defined(__SSE2__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
++#include <emmintrin.h>
++#define SK_CLAWBROWSER_HAS_SSE2_FMA4 1
++#endif
++
++namespace skia_private {
++inline float ClawbrowserFma(float f, float m, float a) {
++    // Skia uses round-to-nearest. The binary32 product is exact in binary64.
++    const double product = static_cast<double>(f) * m;
++    const double addend = a;
++    const double sum = product + addend;
++    const double magnitude = std::abs(sum);
++    // Binary32 inputs cannot underflow a binary64 sum to zero. Thus this
++    // preserves the exact zero and its sign, without a library call.
++    if (sum == 0.0) {
++        return static_cast<float>(sum);
++    }
++    uint64_t bits;
++    static_assert(sizeof(bits) == sizeof(sum));
++    static_assert(std::numeric_limits<float>::is_iec559 &&
++                  std::numeric_limits<double>::is_iec559 &&
++                  std::numeric_limits<float>::digits == 24 &&
++                  std::numeric_limits<double>::digits == 53);
++    std::memcpy(&bits, &sum, sizeof(bits));
++    if (magnitude >= std::numeric_limits<float>::min() &&
++        magnitude <= std::numeric_limits<float>::max()) {
++        if ((bits & 0x1fffffffULL) == 0x10000000ULL) {
++            // Double rounding is ambiguous only at a binary32 midpoint.
++            // TwoSum recovers the exact binary64 addition residual.
++            const double recovered_addend = sum - product;
++            const double error = (product - (sum - recovered_addend)) +
++                                 (addend - recovered_addend);
++            if (error != 0.0) {
++                // Move one binary64 ULP toward the exact sum, breaking the
++                // binary32 midpoint tie in the correct direction.
++                bits += ((error > 0.0) == (sum > 0.0)) ? 1 : uint64_t(-1);
++                double adjusted;
++                std::memcpy(&adjusted, &bits, sizeof(adjusted));
++                return static_cast<float>(adjusted);
++            }
++        }
++        return static_cast<float>(sum);
++    }
++    // Keep library semantics for subnormals, overflow and non-finite values.
++    return std::fma(f, m, a);
++}
++
++#if defined(SK_CLAWBROWSER_HAS_SSE2_FMA4)
++inline int ClawbrowserFmaFallbackMask(__m128d product, __m128d addend, __m128d sum) {
++    const __m128d zero = _mm_setzero_pd();
++    const __m128d magnitude = _mm_and_pd(sum, _mm_castsi128_pd(_mm_set1_epi64x(0x7fffffffffffffffLL)));
++    const __m128d normal = _mm_and_pd(
++        _mm_cmpge_pd(magnitude, _mm_set1_pd(std::numeric_limits<float>::min())),
++        _mm_cmple_pd(magnitude, _mm_set1_pd(std::numeric_limits<float>::max())));
++    const int valid = _mm_movemask_pd(_mm_or_pd(normal, _mm_cmpeq_pd(sum, zero)));
++    const __m128i low = _mm_and_si128(_mm_castpd_si128(sum), _mm_set1_epi64x(0x1fffffff));
++    const int raw = _mm_movemask_ps(_mm_castsi128_ps(
++        _mm_cmpeq_epi32(low, _mm_set1_epi64x(0x10000000)))) & 5;
++    int midpoint = (raw & 1) | ((raw & 4) >> 1);
++    if (midpoint) {
++        const __m128d recovered = _mm_sub_pd(sum, product);
++        const __m128d error = _mm_add_pd(
++            _mm_sub_pd(product, _mm_sub_pd(sum, recovered)),
++            _mm_sub_pd(addend, recovered));
++        midpoint &= _mm_movemask_pd(_mm_cmpneq_pd(error, zero));
++    }
++    return ((~valid) & 3) | midpoint;
++}
++
++inline __m128 ClawbrowserFma4(__m128 f, __m128 m, __m128 a) {
++    // Keep the normal calculation vectorized: two double lanes per SSE2 op.
++    const __m128d product_lo = _mm_mul_pd(_mm_cvtps_pd(f), _mm_cvtps_pd(m));
++    const __m128d product_hi = _mm_mul_pd(
++        _mm_cvtps_pd(_mm_movehl_ps(f, f)), _mm_cvtps_pd(_mm_movehl_ps(m, m)));
++    const __m128d addend_lo = _mm_cvtps_pd(a);
++    const __m128d addend_hi = _mm_cvtps_pd(_mm_movehl_ps(a, a));
++    const __m128d sum_lo = _mm_add_pd(product_lo, addend_lo);
++    const __m128d sum_hi = _mm_add_pd(product_hi, addend_hi);
++    const __m128 result = _mm_movelh_ps(_mm_cvtpd_ps(sum_lo), _mm_cvtpd_ps(sum_hi));
++    const int mask = ClawbrowserFmaFallbackMask(product_lo, addend_lo, sum_lo) |
++                    (ClawbrowserFmaFallbackMask(product_hi, addend_hi, sum_hi) << 2);
++    if (!mask) {
++        return result;
++    }
++    alignas(16) float fs[4], ms[4], as[4], values[4];
++    _mm_store_ps(fs, f);
++    _mm_store_ps(ms, m);
++    _mm_store_ps(as, a);
++    _mm_store_ps(values, result);
++    for (int i = 0; i < 4; ++i) {
++        if (mask & (1 << i)) {
++            values[i] = ClawbrowserFma(fs[i], ms[i], as[i]);
++        }
++    }
++    return _mm_load_ps(values);
++}
++#endif
++}  // namespace skia_private
++#endif
+--- a/third_party/skia/src/opts/SkRasterPipeline_opts.h
++++ b/third_party/skia/src/opts/SkRasterPipeline_opts.h
+@@ -19,2 +19,3 @@
+ #include "src/shaders/SkPerlinNoiseShaderType.h"
++#include "src/opts/SkClawbrowserFma.h"
+ #include "src/sksl/tracing/SkSLTraceHook.h"
+@@ -802,9 +803,7 @@
+-    SI F mad(F f, F m, F a) {
+-        return F{std::fma(f[0], m[0], a[0]), std::fma(f[1], m[1], a[1]),
+-                 std::fma(f[2], m[2], a[2]), std::fma(f[3], m[3], a[3])};
+-    }
+-    SI F nmad(F f, F m, F a) {
+-        return F{std::fma(-f[0], m[0], a[0]), std::fma(-f[1], m[1], a[1]),
+-                 std::fma(-f[2], m[2], a[2]), std::fma(-f[3], m[3], a[3])};
+-    }
++    SI F mad(F f, F m, F a) {
++        return skia_private::ClawbrowserFma4(f, m, a);
++    }
++    SI F nmad(F f, F m, F a) {
++        return skia_private::ClawbrowserFma4(-f, m, a);
++    }
+     SI F   abs_(F v)           { return _mm_and_ps(v, 0-v); }
