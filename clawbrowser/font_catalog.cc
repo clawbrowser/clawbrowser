@@ -35,11 +35,10 @@ std::string XmlText(std::string_view value) {
   base::ReplaceSubstringsAfterOffset(&text, 0, ">", "&gt;");
   return text;
 }
-}  // namespace
-
-base::expected<std::string, std::string> ValidateFontCatalog(
+base::expected<ValidatedFontCatalog, std::string> ReadFontCatalog(
     const base::FilePath& catalog_dir,
-    std::string_view expected_manifest_sha256) {
+    std::string_view expected_manifest_sha256,
+    bool retain_font_bytes) {
   std::string manifest;
   if (expected_manifest_sha256.size() != 64 ||
       !base::ReadFileToStringWithMaxSize(
@@ -57,6 +56,8 @@ base::expected<std::string, std::string> ValidateFontCatalog(
     return base::unexpected("empty font catalog");
 
   std::set<std::string> expected_files;
+  ValidatedFontCatalog catalog;
+  size_t total_font_bytes = 0;
   const auto font_dir = catalog_dir.AppendASCII("fonts");
   for (const auto& entry : *fonts) {
     if (!entry.is_dict())
@@ -74,6 +75,11 @@ base::expected<std::string, std::string> ValidateFontCatalog(
         Digest(bytes) != *checksum) {
       return base::unexpected("font asset missing or checksum mismatch: " + *name);
     }
+    total_font_bytes += bytes.size();
+    if (total_font_bytes > 512 * 1024 * 1024)
+      return base::unexpected("font catalog exceeds byte budget");
+    if (retain_font_bytes)
+      catalog.fonts.push_back({*name, std::move(bytes)});
   }
   // Fontconfig scans the directory, not merely manifest entries. Reject extra
   // files/directories rather than accidentally exposing an unpinned family.
@@ -90,7 +96,25 @@ base::expected<std::string, std::string> ValidateFontCatalog(
   }
   if (actual_count != expected_files.size())
     return base::unexpected("incomplete font catalog");
-  return base::ok(*id);
+  catalog.catalog_id = *id;
+  catalog.manifest_json = std::move(manifest);
+  return base::ok(std::move(catalog));
+}
+}  // namespace
+
+base::expected<ValidatedFontCatalog, std::string> LoadValidatedFontCatalog(
+    const base::FilePath& catalog_dir,
+    std::string_view expected_manifest_sha256) {
+  return ReadFontCatalog(catalog_dir, expected_manifest_sha256, true);
+}
+
+base::expected<std::string, std::string> ValidateFontCatalog(
+    const base::FilePath& catalog_dir,
+    std::string_view expected_manifest_sha256) {
+  auto catalog = ReadFontCatalog(catalog_dir, expected_manifest_sha256, false);
+  if (!catalog.has_value())
+    return base::unexpected(catalog.error());
+  return base::ok(std::move(catalog->catalog_id));
 }
 
 base::expected<std::string, std::string> BuildFontCatalogConfig(
@@ -99,16 +123,10 @@ base::expected<std::string, std::string> BuildFontCatalogConfig(
     std::string_view expected_manifest_sha256) {
   if (!catalog_dir.IsAbsolute() || !cache_dir.IsAbsolute())
     return base::unexpected("font catalog paths must be absolute");
-  auto valid = ValidateFontCatalog(catalog_dir, expected_manifest_sha256);
+  auto valid = ReadFontCatalog(catalog_dir, expected_manifest_sha256, false);
   if (!valid.has_value())
     return base::unexpected(valid.error());
-  std::string manifest;
-  if (!base::ReadFileToStringWithMaxSize(
-          catalog_dir.AppendASCII("manifest.json"), &manifest, 1024 * 1024) ||
-      Digest(manifest) != expected_manifest_sha256) {
-    return base::unexpected("font catalog manifest changed during validation");
-  }
-  auto parsed = base::JSONReader::Read(manifest, base::JSON_PARSE_RFC);
+  auto parsed = base::JSONReader::Read(valid->manifest_json, base::JSON_PARSE_RFC);
   if (!parsed || !parsed->is_dict())
     return base::unexpected("invalid font catalog manifest");
   const auto* generics = parsed->GetDict().FindDict("generics");
