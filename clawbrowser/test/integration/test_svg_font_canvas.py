@@ -30,6 +30,10 @@ async def test_svg_text_canvas_normalization(tmp_path, record_property, canvas_m
                 fingerprints_fixture_path=mock,
             ) as launch:
                 result = await launch['page'].evaluate(r'''async () => {
+                    const outputs = {};
+                    for (const [sample, text] of Object.entries({
+                        mixed: 'العربية 漢字 🧭', arabic: 'العربية', cjk: '漢字', emoji: '🧭'
+                    })) {
                     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="160">
                     <defs><linearGradient id="g"><stop stop-color="#234567"/>
                     <stop offset="1" stop-color="#ecdabc"/></linearGradient></defs>
@@ -40,7 +44,7 @@ async def test_svg_text_canvas_normalization(tmp_path, record_property, canvas_m
                     <text x="4.25" y="82.5" font-family="monospace">Mono ffi AV 012345</text>
                     <text x="4.25" y="111.5" font-family="Arimo">Arimo AV ffi xyz</text>
                     <text x="4.25" y="140.5" font-family="MissingHostFont, serif">Fallback Ω Ж 漢</text>
-                    </g></svg>`;
+                    </g></svg>`.replace('العربية 漢字 🧭', text);
                     const url = URL.createObjectURL(new Blob([svg], {type:'image/svg+xml'}));
                     const img = new Image();
                     const blank = new Image();
@@ -51,7 +55,6 @@ async def test_svg_text_canvas_normalization(tmp_path, record_property, canvas_m
                         img.src = url;
                         blank.src = blankUrl;
                         await Promise.all([img.decode(), blank.decode()]);
-                        const outputs = {};
                         for (const kind of ['dom', 'offscreen']) {
                             const canvas = kind === 'dom' ? document.createElement('canvas') :
                                 new OffscreenCanvas(256, 160);
@@ -62,15 +65,18 @@ async def test_svg_text_canvas_normalization(tmp_path, record_property, canvas_m
                             ctx.clearRect(0,0,256,160);
                             ctx.drawImage(blank,0,0);
                             const noText = ctx.getImageData(0,0,256,160).data;
-                            outputs[kind] = {pixels,
+                            outputs[sample + '/' + kind] = {pixels,
                                 textDifferences: pixels.filter((v,i) => v !== noText[i]).length};
                         }
-                        return outputs;
                     } finally {
                         URL.revokeObjectURL(url); URL.revokeObjectURL(blankUrl);
                     }
+                    }
+                    return outputs;
                 }''')
-                assert set(result) == {'dom', 'offscreen'}
+                assert set(result) == {sample + '/' + kind
+                                       for sample in ('mixed', 'arabic', 'cjk', 'emoji')
+                                       for kind in ('dom', 'offscreen')}
                 hashes = {}
                 row_hashes = {}
                 for kind, output in result.items():
@@ -88,4 +94,6 @@ async def test_svg_text_canvas_normalization(tmp_path, record_property, canvas_m
     record_property('svg_font_canvas', json.dumps({
         'host_platform': sys.platform, 'observations': observations,
     }))
-    assert len({digest for row in observations for digest in row['hashes'].values()}) == 1, observations
+    for sample in ('mixed', 'arabic', 'cjk', 'emoji'):
+        assert len({digest for row in observations for key, digest in row['hashes'].items()
+                    if key.startswith(sample + '/')}) == 1, (sample, observations)
