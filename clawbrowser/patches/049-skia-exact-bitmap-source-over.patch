@@ -1,0 +1,144 @@
+--- a/third_party/skia/gn/core.gni
++++ b/third_party/skia/gn/core.gni
+@@ -670,3 +670,4 @@
+   "$_src/opts/SkRasterPipeline_opts.h",
+   "$_src/opts/SkClawbrowserFma.h",
++  "$_src/opts/SkClawbrowserSrcOver.h",
+   "$_src/opts/SkSwizzler_opts.inc",
+--- /dev/null
++++ b/third_party/skia/src/opts/SkClawbrowserSrcOver.h
+@@ -0,0 +1,51 @@
++// Exact unorm8 source-over for bitmap blitters, matching the NEON path.
++#ifndef SkClawbrowserSrcOver_DEFINED
++#define SkClawbrowserSrcOver_DEFINED
++#include <algorithm>
++#include <cstdint>
++#if defined(__SSE2__) || defined(_M_X64)
++#include <immintrin.h>
++#define SK_CLAWBROWSER_HAS_SRCOVER4 1
++#endif
++namespace skia_private {
++inline uint32_t ClawbrowserSrcOver(uint32_t src, uint32_t dst) {
++    const unsigned inverse_alpha = 255 - (src >> 24);
++    uint32_t result = 0;
++    for (unsigned shift = 0; shift < 32; shift += 8) {
++        const unsigned product = ((dst >> shift) & 255) * inverse_alpha;
++        const unsigned rounded = (product + 127) / 255;
++        result |= std::min(255u, ((src >> shift) & 255) + rounded) << shift;
++    }
++    return result;
++}
++#if defined(SK_CLAWBROWSER_HAS_SRCOVER4)
++inline __m128i ClawbrowserSrcOver4(__m128i src, __m128i dst) {
++    __m128i scale = _mm_sub_epi32(_mm_set1_epi32(255), _mm_srli_epi32(src, 24));
++    scale = _mm_or_si128(scale, _mm_slli_epi32(scale, 16));
++    auto divide255 = [](__m128i product) {
++        // product <= 65025; both additions fit unsigned 16-bit lanes.
++        const __m128i t = _mm_add_epi16(product, _mm_set1_epi16(128));
++        return _mm_srli_epi16(_mm_add_epi16(t, _mm_srli_epi16(t, 8)), 8);
++    };
++    const __m128i rb = divide255(_mm_mullo_epi16(
++        _mm_and_si128(dst, _mm_set1_epi32(0x00ff00ff)), scale));
++    const __m128i ga = divide255(_mm_mullo_epi16(_mm_srli_epi16(dst, 8), scale));
++    return _mm_adds_epu8(src, _mm_or_si128(rb, _mm_slli_epi16(ga, 8)));
++}
++#endif
++#if defined(__AVX2__)
++inline __m256i ClawbrowserSrcOver8(__m256i src, __m256i dst) {
++    __m256i scale = _mm256_sub_epi32(_mm256_set1_epi32(255), _mm256_srli_epi32(src, 24));
++    scale = _mm256_or_si256(scale, _mm256_slli_epi32(scale, 16));
++    auto divide255 = [](__m256i product) {
++        const __m256i t = _mm256_add_epi16(product, _mm256_set1_epi16(128));
++        return _mm256_srli_epi16(_mm256_add_epi16(t, _mm256_srli_epi16(t, 8)), 8);
++    };
++    const __m256i rb = divide255(_mm256_mullo_epi16(
++        _mm256_and_si256(dst, _mm256_set1_epi32(0x00ff00ff)), scale));
++    const __m256i ga = divide255(_mm256_mullo_epi16(_mm256_srli_epi16(dst, 8), scale));
++    return _mm256_adds_epu8(src, _mm256_or_si256(rb, _mm256_slli_epi16(ga, 8)));
++}
++#endif
++}  // namespace skia_private
++#endif
+--- a/third_party/skia/src/opts/SkBlitRow_opts.h
++++ b/third_party/skia/src/opts/SkBlitRow_opts.h
+@@ -12,3 +12,4 @@
+ #include "src/core/SkMSAN.h"
+ #include "src/core/SkVx.h"
++#include "src/opts/SkClawbrowserSrcOver.h"
+ 
+@@ -24,46 +25,5 @@
+ 
+-    static inline __m256i SkPMSrcOver_AVX2(const __m256i& src, const __m256i& dst) {
+-        // Abstractly srcover is
+-        //     b = s + d*(1-srcA)
+-        //
+-        // In terms of unorm8 bytes, that works out to
+-        //     b = s + (d*(255-srcA) + 127) / 255
+-        //
+-        // But we approximate that to within a bit with
+-        //     b = s + (d*(255-srcA) + d) / 256
+-        // a.k.a
+-        //     b = s + (d*(256-srcA)) >> 8
+-
+-        // The bottleneck of this math is the multiply, and we want to do it as
+-        // narrowly as possible, here getting inputs into 16-bit lanes and
+-        // using 16-bit multiplies.  We can do twice as many multiplies at once
+-        // as using naive 32-bit multiplies, and on top of that, the 16-bit multiplies
+-        // are themselves a couple cycles quicker.  Win-win.
+-
+-        // We'll get everything in 16-bit lanes for two multiplies, one
+-        // handling dst red and blue, the other green and alpha.  (They're
+-        // conveniently 16-bits apart, you see.) We don't need the individual
+-        // src channels beyond alpha until the very end when we do the "s + "
+-        // add, and we don't even need to unpack them; the adds cannot overflow.
+-
+-        // Shuffle each pixel's srcA to the low byte of each 16-bit half of the pixel.
+-        const int _ = -1;   // fills a literal 0 byte.
+-        __m256i srcA_x2 = _mm256_shuffle_epi8(src,
+-                _mm256_setr_epi8(3,_,3,_, 7,_,7,_, 11,_,11,_, 15,_,15,_,
+-                                 3,_,3,_, 7,_,7,_, 11,_,11,_, 15,_,15,_));
+-        __m256i scale_x2 = _mm256_sub_epi16(_mm256_set1_epi16(256),
+-                                            srcA_x2);
+-
+-        // Scale red and blue, leaving results in the low byte of each 16-bit lane.
+-        __m256i rb = _mm256_and_si256(_mm256_set1_epi32(0x00ff00ff), dst);
+-        rb = _mm256_mullo_epi16(rb, scale_x2);
+-        rb = _mm256_srli_epi16 (rb, 8);
+-
+-        // Scale green and alpha, leaving results in the high byte, masking off the low bits.
+-        __m256i ga = _mm256_srli_epi16(dst, 8);
+-        ga = _mm256_mullo_epi16(ga, scale_x2);
+-        ga = _mm256_andnot_si256(_mm256_set1_epi32(0x00ff00ff), ga);
+-
+-        return _mm256_adds_epu8(src, _mm256_or_si256(rb, ga));
+-    }
++    static inline __m256i SkPMSrcOver_AVX2(const __m256i& src, const __m256i& dst) {
++        return skia_private::ClawbrowserSrcOver8(src, dst);
++    }
+ #endif
+@@ -73,17 +33,5 @@
+ 
+-    static inline __m128i SkPMSrcOver_SSE2(const __m128i& src, const __m128i& dst) {
+-        __m128i scale = _mm_sub_epi32(_mm_set1_epi32(256),
+-                                      _mm_srli_epi32(src, 24));
+-        __m128i scale_x2 = _mm_or_si128(_mm_slli_epi32(scale, 16), scale);
+-
+-        __m128i rb = _mm_and_si128(_mm_set1_epi32(0x00ff00ff), dst);
+-        rb = _mm_mullo_epi16(rb, scale_x2);
+-        rb = _mm_srli_epi16(rb, 8);
+-
+-        __m128i ga = _mm_srli_epi16(dst, 8);
+-        ga = _mm_mullo_epi16(ga, scale_x2);
+-        ga = _mm_andnot_si128(_mm_set1_epi32(0x00ff00ff), ga);
+-
+-        return _mm_adds_epu8(src, _mm_or_si128(rb, ga));
+-    }
++    static inline __m128i SkPMSrcOver_SSE2(const __m128i& src, const __m128i& dst) {
++        return skia_private::ClawbrowserSrcOver4(src, dst);
++    }
+ #endif
+@@ -234,3 +182,3 @@
+     while (len --> 0) {
+-        *dst = SkPMSrcOver(*src, *dst);
++        *dst = skia_private::ClawbrowserSrcOver(*src, *dst);
+         src++;

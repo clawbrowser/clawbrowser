@@ -30,6 +30,7 @@ jobs:
           uname -sm
           "$CXX" --version
           bash scripts/skia_fma_rounding_test.sh
+          bash scripts/skia_source_over_test.sh
 
   raster-portability-windows:
     runs-on: windows-latest
@@ -45,6 +46,8 @@ jobs:
           if errorlevel 1 exit /b 1
           clang++ --version
           bash scripts/skia_fma_rounding_test.sh
+          if errorlevel 1 exit /b 1
+          bash scripts/skia_source_over_test.sh
 
   contract:
     runs-on: ubuntu-latest
@@ -81,7 +84,9 @@ jobs:
           python3 -m json.tool \
             clawbrowser/test/fixtures/valid_fingerprint.json >/dev/null
       - name: Verify exact baseline raster arithmetic
-        run: bash scripts/skia_fma_rounding_test.sh
+        run: |
+          bash scripts/skia_fma_rounding_test.sh
+          bash scripts/skia_source_over_test.sh
       - name: Verify font catalog staging integrity
         run: |
           python3 clawbrowser/fonts/stage_fonts_test.py
