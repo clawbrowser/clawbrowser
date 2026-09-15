@@ -41,6 +41,9 @@ TEST(VerifyPageTest, ManagedProxyCapabilityRequiresCompleteLaunchContract) {
   command_line.AppendSwitchASCII("force-webrtc-ip-handling-policy",
                                  "disable_non_proxied_udp");
   EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, true),
+            0);
+  command_line.AppendSwitchASCII("proxy-bypass-list", "<-loopback>");
+  EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, true),
             2);
 }
 
@@ -48,6 +51,7 @@ TEST(VerifyPageTest, ManagedProxyCapabilityRejectsWrongWebRtcPolicy) {
   base::CommandLine command_line(base::CommandLine::NO_PROGRAM);
   command_line.AppendSwitch(kRequireProxySwitch);
   command_line.AppendSwitchASCII("proxy-server", "socks5://127.0.0.1:1080");
+  command_line.AppendSwitchASCII("proxy-bypass-list", "<-loopback>");
   command_line.AppendSwitchASCII("webrtc-ip-handling-policy", "default");
   command_line.AppendSwitchASCII("force-webrtc-ip-handling-policy",
                                  "disable_non_proxied_udp");
@@ -57,8 +61,7 @@ TEST(VerifyPageTest, ManagedProxyCapabilityRejectsWrongWebRtcPolicy) {
 
 TEST(VerifyPageTest, ManagedProxyCapabilityRejectsConflictingProxySwitches) {
   constexpr const char* kConflictingSwitches[] = {
-      "no-proxy-server", "proxy-pac-url", "proxy-auto-detect",
-      "proxy-bypass-list"};
+      "no-proxy-server", "proxy-pac-url", "proxy-auto-detect"};
 
   for (const char* conflicting_switch : kConflictingSwitches) {
     base::CommandLine command_line(base::CommandLine::NO_PROGRAM);
@@ -69,10 +72,27 @@ TEST(VerifyPageTest, ManagedProxyCapabilityRejectsConflictingProxySwitches) {
                                    "disable_non_proxied_udp");
     command_line.AppendSwitchASCII("force-webrtc-ip-handling-policy",
                                    "disable_non_proxied_udp");
+    command_line.AppendSwitchASCII("proxy-bypass-list", "<-loopback>");
     command_line.AppendSwitch(conflicting_switch);
     EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, true),
               0)
         << conflicting_switch;
+  }
+}
+
+TEST(VerifyPageTest, ManagedProxyCapabilityRejectsUnsafeBypassLists) {
+  for (const char* bypass : {"", "*", "<local>", "localhost",
+                              "<-loopback>;localhost", "<-loopback>,*"}) {
+    base::CommandLine command_line(base::CommandLine::NO_PROGRAM);
+    command_line.AppendSwitch(kRequireProxySwitch);
+    command_line.AppendSwitchASCII("proxy-server", "http://127.0.0.1:1080");
+    command_line.AppendSwitchASCII("webrtc-ip-handling-policy",
+                                   "disable_non_proxied_udp");
+    command_line.AppendSwitchASCII("force-webrtc-ip-handling-policy",
+                                   "disable_non_proxied_udp");
+    command_line.AppendSwitchASCII("proxy-bypass-list", bypass);
+    EXPECT_EQ(ManagedProxyPrivacyCapabilityForCommandLine(command_line, true), 0)
+        << bypass;
   }
 }
 

@@ -154,7 +154,9 @@ int ManagedProxyPrivacyCapabilityForCommandLine(
       command_line.HasSwitch("no-proxy-server") ||
       command_line.HasSwitch("proxy-pac-url") ||
       command_line.HasSwitch("proxy-auto-detect") ||
-      command_line.HasSwitch("proxy-bypass-list")) {
+      // This subtractive rule closes Chromium's implicit loopback/link-local
+      // bypass. It is required, not a user exception; all other lists fail.
+      command_line.GetSwitchValueASCII("proxy-bypass-list") != "<-loopback>") {
     return 0;
   }
 
