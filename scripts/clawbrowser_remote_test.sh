@@ -528,9 +528,17 @@ test_reset_patch_targets_restores_nested_skia_paths() {
 -clean
 +patched
 EOF
+  cat >"${project_dir}/clawbrowser/patches/048-added.patch" <<'EOF'
+--- /dev/null
++++ b/third_party/skia/src/ports/ClawbrowserAdded.h
+@@ -0,0 +1 @@
++owned
+EOF
   local helper
   for helper in clawbrowser_remote.sh chromium_remote.sh; do
     printf 'dirty\n' >"${skia_dir}/src/ports/SkTypeface_fontations.cpp"
+    printf 'owned\n' >"${skia_dir}/src/ports/ClawbrowserAdded.h"
+    printf 'unrelated\n' >"${skia_dir}/src/ports/Unrelated.h"
     (
       CHROMIUM_DIR="${chromium_dir}"
       CHROMIUM_REVISION="$(git -C "${src_dir}" rev-parse HEAD)"
@@ -541,6 +549,30 @@ EOF
       reset_patch_targets_to_pin
     )
     assert_equals "$(cat "${skia_dir}/src/ports/SkTypeface_fontations.cpp")" "clean"
+    [[ ! -e "${skia_dir}/src/ports/ClawbrowserAdded.h" ]] || fail "patch-created Skia header was not reset"
+    assert_equals "$(cat "${skia_dir}/src/ports/Unrelated.h")" "unrelated"
+    # An absent upstream target not explicitly created by a patch must fail,
+    # not silently delete an unrelated untracked file with the same name.
+    cat >"${project_dir}/clawbrowser/patches/099-invalid.patch" <<'EOF'
+--- a/third_party/skia/src/ports/Unrelated.h
++++ b/third_party/skia/src/ports/Unrelated.h
+@@ -1 +1 @@
+-unexpected
++replacement
+EOF
+    if (
+      CHROMIUM_DIR="${chromium_dir}"
+      CHROMIUM_REVISION="$(git -C "${src_dir}" rev-parse HEAD)"
+      CHROMIUM_VERSION_LABEL="test"
+      PROJECT_DIR="${project_dir}"
+      REMOTE_SCRIPT="${REPO_ROOT}/scripts/${helper}"
+      load_remote_functions
+      reset_patch_targets_to_pin
+    ) >/dev/null 2>&1; then
+      fail "unexpected absent Skia target should be rejected"
+    fi
+    assert_equals "$(cat "${skia_dir}/src/ports/Unrelated.h")" "unrelated"
+    rm -f "${project_dir}/clawbrowser/patches/099-invalid.patch"
   done
   rm -rf "${tmp_dir}"
 }
