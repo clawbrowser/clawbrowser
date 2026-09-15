@@ -402,7 +402,7 @@ Disassembly of `5f7fb6e` showed an out-of-line `ClawbrowserFma4` with stack
 setup in the ordinary path. The follow-up forces the fast vector calculation
 inline and outlines only exceptional lane repair. Arithmetic is unchanged.
 The actual header again passes 10,039,200 scalar and 10,039,200 SIMD comparisons.
-An SSE2 microbenchmark is retained in `test/benchmarks` for reproducibility;
+An SSE2 microbenchmark is retained in `clawbrowser/test/benchmarks` for reproducibility;
 its roughly 10% improvement is not browser acceptance.
 
 New ELF `5afeb33bd2460710476abe9501ef908e5ddf18aab86cf791afe78cb6f3beb278`
@@ -424,8 +424,20 @@ six interleaved runs, seven samples of 1,000 iterations each.
 
 These ranges overlap; they do not establish universal absence of a regression.
 Forced-baseline cost versus the original non-fused implementation remains
-substantial and open. The new full suite is running; previous network and
-managed-site proofs below belong to their explicitly identified artifacts.
+substantial and open. The new full suite completes with **131 passed, 19 skipped
+in 318.00s**. All 120 common PNG/color/corpus observations and 32 primitives
+still match the Mac reference. Separately, IPv4/IPv6 STUN records 4 positive
+control packets and 0 browser packets; real TURN/TLS passes both proxy schemes
+in 19.884s. Direct-TCP capture records 7 positive-control packets, 0 browser
+direct packets and 280 proxy-origin packets. Both captures have zero drops,
+TLS trust verification stays enabled, and both bounded services are inactive
+afterwards. Benchmark timing finished before these functional/network runs.
+The committed microbenchmark also compiles against the actual header and
+passes its one-iteration smoke check. CI passes both contract jobs.
+
+This is partial performance progress, not full release readiness. Managed-site
+screenshots below remain observations of their explicitly identified earlier
+artifact; no new green PixelScan result is claimed for this arithmetic revision.
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
 positive control 4 packets, browser 0 packets through HTTP/SOCKS5, zero kernel
