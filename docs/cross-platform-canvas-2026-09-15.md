@@ -166,6 +166,30 @@ run. Mac pixel export passed in 12.07s; ordinary Linux export 24.30s; gamma
 control 24.23s. The comparison output labels whether either side used the
 gamma control. No global gamma defaults were changed.
 
+## Managed outline bounds
+
+Patch 043 uses the existing precise outline-bound helper for managed font
+policy in HarfBuzz extents and single/batched glyph-bound lookup. It preserves
+bitmap-only fallback, outward rounding for non-subpixel strike bounds, and
+the original native-policy branches. The regression pins the known Arimo
+outline bounds, not only its advance width. Previous Linux `eefc94e` fails
+four of five expected fields; native passes (2.33s). Mac passes both policy
+cases (4.40s).
+
+New Linux binary `45004e1e3e11f794920e03ac6d21cfce936c3c269fe831575c62c9cb2607050e`
+built in 4m30s/47 steps. Archive SHA256:
+`cfa26b59e4735e1d633d9b79102fcec56a9f13c5b85ad2d8828da27e23ac6022`.
+After separate extraction and AppArmor setup, the targeted run passes
+**3 tests / 26.17s**. Native-policy metrics match the previous binary exactly.
+Managed Arimo now matches the Mac reference for width, left/right bounds,
+ascent and descent in this fixture.
+
+Text pixel differences are unchanged (727/771), establishing that fixing
+these metric surfaces is separate from the remaining raster mismatch.
+Full Linux regression is running. This does not fix the separate
+`fontBoundingBoxAscent/Descent` host-specific vertical-metric adjustments in
+`FontMetrics::AscentDescentWithHacks`, nor prove all scripts or platforms equal.
+
 ## New artifact network acceptance
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
