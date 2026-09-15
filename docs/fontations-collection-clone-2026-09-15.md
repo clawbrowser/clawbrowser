@@ -37,3 +37,16 @@ Mac framework SHA256:
 `4a5b69c0cfc84f2de6492077310d61372bb26c5981f7f772c87b833c57d7509a`.
 Full runtime regression and a fresh Linux archive must be evaluated against
 this newer patch; previous `37612ae` network evidence is not proof for it.
+
+## Bounded memory observation
+
+The opt-in `test_macos_catalog_memory.py` repeats a fixed 21-combination font
+working set after warmup (five batches of 20 cycles, 2,100 additional draws),
+collects garbage, and verifies the renderer PID set did not change. On this
+candidate it passed in 3.24 seconds. Combined RSS of four renderer processes
+rose from 622,804,992 to 624,607,232 bytes (about 1.72 MiB). RSS includes shared
+pages; this is neither unique memory accounting nor a production memory budget.
+It catches large repeated-load growth, not arbitrary long-running leaks.
+The immutable catalog still retains roughly 50 MB of font bytes in each
+process that initializes it, plus transient validation copies. A shared-memory
+catalog transport could reduce that cost but is not implemented or claimed.
