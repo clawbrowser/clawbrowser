@@ -8,7 +8,7 @@ from urllib.request import ProxyHandler, build_opener
 import pytest
 from playwright.async_api import Error
 
-from conftest import _launch_browser_with_details
+from conftest import VERIFY_PAGE_URL, _launch_browser_with_details
 
 
 @contextmanager
@@ -37,6 +37,25 @@ def endpoint(body):
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_required_proxy_exposes_live_privacy_capability(record_property):
+    with endpoint(b'proxy-control') as (proxy, _):
+        config = {'scheme': 'http', 'host': '127.0.0.1', 'port': proxy.server_port}
+        async with _launch_browser_with_details(
+            fixture_name='valid_fingerprint.json', backend_mode='mock',
+            skip_verify=True, headless=False, proxy_config=config,
+            extra_browser_args=('--clawbrowser-require-proxy',),
+        ) as launch:
+            page = launch['page']
+            await page.goto(VERIFY_PAGE_URL)
+            await page.wait_for_function('window.__clawbrowser_capabilities !== undefined')
+            assert page.url.startswith(VERIFY_PAGE_URL)
+            capability = await page.evaluate(
+                'window.__clawbrowser_capabilities.managed_proxy_privacy')
+            record_property('managed_proxy_privacy', capability)
+            assert capability == 2
 
 
 @pytest.mark.asyncio
