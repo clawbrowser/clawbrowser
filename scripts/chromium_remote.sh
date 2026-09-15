@@ -568,6 +568,15 @@ reset_patch_targets_to_pin() {
 
   while IFS= read -r path; do
     [[ -n "${path}" ]] || continue
+    if [[ "${path}" == third_party/skia/* ]]; then
+      local skia_dir="${src_dir}/third_party/skia"
+      local skia_path="${path#third_party/skia/}"
+      [[ -e "${skia_dir}/.git" ]] || die "Missing nested Skia checkout"
+      git -C "${skia_dir}" cat-file -e "HEAD:${skia_path}" >/dev/null 2>&1 ||
+        die "Skia patch target is absent from nested HEAD: ${skia_path}"
+      git -C "${skia_dir}" restore --source HEAD --worktree -- "${skia_path}"
+      continue
+    fi
     if git -C "${src_dir}" cat-file -e "${CHROMIUM_REVISION}:${path}" >/dev/null 2>&1; then
       restore_paths+=("${path}")
     else

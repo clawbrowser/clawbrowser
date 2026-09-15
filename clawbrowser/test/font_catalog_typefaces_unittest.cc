@@ -2,6 +2,8 @@
 #include <cstdlib>
 #include "base/files/file_util.h"
 #include "third_party/skia/include/core/SkString.h"
+#include "third_party/skia/include/core/SkFontArguments.h"
+#include "third_party/skia/include/core/SkStream.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace clawbrowser {
@@ -52,6 +54,22 @@ TEST(FontCatalogTypefacesTest, PinnedCatalogUsesOnlyExplicitBytes) {
   ASSERT_TRUE(italic);
   EXPECT_EQ(italic->fontStyle().slant(), SkFontStyle::kItalic_Slant);
   EXPECT_FALSE(MatchCatalogFamily(*faces, "Papyrus", SkFontStyle::Normal()));
+  auto cjk = MatchCatalogFamily(*faces, "Noto Sans CJK SC", SkFontStyle::Normal());
+  ASSERT_TRUE(cjk);
+  int collection_index = 0;
+  auto collection_stream = cjk->openStream(&collection_index);
+  ASSERT_TRUE(collection_stream);
+  ASSERT_GT(collection_index, 0);
+  const SkFontArguments::VariationPosition::Coordinate weight = {
+      SkSetFourByteTag('w', 'g', 'h', 't'), 675};
+  SkFontArguments clone_args;
+  clone_args.setCollectionIndex(collection_index).setVariationDesignPosition({&weight, 1});
+  auto clone = cjk->makeClone(clone_args);
+  ASSERT_TRUE(clone);
+  SkString clone_family;
+  clone->getFamilyName(&clone_family);
+  EXPECT_EQ(clone_family, SkString("Noto Sans CJK SC"));
+  EXPECT_EQ(clone->fontStyle().weight(), 675);
   auto fallback = MatchCatalogCharacter(*faces, {"Arimo", "Noto Color Emoji"},
                                        SkFontStyle::Normal(), 0x1f600);
   ASSERT_TRUE(fallback);
