@@ -12,6 +12,8 @@ hashes, timings and caveats appear in the later sections.
 PixelScan's font/Canvas classification remains negative, and the latest changes
 still need Mac/Windows binary acceptance. Do not confuse reference Mac results
 with a rebuild of these latest patches, or site diagnostics with a green scan.
+The new SVG-image text gate also finds a cross-host difference outside the
+previously passing corpus; see the SVG follow-up below.
 
 ## Initial cross-host failure
 
@@ -522,6 +524,32 @@ Previously two identically non-deterministic sets could compare equal. Six
 unit regressions exercise these failure modes and exit codes. Rechecking the
 saved latest Linux/Mac reports with these stricter rules still yields all 120
 common corpus/format matches plus 32 primitive matches and zero differences.
+
+### SVG-image text follow-up: cross-host difference remains
+
+`test_svg_font_canvas.py` covers text inside an SVG image drawn into DOM and
+Offscreen Canvas, rather than ordinary Canvas `fillText`. It contains serif,
+sans-serif, monospace, Arimo and a missing-family fallback, with Latin,
+Cyrillic, Arabic, CJK and emoji. A text-free copy is a negative control:
+more than 500 channel values must differ, preventing a background-only image
+from satisfying the test.
+
+Linux `65904c2` passes internal equality across two host Fontconfig settings,
+normal/disabled Skia CPU options, and both Canvas kinds (1 test / 9.61s).
+Reference Mac `945d653` passes its two CPU modes and both Canvas kinds
+(1 test / 5.12s). **All four comparable cross-host hashes differ.**
+Row-level diagnostics localize differences to rows 38–40, 43–44, 53 and 55–57,
+inside the second text line (`العربية 漢字 🧭`). Other rows, including the
+gradient and the other four text lines, match. Text-free control differences
+are 11,897 channel values on Mac and 11,898 on Linux.
+
+This narrows the problem to multilingual/emoji SVG rendering in this sample;
+it does not yet identify the exact glyph, prove host font enumeration, or
+separate missing Mac updates from a remaining platform-dependent path.
+Do not call the passing internal tests cross-platform acceptance. Evidence:
+`fast-fma-048-v5-svg-font-rows.xml` and `mac-reference-svg-font-rows.xml`.
+The next diagnostic should split Arabic/CJK/emoji, retaining the same renderer
+and protected policy. No browser patch or checker-specific exception was added.
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
 positive control 4 packets, browser 0 packets through HTTP/SOCKS5, zero kernel
