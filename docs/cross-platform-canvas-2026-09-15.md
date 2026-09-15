@@ -799,3 +799,16 @@ for this candidate. The opt-in bitmap timing fixture now accepts a float16
 backing-store selection and asserts that the requested format was obtained.
 Do not infer that the 120 observed blend differences are resolved from the
 standalone numerical result.
+
+The rebuilt Linux candidate is now
+`b054b3e2836da1419b029168a41ec561155cc2fc4539bbcdd594dba76552b71d`
+(58 build steps, 309.31s), extracted from archive
+`0072c9f311b35d1d8787b00b7c8e4d1c56de3368d49db58d28bed1c1ae38b622`.
+The unchanged headful blend regression still fails in 39.71s, but diagnostic
+comparison shows **16 differences instead of 120**: all 208 baseline CPU
+observations now match the Mac reference. Remaining differences are the default
+CPU path's unorm8 color-burn and float16 color-burn/hue/saturation (four contexts
+each). Thus the baseline half-conversion discrepancy is resolved in this
+fixture; the overall blend assertion and release acceptance are not resolved.
+The report is retained as `linux-blend-matrix-050.xml` alongside the earlier
+failing report. Float16 old/new ABBA timing is a separate pending run.
