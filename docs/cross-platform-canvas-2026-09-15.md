@@ -551,6 +551,15 @@ Do not call the passing internal tests cross-platform acceptance. Evidence:
 The next diagnostic should split Arabic/CJK/emoji, retaining the same renderer
 and protected policy. No browser patch or checker-specific exception was added.
 
+That split is now executable in the same test. Linux passes internally in
+22.72s and the Mac reference in 10.04s. Of 16 comparable observations, the
+eight Arabic-only/CJK-only observations match; all eight mixed/emoji-only
+observations differ. This isolates the sample's mismatch to color emoji, not
+Arabic or CJK text. Saved reports end in `svg-font-scripts.xml`. The Fontations
+bitmap-glyph path scales a decoded image with linear filtering into a temporary
+bitmap; testing that general image-sampling path is a candidate next diagnostic,
+not yet a demonstrated cause. No rendered-emoji replacement was introduced.
+
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
 positive control 4 packets, browser 0 packets through HTTP/SOCKS5, zero kernel
 drops. Real TURN/TLS echo passes both proxy schemes, 2 tests / 18.05s, with
