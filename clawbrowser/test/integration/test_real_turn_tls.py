@@ -108,6 +108,11 @@ async def test_real_turn_tls_echo(scheme, record_property):
         fixture_name="valid_fingerprint.json", backend_mode="mock",
         skip_verify=True, proxy_config=proxy, headless=False,
     ) as launch:
+        # A remote proxy cannot reach this machine's localhost mock page, and
+        # managed profiles intentionally have no implicit loopback bypass.
+        # Use an explicit in-memory probe document, never a network error page.
+        await launch["page"].goto("data:text/html,<title>TURN relay probe</title>")
+        assert await launch["page"].title() == "TURN relay probe"
         result = await launch["page"].evaluate(RELAY_ECHO, turn)
     record_property("turn_tls_observation", json.dumps(result, sort_keys=True))
     assert result["echo"], result

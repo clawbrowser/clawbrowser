@@ -43,6 +43,32 @@ disconnect test includes an independently reachable direct-origin control.
 They are not a general packet-capture proof or a substitute for live TURN,
 SOCKS and product lifecycle checks on the final archive.
 
-Linux incremental build and broad compatibility validation remain pending.
+## Linux candidate
+
+Siso incremental build succeeded in 2m53s. Packaged and freshly extracted:
+
+- ELF SHA256: `0bf06ff97602e1c2a4ce4177df9a7b1fee6b8eb9ee8b821ad6b0566dc0273d7e`.
+- Archive SHA256: `668c56b5402816f07afb7cae411a382000f8726fe21b007f8f12bb2876f34e7a`.
+- All 215 C++ tests pass as the unprivileged builder user. An initial root run
+  failed the directory-not-writable negative test; root is not a valid user
+  for that permission control, and the failed report is retained separately.
+- Actual HTTP and SOCKS5 TURN/TLS echo: 2 pass (17.76s), with successful relay
+  pairs and bidirectional bytes. The probe uses an explicit in-memory document,
+  not a localhost network-error page behind the real remote proxy.
+- Independent IPv4/IPv6 STUN positive control: 4 captured packets, zero drops.
+  Browser phase through HTTP and SOCKS5: zero UDP packets to the controlled
+  port, zero candidates, zero capture drops. This is endpoint-scoped proof,
+  not a claim about every possible traffic destination.
+- Bounded TURN/STUN services stopped after the checks. Browser sandbox remains
+  enabled, with an exact QA executable-path AppArmor userns profile.
+
+Full headful Linux run: **119 passed, 8 skipped, 263.10s** using both isolated
+font controls. Final full macOS run: **108 passed, 2 failed, 17 skipped,
+236.04s**. The two failures are the same native canvas equality controls
+recorded before this proxy change, not protected-mode failures. Opt-in live
+network checks are reported separately above rather than counted as full-suite
+passes. The final TURN test has a probe-document-only overlay on the f435ef2
+test snapshot; it does not change the candidate binary.
+
 PixelScan, macOS portable fallback fonts and product-level release gates
 remain open independently of this change.
