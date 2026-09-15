@@ -98,3 +98,26 @@ not worker divergence or the tested Skia optimization switch. It does not yet
 prove the underlying CPU/GPU cause, cross-machine determinism, or PixelScan's
 classification logic. Both native failures remain reported; no test was
 weakened and no product change was made based on this analysis alone.
+
+Historical follow-up: the software-only diagnostic had already passed all
+four original matrices (40.04s, `software-canvas-diagnostic.xml`) before patch
+038 introduced policy-scoped software rasterization. The two retained native
+failures are outside that protected policy. Repeating that historical
+diagnostic is not a new acceptance milestone.
+
+## Bitmaprenderer snapshot coverage
+
+The snapshot regression now also transfers a protected Canvas2D ImageBitmap
+into DOM and Offscreen `bitmaprenderer` contexts, then uploads each directly
+to WebGL1 and WebGL2. This bypasses Canvas2D drawing at the destination and
+checks a previously uncovered image-ownership path. The input bitmap must be
+consumed, all four added uploads must equal the protected source readback,
+and existing alpha, live-backing and active-noise assertions remain intact.
+There are now 14 checked upload paths instead of 10.
+
+On the same staged macOS `945d653` launcher, the extended test passed headless
+(4.83s) and headful (4.59s). On the Linux `63a0b953` extracted artifact it
+passed headful under Xvfb (1.44s). Reports are named
+`bitmaprenderer-snapshot.xml` and `bitmaprenderer-snapshot-headful.xml` in
+their respective QA evidence directories. This adds regression coverage;
+it did not expose a new defect and does not resolve the PixelScan warning.
