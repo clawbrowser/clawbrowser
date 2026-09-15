@@ -238,6 +238,30 @@ static_library("clawbrowser") {
 # ---------------------------------------------------------------------------
 # Fast standalone unit tests for the core shim code.
 # ---------------------------------------------------------------------------
+source_set("clawbrowser_font_typefaces") {
+  sources = [
+    "font_catalog_typefaces.cc",
+    "font_catalog_typefaces.h",
+  ]
+  public_deps = [
+    ":clawbrowser_core",
+    "//skia",
+  ]
+}
+
+test("clawbrowser_font_typeface_unittests") {
+  sources = [
+    "test/font_catalog_typefaces_unittest.cc",
+    "test/run_all_unittests.cc",
+  ]
+  deps = [
+    ":clawbrowser_font_typefaces",
+    "//base/test:test_support",
+    "//mojo/core/embedder",
+    "//testing/gtest",
+  ]
+}
+
 test("clawbrowser_unittests") {
   sources = [
     "test/run_all_unittests.cc",
