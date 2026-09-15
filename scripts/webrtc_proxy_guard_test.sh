@@ -12,6 +12,7 @@ real_proxy_test="${repo_root}/clawbrowser/test/integration/test_real_socks5_prox
 
 grep -q -- '--webrtc-ip-handling-policy=disable_non_proxied_udp' "${proxy_config}"
 grep -q -- '--force-webrtc-ip-handling-policy=disable_non_proxied_udp' "${proxy_config}"
+grep -q -- '--proxy-bypass-list=<-loopback>' "${proxy_config}"
 grep -q 'GetProxyCommandLineFlags' "${startup}"
 grep -q '^# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)$' "${webrtc_patch}"
 grep -q 'port_config.enable_nonproxied_udp = false' "${webrtc_patch}"
@@ -46,6 +47,9 @@ fi
 node "${repo_root}/scripts/verify_proxy_render_test.js"
 bash "${repo_root}/scripts/verify_page_assets_test.sh"
 python3 -m py_compile \
+  "${repo_root}/clawbrowser/test/integration/test_proxy_route_failure.py" \
+  "${repo_root}/clawbrowser/test/integration/mock_server.py" \
+  "${repo_root}/clawbrowser/test/integration/conftest.py" \
   "${repo_root}/clawbrowser/test/integration/test_proxy.py" \
   "${repo_root}/clawbrowser/test/integration/test_real_socks5_proxy.py" \
   "${repo_root}/clawbrowser/test/integration/webrtc_probe.py"

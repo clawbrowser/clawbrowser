@@ -195,6 +195,7 @@ std::vector<std::string> GetProxyCommandLineFlags(
   flags.push_back("--proxy-server=" + *proxy_server);
   flags.push_back(kWebRtcIpHandlingPolicy);
   flags.push_back(kForceWebRtcIpHandlingPolicy);
+  flags.push_back("--proxy-bypass-list=<-loopback>");
   return flags;
 }
 
@@ -214,6 +215,7 @@ std::vector<std::string> GetProxyCommandLineFlags(
   flags.push_back("--proxy-server=" + *proxy_server);
   flags.push_back(kWebRtcIpHandlingPolicy);
   flags.push_back(kForceWebRtcIpHandlingPolicy);
+  flags.push_back("--proxy-bypass-list=<-loopback>");
   return flags;
 }
 
