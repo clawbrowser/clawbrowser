@@ -504,6 +504,25 @@ Evidence files are `fast-fma-048-v5-full.xml`,
 to earlier artifact `5f7fb6e`; no green PixelScan result is claimed for this
 candidate. Overall baseline cost and platform/site acceptance remain open.
 
+### Numerical portability and evidence validation
+
+CI commit `a5685b1` adds independent host-compiler checks of the actual header
+extracted from patch 048, without a Chromium checkout or credentials. Run
+[35008472929](https://github.com/clawbrowser/clawbrowser/actions/runs/35008472929)
+passes on Linux GCC, Linux Clang 18, Windows x64 Clang 20 with the MSVC library,
+and macOS ARM64 Apple Clang 21. Each x64 job checks 10,039,208 scalar plus
+10,039,208 SSE2 results; ARM64 checks 10,039,208 scalar results, with no SSE2
+path. Every negative control detects 3,223 naive-double mismatches. The x64
+harness now fails compilation if the SSE2 implementation is accidentally absent.
+This is numerical portability evidence, **not Windows/macOS browser acceptance**.
+
+The cross-platform comparator now rejects failed/errored protected test cases,
+ignores skipped cases and rejects multiple distinct hashes for one observation.
+Previously two identically non-deterministic sets could compare equal. Six
+unit regressions exercise these failure modes and exit codes. Rechecking the
+saved latest Linux/Mac reports with these stricter rules still yields all 120
+common corpus/format matches plus 32 primitive matches and zero differences.
+
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
 positive control 4 packets, browser 0 packets through HTTP/SOCKS5, zero kernel
 drops. Real TURN/TLS echo passes both proxy schemes, 2 tests / 18.05s, with
