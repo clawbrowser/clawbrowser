@@ -70,6 +70,13 @@ acceptance was then rerun against this newer binary:
 These controlled network results do not substitute for managed PixelScan or
 desktop OAuth/update acceptance. No release or production deployment occurred.
 
+The same extracted binary also passed both real-service integration tests
+against the isolated QA backend on localhost port 18081 in 6.155 seconds:
+fingerprint fetch (including saved-profile/UA agreement) and proxy verification
+through `clawbrowser://verify/`. This used the pre-existing integration account,
+not a mocked response or the user's desktop OAuth session. No user QA key was
+needed for this layer. Report: `real-backend-font-clone-0631a21.xml`.
+
 ## Bounded memory observation
 
 The opt-in `test_macos_catalog_memory.py` repeats a fixed 21-combination font
