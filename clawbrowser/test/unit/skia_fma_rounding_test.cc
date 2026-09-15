@@ -66,6 +66,20 @@ int main() {
       check(sign*f,m,sign*a);check(sign*f,-m,sign*a);
     }
   }
+  // Explicit overflow and subnormal midpoint controls. Tiny exact product
+  // residuals must not be lost when the double sum rounds to the midpoint.
+  const float below_one = 1.0f - 0x1p-23f;
+  const float above_one = 1.0f + 0x1p-23f;
+  for (int sign : {-1, 1}) {
+    check(sign * std::ldexp(above_one, 103), below_one,
+          sign * std::numeric_limits<float>::max());
+    check(sign * std::ldexp(below_one, 103), above_one,
+          sign * std::numeric_limits<float>::max());
+    check(sign * std::ldexp(above_one, -126), std::ldexp(below_one, -24),
+          sign * std::nextafter(std::numeric_limits<float>::min(), 0.0f));
+    check(sign * std::ldexp(above_one, -126), std::ldexp(below_one, -24),
+          std::copysign(0.0f, float(sign)));
+  }
   if (!naive_mismatches) {
     std::puts("FAIL: negative control did not detect naive double rounding");
     return 1;

@@ -1,5 +1,20 @@
 # Cross-platform protected raster comparison
 
+## Current acceptance boundary
+
+This report preserves the investigation chronologically; initial failures below
+are not the latest result. Linux `5afeb33` passes the full 131-test headful run
+(19 separate skips), matches all 120 common Mac corpus/format hashes and 32
+primitives, and passes the controlled STUN/TURN packet tests. Exact artifact
+hashes, timings and caveats appear in the later sections.
+
+**Not ready for merge/release:** forced-baseline CPU cost remains substantial,
+PixelScan's font/Canvas classification remains negative, and the latest changes
+still need Mac/Windows binary acceptance. Do not confuse reference Mac results
+with a rebuild of these latest patches, or site diagnostics with a green scan.
+
+## Initial cross-host failure
+
 Compared saved headful observations from macOS ARM64 staged launcher `945d653`
 and Linux x64 extracted runtime `a6f3c1a`. These are ClawBrowser artifacts,
 not stock Chromium controls. They differ in the navigation Client Hints fix;
@@ -438,6 +453,36 @@ passes its one-iteration smoke check. CI passes both contract jobs.
 This is partial performance progress, not full release readiness. Managed-site
 screenshots below remain observations of their explicitly identified earlier
 artifact; no new green PixelScan result is claimed for this arithmetic revision.
+
+### Four-lane classification follow-up
+
+The next revision packs the high/low words of both double-vector sums and
+classifies four lanes together with SSE2 integer operations. TwoSum residual
+correction remains required at midpoints; subnormal/non-finite cases retain the
+scalar fallback. Eight explicit signed overflow/subnormal boundary cases were
+added. The actual header passes **10,039,208 scalar plus 10,039,208 SIMD
+comparisons**. The naive-double negative control now fails 3,223 comparisons,
+including six new boundary failures. No rounding semantics were relaxed.
+
+ELF `65904c2d31c5795fff7c56f2af416077ed4ac82ad7afd3ef6a666b1fa7d9d8dd`
+built in 57 steps / 4m56.72s. Archive:
+`46810031ce5a96bff45c5a0242df37319b8a7a8cb742b9e9063a5b1656ba59d0`.
+Four targeted browser tests pass in 49.02s. No other QA CPU work ran during
+the subsequent timing comparison:
+
+| CPU / policy | Previous medians, ms | Packed-mask medians, ms |
+| --- | --- | --- |
+| Default / native | 0.4902 / 0.4609 / 0.4809 | 0.4842 / 0.4816 / 0.4748 |
+| Default / protected | 0.8377 / 0.8031 / 0.7658 | 0.7823 / 0.8417 / 0.7989 |
+| Forced baseline / native | 1.8493 / 1.9213 | 1.6363 / 1.6460 |
+| Forced baseline / protected | 2.4777 / 2.2747 | 1.9553 / 1.9937 |
+
+Default-mode runs are interleaved before/after/after/before/after/before,
+seven samples of 1,000 iterations. Baseline uses ABBA and 300 iterations per
+sample. Run-mean improvement on the baseline workload is about 13% native and
+17% protected, while default-mode ranges overlap. This is another partial
+improvement, not elimination of the cost relative to non-fused arithmetic.
+Full-suite and network acceptance for this artifact are in progress.
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
 positive control 4 packets, browser 0 packets through HTTP/SOCKS5, zero kernel
