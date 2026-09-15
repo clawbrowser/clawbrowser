@@ -53,6 +53,9 @@ a non-pausing conditional breakpoint: fonts=false, canvas=false; the other
 disabled after capture. This confirms remaining work, not a green website gate.
 
 macOS rebuild remains blocked before compilation by Xcode's license acceptance
-requirement; no license was accepted automatically. Full Linux integration is
-still running at this checkpoint. No new-platform acceptance, complete leak
+requirement; no license was accepted automatically. Full Linux headful
+integration on this extracted candidate passed **120 tests, 16 skipped**, in
+285.58s (`navigation-ch-linux-full.xml`), including two host-font controls.
+The five targeted tests above are reported separately and overlap this suite;
+do not sum them as distinct tests. No new-platform acceptance, complete leak
 resolution, or merge readiness is claimed.
