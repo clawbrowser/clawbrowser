@@ -325,6 +325,23 @@ roughly 2–3x slower on that path, not an acceptable "no regression" result.
 An optimization preserving correctly rounded FMA is still under investigation;
 do not claim performance readiness from the correctness improvement.
 
+## Closed-catalog vertical metrics
+
+Patch 047 skips host-specific VDMX, Linux descent-borrowing and macOS family
+adjustments only for managed closed-catalog fonts. Native policy and explicit
+ascent/descent overrides retain their existing paths. The regression records
+six families, seven sizes and both text-rendering modes, separately from
+painted glyph bounds.
+
+Binary `003ab5f28fa54f9fc1e787e90ad6fe96ac533f2ebceb8570202ab37c55749f9e`
+built in 47 steps / 4m25.26s. Archive:
+`2f6a793ef786690578b2a5b77fff1a81a35972d0d089cfca5e7b219f0641c9a4`.
+After extraction with the sandbox enabled, five targeted tests pass in
+28.76s. All **84 managed vertical-metric cases match the Mac reference**;
+the 84 native-policy rows are exactly unchanged from 045. The existing
+outline/advance and 40-stage Canvas golden checks also pass. This artifact
+has not yet completed a new full-suite or network acceptance run.
+
 ## New artifact network acceptance
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
