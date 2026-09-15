@@ -28,7 +28,13 @@ async def test_canvas_corpus_stages(tmp_path, record_property, mode):
                 const capture=stage=>{
                     const pixels=Array.from(c.getImageData(0,0,192,128).data);
                     const again=c.getImageData(0,0,192,128).data;
+                    const sample=stage==='latin'?'Latin 0123 Привет':'العربية 漢字 🧭';
+                    const measured=c.measureText(sample);
+                    const metrics=Object.fromEntries(['width','actualBoundingBoxLeft',
+                        'actualBoundingBoxRight','actualBoundingBoxAscent','actualBoundingBoxDescent',
+                        'fontBoundingBoxAscent','fontBoundingBoxDescent'].map(k=>[k,measured[k]]));
                     rows.push({stage,colorType,willReadFrequently,textRendering,pixels,
+                        metrics,
                         actualType:c.getContextAttributes().colorType,
                         stable:pixels.every((v,i)=>v===again[i])});
                 };
@@ -62,5 +68,15 @@ async def test_canvas_corpus_stages(tmp_path, record_property, mode):
         groups.setdefault((row['stage'], row['colorType'], row['textRendering']), set()).add(digest)
         observations.append({k: row[k] for k in ('stage','colorType','willReadFrequently','textRendering')} | {'hash':digest})
     record_property('raster_primitive_matrix', json.dumps({'seed':seed,'observations':observations}))
+    record_property('text_metrics', json.dumps([
+        {k: row[k] for k in ('stage','colorType','willReadFrequently','textRendering','metrics')}
+        for row in rows if row['stage'] in ('latin','fallback')]))
     assert len(observations) == 40
     assert all(len(hashes) == 1 for hashes in groups.values()), observations
+    # Closed-catalog text uses linear advances, not host hinting preferences.
+    # Keep native-policy behavior out of this contract.
+    advances = {}
+    for row in rows:
+        if row['stage'] in ('latin', 'fallback'):
+            advances.setdefault(row['stage'], set()).add(row['metrics']['width'])
+    assert all(len(widths) == 1 for widths in advances.values()), advances
