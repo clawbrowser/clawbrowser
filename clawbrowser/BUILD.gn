@@ -34,7 +34,7 @@ config("clawbrowser_windows_socket_libs") {
   }
 }
 
-if (is_linux) {
+if (is_linux || is_mac) {
   font_catalog = read_file("fonts/catalog_build.json", "json")
   action("clawbrowser_font_catalog") {
     script = "fonts/build_catalog.py"
@@ -68,6 +68,23 @@ if (is_linux) {
       "--destination", rebase_path(catalog_dir, root_build_dir),
       "--header", rebase_path(outputs[0], root_build_dir),
     ]
+  }
+  if (is_mac) {
+    bundle_data("clawbrowser_font_catalog_metadata") {
+      public_deps = [ ":clawbrowser_font_catalog" ]
+      sources = [ "$root_out_dir/clawbrowser-fonts/" + font_catalog.catalog_id + "/manifest.json",
+                  "$root_out_dir/clawbrowser-fonts/" + font_catalog.catalog_id + "/UPSTREAM-LICENSE",
+                  "$root_out_dir/clawbrowser-fonts/" + font_catalog.catalog_id + "/NOTO-LICENSE" ]
+      outputs = [ "{{bundle_resources_dir}}/clawbrowser-fonts/" + font_catalog.catalog_id + "/{{source_file_part}}" ]
+    }
+    bundle_data("clawbrowser_font_catalog_bundle") {
+      public_deps = [ ":clawbrowser_font_catalog_metadata", ":clawbrowser_font_catalog" ]
+      sources = []
+      foreach(font, font_catalog.chromium_files + font_catalog.vendor_files) {
+        sources += [ "$root_out_dir/clawbrowser-fonts/" + font_catalog.catalog_id + "/fonts/" + font ]
+      }
+      outputs = [ "{{bundle_resources_dir}}/clawbrowser-fonts/" + font_catalog.catalog_id + "/fonts/{{source_file_part}}" ]
+    }
   }
 }
 
@@ -132,7 +149,7 @@ component("clawbrowser_runtime") {
 source_set("clawbrowser_core") {
   configs += [ ":clawbrowser_backend_defaults" ]
   public_configs = [ ":clawbrowser_windows_socket_libs" ]
-  if (is_linux) {
+  if (is_linux || is_mac) {
     include_dirs = [ "$target_gen_dir" ]
   }
 
@@ -184,7 +201,7 @@ source_set("clawbrowser_core") {
     "//net",
     "//services/network/public/cpp",
   ]
-  if (is_linux) {
+  if (is_linux || is_mac) {
     deps += [ ":clawbrowser_font_catalog" ]
   }
 
@@ -247,6 +264,11 @@ source_set("clawbrowser_font_typefaces") {
     ":clawbrowser_core",
     "//skia",
   ]
+  if (is_mac) {
+    sources += [ "mac_font_catalog.cc", "mac_font_catalog.h" ]
+    deps = [ ":clawbrowser_font_catalog" ]
+    include_dirs = [ "$target_gen_dir" ]
+  }
 }
 
 test("clawbrowser_font_typeface_unittests") {
