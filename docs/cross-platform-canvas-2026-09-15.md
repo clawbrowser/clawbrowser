@@ -216,6 +216,20 @@ geometry. Unlike the earlier ineffective CLI experiment, this change acts
 directly where the renderer constructs raster surfaces. Build/runtime
 validation is pending; no global Skia gamma defaults or Canvas noise change.
 
+The candidate built successfully (47 steps / 4m34s). Binary SHA256:
+`814e11ae6d5dabc9fe47c37894c999a32b0b2208f93b48414f6796260d6f3fbd`.
+Archive SHA256: `aa5e9190a8af41203daa395bd0cdcfa864334178519cdbe1fe18858e4790b413`.
+It was separately extracted with a scoped AppArmor rule and the sandbox intact.
+
+All **eight protected black-on-white controls now exactly match the pinned
+Mac hashes** (`font_mask_reference.json` records recipe, seed, font and binary
+provenance). The previous Linux binary fails the new assertion in 2.72s; Mac
+passes both policies in 5.86s; new Linux protected/native runs pass in 2.46s /
+2.44s. The eight native-policy pixel buffers are byte-for-byte unchanged from
+the previous Linux candidate. This confirms the isolated text-transfer cause,
+not all possible text drawings or all platforms. Full regression and the
+larger cross-host corpus comparison are running separately.
+
 ## New artifact network acceptance
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
