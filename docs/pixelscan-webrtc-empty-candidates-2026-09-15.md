@@ -2,6 +2,18 @@
 
 ## Observed artifact and result
 
+Latest confirmation on September 15 uses extracted Linux ClawBrowser ELF
+`c0670393e68f9df237c9b552483abbc61397608dcc98a86ff057a3cc520ce173`
+(patch 049). The managed profile passes 35/35 built-in checks. One ordinary
+Start Check with passive request/response observation returns HTTP 200, the
+same red warning, and zero entries in each of the 12 candidate arrays below.
+The response public IP is present, matches the fingerprint page, and is not
+the QA server IP. The screenshot and sanitized JSON are retained as
+`webrtc-exact-srcover-049.png` and `webrtc-exact-srcover-049.json` in the local
+`clawbrowser-linux-c067039` evidence set. Neither the classifier nor its inputs
+were modified. Current controlled STUN/TURN results are in the linked artifact
+report. The earlier investigation below is retained with its original hash.
+
 Sandboxed Linux ClawBrowser ELF:
 `5f7fb6e5686c78c775f58f2fdbbdc8202e5b67b5f46cf5b17e8bd2b04d393bb8`.
 The existing managed QA profile passes 35 built-in checks. Its HTTP egress

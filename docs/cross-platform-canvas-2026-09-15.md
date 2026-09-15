@@ -16,6 +16,37 @@ with a rebuild of these latest patches, or site diagnostics with a green scan.
 The additional SVG/PNG mismatch found outside the earlier corpus is fixed in
 this latest Linux artifact; see patch 049's rebuilt-browser result below.
 
+## Latest managed-site check (patch 049)
+
+The extracted `c067039` Linux executable was also verified through the managed
+QA profile: 35/35 internal identity checks pass. The executable path and SHA256
+were checked independently of launch flags. This is ClawBrowser, not a stock
+Chromium control. Managed Remote Control authentication still returns HTTP 401;
+the already-running browser's successful checks do not certify Remote Control
+or Desktop OAuth.
+
+The ordinary PixelScan fingerprint page still reports **inconsistent / Masking
+detected**, with **No proxy detected** and **No automated behavior detected**.
+The original screenshot was retained before a separate instrumented diagnostic.
+That diagnostic reads the existing classifier booleans without replacing its
+inputs or result: fonts=false and canvas=false; the other 11 observed predicates
+are true. Cross-platform raster equality therefore does **not** by itself resolve
+the site's classification of enabled pixel protection.
+
+The ordinary WebRTC checker still displays **WebRTC leak detected**. Passive
+observation of its successful HTTP 200 exchange found all 12 candidate arrays
+empty; the HTTP IP matches the fingerprint page and is not the QA server IP.
+This repeats the [empty-candidate diagnosis](pixelscan-webrtc-empty-candidates-2026-09-15.md)
+on the latest artifact, not a green site result or a new demonstrated host leak.
+No site-specific exception or classifier modification was used.
+
+Local evidence set `clawbrowser-linux-c067039` contains
+`pixelscan-exact-srcover-049.{json,png}` and
+`webrtc-exact-srcover-049.{json,png}`. Screenshots were visually inspected.
+Raw screenshots contain the proxy egress address and are retained locally,
+not committed to this public report. The sanitized WebRTC counts above contain
+no addresses, SDP, credentials, or authentication material.
+
 ## Initial cross-host failure
 
 Compared saved headful observations from macOS ARM64 staged launcher `945d653`
