@@ -294,6 +294,37 @@ case, the CPU-path correctness failures block acceptance independently.
 recipe as the original corpus, recording per-draw deltas without weakening
 the existing comparisons.
 
+## Baseline CPU fused arithmetic candidate
+
+The per-draw diagnostic localized the first differences to seed 7/draw 11
+(two color channels) and seed 65537/draw 1 (one channel), maximum delta 2,
+no alpha differences. Patch 046 gives baseline x86 `mad`/`nmad` the same
+single-rounding semantics as ARM64/AVX2 using `std::fma`, without requiring
+hardware FMA instructions on older CPUs. This also affects the native
+software path; baseline-CPU performance must be measured separately.
+
+Binary `a2f2642c02cf75f6e0be59ac53a607d1d45b027ad99ec4fb781b3f6c138b7a6c`
+built in 57 steps / 4m26.69s. Archive:
+`9bc7bf48162b7e9308b317f070490d6a756ac44716191c8c5513fe02a5eb151e`.
+The new per-draw test passes (29.72s), with zero changed channels at every
+captured draw. Both original native-host corpus gates now pass (46.16s).
+All **60 protected corpus observations match macOS**, including the disabled
+runtime-optimization path that failed on 045. The shared recipe extraction
+also passes on the unchanged Mac binary (17.11s).
+
+These are targeted results, not a full-suite/network/PixelScan acceptance
+for this new artifact. The separate vertical font-metric control still
+finds 56/84 mismatches before a fix; its new assertion fails the old Linux
+candidate while native policy passes (2.49s). Mac passes both cases (3.75s).
+
+The forced-baseline ABBA timing exposes a substantial performance cost:
+native medians 0.7717/0.8163ms before versus 2.2697/2.3467ms after;
+protected 1.1133/1.0777ms before versus 2.5963/2.5643ms after. Seven samples
+of 300 iterations per run, after other QA workloads finished. This is
+roughly 2–3x slower on that path, not an acceptable "no regression" result.
+An optimization preserving correctly rounded FMA is still under investigation;
+do not claim performance readiness from the correctness improvement.
+
 ## New artifact network acceptance
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
