@@ -137,6 +137,12 @@ class MockHandler(BaseHTTPRequestHandler):
             self.wfile.write(b'{"ok":true}\n')
             return
 
+        if self.path == "/__headers-hints":
+            self._write_json(200, {"ok": True}, {
+                "Accept-CH": "Sec-CH-UA-Full-Version-List, Sec-CH-UA-Arch, Sec-CH-UA-Bitness"
+            })
+            return
+
         if self.path == "/__headers":
             self._write_json(
                 200,
@@ -280,12 +286,14 @@ self.addEventListener('message', event => event.waitUntil((async () => {
         if content_length:
             self.rfile.read(content_length)
 
-    def _write_json(self, status_code: int, payload):
+    def _write_json(self, status_code: int, payload, extra_headers=None):
         encoded = json.dumps(payload).encode("utf-8")
         self.send_response(status_code)
         self._write_cors_headers()
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(encoded)))
+        for name, value in (extra_headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(encoded)
 
