@@ -1,6 +1,7 @@
 #include "clawbrowser/font_catalog_typefaces.h"
 #include <cstdlib>
 #include "base/files/file_util.h"
+#include "third_party/skia/include/core/SkString.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace clawbrowser {
@@ -41,6 +42,30 @@ TEST(FontCatalogTypefacesTest, PinnedCatalogUsesOnlyExplicitBytes) {
   EXPECT_TRUE(cjk_regular);
   EXPECT_TRUE(cjk_bold);
   EXPECT_TRUE(named_collection_face);
+  auto regular = MatchCatalogFamily(*faces, "aRiMo", SkFontStyle::Normal());
+  ASSERT_TRUE(regular);
+  EXPECT_EQ(regular->fontStyle().weight(), 400);
+  auto bold = MatchCatalogFamily(*faces, "Arimo", SkFontStyle::Bold());
+  ASSERT_TRUE(bold);
+  EXPECT_EQ(bold->fontStyle().weight(), 700);
+  auto italic = MatchCatalogFamily(*faces, "Arimo", SkFontStyle::Italic());
+  ASSERT_TRUE(italic);
+  EXPECT_EQ(italic->fontStyle().slant(), SkFontStyle::kItalic_Slant);
+  EXPECT_FALSE(MatchCatalogFamily(*faces, "Papyrus", SkFontStyle::Normal()));
+  auto fallback = MatchCatalogCharacter(*faces, {"Arimo", "Noto Color Emoji"},
+                                       SkFontStyle::Normal(), 0x1f600);
+  ASSERT_TRUE(fallback);
+  SkString family;
+  fallback->getFamilyName(&family);
+  EXPECT_EQ(family, SkString("Noto Color Emoji"));
+  auto first = MatchCatalogCharacter(*faces, {"Tinos", "Arimo"},
+                                    SkFontStyle::Normal(), 'A');
+  ASSERT_TRUE(first);
+  first->getFamilyName(&family);
+  EXPECT_EQ(family, SkString("Tinos"));
+  EXPECT_FALSE(MatchCatalogCharacter(*faces, {"Arimo"}, SkFontStyle::Normal(), 0x1f600));
+  EXPECT_FALSE(MatchCatalogCharacter(*faces, {"DejaVu Sans"}, SkFontStyle::Normal(), 0xd800));
+  EXPECT_FALSE(MatchCatalogCharacter(*faces, {"DejaVu Sans"}, SkFontStyle::Normal(), 0x110000));
   RecordProperty("catalog_face_count", static_cast<int>(faces->size()));
 }
 }  // namespace clawbrowser
