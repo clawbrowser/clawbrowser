@@ -55,6 +55,17 @@ proxy or that every fingerprint surface is correct. Screenshot:
 151.0.7922.76 while the build version is 151.0.7922.109; the profile/version
 mapping needs a separate audit before attributing the tile warning.
 
+Source audit at backend PR #3 commit `a6e43ec` explains why a different
+patch version is permitted: `ResolveRuntimeBrowserVersion` deliberately selects
+an alternative catalog version, preferring the same runtime build branch.
+The catalog contains `151.0.7922.76`. The production-path regression explicitly
+requires hiding the exact runtime patch. Therefore `.76` versus `.109` alone
+is not evidence of a broken runtime or the cause of the PixelScan warning.
+This does not establish that every live HTTP/JavaScript version surface agrees.
+Fresh `go test ./internal/fingerprint -count=1` and
+`go test ./internal/provider -count=1` passed locally (0.458s / 0.786s package
+times). Opt-in real BrowserForge tests were not enabled in these commands.
+
 The separate PixelScan WebRTC page reports a potential leak for `24.88.27.72`.
 Its ICE/STUN/TURN detail panels show no local or external candidate addresses.
 The same profile's ordinary PixelScan IP page independently displays exactly
@@ -64,3 +75,26 @@ it must not be reported as a green website result either. The source of that
 site label and the broader fingerprint inconsistency still need analysis.
 Screenshots: `pixelscan-webrtc-capability-after-wait.png` and
 `pixelscan-http-ip-capability.png`.
+
+## Additional interpretation of the same candidate's evidence
+
+The new Linux artifact's controlled STUN capture recorded four independent
+positive-control packets, zero browser packets, and zero capture drops.
+The real TURN/TLS relay tests passed for both HTTP and SOCKS5 proxies
+(2 tests / 18.92s). These are controlled network results, not green PixelScan
+results.
+
+The macOS XML's `cross_context_control` observations were regrouped without
+rerunning the browser or changing assertions. Across five drawing seeds:
+
+| Comparison | Native mismatches | Protected mismatches |
+| --- | --- | --- |
+| DOM / OffscreenCanvas / Worker, identical settings | 0 / 20 groups | 0 / 20 groups |
+| Default / disabled Skia runtime optimizations, identical settings | 0 / 30 groups | 0 / 30 groups |
+| `willReadFrequently=false` / `true`, identical context and optimization flags | 30 / 30 groups | 0 / 30 groups |
+
+This localizes this corpus's native failure to changing the readback hint,
+not worker divergence or the tested Skia optimization switch. It does not yet
+prove the underlying CPU/GPU cause, cross-machine determinism, or PixelScan's
+classification logic. Both native failures remain reported; no test was
+weakened and no product change was made based on this analysis alone.
