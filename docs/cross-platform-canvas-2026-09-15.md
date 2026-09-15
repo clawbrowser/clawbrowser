@@ -342,6 +342,38 @@ the 84 native-policy rows are exactly unchanged from 045. The existing
 outline/advance and 40-stage Canvas golden checks also pass. This artifact
 has not yet completed a new full-suite or network acceptance run.
 
+## Exact arithmetic optimization — still in QA
+
+Patch 048 introduces a separately testable math header. A binary32 product
+is exact in binary64; conversion of the binary64 sum can double-round only
+at a binary32 midpoint. The scalar helper recovers the addition residual
+with TwoSum at those midpoints and preserves signed zero; exceptional ranges
+retain `std::fma`. This relies on Skia's round-to-nearest FP environment.
+The x86 implementation evaluates four lanes with SSE2 double operations and
+uses scalar correction only for lanes needing it. No hardware FMA is required.
+
+The actual header passes **10,039,200 scalar plus 10,039,200 mixed SIMD-lane
+comparisons** against `std::fma`, with baseline SSE2 compiler flags disabling
+AVX/FMA. Inputs include exceptional values, randomized bit patterns and
+adversarial midpoint cases. The naive-double negative control fails **3,217**
+comparisons, ensuring the test exercises double rounding. The regression is
+wired into CI via `scripts/skia_fma_rounding_test.sh`, which extracts the
+actual header from the patch rather than testing a copied implementation.
+
+The first two scalar optimization candidates retained correct browser
+results but did **not** improve baseline performance. Do not present those
+as a successful speedup: candidate `e636472` took about 2.33–2.37ms native /
+2.72–2.73ms protected, and `db46d7e` about 2.52–2.62ms / 2.81–2.95ms on
+the forced-baseline workload. Ordinary runtime measurements overlapped the
+previous candidate. The vectorized revision is under build/runtime QA;
+performance and full-suite acceptance remain pending.
+
+The build helpers now support resetting explicitly patch-created Skia files,
+which are absent from upstream nested HEAD. They continue rejecting unexpected
+absent targets and preserve unrelated files. The new regression fails the
+old helper and passes both updated build paths. No full-checkout reset was
+run on the live QA source tree during a build.
+
 ## New artifact network acceptance
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
