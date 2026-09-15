@@ -595,6 +595,36 @@ A baseline-compiled Clang test using the same target-pragma mechanism passes
 all 17,777,216 scalar/SSE2/AVX2 comparisons. Linux Clang CI runs that case when
 the runner advertises AVX2; a browser rebuild is still required.
 
+### Patch 049 browser result
+
+The corrected build completes 57 steps in 306.31s. ELF:
+`c0670393e68f9df237c9b552483abbc61397608dcc98a86ff057a3cc520ce173`.
+Extracted archive:
+`cab51caad0fe9b5a3a70f5c850c384dbdc79dd702d62a4b68c4d6101618a6cc7`.
+The scoped user-namespace policy is loaded and the browser sandbox remains on.
+
+Three targeted tests pass in 56.82s. Against the unchanged Mac reference,
+**all 16 SVG observations and all 30 protected bitmap observations match**.
+The previously differing 8 emoji/mixed observations and 12 scaled-PNG
+observations are now equal. This confirms the source-over fix for these
+protected examples. Native-policy scaled-image observations still differ
+across hosts; native mode is not certified as normalized rendering.
+
+An isolated bitmap benchmark uses a seeded transparent PNG, fractional scaling,
+readback, seven samples of 1,000 iterations and old/new/new/old runs:
+
+| CPU / policy | Previous run medians, ms | Patched run medians, ms |
+| --- | --- | --- |
+| Default / native | 0.1593 / 0.1661 | 0.1645 / 0.1562 |
+| Default / protected | 0.5955 / 0.5330 | 0.5514 / 0.6017 |
+| Baseline / native | 0.3555 / 0.3438 | 0.3446 / 0.3536 |
+| Baseline / protected | 0.7289 / 0.7868 | 0.7211 / 0.7439 |
+
+Ranges substantially overlap; this workload does not demonstrate a meaningful
+performance regression or a universal speedup. All 16 benchmark cases pass.
+No build, managed site session or other QA CPU workload ran during timing.
+Full regression and separate real-network acceptance are in progress.
+
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
 positive control 4 packets, browser 0 packets through HTTP/SOCKS5, zero kernel
 drops. Real TURN/TLS echo passes both proxy schemes, 2 tests / 18.05s, with
