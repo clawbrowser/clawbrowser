@@ -245,6 +245,55 @@ differs in 60/60 observations. Next isolate the remaining low-precision blend
 and coverage arithmetic; do not treat the small mask reference as universal
 Canvas independence. PixelScan has not yet been rerun on this candidate.
 
+## Uniform low-precision blend rounding
+
+Patch 045 replaces non-NEON Skia `div255`'s approximate `(v+255)/256`
+with the exact integer formula already used on ARM. This is a general
+software-raster change, including native Canvas: performance and regression
+checks are necessary, not optional. It leaves the NEON implementation intact
+and does not change fingerprint noise or special-case a site or drawing.
+
+Linux binary SHA256:
+`b287f4bceec2c7bb2618ddb1952cd2484c9bd5d571d7c731ba3852057a714cca`.
+Archive SHA256:
+`4528e598aae425936a1a424fd01c85130e8d295d137f1aa44cc7fb57cada1c98`.
+Build: 57 steps / 4m27s; separately extracted with sandbox enabled.
+The targeted run passes five tests in 34.39s. All **40 cumulative Canvas
+stages now exactly match** the saved Mac ARM64 observations (previously
+12 differed). This is bounded fixture evidence, not universal rendering
+equivalence. The 40 default-recipe observations are pinned in
+`canvas_stages_reference.json`; the existing Mac ClawBrowser passes the new
+assertion in 11.94s. Alternate diagnostic recipes are excluded from that
+specific golden comparison. The new Linux golden assertion subsequently
+passes too (three tests including two vertical-metric observations / 26.08s).
+
+**This candidate is not ready:** full headful regression reports **123 passed,
+4 failed, 18 skipped / 300.11s**. All four failures are the existing native
+and protected cross-context corpus gates, with and without the two Linux
+fontconfig controls. DOM/Offscreen/Worker and readback hints agree within each
+launch. The difference is between ordinary and `--disable-skia-runtime-opts`
+launches, for recipe seeds 7 and 65537 only. The ordinary runtime now matches
+the saved Mac corpus completely; the comparison across both launch modes is
+108/120 equal, with 12 differing fallback-CPU observations. Do not weaken
+that gate or promote the candidate based only on the ordinary runtime.
+
+Sequential ABBA raster timing used 7 samples of 300 iterations per mode,
+after build/staging/full tests finished. Per-run medians in milliseconds:
+
+| Run | Binary | Native | Protected |
+| --- | --- | ---: | ---: |
+| A1 | 044 | 0.4863 | 0.7180 |
+| B1 | 045 | 0.4333 | 0.7833 |
+| B2 | 045 | 0.4750 | 0.7247 |
+| A2 | 044 | 0.4350 | 0.7120 |
+
+The small benchmark has overlapping sample ranges and cannot establish
+absence of regression; protected timings may be modestly slower. In any
+case, the CPU-path correctness failures block acceptance independently.
+`test_canvas_recipe_steps.py` is an opt-in diagnostic using the same shared
+recipe as the original corpus, recording per-draw deltas without weakening
+the existing comparisons.
+
 ## New artifact network acceptance
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
