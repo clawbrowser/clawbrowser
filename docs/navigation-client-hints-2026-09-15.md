@@ -25,8 +25,34 @@ correctly rejected that content-private API. That attempt was removed rather
 than bypassing the API boundary.
 No header is injected through DevTools and no site-specific exception is added.
 
-Validation in progress: patch syntax/reverse application and fingerprint
-contract pass. Linux incremental runtime build is pending. macOS rebuild is
-blocked before compilation by Xcode's license acceptance requirement; no
-license was accepted automatically. This fix is not yet runtime-validated
-and does not make the PR ready to merge.
+## Runtime evidence
+
+The corrected factory implementation built successfully on Linux in 2m44s.
+ELF SHA256: `a6f3c1aa11cfd72dc07c221f0d2f99efb2c9c7a2cf74cb4ee776f05c82deba7f`.
+Archive SHA256: `1502f54d72aae1044824c33446ee25d41a2f0bba8be092f7fd60a4e87516ea0d`.
+The extracted archive's ELF hash matches. Sandbox remains enabled.
+
+- Old Linux navigation regression fails in 1.34s with major 151 instead of
+  fixture major 120 (`navigation-ch-linux-before.xml`).
+- Another old macOS regression fails in 2.70s: after server `Accept-CH` opt-in,
+  full-version-list is empty, as is architecture. No client-side header
+  modification is involved (`navigation-high-ch-before.xml`).
+- New extracted Linux candidate passes both navigation regressions, existing
+  fetch-header and JS metadata checks, and vanilla launch: 5 passed / 5.84s
+  (`navigation-ch-linux-after.xml`).
+- Normal managed restart with the new candidate passes all 35 internal checks.
+  On PixelScan, Window/Worker metadata and the document's CDP-reported outgoing
+  headers agree on brands and UA. This is a live managed browser observation;
+  the local-server tests above independently observe received headers.
+
+PixelScan still reports **inconsistent / Masking detected** on the new candidate.
+The uninstrumented screenshot is `pixelscan-navigation-ch.png`. A subsequent,
+separately labelled diagnostic reads already-computed classifier booleans with
+a non-pausing conditional breakpoint: fonts=false, canvas=false; the other
+11 conditions=true. It does not replace inputs or decisions. Debugging was
+disabled after capture. This confirms remaining work, not a green website gate.
+
+macOS rebuild remains blocked before compilation by Xcode's license acceptance
+requirement; no license was accepted automatically. Full Linux integration is
+still running at this checkpoint. No new-platform acceptance, complete leak
+resolution, or merge readiness is claimed.
