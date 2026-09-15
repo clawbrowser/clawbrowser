@@ -10,9 +10,15 @@ namespace clawbrowser {
 
 namespace {
 
-// Normal browser traffic can use a proxy while WebRTC independently opens a
-// direct UDP/STUN route. Keep this Chromium policy alongside every proxy
-// launch as a release-safe defence in depth to prevent an ICE IP leak.
+// A fingerprint-backed managed session can proxy normal browser traffic while
+// WebRTC independently opens a direct UDP/STUN route. Headful Chrome reads
+// this switch into the webrtc.ip_handling_policy preference. The similarly
+// named --force-webrtc-ip-handling-policy switch is only consumed by Content
+// Shell and Headless, so retain both forms: the headful switch protects the
+// managed production Clawbrowser path and the force switch protects its
+// test/headless entry points.
+constexpr char kWebRtcIpHandlingPolicy[] =
+    "--webrtc-ip-handling-policy=disable_non_proxied_udp";
 constexpr char kForceWebRtcIpHandlingPolicy[] =
     "--force-webrtc-ip-handling-policy=disable_non_proxied_udp";
 
@@ -187,7 +193,9 @@ std::vector<std::string> GetProxyCommandLineFlags(
 
   std::vector<std::string> flags;
   flags.push_back("--proxy-server=" + *proxy_server);
+  flags.push_back(kWebRtcIpHandlingPolicy);
   flags.push_back(kForceWebRtcIpHandlingPolicy);
+  flags.push_back("--proxy-bypass-list=<-loopback>");
   return flags;
 }
 
@@ -205,7 +213,9 @@ std::vector<std::string> GetProxyCommandLineFlags(
 
   std::vector<std::string> flags;
   flags.push_back("--proxy-server=" + *proxy_server);
+  flags.push_back(kWebRtcIpHandlingPolicy);
   flags.push_back(kForceWebRtcIpHandlingPolicy);
+  flags.push_back("--proxy-bypass-list=<-loopback>");
   return flags;
 }
 

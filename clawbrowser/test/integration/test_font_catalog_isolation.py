@@ -19,8 +19,8 @@ from conftest import (FIXTURE_DIR, FINGERPRINT_ID, _launch_browser_with_details,
 
 @pytest.mark.asyncio
 async def test_legacy_font_list_is_reconciled_before_child_launch(tmp_path):
-    if sys.platform != 'linux':
-        pytest.skip('bundled font profile migration is Linux-only')
+    if sys.platform not in ('linux', 'darwin'):
+        pytest.skip('bundled font profile migration requires Linux or macOS')
     fixture = json.loads((FIXTURE_DIR / 'valid_fingerprint.json').read_text())
     fixture['response']['fingerprint']['fonts'] = ['Bitstream Vera Sans Mono']
     fixture['request'].pop('runtime_font_catalog', None)
@@ -45,8 +45,8 @@ async def test_legacy_font_list_is_reconciled_before_child_launch(tmp_path):
 
 @pytest.mark.asyncio
 async def test_bundled_local_faces_resolve_full_and_postscript_names(tmp_path):
-    if sys.platform != 'linux':
-        pytest.skip('bundled Fontconfig catalog is Linux-only')
+    if sys.platform not in ('linux', 'darwin'):
+        pytest.skip('bundled catalog requires Linux or macOS')
     names = ['Arimo Regular', 'Arimo-Regular', 'Tinos Regular',
              'Tinos-Regular', 'Cousine Regular', 'Cousine-Regular',
              'DejaVuSans', 'Lohit-Devanagari',

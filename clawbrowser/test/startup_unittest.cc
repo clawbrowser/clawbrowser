@@ -8,6 +8,7 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/path_service.h"
+#include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/task_environment.h"
@@ -31,6 +32,10 @@
 #if BUILDFLAG(IS_WIN)
 #include "base/base_paths_win.h"
 #endif
+#if BUILDFLAG(IS_MAC)
+#include "base/apple/bundle_locations.h"
+#include "clawbrowser/font_catalog_identity.h"
+#endif
 
 namespace clawbrowser {
 namespace {
@@ -39,6 +44,23 @@ constexpr char kConfiguredApiBaseUrl[] = "http://127.0.0.1:8787";
 
 class StartupTest : public testing::Test {
  protected:
+#if BUILDFLAG(IS_MAC)
+  static base::ScopedTempDir& CatalogBundle() {
+    static base::NoDestructor<base::ScopedTempDir> bundle;
+    return *bundle;
+  }
+  static void SetUpTestSuite() {
+    ASSERT_TRUE(CatalogBundle().CreateUniqueTempDir());
+    base::FilePath executable_dir;
+    ASSERT_TRUE(base::PathService::Get(base::DIR_EXE, &executable_dir));
+    const auto resources = CatalogBundle().GetPath().AppendASCII("Resources");
+    ASSERT_TRUE(base::CreateDirectory(resources));
+    ASSERT_TRUE(base::CopyDirectory(
+        executable_dir.AppendASCII("clawbrowser-fonts"),
+        resources.AppendASCII("clawbrowser-fonts"), true));
+  }
+  static void TearDownTestSuite() { EXPECT_TRUE(CatalogBundle().Delete()); }
+#endif
   static std::string HttpStatusLine(net::HttpStatusCode status) {
     switch (status) {
       case net::HTTP_UNAUTHORIZED:
@@ -53,6 +75,9 @@ class StartupTest : public testing::Test {
   }
 
   void SetUp() override {
+#if BUILDFLAG(IS_MAC)
+    base::apple::SetOverrideFrameworkBundlePath(CatalogBundle().GetPath());
+#endif
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
 #if BUILDFLAG(IS_WIN)
     local_app_data_override_ =
@@ -71,6 +96,9 @@ class StartupTest : public testing::Test {
   }
 
   void TearDown() override {
+#if BUILDFLAG(IS_MAC)
+    base::apple::SetOverrideFrameworkBundlePath(base::FilePath());
+#endif
     FingerprintAccessor::Reset();
     env_->UnSetVar("HOME");
     env_->UnSetVar("CLAWBROWSER_API_KEY");
@@ -381,6 +409,36 @@ TEST_F(StartupTest, HandleBasicStartupCompleteListsProfiles) {
   EXPECT_NE(stdout_output.find("\"id\": \"list_profile\""), std::string::npos);
 }
 
+#if BUILDFLAG(IS_MAC)
+TEST_F(StartupTest, MissingMacCatalogStopsManagedStartup) {
+  WriteCachedProfile("missing_catalog");
+  WriteConfigJson("test_key");
+  base::apple::SetOverrideFrameworkBundlePath(temp_dir_.GetPath());
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "missing_catalog");
+  cmd.AppendArg("https://example.com/");
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  EXPECT_FALSE(result.has_value());
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+}
+
+TEST_F(StartupTest, CorruptMacCatalogStopsManagedStartup) {
+  WriteCachedProfile("corrupt_catalog");
+  WriteConfigJson("test_key");
+  const auto resources = temp_dir_.GetPath().AppendASCII("Resources");
+  ASSERT_TRUE(base::CopyDirectory(
+      CatalogBundle().GetPath().AppendASCII("Resources"), resources, true));
+  ASSERT_TRUE(base::WriteFile(resources.AppendASCII("clawbrowser-fonts")
+      .AppendASCII(kLinuxFontCatalogID).AppendASCII("manifest.json"), "{}"));
+  base::apple::SetOverrideFrameworkBundlePath(temp_dir_.GetPath());
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "corrupt_catalog");
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  EXPECT_FALSE(result.has_value());
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+}
+#endif
+
 TEST_F(StartupTest, FingerprintWithCachedProfile) {
   WriteCachedProfile("cached_profile");
   WriteConfigJson("test_key");
@@ -402,6 +460,10 @@ TEST_F(StartupTest, FingerprintWithCachedProfile) {
   EXPECT_TRUE(cmd.HasSwitch("proxy-server"));
   EXPECT_EQ(cmd.GetSwitchValueASCII("proxy-server"),
             "http://proxy.example.com:8080");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("webrtc-ip-handling-policy"),
+            "disable_non_proxied_udp");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("force-webrtc-ip-handling-policy"),
+            "disable_non_proxied_udp");
   EXPECT_TRUE(cmd.HasSwitch("lang"));
   EXPECT_TRUE(cmd.HasSwitch("accept-lang"));
   EXPECT_TRUE(cmd.HasSwitch("user-agent"));
@@ -612,6 +674,10 @@ TEST_F(StartupTest,
             std::string::npos);
   EXPECT_EQ(cmd.GetSwitchValueASCII("proxy-server").find("dev_pass"),
             std::string::npos);
+  EXPECT_EQ(cmd.GetSwitchValueASCII("webrtc-ip-handling-policy"),
+            "disable_non_proxied_udp");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("force-webrtc-ip-handling-policy"),
+            "disable_non_proxied_udp");
 
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   ASSERT_TRUE(cmd.HasSwitch(kFingerprintChildDataSwitch));
@@ -705,6 +771,26 @@ TEST_F(StartupTest, ConfigureEarlyStartupIsolatesFingerprintWebGL) {
   EXPECT_EQ(cmd.GetSwitchValueASCII("use-angle"), "swiftshader");
   EXPECT_EQ(cmd.GetSwitchValueASCII("use-webgpu-adapter"), "swiftshader");
   EXPECT_TRUE(cmd.HasSwitch(kDisableWebGLSpoofingSwitch));
+}
+
+TEST_F(StartupTest, ConfigureEarlyStartupPinsLinuxCanvasRasterizer) {
+  WriteConfigJson("test_key");
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "isolated_canvas_profile");
+  auto result = ConfigureEarlyStartup(&cmd);
+  ASSERT_TRUE(result.has_value()) << result.error();
+#if BUILDFLAG(IS_LINUX)
+  EXPECT_TRUE(cmd.HasSwitch("disable-accelerated-2d-canvas"));
+#else
+  EXPECT_FALSE(cmd.HasSwitch("disable-accelerated-2d-canvas"));
+#endif
+}
+
+TEST_F(StartupTest, ConfigureEarlyStartupKeepsVanillaCanvasRasterizer) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  auto result = ConfigureEarlyStartup(&cmd);
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(cmd.HasSwitch("disable-accelerated-2d-canvas"));
 }
 
 TEST_F(StartupTest, ConfigureEarlyStartupKeepsDisableGPUWithSwiftShader) {

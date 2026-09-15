@@ -1,0 +1,19 @@
+{
+  "recipe": "arimo17-black-on-white-v1",
+  "reference_host": "macOS ARM64",
+  "reference_binary_sha256": "945d653b9470f2465381e246d944afc02b16facc51f371e964275167db13c4df",
+  "font_asset_sha256": "eafef8c99e94d10f17506c125e24d98a84256e0e665e6c659498eca96b19e148",
+  "canvas_seed": 1234567890,
+  "width": 192,
+  "height": 64,
+  "hashes": {
+    "auto/x3/y24": "da5160749a8b0ca003213b14f49902075eb08adb3d959b3349eccf8512591dd5",
+    "auto/x3/y24.75": "5f18ae12dfb96caaea09c0cecd20439a6186b8d4b9a9125cf2d86bc7296680de",
+    "auto/x3.25/y24": "80889ac3849f91748cbf25abac1f590ae641944e409ccc34f981fb88197ec74b",
+    "auto/x3.25/y24.75": "4256580c7c8729a0616611d8972acfe476c6602eebb420617ba60633d7c82215",
+    "geometricPrecision/x3/y24": "990cdd2c8d3beddda2cd8575dfe48eb4ca0675c071084663a30bb51fd4fbddd1",
+    "geometricPrecision/x3/y24.75": "dfd9e303eaf78cedfcaa6b2b75c2fcc363442397bcf80ff6ed603855234e0798",
+    "geometricPrecision/x3.25/y24": "d56b0c823635f4c88e96a1ac102096b7fbdbee58a7a28431f582c5152def3ade",
+    "geometricPrecision/x3.25/y24.75": "1fdb6ac52e4bc42c2330fa4f3c6314758fd5a6c94e93b2a6c0abd145b842d4fb"
+  }
+}

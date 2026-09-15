@@ -22,3 +22,43 @@
    return embedder_support::GetUserAgentMetadata();
  }
  
+--- a/chrome/browser/client_hints/client_hints_factory.cc
++++ b/chrome/browser/client_hints/client_hints_factory.cc
+@@ -3,6 +3,8 @@
+ // found in the LICENSE file.
+
+ #include "chrome/browser/client_hints/client_hints_factory.h"
++#include "clawbrowser/fingerprint_accessor.h"
++#include "clawbrowser/user_agent_metadata.h"
+
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/content_settings/cookie_settings_factory.h"
+@@ -15,6 +17,19 @@
+
+ namespace {
+
++class ClawBrowserClientHints : public client_hints::ClientHints {
++ public:
++  using client_hints::ClientHints::ClientHints;
++
++  blink::UserAgentMetadata GetUserAgentMetadata() override {
++    if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++        fp && !fp->user_agent.empty()) {
++      return clawbrowser::BuildUserAgentMetadata(*fp);
++    }
++    return client_hints::ClientHints::GetUserAgentMetadata();
++  }
++};
++
+ base::LazyInstance<ClientHintsFactory>::DestructorAtExit
+     g_client_hints_factory = LAZY_INSTANCE_INITIALIZER;
+
+@@ -55,7 +70,7 @@
+     content::BrowserContext* context) const {
+   // CookieSettingsFactory::GetForProfile can only be called on the UI thread.
+   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+-  return std::make_unique<client_hints::ClientHints>(
++  return std::make_unique<ClawBrowserClientHints>(
+       context, g_browser_process->network_quality_tracker(),
+       HostContentSettingsMapFactory::GetForProfile(context),
+       CookieSettingsFactory::GetForProfile(

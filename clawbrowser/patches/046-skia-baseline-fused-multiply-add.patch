@@ -1,0 +1,21 @@
+--- a/third_party/skia/src/opts/SkRasterPipeline_opts.h
++++ b/third_party/skia/src/opts/SkRasterPipeline_opts.h
+@@ -21,2 +21,3 @@
++#include <cmath>
+ #include <cstdint>
+ #include <type_traits>
+@@ -798,3 +799,12 @@
+-    SI F   mad(F f, F m, F a)  { return a+f*m;              }
+-    SI F  nmad(F f, F m, F a)  { return a-f*m;              }
++    // Match ARM64/AVX2's single-rounding semantics on the baseline x86 path.
++    // std::fma provides a correctly rounded fallback without requiring FMA
++    // instructions on CPUs that do not support them.
++    SI F mad(F f, F m, F a) {
++        return F{std::fma(f[0], m[0], a[0]), std::fma(f[1], m[1], a[1]),
++                 std::fma(f[2], m[2], a[2]), std::fma(f[3], m[3], a[3])};
++    }
++    SI F nmad(F f, F m, F a) {
++        return F{std::fma(-f[0], m[0], a[0]), std::fma(-f[1], m[1], a[1]),
++                 std::fma(-f[2], m[2], a[2]), std::fma(-f[3], m[3], a[3])};
++    }
+     SI F   abs_(F v)           { return _mm_and_ps(v, 0-v); }

@@ -15,7 +15,10 @@ namespace clawbrowser {
 
 namespace {
 
-constexpr int kTimeoutSeconds = 10;
+// Generation includes proxy geo discovery and has a 30s backend budget.
+// Leave time to receive a structured timeout instead of canceling it early.
+constexpr int kGenerateTimeoutSeconds = 35;
+constexpr int kVerifyTimeoutSeconds = 20;  // Backend proxy lookup allows 15s.
 constexpr int kMaxResponseBytes = 256 * 1024;  // 256KB
 
 net::NetworkTrafficAnnotationTag GetTrafficAnnotation() {
@@ -84,7 +87,7 @@ void ApiClient::GenerateFingerprint(const GenerateRequest& params,
       std::move(resource_request), GetTrafficAnnotation());
   loader_->AttachStringForUpload(body_json, "application/json");
   loader_->SetAllowHttpErrorResults(true);
-  loader_->SetTimeoutDuration(base::Seconds(kTimeoutSeconds));
+  loader_->SetTimeoutDuration(base::Seconds(kGenerateTimeoutSeconds));
 
   loader_->DownloadToString(
       url_loader_factory_.get(),
@@ -140,7 +143,7 @@ void ApiClient::VerifyProxy(const VerifyProxyRequest& request,
       std::move(resource_request), GetTrafficAnnotation());
   loader_->AttachStringForUpload(body_json, "application/json");
   loader_->SetAllowHttpErrorResults(true);
-  loader_->SetTimeoutDuration(base::Seconds(kTimeoutSeconds));
+  loader_->SetTimeoutDuration(base::Seconds(kVerifyTimeoutSeconds));
 
   loader_->DownloadToString(
       url_loader_factory_.get(),
