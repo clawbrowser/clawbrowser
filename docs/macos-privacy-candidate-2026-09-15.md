@@ -69,3 +69,18 @@ This workload favors software readback and does **not** establish animation,
 GPU-heavy, transferred-canvas presentation or overall application performance.
 Those and the full/platform/network gates remain necessary. Evidence:
 `patch038-gates.xml` and `raster-cost.json` alongside the original results.
+
+## Explicit remaining macOS font boundary
+
+The full-suite CDP provenance artifact records actual system fallbacks even
+while the blocked-family equivalence test passes: Arabic uses Geeza Pro, CJK
+uses PingFangSC-Regular, Devanagari uses KohinoorDevanagari-Regular, and emoji
+uses AppleColorEmoji. Direct requests for Papyrus/Copperplate match the generic
+baseline, but generic character fallback still depends on this host's CoreText
+catalog. CDP observation is privileged diagnostic evidence, not proof that a
+web page can enumerate these exact names. Their glyph metrics/rendering remain
+an unclosed host-dependent surface. Do not claim the Linux bundled-catalog
+isolation has been implemented on macOS or that patch 038 normalizes font
+rasterization across operating systems. A controlled catalog/fallback strategy
+must preserve language and emoji coverage; simply rejecting these glyphs is
+not an acceptable fix.
