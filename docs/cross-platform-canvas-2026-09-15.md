@@ -230,6 +230,21 @@ the previous Linux candidate. This confirms the isolated text-transfer cause,
 not all possible text drawings or all platforms. Full regression and the
 larger cross-host corpus comparison are running separately.
 
+The new full headful run completed **126 passed, 18 skipped, zero failures in
+295.88s**. A separate 12-way test covers alpha true/false, both readback hints,
+and DOM/Offscreen/Worker: all match the same pinned protected reference
+(3.01s). The previous binary fails (3.08s) and produces two distinct hashes
+instead of one across those surface settings. This extra test was added after
+full-suite collection and is not counted in the 126.
+
+The larger comparison remains incomplete: PNG 12/12 and color-format 48/48
+still match Mac. In the 40 cumulative text/shape stages, differences fall
+from 24 to **12**, now **only unorm8 backing**; all float16 stages match,
+including fallback text and the shadow. The five-seed unorm8 corpus still
+differs in 60/60 observations. Next isolate the remaining low-precision blend
+and coverage arithmetic; do not treat the small mask reference as universal
+Canvas independence. PixelScan has not yet been rerun on this candidate.
+
 ## New artifact network acceptance
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
