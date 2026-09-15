@@ -16,9 +16,13 @@ test URL-construction error, the actual header assertion fails in 2.69s
 
 Cause: `client_hints::ClientHints::GetUserAgentMetadata` calls
 `embedder_support::GetUserAgentMetadata` directly. This bypasses the
-ClawBrowser override in `ChromeContentBrowserClient`. Patch 024 now routes
-the delegate through the content browser client, preserving the existing
-fingerprint metadata builder and downstream Client Hints permission rules.
+ClawBrowser override in `ChromeContentBrowserClient`. Patch 024 now creates
+a Chrome-layer delegate subclass that uses the same fingerprint metadata
+builder and preserves downstream Client Hints permission rules. With no
+fingerprint it calls the original delegate. The first implementation tried
+to call `content::GetContentClient` from the components layer; Linux compilation
+correctly rejected that content-private API. That attempt was removed rather
+than bypassing the API boundary.
 No header is injected through DevTools and no site-specific exception is added.
 
 Validation in progress: patch syntax/reverse application and fingerprint
