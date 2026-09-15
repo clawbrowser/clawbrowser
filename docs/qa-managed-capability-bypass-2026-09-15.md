@@ -29,5 +29,38 @@ Evidence:
   of additional targets and was stopped; those added unit cases are not yet
   claimed as executed. The real-browser regression above did execute.
 
-Linux rebuild, fresh archive acceptance and managed PixelScan remain separate
-gates. A passed fixture or isolated-service test does not prove desktop OAuth.
+The next managed attempt exposed a second defect in nextctl: final browser
+argument filtering discarded the lifecycle layer's own `--clawbrowser-require-proxy`.
+PR nextbrowser-oss/nextctl#26 commit `f1ef79f` restores the canonical flag once,
+after filtering duplicates and user variants. The final-argv regression failed
+for Linux/macOS/Windows before the fix, then passed. CLI, launcher, session and
+path packages passed; all four CLI cross-platform CI builds passed.
+
+With both fixes, normal managed startup against QA port 18081 succeeded and
+`nbc verify` passed all 35 checks. Authentication used the isolated integration
+account; desktop OAuth is still not covered. The rebuilt Linux archive passed
+120 integration tests with 16 skips in 282.54 seconds. macOS passed 119 with
+15 skips and the same two native-canvas failures in 275.78 seconds.
+
+Linux ELF SHA256: `63a0b953f0c8fb27b60f9dd627f111f4ddecad438eeb5a97c33407b4c7d80924`.
+Archive SHA256: `b6277fa3d8b18a382a057940c8f67daa32794059d9d35811fb96fb4248344d3c`.
+The extracted binary hash matches. Sandbox and the capability gate stayed on.
+
+PixelScan's fingerprint page was reached through this managed profile and
+still reports **inconsistent / Masking detected**. Its displayed location was
+United States / Stanley, with “No proxy detected” and “No automated behavior
+detected.” Those website labels are not proof that there is no configured
+proxy or that every fingerprint surface is correct. Screenshot:
+`pixelscan-capability-fixed.png`. The browser-version tile displayed
+151.0.7922.76 while the build version is 151.0.7922.109; the profile/version
+mapping needs a separate audit before attributing the tile warning.
+
+The separate PixelScan WebRTC page reports a potential leak for `24.88.27.72`.
+Its ICE/STUN/TURN detail panels show no local or external candidate addresses.
+The same profile's ordinary PixelScan IP page independently displays exactly
+`24.88.27.72` (Stanley, US). This is not the QA server address `151.115.167.3`.
+Thus the red label in this run does not demonstrate exposure of the server IP;
+it must not be reported as a green website result either. The source of that
+site label and the broader fingerprint inconsistency still need analysis.
+Screenshots: `pixelscan-webrtc-capability-after-wait.png` and
+`pixelscan-http-ip-capability.png`.
