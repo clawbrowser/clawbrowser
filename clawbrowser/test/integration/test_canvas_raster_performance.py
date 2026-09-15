@@ -14,12 +14,16 @@ from test_isolated_canvas_control import canvas_control_files
 async def test_canvas_raster_timing(tmp_path, record_property, mode):
     if os.environ.get('CLAWBROWSER_QA_RASTER_TIMING') != '1':
         pytest.skip('opt-in comparative timing only')
+    iterations = int(os.environ.get('CLAWBROWSER_QA_RASTER_BATCH', '30'))
+    assert 1 <= iterations <= 1000
+    baseline = os.environ.get('CLAWBROWSER_QA_RASTER_BASELINE') == '1'
     fixture, mock = canvas_control_files(tmp_path, mode)
     async with _launch_browser_with_details(
         fixture_name=str(fixture), backend_mode='mock', skip_verify=True,
         headless=False, fingerprints_fixture_path=mock,
+        extra_browser_args=['--disable-skia-runtime-opts'] if baseline else [],
     ) as launch:
-        result = await launch['page'].evaluate('''() => {
+        result = await launch['page'].evaluate('''(iterations) => {
             const canvas=document.createElement('canvas');canvas.width=256;canvas.height=128;
             const c=canvas.getContext('2d',{willReadFrequently:true});
             const gradient=c.createLinearGradient(.3,.7,250.5,120.25);
@@ -36,12 +40,14 @@ async def test_canvas_raster_timing(tmp_path, record_property, mode):
             for(let i=0;i<10;i++)draw();
             const samples=[];let length;
             for(let round=0;round<7;round++){
-                const start=performance.now();for(let i=0;i<30;i++)length=draw();
-                samples.push((performance.now()-start)/30);
+                const start=performance.now();for(let i=0;i<iterations;i++)length=draw();
+                samples.push((performance.now()-start)/iterations);
             }
             return {samples,length};
-        }''')
+        }''', iterations)
     assert result['length'] == 256 * 128 * 4
     assert len(result['samples']) == 7 and all(x > 0 for x in result['samples'])
-    record_property('raster_timing', json.dumps({'mode':mode, 'samples_ms':result['samples'],
+    record_property('raster_timing', json.dumps({'mode':mode, 'iterations_per_sample':iterations,
+                                                'baseline_cpu':baseline,
+                                                'samples_ms':result['samples'],
                                                 'median_ms':statistics.median(result['samples'])}))

@@ -7,7 +7,7 @@ import zlib
 
 import pytest
 
-from conftest import _launch_browser_with_details
+from conftest import FIXTURE_DIR, _launch_browser_with_details
 from test_isolated_canvas_control import canvas_control_files
 
 
@@ -96,3 +96,9 @@ async def test_canvas_corpus_stages(tmp_path, record_property, mode):
         if row['stage'] in ('latin', 'fallback'):
             advances.setdefault(row['stage'], set()).add(row['metrics']['width'])
     assert all(len(widths) == 1 for widths in advances.values()), advances
+    if not gamma_control and not source_over:
+        # Independently recorded on the pinned macOS ARM64 ClawBrowser.
+        # Diagnostic recipes must not be compared to the default recipe.
+        reference = json.loads((FIXTURE_DIR / 'canvas_stages_reference.json').read_text())
+        assert reference['seed'] == seed
+        assert observations == reference['observations'], 'Canvas stages differ from cross-host reference'

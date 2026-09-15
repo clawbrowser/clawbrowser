@@ -1,0 +1,288 @@
+{
+  "reference_binary_sha256": "945d653b9470f2465381e246d944afc02b16facc51f371e964275167db13c4df",
+  "reference_platform": "macOS arm64",
+  "recipe": "test_canvas_corpus_stages default multiply; 192x128; bundled font catalog prototype 3",
+  "seed": 1234567890,
+  "observations": [
+    {
+      "stage": "gradient",
+      "colorType": "unorm8",
+      "willReadFrequently": false,
+      "textRendering": "auto",
+      "hash": "8d5dfa930bff20881ac855b3b8f2e7f584be13827ad2ed46d5d16cbbaf57c857"
+    },
+    {
+      "stage": "curve",
+      "colorType": "unorm8",
+      "willReadFrequently": false,
+      "textRendering": "auto",
+      "hash": "1934768a6a2a334163d1a7474c5abe2d0847240f353dc8c324540ff351984b0c"
+    },
+    {
+      "stage": "latin",
+      "colorType": "unorm8",
+      "willReadFrequently": false,
+      "textRendering": "auto",
+      "hash": "74d02b1a52141107a227a0c83f0b5330aff57487c998a73adce78679ade18e3f"
+    },
+    {
+      "stage": "fallback",
+      "colorType": "unorm8",
+      "willReadFrequently": false,
+      "textRendering": "auto",
+      "hash": "5402e93d64df8da7b2eab1b67899c541924d4dbbc585fa7438413b7dfdd51846"
+    },
+    {
+      "stage": "shadow",
+      "colorType": "unorm8",
+      "willReadFrequently": false,
+      "textRendering": "auto",
+      "hash": "ebb739800efc82d43b732a2a948d1f1f6a5614c242d643565f04af969f371c5e"
+    },
+    {
+      "stage": "gradient",
+      "colorType": "unorm8",
+      "willReadFrequently": true,
+      "textRendering": "auto",
+      "hash": "8d5dfa930bff20881ac855b3b8f2e7f584be13827ad2ed46d5d16cbbaf57c857"
+    },
+    {
+      "stage": "curve",
+      "colorType": "unorm8",
+      "willReadFrequently": true,
+      "textRendering": "auto",
+      "hash": "1934768a6a2a334163d1a7474c5abe2d0847240f353dc8c324540ff351984b0c"
+    },
+    {
+      "stage": "latin",
+      "colorType": "unorm8",
+      "willReadFrequently": true,
+      "textRendering": "auto",
+      "hash": "74d02b1a52141107a227a0c83f0b5330aff57487c998a73adce78679ade18e3f"
+    },
+    {
+      "stage": "fallback",
+      "colorType": "unorm8",
+      "willReadFrequently": true,
+      "textRendering": "auto",
+      "hash": "5402e93d64df8da7b2eab1b67899c541924d4dbbc585fa7438413b7dfdd51846"
+    },
+    {
+      "stage": "shadow",
+      "colorType": "unorm8",
+      "willReadFrequently": true,
+      "textRendering": "auto",
+      "hash": "ebb739800efc82d43b732a2a948d1f1f6a5614c242d643565f04af969f371c5e"
+    },
+    {
+      "stage": "gradient",
+      "colorType": "float16",
+      "willReadFrequently": false,
+      "textRendering": "auto",
+      "hash": "5247e087dbc1e44de78b56ec0e33bff4c62b35cecfd3b0f136cd899c5df9cae9"
+    },
+    {
+      "stage": "curve",
+      "colorType": "float16",
+      "willReadFrequently": false,
+      "textRendering": "auto",
+      "hash": "b2fd555b977d2d343464eca6fc24c0a3611f7ba6149412fd4e34214f04cc49b3"
+    },
+    {
+      "stage": "latin",
+      "colorType": "float16",
+      "willReadFrequently": false,
+      "textRendering": "auto",
+      "hash": "8ab0b83e60ad8313184109e3e2424fea98383a0cba8bf9e372847858b90cdf92"
+    },
+    {
+      "stage": "fallback",
+      "colorType": "float16",
+      "willReadFrequently": false,
+      "textRendering": "auto",
+      "hash": "e314dc3bf9dff893eb35e6bd3b8d3b5bd6349bd3fc1e2935a78308a8000551c6"
+    },
+    {
+      "stage": "shadow",
+      "colorType": "float16",
+      "willReadFrequently": false,
+      "textRendering": "auto",
+      "hash": "b755b3ad79daf0049785cc5af08fa9234f66a9cc640ee8019b94ff71a11618c5"
+    },
+    {
+      "stage": "gradient",
+      "colorType": "float16",
+      "willReadFrequently": true,
+      "textRendering": "auto",
+      "hash": "5247e087dbc1e44de78b56ec0e33bff4c62b35cecfd3b0f136cd899c5df9cae9"
+    },
+    {
+      "stage": "curve",
+      "colorType": "float16",
+      "willReadFrequently": true,
+      "textRendering": "auto",
+      "hash": "b2fd555b977d2d343464eca6fc24c0a3611f7ba6149412fd4e34214f04cc49b3"
+    },
+    {
+      "stage": "latin",
+      "colorType": "float16",
+      "willReadFrequently": true,
+      "textRendering": "auto",
+      "hash": "8ab0b83e60ad8313184109e3e2424fea98383a0cba8bf9e372847858b90cdf92"
+    },
+    {
+      "stage": "fallback",
+      "colorType": "float16",
+      "willReadFrequently": true,
+      "textRendering": "auto",
+      "hash": "e314dc3bf9dff893eb35e6bd3b8d3b5bd6349bd3fc1e2935a78308a8000551c6"
+    },
+    {
+      "stage": "shadow",
+      "colorType": "float16",
+      "willReadFrequently": true,
+      "textRendering": "auto",
+      "hash": "b755b3ad79daf0049785cc5af08fa9234f66a9cc640ee8019b94ff71a11618c5"
+    },
+    {
+      "stage": "gradient",
+      "colorType": "unorm8",
+      "willReadFrequently": false,
+      "textRendering": "geometricPrecision",
+      "hash": "8d5dfa930bff20881ac855b3b8f2e7f584be13827ad2ed46d5d16cbbaf57c857"
+    },
+    {
+      "stage": "curve",
+      "colorType": "unorm8",
+      "willReadFrequently": false,
+      "textRendering": "geometricPrecision",
+      "hash": "1934768a6a2a334163d1a7474c5abe2d0847240f353dc8c324540ff351984b0c"
+    },
+    {
+      "stage": "latin",
+      "colorType": "unorm8",
+      "willReadFrequently": false,
+      "textRendering": "geometricPrecision",
+      "hash": "10f876add2066f87eeb5d00dc11c7fc1989ca368dadd031ce7ef1874d72eeb16"
+    },
+    {
+      "stage": "fallback",
+      "colorType": "unorm8",
+      "willReadFrequently": false,
+      "textRendering": "geometricPrecision",
+      "hash": "446b83593dc943a28218a37d639dd994e2d8b37de080002f61454e7d03891448"
+    },
+    {
+      "stage": "shadow",
+      "colorType": "unorm8",
+      "willReadFrequently": false,
+      "textRendering": "geometricPrecision",
+      "hash": "c644374e28d0bb925c992312f2b24812a1b4216cb443d02727481a43b91404a8"
+    },
+    {
+      "stage": "gradient",
+      "colorType": "unorm8",
+      "willReadFrequently": true,
+      "textRendering": "geometricPrecision",
+      "hash": "8d5dfa930bff20881ac855b3b8f2e7f584be13827ad2ed46d5d16cbbaf57c857"
+    },
+    {
+      "stage": "curve",
+      "colorType": "unorm8",
+      "willReadFrequently": true,
+      "textRendering": "geometricPrecision",
+      "hash": "1934768a6a2a334163d1a7474c5abe2d0847240f353dc8c324540ff351984b0c"
+    },
+    {
+      "stage": "latin",
+      "colorType": "unorm8",
+      "willReadFrequently": true,
+      "textRendering": "geometricPrecision",
+      "hash": "10f876add2066f87eeb5d00dc11c7fc1989ca368dadd031ce7ef1874d72eeb16"
+    },
+    {
+      "stage": "fallback",
+      "colorType": "unorm8",
+      "willReadFrequently": true,
+      "textRendering": "geometricPrecision",
+      "hash": "446b83593dc943a28218a37d639dd994e2d8b37de080002f61454e7d03891448"
+    },
+    {
+      "stage": "shadow",
+      "colorType": "unorm8",
+      "willReadFrequently": true,
+      "textRendering": "geometricPrecision",
+      "hash": "c644374e28d0bb925c992312f2b24812a1b4216cb443d02727481a43b91404a8"
+    },
+    {
+      "stage": "gradient",
+      "colorType": "float16",
+      "willReadFrequently": false,
+      "textRendering": "geometricPrecision",
+      "hash": "5247e087dbc1e44de78b56ec0e33bff4c62b35cecfd3b0f136cd899c5df9cae9"
+    },
+    {
+      "stage": "curve",
+      "colorType": "float16",
+      "willReadFrequently": false,
+      "textRendering": "geometricPrecision",
+      "hash": "b2fd555b977d2d343464eca6fc24c0a3611f7ba6149412fd4e34214f04cc49b3"
+    },
+    {
+      "stage": "latin",
+      "colorType": "float16",
+      "willReadFrequently": false,
+      "textRendering": "geometricPrecision",
+      "hash": "05c855be60c1f7e92823f3fc3eead0b60dc0bbe229815d7d529a6de6eb2d3d90"
+    },
+    {
+      "stage": "fallback",
+      "colorType": "float16",
+      "willReadFrequently": false,
+      "textRendering": "geometricPrecision",
+      "hash": "02971342ae0b300c824abc0491512b0de572df8efad43b25f29072e1c7317bf4"
+    },
+    {
+      "stage": "shadow",
+      "colorType": "float16",
+      "willReadFrequently": false,
+      "textRendering": "geometricPrecision",
+      "hash": "1d529b6379925d36841a624c18ed09b7eda509bc75bcd92850cf688debffd17c"
+    },
+    {
+      "stage": "gradient",
+      "colorType": "float16",
+      "willReadFrequently": true,
+      "textRendering": "geometricPrecision",
+      "hash": "5247e087dbc1e44de78b56ec0e33bff4c62b35cecfd3b0f136cd899c5df9cae9"
+    },
+    {
+      "stage": "curve",
+      "colorType": "float16",
+      "willReadFrequently": true,
+      "textRendering": "geometricPrecision",
+      "hash": "b2fd555b977d2d343464eca6fc24c0a3611f7ba6149412fd4e34214f04cc49b3"
+    },
+    {
+      "stage": "latin",
+      "colorType": "float16",
+      "willReadFrequently": true,
+      "textRendering": "geometricPrecision",
+      "hash": "05c855be60c1f7e92823f3fc3eead0b60dc0bbe229815d7d529a6de6eb2d3d90"
+    },
+    {
+      "stage": "fallback",
+      "colorType": "float16",
+      "willReadFrequently": true,
+      "textRendering": "geometricPrecision",
+      "hash": "02971342ae0b300c824abc0491512b0de572df8efad43b25f29072e1c7317bf4"
+    },
+    {
+      "stage": "shadow",
+      "colorType": "float16",
+      "willReadFrequently": true,
+      "textRendering": "geometricPrecision",
+      "hash": "1d529b6379925d36841a624c18ed09b7eda509bc75bcd92850cf688debffd17c"
+    }
+  ]
+}
