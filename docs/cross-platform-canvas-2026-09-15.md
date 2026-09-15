@@ -874,3 +874,17 @@ It leaves `rsqrt` and existing direct `rcp_precise` callers unchanged. The
 remaining failing blend cases use this reciprocal helper. Compilation and
 the unchanged strict blend matrix are required to test this hypothesis;
 cross-platform correctness and performance are not yet established.
+
+The 051 Linux candidate subsequently built successfully (57 steps, 303.18s):
+ELF `2e9d440718b4ea669c770b582b1a535b608e32a46c49951ecc15b106f275a857`,
+archive `dd5ae67e31e9732a4f8ee4275c2e910962fd360aa8839f67fd8ce8bb65386676`.
+The unchanged sandboxed headful blend regression now **passes in 38.20s**.
+All 416 observations agree across CPU/context/readback-hint variants and match
+the existing Mac reference: **zero cross-host differences**, down from 120
+on 049 and 16 on 050. This validates the reciprocal hypothesis for this
+fixture. Report: `linux-blend-matrix-051.xml`.
+
+This is not universal rendering/release acceptance. The broad Linux suite is
+the next gate, the protected float16 performance cost is unresolved, and the
+Mac reference has not been rebuilt with 050/051 because local build access
+remains blocked by the Xcode license prerequisite.
