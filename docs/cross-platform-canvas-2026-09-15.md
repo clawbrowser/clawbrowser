@@ -3,17 +3,18 @@
 ## Current acceptance boundary
 
 This report preserves the investigation chronologically; initial failures below
-are not the latest result. Linux `65904c2` completes the headful run with
-131 passed and 19 skipped, matches all 120 common Mac corpus/format hashes and 32
-primitives, and passes the controlled STUN/TURN packet tests. Exact artifact
+are not the latest result. Linux `c067039` completes the headful run with
+134 passed and 21 skipped, matches all 120 common Mac corpus/format hashes, 32
+primitives, 16 SVG observations and 30 bitmap observations, and passes the
+controlled STUN/TURN packet tests. Exact artifact
 hashes, timings and caveats appear in the later sections.
 
 **Not ready for merge/release:** forced-baseline CPU cost remains substantial,
 PixelScan's font/Canvas classification remains negative, and the latest changes
 still need Mac/Windows binary acceptance. Do not confuse reference Mac results
 with a rebuild of these latest patches, or site diagnostics with a green scan.
-The new SVG-image text gate also finds a cross-host difference outside the
-previously passing corpus; see the SVG follow-up below.
+The additional SVG/PNG mismatch found outside the earlier corpus is fixed in
+this latest Linux artifact; see patch 049's rebuilt-browser result below.
 
 ## Initial cross-host failure
 
@@ -623,7 +624,27 @@ readback, seven samples of 1,000 iterations and old/new/new/old runs:
 Ranges substantially overlap; this workload does not demonstrate a meaningful
 performance regression or a universal speedup. All 16 benchmark cases pass.
 No build, managed site session or other QA CPU workload ran during timing.
-Full regression and separate real-network acceptance are in progress.
+The full sandboxed headful suite with both host Fontconfig settings completes:
+**134 passed, 21 skipped in 389.20s**. The 21 skips include two newly added
+opt-in bitmap timing cases (run separately above), earlier opt-in network/API
+cases and platform-specific cases; they are not passes. Strict comparison of
+the full report matches all 120 common Mac corpus/format observations, 32
+primitives, 16 SVG observations and 30 protected bitmap observations, with zero
+differences. The Mac reference remains `945d653`, not a latest-patch rebuild.
+
+Separate real-network acceptance of this same artifact:
+
+- IPv4/IPv6 STUN: positive control 4 packets, browser 0 across HTTP/SOCKS5,
+  capture drops 0.
+- TURN/TLS: 2 tests pass in 16.549s, working relay echo through both proxy
+  schemes, positive sent/received bytes and verified TLS trust. Positive direct
+  TCP control 7 packets, browser direct 0, proxy-origin 252, capture drops 0.
+- Both bounded network services were verified inactive after testing.
+
+Evidence: `exact-srcover-049-full.xml`, `exact-srcover-049-stun-pcap.json`,
+`exact-srcover-049-turn-route.xml` and `exact-srcover-049-turn-route.json`.
+No current-artifact PixelScan pass, latest Mac/Windows browser acceptance,
+complete desktop OAuth E2E or overall merge/release readiness is claimed.
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
 positive control 4 packets, browser 0 packets through HTTP/SOCKS5, zero kernel
