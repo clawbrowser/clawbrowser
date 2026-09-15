@@ -44,6 +44,20 @@ itself uses `div255_accurate`, so blaming that blend instruction alone would
 be premature; edge coverage interpolation is a candidate to isolate next.
 This is source evidence of differing arithmetic, not yet runtime attribution.
 
+The follow-up 32-case control adds integer-aligned and fractional rectangles
+over the same gradient. Only the fractional rectangle and ellipse differ on
+`unorm8` (four observations, two readback hints each); aligned rectangles match.
+This further implicates partial edge coverage rather than the interior blend.
+Per-host tests pass (macOS 3.61s, Linux 3.09s); cross-host equality still fails.
+
+Patch 041 is a QA candidate replacing low-precision `lerp`'s `div255` with
+`div255_accurate`. NEON already used exact rounding; x86 changes to the same
+formula. This is a general Skia coverage correction, not a site or color
+exception. **It also affects native software rasterization**, so native
+conformance and performance must be checked; it is not a policy-scoped change.
+Canvas noise and format selection remain unchanged. Runtime validation of
+this candidate is pending; the source hypothesis alone is not acceptance.
+
 ## New artifact network acceptance
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent

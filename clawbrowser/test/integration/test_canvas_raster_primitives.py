@@ -20,7 +20,8 @@ async def test_canvas_raster_primitives(tmp_path, record_property, mode):
         values = await launch['page'].evaluate('''() => {
             const rows=[];
             for (const primitive of ['solid','gradient','ellipse','composite',
-                                     'wide-gamut-gradient','gradient-screen-ellipse']) {
+                                     'wide-gamut-gradient','gradient-screen-ellipse',
+                                     'gradient-screen-aligned-rect','gradient-screen-fractional-rect']) {
                 for (const colorType of ['unorm8','float16']) {
                     for (const willReadFrequently of [false,true]) {
                         const canvas=document.createElement('canvas');
@@ -33,10 +34,16 @@ async def test_canvas_raster_primitives(tmp_path, record_property, mode):
                             g.addColorStop(0,wide?'color(display-p3 .9 .2 .1 / .7)':'rgba(221,63,19,.7)');
                             g.addColorStop(1,wide?'color(display-p3 .1 .8 .6 / .9)':'rgba(13,201,143,.9)');
                             c.fillStyle=g;c.fillRect(0,0,83,57);
-                            if (primitive==='gradient-screen-ellipse') {
+                            if (primitive.startsWith('gradient-screen-')) {
                                 c.globalCompositeOperation='screen';
                                 c.fillStyle='rgba(79,131,233,.51)';
-                                c.beginPath();c.ellipse(39.5,27.25,29.75,17.125,.2,0,Math.PI*2);c.fill();
+                                if (primitive.endsWith('aligned-rect')) {
+                                    c.fillRect(10,10,50,30);
+                                } else if (primitive.endsWith('fractional-rect')) {
+                                    c.fillRect(10.25,10.75,50.5,30.25);
+                                } else {
+                                    c.beginPath();c.ellipse(39.5,27.25,29.75,17.125,.2,0,Math.PI*2);c.fill();
+                                }
                             }
                         } else if (primitive==='ellipse') {
                             c.fillStyle='rgba(79,131,233,.51)';
@@ -65,5 +72,5 @@ async def test_canvas_raster_primitives(tmp_path, record_property, mode):
         groups.setdefault((row['primitive'], row['colorType']), set()).add(digest)
         observations.append({k: row[k] for k in ('primitive','colorType','willReadFrequently')} | {'hash':digest})
     record_property('raster_primitive_matrix', json.dumps({'seed':seed,'observations':observations}))
-    assert len(observations) == 24
+    assert len(observations) == 32
     assert all(len(hashes) == 1 for hashes in groups.values()), observations
