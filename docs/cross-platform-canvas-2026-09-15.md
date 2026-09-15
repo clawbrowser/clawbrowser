@@ -56,7 +56,58 @@ formula. This is a general Skia coverage correction, not a site or color
 exception. **It also affects native software rasterization**, so native
 conformance and performance must be checked; it is not a policy-scoped change.
 Canvas noise and format selection remain unchanged. Runtime validation of
-this candidate is pending; the source hypothesis alone is not acceptance.
+this candidate is described below; the source hypothesis alone is not acceptance.
+
+## Exact-rounding candidate results
+
+Linux candidate `808a1551b6b7d103d36f786c74ec430fd378065e83e7946415bde5f4b66cf8f2`
+built successfully (57 incremental steps, 4m23s), then was staged and extracted
+as a ClawBrowser runtime with its own AppArmor user-namespace profile. The
+archive SHA256 is `62cbdf9cf25d466678c2daa3697039533b57adfd5be33f2808c3fa1048fb6086`.
+
+Compared with the same saved macOS ARM64 observations:
+
+- All **32/32 font-free primitive observations match**, previously 28/32.
+- All **48/48 color-format observations match**, previously 24/48.
+- All **12/12 PNG observations still match**.
+- The text/shape corpus still differs in **60/60** comparable observations.
+
+The protected test run passes 4 tests in 36.59s; the separate Linux two-font
+control was skipped because that targeted invocation did not supply its two
+font configs. Full regression with those configs is a separate run. These
+results validate the isolated coverage correction, not universal Canvas
+independence or a green PixelScan verdict.
+
+An opt-in software-raster microbenchmark (`CLAWBROWSER_QA_RASTER_TIMING=1`)
+runs 10 warmups and seven batches of 30 gradient/ellipse/readback operations.
+Sequential before/after runs on the same Linux host recorded median milliseconds:
+native 0.420 -> 0.437; protected 0.673 -> 0.690. Samples overlap. This small
+single-run comparison is **not** a statistically established performance
+regression or a general performance acceptance gate. Both runs passed their
+readback checks (2.62s / 2.59s). No build was running during those timings.
+
+`test_canvas_corpus_stages.py` adds cumulative gradient, transformed curve,
+Latin, fallback text and shadow snapshots to locate the remaining divergence,
+without removing any assertion from the full corpus.
+
+The staged recipe passes locally on both hosts but differs across hosts:
+the gradient and transformed curve match; the **first differing snapshot is
+Latin/Cyrillic text in Arimo**. The 40-case follow-up using both `auto` and
+`geometricPrecision` still differs in 24 text-and-later snapshots, in both
+backing formats. Mac 12.06s, Linux 24.14s (Linux full regression was also
+running; these durations are not performance comparisons). This does not
+attribute the later fallback/shadow differences independently because the
+snapshots are cumulative. Next investigate face selection and SkFont render
+settings, not another speculative global Canvas change.
+
+Full headful Linux regression on `808a155` completed **121 passed, 18 skipped,
+zero failures in 266.93s**, including both Linux host-font controls. The two
+opt-in performance cases account for two added skips; the new primitive test
+accounts for one added pass versus the previous full run. The staged recipe
+was added after collection and was tested separately as described above.
+The full run does not replace the separately configured real TURN/TLS and
+packet-capture tests. Mac rebuild remains blocked by unaccepted Xcode license;
+the existing Mac candidate was used for comparison, not a new Mac build.
 
 ## New artifact network acceptance
 
