@@ -40,3 +40,32 @@ suite against any changed binary, and complete managed identity, real network
 and platform gates. PixelScan's Linux fonts/canvas conditions remain unresolved.
 These results supersede the older documents' “macOS binary pending” status,
 but do not make the PRs ready for merge or establish Windows/Linux ARM support.
+
+## Patch 038 follow-up
+
+Policy-scoped software Canvas2D rasterization was built and tested on the same
+Mac. It applies only when canvas spoofing is enabled and policy is `override`.
+Native mode retains Chromium's backend choice; WebGL and readback noise are not
+changed. No detector, canvas size or color exceptions are introduced.
+
+The new framework SHA-256 is
+`583c12a01c028b6b366eea28a59cef7811b1e26024a9a75022e600c79e805fbd`.
+Selected gates: **61 passed, 2 skipped, zero failures in 147.14s**, including
+the unchanged protected corpus and color-format equality assertions, font
+provenance, PNG/origin-clean/source-snapshot, surfaces and proxy tests.
+Skips are the same fixture/external-STUN conditions above. No software-forcing
+command-line switch was used. Native equality is deliberately not claimed.
+
+A bounded, single-host readback-heavy timing diagnostic (five samples after
+warmup; eight drawing/readback iterations per sample) gave these medians:
+
+| Override drawing | Previous, frequent=false | Patch 038, frequent=false | Patch 038, frequent=true |
+|---|---:|---:|---:|
+| 256×256 | 13.5 ms | 3.7 ms | 3.8 ms |
+| 1920×1080 | 333.3 ms | 107.7 ms | 107.6 ms |
+
+Native medians were similar before/after (1920×1080 default: 262.1/269.0 ms).
+This workload favors software readback and does **not** establish animation,
+GPU-heavy, transferred-canvas presentation or overall application performance.
+Those and the full/platform/network gates remain necessary. Evidence:
+`patch038-gates.xml` and `raster-cost.json` alongside the original results.
