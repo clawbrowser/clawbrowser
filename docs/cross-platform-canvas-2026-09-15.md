@@ -144,9 +144,27 @@ before and after. Closed-catalog Latin width is now 140.814453125 in both
 rendering modes, matching Mac. The pixel comparison still differs in 24/40
 staged observations, so advance normalization alone is insufficient.
 
-Full Linux regression is running separately. Next: policy-scoped path-bound
+Full headful Linux regression completed **124 passed, 18 skipped, zero failures
+in 291.95s**, with both host-font configs. Next: policy-scoped path-bound
 normalization in `skia_text_metrics.cc`, while preserving native glyph metrics,
 then distinguish remaining coverage/position differences from font selection.
+
+Opt-in `CLAWBROWSER_QA_FONT_PIXELS=1` exports compressed synthetic Latin
+control pixels, not page/user data. `scripts/compare_font_pixel_controls.py`
+validates matching dimensions/seeds and quantifies differences (exit 1 when
+different). The unchanged-control comparison returns zero. Comparing Mac to
+Linux `eefc94e` finds 727 differing pixels in `auto`, 771 in
+`geometricPrecision`, max channel delta 20, with no alpha differences. All
+differences lie inside the text region (x=4..143, y=31..47).
+
+A separate **diagnostic-only** `CLAWBROWSER_QA_TEXT_GAMMA_CONTROL=1` supplies
+the existing `--text-contrast=0 --text-gamma=0` switches. Skia's Linux/Mac build
+defaults differ, and Chromium forwards these switches to the renderer. This
+experiment produced identical pixel-difference counts: changing these values
+did not resolve the observed mismatch. It is not a product fix or acceptance
+run. Mac pixel export passed in 12.07s; ordinary Linux export 24.30s; gamma
+control 24.23s. The comparison output labels whether either side used the
+gamma control. No global gamma defaults were changed.
 
 ## New artifact network acceptance
 
