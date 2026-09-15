@@ -812,3 +812,21 @@ each). Thus the baseline half-conversion discrepancy is resolved in this
 fixture; the overall blend assertion and release acceptance are not resolved.
 The report is retained as `linux-blend-matrix-050.xml` alongside the earlier
 failing report. Float16 old/new ABBA timing is a separate pending run.
+
+The float16 ABBA timing run subsequently completed all 16 opt-in cases without
+concurrent build/test CPU work. Per-iteration medians (milliseconds):
+
+| CPU / policy | Old 049, two runs | New 050, two runs |
+| --- | --- | --- |
+| Default / native | 0.1967, 0.1838 | 0.1804, 0.1814 |
+| Default / protected | 0.5783, 0.6019 | 0.5627, 0.5850 |
+| Baseline / native | 0.6005, 0.6071 | 1.0382, 1.1033 |
+| Baseline / protected | 1.0047, 0.9798 | 1.4511, 1.4552 |
+
+There is a substantial baseline regression (about 47% for protected mode),
+not a performance-neutral fix. Default-path ranges do not show a comparable
+regression. Optimize the baseline common normal/zero lanes with exact vector
+bit arithmetic while retaining the tested scalar special/subnormal handling,
+then repeat both numerical and browser/timing gates. Do not drop subnormals or
+weaken correctness to recover speed. This candidate remains unsuitable for
+release acceptance.
