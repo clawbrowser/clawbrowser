@@ -12,8 +12,10 @@ git -C "$fma_test_dir" apply \
   "$repo_root/clawbrowser/patches/048-skia-fast-exact-baseline-fma.patch"
 
 flags=(-std=c++20 -O2 -ffp-contract=off)
+# Git Bash reports x86_64 too; Windows uses the same baseline SSE2 probe.
+# Do not silently count a scalar-only build as x86 SIMD acceptance.
 if [[ "$(uname -m)" == x86_64 ]]; then
-  flags+=(-msse2 -mno-avx -mno-fma)
+  flags+=(-msse2 -mno-avx -mno-fma -DCLAWBROWSER_TEST_REQUIRE_SSE2=1)
 fi
 "${CXX:-c++}" "${flags[@]}" \
   -I"$fma_test_dir/third_party/skia" \

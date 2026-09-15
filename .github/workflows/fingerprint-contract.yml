@@ -9,6 +9,43 @@ permissions:
   contents: read
 
 jobs:
+  # Numerical portability only: these jobs do not certify a browser artifact.
+  raster-portability:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            compiler: clang++
+          - os: macos-latest
+            compiler: clang++
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact raster arithmetic on host compiler
+        env:
+          CXX: ${{ matrix.compiler }}
+        run: |
+          uname -sm
+          "$CXX" --version
+          bash scripts/skia_fma_rounding_test.sh
+
+  raster-portability-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact raster arithmetic with Windows Clang and MSVC library
+        shell: cmd
+        env:
+          CXX: clang++
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do call "%%i\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          if errorlevel 1 exit /b 1
+          clang++ --version
+          bash scripts/skia_fma_rounding_test.sh
+
   contract:
     runs-on: ubuntu-latest
     timeout-minutes: 15

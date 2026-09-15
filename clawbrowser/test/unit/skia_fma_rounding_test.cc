@@ -4,6 +4,10 @@
 #include <cstdlib>
 #include <initializer_list>
 
+#if defined(CLAWBROWSER_TEST_REQUIRE_SSE2) && !defined(SK_CLAWBROWSER_HAS_SSE2_FMA4)
+#error "Baseline x86 test must exercise the actual SSE2 implementation"
+#endif
+
 uint64_t checked = 0;
 uint64_t naive_mismatches = 0;
 uint64_t simd_checked = 0;
