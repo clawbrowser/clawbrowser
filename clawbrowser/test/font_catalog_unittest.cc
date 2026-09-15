@@ -40,6 +40,23 @@ TEST_F(FontCatalogTest, RejectsWrongManifestDigest) {
   EXPECT_FALSE(ValidateFontCatalog(dir_.GetPath(), std::string(64, '0')).has_value());
 }
 
+TEST_F(FontCatalogTest, SnapshotRetainsTheVerifiedBytes) {
+  auto snapshot = LoadValidatedFontCatalog(dir_.GetPath(), Hash(manifest_));
+  ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
+  EXPECT_EQ(snapshot->catalog_id, "test-v1");
+  EXPECT_EQ(snapshot->manifest_json, manifest_);
+  ASSERT_EQ(snapshot->fonts.size(), 1u);
+  EXPECT_EQ(snapshot->fonts[0].file_name, "Test.ttf");
+  ASSERT_TRUE(base::WriteFile(Font(), "changed after validation"));
+  EXPECT_EQ(snapshot->fonts[0].bytes, "fixture bytes");
+  EXPECT_FALSE(LoadValidatedFontCatalog(dir_.GetPath(), Hash(manifest_)).has_value());
+}
+
+TEST_F(FontCatalogTest, SnapshotRejectsUnlistedFiles) {
+  ASSERT_TRUE(base::WriteFile(dir_.GetPath().AppendASCII("fonts/Extra.ttf"), "extra"));
+  EXPECT_FALSE(LoadValidatedFontCatalog(dir_.GetPath(), Hash(manifest_)).has_value());
+}
+
 TEST_F(FontCatalogTest, RejectsCorruptFont) {
   ASSERT_TRUE(base::WriteFile(Font(), "changed"));
   EXPECT_FALSE(ValidateFontCatalog(dir_.GetPath(), Hash(manifest_)).has_value());
