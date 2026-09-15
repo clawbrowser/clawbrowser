@@ -507,6 +507,44 @@ EOF
   rm -rf "${tmp_dir}"
 }
 
+test_reset_patch_targets_restores_nested_skia_paths() {
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  local chromium_dir="${tmp_dir}/chromium"
+  local src_dir="${chromium_dir}/src"
+  local skia_dir="${src_dir}/third_party/skia"
+  local project_dir="${tmp_dir}/project"
+  mkdir -p "${skia_dir}/src/ports" "${project_dir}/clawbrowser/patches"
+  git -C "${src_dir}" init -q
+  git -C "${src_dir}" -c user.email=test@example.com -c user.name=Test commit --allow-empty -q -m init
+  git -C "${skia_dir}" init -q
+  printf 'clean\n' >"${skia_dir}/src/ports/SkTypeface_fontations.cpp"
+  git -C "${skia_dir}" add src/ports/SkTypeface_fontations.cpp
+  git -C "${skia_dir}" -c user.email=test@example.com -c user.name=Test commit -q -m init
+  cat >"${project_dir}/clawbrowser/patches/040-skia.patch" <<'EOF'
+--- a/third_party/skia/src/ports/SkTypeface_fontations.cpp
++++ b/third_party/skia/src/ports/SkTypeface_fontations.cpp
+@@ -1 +1 @@
+-clean
++patched
+EOF
+  local helper
+  for helper in clawbrowser_remote.sh chromium_remote.sh; do
+    printf 'dirty\n' >"${skia_dir}/src/ports/SkTypeface_fontations.cpp"
+    (
+      CHROMIUM_DIR="${chromium_dir}"
+      CHROMIUM_REVISION="$(git -C "${src_dir}" rev-parse HEAD)"
+      CHROMIUM_VERSION_LABEL="test"
+      PROJECT_DIR="${project_dir}"
+      REMOTE_SCRIPT="${REPO_ROOT}/scripts/${helper}"
+      load_remote_functions
+      reset_patch_targets_to_pin
+    )
+    assert_equals "$(cat "${skia_dir}/src/ports/SkTypeface_fontations.cpp")" "clean"
+  done
+  rm -rf "${tmp_dir}"
+}
+
 test_collect_patch_targets_includes_legacy_cleanup_targets() {
   local tmp_dir
   tmp_dir="$(mktemp -d)"
@@ -555,6 +593,7 @@ test_stages_dev_macos_bundle_resigns_after_rewrite
 test_stages_dev_linux_clawbrowser_bundle
 test_linux_patch_prereqs_installs_appimagetool
 test_reset_patch_targets_restores_nested_v8_paths
+test_reset_patch_targets_restores_nested_skia_paths
 test_collect_patch_targets_includes_legacy_cleanup_targets
 
 printf 'PASS\n'

@@ -805,6 +805,15 @@ reset_patch_targets_to_pin() {
 
   while IFS= read -r path; do
     [[ -n "${path}" ]] || continue
+    if [[ "${path}" == third_party/skia/* ]]; then
+      local skia_dir="${src_dir}/third_party/skia"
+      local skia_path="${path#third_party/skia/}"
+      [[ -e "${skia_dir}/.git" ]] || die "Missing nested Skia checkout"
+      git -C "${skia_dir}" cat-file -e "HEAD:${skia_path}" >/dev/null 2>&1 ||
+        die "Skia patch target is absent from nested HEAD: ${skia_path}"
+      git -C "${skia_dir}" restore --source HEAD --worktree -- "${skia_path}"
+      continue
+    fi
     if [[ "${path}" == v8/* && -d "${src_dir}/v8/.git" ]]; then
       local v8_path="${path#v8/}"
       if git -C "${src_dir}/v8" cat-file -e "HEAD:${v8_path}" >/dev/null 2>&1; then
