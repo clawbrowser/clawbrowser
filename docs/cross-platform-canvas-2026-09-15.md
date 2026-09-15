@@ -3,8 +3,8 @@
 ## Current acceptance boundary
 
 This report preserves the investigation chronologically; initial failures below
-are not the latest result. Linux `5afeb33` passes the full 131-test headful run
-(19 separate skips), matches all 120 common Mac corpus/format hashes and 32
+are not the latest result. Linux `65904c2` completes the headful run with
+131 passed and 19 skipped, matches all 120 common Mac corpus/format hashes and 32
 primitives, and passes the controlled STUN/TURN packet tests. Exact artifact
 hashes, timings and caveats appear in the later sections.
 
@@ -482,7 +482,27 @@ seven samples of 1,000 iterations. Baseline uses ABBA and 300 iterations per
 sample. Run-mean improvement on the baseline workload is about 13% native and
 17% protected, while default-mode ranges overlap. This is another partial
 improvement, not elimination of the cost relative to non-fused arithmetic.
-Full-suite and network acceptance for this artifact are in progress.
+The sandboxed extracted artifact completes the full headful suite with both
+host Fontconfig variants: **131 passed, 19 skipped in 335.61s**. Skips are not
+passes. All 120 common Mac corpus/format observations and 32 raster primitives
+match reference binary `945d653`, with zero differing hashes. This does not
+substitute for a latest-patch Mac or Windows rebuild.
+
+Separate controlled network acceptance on this same artifact also passes:
+
+- IPv4/IPv6 STUN: 4 independent positive-control packets, 0 browser packets
+  across HTTP/SOCKS5, and 0 capture drops.
+- TURN/TLS: 2 echo tests pass in 19.688s through HTTP and SOCKS5, with relay-only
+  selected candidates/pairs and positive sent/received bytes. The independent
+  direct-TCP control records 7 packets; browser direct TCP records 0 and
+  proxy-origin traffic records 302, with 0 capture drops. TLS trust is verified.
+- Both bounded network services were verified inactive after testing.
+
+Evidence files are `fast-fma-048-v5-full.xml`,
+`fast-fma-048-v5-stun-pcap.json`, `fast-fma-048-v5-turn-route.xml` and
+`fast-fma-048-v5-turn-route.json`. The retained managed-site screenshots belong
+to earlier artifact `5f7fb6e`; no green PixelScan result is claimed for this
+candidate. Overall baseline cost and platform/site acceptance remain open.
 
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
 positive control 4 packets, browser 0 packets through HTTP/SOCKS5, zero kernel
