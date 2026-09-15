@@ -8,10 +8,10 @@ import pytest
 
 
 def _expected_fixture_fonts(fp):
-    # The legacy fixture requests fonts absent from the Linux bundle. Startup
+    # The legacy fixture requests fonts absent from the Linux/macOS bundle. Startup
     # migrates it to this explicit catalog. Keep this expectation independent
     # of the browser's saved JSON so a wrong migration cannot bless itself.
-    if sys.platform == 'linux':
+    if sys.platform in ('linux', 'darwin'):
         return ['Arimo', 'Tinos', 'Cousine', 'DejaVu Sans',
                 'Noto Sans CJK JP', 'Noto Sans CJK KR', 'Noto Sans CJK SC',
                 'Noto Sans CJK TC', 'Noto Sans CJK HK',
@@ -1216,7 +1216,7 @@ async def test_fonts_detect_all_expected(browser_with_fingerprint):
     page, data = browser_with_fingerprint
     fp = data["response"]["fingerprint"]
 
-    if sys.platform == 'linux':
+    if sys.platform in ('linux', 'darwin'):
         fonts = _expected_fixture_fonts(fp)
         await page.evaluate('''fonts => fonts.forEach((family, i) => {
             const el = document.createElement('span');
@@ -1346,7 +1346,7 @@ async def test_fonts_block_non_allowlisted_local_sources(browser_with_fingerprin
         "LiberationSans",      # Linux PostScript name
         "Ubuntu",              # Linux full name
     ]
-    if sys.platform == 'linux':
+    if sys.platform in ('linux', 'darwin'):
         # Exact PostScript alias of the now-bundled DejaVu Sans family.
         # Its positive load is covered by the bundled-local-face regression.
         allowed.add('dejavusans')
