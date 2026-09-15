@@ -8,6 +8,7 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/path_service.h"
+#include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/task_environment.h"
@@ -31,6 +32,10 @@
 #if BUILDFLAG(IS_WIN)
 #include "base/base_paths_win.h"
 #endif
+#if BUILDFLAG(IS_MAC)
+#include "base/apple/bundle_locations.h"
+#include "clawbrowser/font_catalog_identity.h"
+#endif
 
 namespace clawbrowser {
 namespace {
@@ -39,6 +44,23 @@ constexpr char kConfiguredApiBaseUrl[] = "http://127.0.0.1:8787";
 
 class StartupTest : public testing::Test {
  protected:
+#if BUILDFLAG(IS_MAC)
+  static base::ScopedTempDir& CatalogBundle() {
+    static base::NoDestructor<base::ScopedTempDir> bundle;
+    return *bundle;
+  }
+  static void SetUpTestSuite() {
+    ASSERT_TRUE(CatalogBundle().CreateUniqueTempDir());
+    base::FilePath executable_dir;
+    ASSERT_TRUE(base::PathService::Get(base::DIR_EXE, &executable_dir));
+    const auto resources = CatalogBundle().GetPath().AppendASCII("Resources");
+    ASSERT_TRUE(base::CreateDirectory(resources));
+    ASSERT_TRUE(base::CopyDirectory(
+        executable_dir.AppendASCII("clawbrowser-fonts"),
+        resources.AppendASCII("clawbrowser-fonts"), true));
+  }
+  static void TearDownTestSuite() { EXPECT_TRUE(CatalogBundle().Delete()); }
+#endif
   static std::string HttpStatusLine(net::HttpStatusCode status) {
     switch (status) {
       case net::HTTP_UNAUTHORIZED:
@@ -53,6 +75,9 @@ class StartupTest : public testing::Test {
   }
 
   void SetUp() override {
+#if BUILDFLAG(IS_MAC)
+    base::apple::SetOverrideFrameworkBundlePath(CatalogBundle().GetPath());
+#endif
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
 #if BUILDFLAG(IS_WIN)
     local_app_data_override_ =
@@ -71,6 +96,9 @@ class StartupTest : public testing::Test {
   }
 
   void TearDown() override {
+#if BUILDFLAG(IS_MAC)
+    base::apple::SetOverrideFrameworkBundlePath(base::FilePath());
+#endif
     FingerprintAccessor::Reset();
     env_->UnSetVar("HOME");
     env_->UnSetVar("CLAWBROWSER_API_KEY");

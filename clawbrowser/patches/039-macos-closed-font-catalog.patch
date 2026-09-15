@@ -1,0 +1,107 @@
+--- a/third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm
++++ b/third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm
+@@ -42,6 +42,9 @@
+ #include "base/location.h"
+ #include "base/metrics/histogram_macros.h"
+ #include "base/timer/elapsed_timer.h"
++#include "clawbrowser/fingerprint_coherence.h"
++#include "clawbrowser/mac_font_catalog.h"
++#include "third_party/blink/renderer/platform/fonts/font_custom_platform_data.h"
+ #include "third_party/blink/public/platform/platform.h"
+ #include "third_party/blink/renderer/platform/font_family_names.h"
+ #include "third_party/blink/renderer/platform/fonts/font_description.h"
+@@ -277,6 +280,29 @@
+       font_description.TextRendering(), ResolvedFontFeatures(),
+       platform_data.Orientation(), font_description.FontOpticalSizing(),
+       nullptr);
++}
++
++bool UsesManagedCatalog() {
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  return fp && clawbrowser::ShouldFilterLocalFonts(*fp);
++}
++
++const FontPlatformData* CatalogPlatformData(const FontDescription& d,
++                                          sk_sp<SkTypeface> typeface,
++                                          float size) {
++  if (!typeface)
++    return nullptr;
++  const bool bold = d.SyntheticBoldAllowed() &&
++      (d.IsSyntheticBold() ||
++       (d.Weight() > FontSelectionValue(500) && !typeface->isBold()));
++  const bool italic = d.SyntheticItalicAllowed() &&
++      (d.IsSyntheticItalic() || (d.Style() && !typeface->isItalic()));
++  return FontCustomPlatformData::Create(std::move(typeface), 0)
++      ->GetFontPlatformData(
++          size, d.AdjustedSpecifiedSize(), bold, italic,
++          d.GetFontSelectionRequest(), FontSelectionCapabilities(),
++          d.FontOpticalSizing(), d.TextRendering(), d.ResolveFontFeatures(),
++          d.Orientation(), d.VariationSettings(), d.GetFontPalette());
+ }
+ 
+ bool IsSystemFontName(const AtomicString& font_name) {
+@@ -316,6 +342,15 @@
+     UChar32 character,
+     const SimpleFontData* font_data_to_substitute,
+     FontFallbackPriority fallback_priority) {
++  if (UsesManagedCatalog()) {
++    const auto* data = CatalogPlatformData(
++        font_description,
++        clawbrowser::MacCatalogCharacter(
++            character, font_description.SkiaFontStyle(),
++            IsEmojiPresentationEmoji(fallback_priority)),
++        font_description.EffectiveFontSize());
++    return data ? FontDataFromFontPlatformData(data) : nullptr;
++  }
+   if (IsEmojiPresentationEmoji(fallback_priority)) {
+     if (const SimpleFontData* emoji_font =
+             GetFontData(font_description, AtomicString(kColorEmojiFontMac))) {
+@@ -375,6 +410,14 @@
+ 
+ const SimpleFontData* FontCache::GetLastResortFallbackFont(
+     const FontDescription& font_description) {
++  if (UsesManagedCatalog()) {
++    const auto* data = CatalogPlatformData(
++        font_description,
++        clawbrowser::MacCatalogFamily("Tinos", font_description.SkiaFontStyle()),
++        font_description.EffectiveFontSize());
++    CHECK(data);
++    return FontDataFromFontPlatformData(data);
++  }
+   // FIXME: Would be even better to somehow get the user's default font here.
+   // For now we'll pick the default that the user would get without changing
+   // any prefs.
+@@ -397,6 +440,13 @@
+     const FontFaceCreationParams& creation_params,
+     float size,
+     AlternateFontName alternate_name) {
++  if (UsesManagedCatalog()) {
++    return CatalogPlatformData(
++        font_description,
++        clawbrowser::MacCatalogFamily(creation_params.Family().Utf8(),
++                                     font_description.SkiaFontStyle()),
++        size);
++  }
+   // CoreText restricts the access to the system dot prefixed fonts, so return
+   // nullptr to use fallback font instead.
+   if (IsSystemFontName(creation_params.Family())) {
+--- a/third_party/blink/renderer/platform/BUILD.gn
++++ b/third_party/blink/renderer/platform/BUILD.gn
+@@ -1813,6 +1813,7 @@
+     ":font_format_check",
+     "//base:base_static",
+     "//clawbrowser:clawbrowser_runtime",
++    "//clawbrowser:clawbrowser_font_typefaces",
+     "//base/allocator:buildflags",
+     "//build:chromecast_buildflags",
+     "//cc",
+--- a/chrome/BUILD.gn
++++ b/chrome/BUILD.gn
+@@ -972,6 +972,7 @@
+     public_deps = [
+       ":packed_resources",
+       "//chrome/app_shim:app_mode_loader_plist_bundle_data",
++      "//clawbrowser:clawbrowser_font_catalog_bundle",
+       "//chrome/browser/mac:install",
+     ]
+ 

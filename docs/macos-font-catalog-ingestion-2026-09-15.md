@@ -69,6 +69,29 @@ regular/bold/italic, an absent host family, family ordering and emoji fallback.
 These are scalar-character selection tests, not full shaping/variation-selector
 or script-cluster acceptance.
 
-**This reader is not yet connected to FontCache or automatic fallback.**
-Family/style selection, bundle packaging, renderer cache lifetime/memory use
-and missing-glyph behavior still need implementation and browser tests.
+## Experimental macOS FontCache hookup
+
+Patch 039 connects managed macOS family lookup, character fallback and last
+resort lookup to the checked Fontations catalog. Unknown names/characters do
+not fall through to CoreText. Native unprotected browsing keeps its existing
+path. The GN bundle targets place the manifest, notices and fonts inside the
+framework Resources directory, accessible under the existing sandbox policy.
+Startup validates the catalog and cached profiles adopt the installed catalog
+contract. The renderer validates the exact bytes again before decoding.
+
+The hook compiled and the app packaged successfully. Candidate
+`20260915-135316` passed 216 C++ tests and four headful tests: actual catalog
+provenance, blocked-family equivalence, cached-profile migration and local
+full/PostScript-name loading. The Linux-only differential Fontconfig test was
+skipped, not passed. Full browser acceptance is still pending.
+The new macOS provenance test requires actual Latin, Arabic, CJK, Devanagari
+and composed emoji rendering from the catalog. Migration and local-name tests
+now also run on macOS. Standalone startup unit tests supply an isolated resource
+bundle instead of bypassing resource validation in product code.
+
+Remaining review: the process-lifetime cache retains about 50 MB of font data
+and transient validation copies add about 50 MB. FontCustomPlatformData wraps
+these already-retained faces with data_size=0; this avoids repeatedly accounting
+the same immutable bytes but does not yet provide process-cache memory telemetry.
+Cluster shaping, variation selectors, missing glyphs, workers/canvas, native
+negative controls and full browser regression gates remain necessary.
