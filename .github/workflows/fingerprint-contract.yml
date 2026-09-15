@@ -31,6 +31,7 @@ jobs:
           "$CXX" --version
           bash scripts/skia_fma_rounding_test.sh
           bash scripts/skia_source_over_test.sh
+          bash scripts/skia_half_test.sh
           if [[ "$RUNNER_OS" == Linux ]] && grep -qw avx2 /proc/cpuinfo; then
             CLAWBROWSER_TEST_PRAGMA_AVX2=1 bash scripts/skia_source_over_test.sh
           fi
@@ -51,6 +52,8 @@ jobs:
           bash scripts/skia_fma_rounding_test.sh
           if errorlevel 1 exit /b 1
           bash scripts/skia_source_over_test.sh
+          if errorlevel 1 exit /b 1
+          bash scripts/skia_half_test.sh
 
   contract:
     runs-on: ubuntu-latest
@@ -90,6 +93,7 @@ jobs:
         run: |
           bash scripts/skia_fma_rounding_test.sh
           bash scripts/skia_source_over_test.sh
+          bash scripts/skia_half_test.sh
       - name: Verify font catalog staging integrity
         run: |
           python3 clawbrowser/fonts/stage_fonts_test.py
