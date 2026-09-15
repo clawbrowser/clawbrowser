@@ -396,6 +396,37 @@ run on the live QA source tree during a build.
 
 ## New artifact network acceptance
 
+### Hot-path inlining follow-up
+
+Disassembly of `5f7fb6e` showed an out-of-line `ClawbrowserFma4` with stack
+setup in the ordinary path. The follow-up forces the fast vector calculation
+inline and outlines only exceptional lane repair. Arithmetic is unchanged.
+The actual header again passes 10,039,200 scalar and 10,039,200 SIMD comparisons.
+An SSE2 microbenchmark is retained in `test/benchmarks` for reproducibility;
+its roughly 10% improvement is not browser acceptance.
+
+New ELF `5afeb33bd2460710476abe9501ef908e5ddf18aab86cf791afe78cb6f3beb278`
+built in 57 steps / 4m50.49s. Archive:
+`95fefb1eb354de8aefc8a6973b1b08c88655a21ffe19921e33839e29fa6ea445`.
+The executable grows by 205,416 bytes. Only the slow helper remains as an
+out-of-line symbol. Four targeted browser tests pass in 47.40s.
+
+ABBA before/after timings, seven samples of 300 iterations, show partial
+forced-baseline improvement: native 2.0370/2.0870ms to 1.8550/1.9410ms;
+protected 2.3277/2.4563ms to 2.1413/2.1063ms. The initial ordinary-path
+measurements were slightly worse, so a longer ordinary-path control followed:
+six interleaved runs, seven samples of 1,000 iterations each.
+
+| Ordinary path | Before: three run medians, ms | After: three run medians, ms |
+| --- | --- | --- |
+| Native | 0.4430 / 0.4832 / 0.4586 | 0.4847 / 0.4918 / 0.4558 |
+| Protected | 0.7439 / 0.7578 / 0.7601 | 0.7790 / 0.7548 / 0.7473 |
+
+These ranges overlap; they do not establish universal absence of a regression.
+Forced-baseline cost versus the original non-fused implementation remains
+substantial and open. The new full suite is running; previous network and
+managed-site proofs below belong to their explicitly identified artifacts.
+
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
 positive control 4 packets, browser 0 packets through HTTP/SOCKS5, zero kernel
 drops. Real TURN/TLS echo passes both proxy schemes, 2 tests / 18.05s, with
