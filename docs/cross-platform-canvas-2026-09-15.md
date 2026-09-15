@@ -560,6 +560,33 @@ bitmap-glyph path scales a decoded image with linear filtering into a temporary
 bitmap; testing that general image-sampling path is a candidate next diagnostic,
 not yet a demonstrated cause. No rendered-emoji replacement was introduced.
 
+### Fractional bitmap follow-up and source-over candidate
+
+The new `test_canvas_image_sampling.py` uses a seeded RGBA bitmap, fractional
+placement/scaling and all three image-smoothing qualities, without fonts.
+Both hosts pass internal DOM/Offscreen and CPU-option equality. Protected-mode
+cross-host comparison finds 12 differences in 30 observations: all scaled PNG
+paths differ; source pixels, unity-size copies and scaled Canvas-source paths
+match. Native-policy diagnostic controls differ on both scaled source types.
+This is a test-only control, not a change to the product protection policy.
+Synthetic-pixel diagnostics find 3,796 differing channels in the protected
+low-quality PNG sample (Linux minus Mac: 2,830 at -2 and 966 at +2); the
+Canvas-source sample has zero differences.
+
+Source inspection finds an unnormalized legacy bitmap blitter:
+`SkBlitRow_opts.h` uses approximate `/256` source-over on SSE2/AVX2, while NEON
+uses rounded `/255`. Patch 049 makes the x86 helpers and scalar tail use the
+same rounded arithmetic, retaining vectorization, saturation and no
+pixel-dependent branches. It does not alter the unrelated constant-color
+blitter. This is a candidate explanation pending a rebuilt browser test.
+
+The actual added header passes 17,777,216 scalar and SSE2 comparisons, and a
+separate AVX2 run passes the same number for all three paths. The exhaustive
+byte-channel/alpha matrix plus packed random-lane cases includes saturation.
+An approximate `/256` negative control differs 3,604,033 times. The tests are
+added to the Linux/macOS/Windows numerical CI matrix. Browser build and
+cross-host acceptance of this patch are still pending.
+
 Linux `a6f3c1a` passes controlled IPv4/IPv6 STUN packet capture: independent
 positive control 4 packets, browser 0 packets through HTTP/SOCKS5, zero kernel
 drops. Real TURN/TLS echo passes both proxy schemes, 2 tests / 18.05s, with
