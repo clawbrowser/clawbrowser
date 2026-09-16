@@ -123,6 +123,19 @@ isolate the Canvas-mode difference.
   Canvas perturbation did not resolve it. The displayed DNS results have not
   yet received origin-side routing acceptance and are not labeled leak-free.
 
+BrowserScan follow-up on the same normalized 064 managed profile: its separate
+`/browser-checker` page detects Chrome 151 and explicitly reports that the
+browser version and User Agent match. Saved evidence is
+`checker-browserscan-kernel-064-experimental.{json,png}`. Runtime CDP reports
+151.0.7922.109, while page UA and high-entropy Client Hints consistently report
+151.0.7922.71. CDP's runtime version is an operator diagnostic, not evidence that
+the website can read that exact patch. The homepage's five-point deduction
+therefore cannot yet be attributed to an inconsistent UA/Client-Hints pair or
+an incorrect major version. The homepage classification consumes a separate
+decision involving header UA, JS UA, Client Hints and experimental probes.
+Its remaining warning is unresolved; neither overriding the site verdict nor
+changing the identity speculatively is an acceptance fix.
+
 ### Completed seven-site first pass
 
 These are observations on September 16, not timeless detector guarantees.
