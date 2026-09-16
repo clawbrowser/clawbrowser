@@ -1056,3 +1056,11 @@ The broad 053 run subsequently completed: **137 passed / 21 skipped in
 protected observations remain identical to 052**, and **614 match the saved
 Mac references**. The 21 skips are not passes; new worker behavior still needs
 actual macOS/Windows binary validation. Report: `full-suite-053.xml`.
+
+The dynamic-font regression now also retains one canvas/context across font
+loading and deletion, without reassigning `ctx.font` or resizing the canvas.
+Both fresh and retained-context variants agree across DOM, main-thread
+OffscreenCanvas, warm Worker and fresh Worker. Together with the DOM provenance
+test, **3 passed in 4.43s** on the same extracted, sandboxed/headful 053 Linux
+artifact. Report: `dynamic-persistent-font-053.xml`. This adds cache-invalidation
+coverage, not new cross-platform or PixelScan acceptance.

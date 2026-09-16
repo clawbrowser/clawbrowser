@@ -77,13 +77,14 @@ async def test_unicode_range_webfont_load_and_removal_preserve_fallback(record_p
 
 
 @pytest.mark.asyncio
-async def test_dynamic_webfont_canvas_matches_worker(record_property):
+@pytest.mark.parametrize("persistent_context", [False, True], ids=["fresh", "persistent"])
+async def test_dynamic_webfont_canvas_matches_worker(record_property, persistent_context):
     async with _launch_browser_with_details(
         fixture_name="valid_fingerprint.json", backend_mode="mock",
         skip_verify=True, headless=False,
     ) as launch:
-        observations = await launch["page"].evaluate('''async payload => {
-            async function probe(payload, kind) {
+        observations = await launch["page"].evaluate('''async ({payload, persistent}) => {
+            async function probe(payload, kind, persistent) {
                 async function bounded(promise, stage) {
                     let timer;
                     try {return await Promise.race([promise,new Promise((_,reject)=>{
@@ -98,14 +99,21 @@ async def test_dynamic_webfont_canvas_matches_worker(record_property):
                 }
                 const fontSet = typeof document === 'undefined' ? self.fonts : document.fonts;
                 const texts = ['Latin WWW iii', 'مرحبا', 'नमस्ते', 'สวัสดี', '👩‍💻'];
+                function makeContext() {
+                    const canvas = kind === 'dom' ? document.createElement('canvas') : new OffscreenCanvas(256,64);
+                    canvas.width=256; canvas.height=64;
+                    const ctx=canvas.getContext('2d', {willReadFrequently:true});
+                    ctx.font='28px WebLatin,sans-serif';
+                    return ctx;
+                }
+                // Keep both the context and its font assignment across mutations.
+                let retainedContext;
                 async function capture() {
                     const rows = [];
                     for (const text of texts) {
-                        const canvas = kind === 'dom' ? document.createElement('canvas') : new OffscreenCanvas(256,64);
-                        canvas.width=256; canvas.height=64;
-                        const ctx=canvas.getContext('2d', {willReadFrequently:true});
+                        const ctx = persistent ? (retainedContext ||= makeContext()) : makeContext();
                         ctx.fillStyle='white'; ctx.fillRect(0,0,256,64);
-                        ctx.font='28px WebLatin,sans-serif'; ctx.fillStyle='black';
+                        ctx.fillStyle='black';
                         ctx.fillText(text,8,40);
                         const metrics=ctx.measureText(text);
                         const pixels=ctx.getImageData(0,0,256,64).data;
@@ -130,11 +138,11 @@ async def test_dynamic_webfont_canvas_matches_worker(record_property):
                 const after=await capture();
                 return {before:before||after,loaded,after,removed,readyAfterAdd,readyAfterDelete};
             }
-            const dom=await probe(payload,'dom');
-            const offscreen=await probe(payload,'offscreen');
+            const dom=await probe(payload,'dom',persistent);
+            const offscreen=await probe(payload,'offscreen',persistent);
             async function workerProbe(kind) {
               const url=URL.createObjectURL(new Blob([
-                'onmessage=async e=>{try{postMessage({result:await ('+probe.toString()+')(e.data.payload,e.data.kind)})}' +
+                'onmessage=async e=>{try{postMessage({result:await ('+probe.toString()+')(e.data.payload,e.data.kind,e.data.persistent)})}' +
                 'catch(error){postMessage({error:String(error)})}}'
             ],{type:'text/javascript'}));
             const worker=new Worker(url); let timer;
@@ -143,13 +151,13 @@ async def test_dynamic_webfont_canvas_matches_worker(record_property):
                     timer=setTimeout(()=>reject(new Error('font worker timeout')),15000);
                     worker.onerror=e=>reject(new Error(e.message));
                     worker.onmessage=e=>e.data.error?reject(new Error(e.data.error)):resolve(e.data.result);
-                    worker.postMessage({payload,kind});
+                    worker.postMessage({payload,kind,persistent});
                 });
                 return result;
             } finally {clearTimeout(timer);worker.terminate();URL.revokeObjectURL(url);}
             }
             return {dom,offscreen,worker:await workerProbe('worker-warm'),workerFresh:await workerProbe('worker-fresh')};
-        }''', bundled_tinos_payload())
+        }''', {"payload": bundled_tinos_payload(), "persistent": persistent_context})
     record_property("dynamic_font_canvas", json.dumps(observations))
     for kind, states in observations.items():
         assert states["readyAfterAdd"] and states["readyAfterDelete"], kind
