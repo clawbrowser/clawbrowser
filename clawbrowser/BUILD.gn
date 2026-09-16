@@ -201,7 +201,7 @@ source_set("clawbrowser_core") {
     "//net",
     "//services/network/public/cpp",
   ]
-  if (is_linux || is_mac) {
+  if (is_linux || is_mac || is_win) {
     deps += [ ":clawbrowser_font_catalog" ]
   }
 
@@ -255,7 +255,10 @@ static_library("clawbrowser") {
 # ---------------------------------------------------------------------------
 # Fast standalone unit tests for the core shim code.
 # ---------------------------------------------------------------------------
-source_set("clawbrowser_font_typefaces") {
+component("clawbrowser_font_typefaces") {
+  # Renderer startup and Blink must see the same preloaded catalog even when
+  # they are separate shared libraries in a component build.
+  defines = [ "IS_CLAWBROWSER_FONT_TYPEFACES_IMPL" ]
   sources = [
     "font_catalog_typefaces.cc",
     "font_catalog_typefaces.h",

@@ -94,3 +94,23 @@ fail on the previous implementation (simulated Windows newline translation
 and a CRLF-corrupted reused manifest). All 9 build-catalog and 7 staging tests
 pass locally. The Windows CI job now runs the build-catalog regressions on a
 real Windows runner; this is staging evidence, not browser acceptance.
+
+## Renderer and fallback wiring
+
+Patch 053 connects managed Windows renderer initialization after Skia setup,
+before sandbox engagement, and terminates initialization if catalog loading
+fails. Family lookup, character fallback and last-resort fallback now have
+catalog-only managed branches; native branches remain for unprotected mode.
+The catalog hint and cached-profile normalization also include Windows.
+The typeface target is a component with exported entry points so renderer
+startup and Blink share the same preloaded state in component builds.
+
+`git apply --check` passed on the pinned Chromium tree and the patch was applied
+to the QA checkout. Linux rebuilt the affected renderer/Skia/core units and
+the four typeface unit tests passed (80ms for the full catalog), report
+`windows-component-policy-056.xml`. The browser link/regression is pending;
+this does **not** compile or exercise Windows-only branches.
+
+The preceding staging change passed all **9 tests on Windows CI**, run
+`35081750192`, job `104747142355` (0.156s). Installer/portable packaging and
+actual Windows acceptance remain required before shipping this wiring.
