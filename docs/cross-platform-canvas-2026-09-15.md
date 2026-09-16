@@ -947,3 +947,41 @@ captured seven packets; the browser phase captured zero direct and 300
 proxy-origin packets, with zero kernel drops. These are controlled-endpoint
 claims, not proof about all Internet routes. Both bounded network services
 were confirmed inactive after the tests.
+
+### Format-specialized noise traversal candidate
+
+The noise hot loop now selects a compile-time storage format once per buffer
+rather than executing the format switch per RGB component. Coordinate seeds,
+PRNG sequence, component canonicalization, padding/alpha preservation and
+layout validation are unchanged. A reference test retains the old generic
+traversal and compares all bytes in 1,024 cases across the four formats,
+including arbitrary floating-point patterns, misalignment, row padding,
+signed origins, zero/max/random seeds and repeated application. All ten
+CanvasNoise C++ tests pass.
+
+Candidate `noise-dispatch-052` built in 300.80s (49 steps): ELF SHA-256
+`83a4144b3bdbadfc1393ae82bb332b0e1c935d5afd0c12db19536d92ad831fb4`,
+archive SHA-256
+`a652b1561397a36a5a8edd1c939d7407e0448efc82700bcd581d316288e2f394`.
+The strict sandboxed headful blend matrix passes in 36.65s. Comparative
+performance and the broad regression suite remain separate pending gates;
+unit correctness alone does not establish a speedup.
+
+The unchanged strict comparison confirms all 416 blend observations match the
+Mac reference. All 32 ABBA timing cases then passed, with no concurrent build
+or other raster workload. Protected-mode medians per iteration:
+
+| Format / CPU | Old 049, two runs (ms) | New 052, two runs (ms) |
+| --- | --- | --- |
+| unorm8 / default | 0.5333, 0.5075 | 0.4204, 0.4010 |
+| unorm8 / baseline | 0.7257, 0.7177 | 0.5824, 0.5811 |
+| float16 / default | 0.5477, 0.5545 | 0.4247, 0.4320 |
+| float16 / baseline | 0.9494, 0.9624 | 0.8728, 0.8795 |
+
+The protected regression is reversed in this workload: approximately 20–22%
+faster than 049 on default CPU, 8–19% faster on baseline CPU. This is not a
+universal browser speedup. Native/unprotected float16 baseline still costs
+0.6358–0.6412 ms versus 0.5750–0.5834 ms on 049, consistent with remaining
+conversion overhead, while native/default timing ranges overlap. Reports are
+`noise-abba-052-{unorm8,float16}-cpu{0,1}-{0,1,2,3}.xml`.
+The full 052 suite is a separate pending acceptance gate.
