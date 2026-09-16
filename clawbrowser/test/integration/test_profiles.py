@@ -40,8 +40,11 @@ async def test_multi_profile_isolation():
             fp2 = second_launch["fingerprint_data"]["response"]["fingerprint"]
             ua2 = await page2.evaluate("navigator.userAgent")
 
-            assert ua2 == fp2["user_agent"]
+            # Legacy on-disk UA stays untouched; the runtime projects the
+            # modern reduced token, without choosing another profile.
+            assert ua2 == fp2["user_agent"].replace("Chrome/333.7.6.5", "Chrome/333.0.0.0")
             assert ua1 != ua2
+            assert await page1.evaluate("navigator.userAgent") == ua1
             assert first_launch["config_dir"] != second_launch["config_dir"]
             assert first_launch["home_dir"] != second_launch["home_dir"]
 
@@ -87,7 +90,8 @@ async def test_implicit_startup_newest_profile():
                     browser = await playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{browser_port}")
                     page = browser.contexts[0].pages[0]
                     ua = await page.evaluate("navigator.userAgent")
-                    assert ua == new_profile["response"]["fingerprint"]["user_agent"]
+                    assert ua == new_profile["response"]["fingerprint"]["user_agent"].replace(
+                        "Chrome/333.7.6.5", "Chrome/333.0.0.0")
                     assert ua != old_profile["response"]["fingerprint"]["user_agent"]
                     await browser.close()
             finally:
