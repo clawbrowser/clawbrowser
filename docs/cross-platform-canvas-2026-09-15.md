@@ -1070,3 +1070,34 @@ Both canvas variants additionally exercise `FontFaceSet.clear()` as well as
 removal, resolved readiness and restoration of baseline metrics/pixels. The
 expanded module passed **5 tests in 7.13s** on the same 053 Linux artifact:
 `dynamic-clear-font-053.xml`. No new engine build was needed.
+
+### Managed PixelScan refresh on Linux 056 (2026-09-16)
+
+The running process was verified against the extracted `windows-wiring-056`
+binary, SHA-256
+`155b4ad2c83d2a11337d3c21debba9604a7ea0fc75c4f05b632faf5b7d726c0a`.
+Managed launch used the QA backend, the existing QA profile and `--no-remote`
+(avoiding an unrelated Remote Control authorization failure). The internal
+`clawbrowser://verify/` report passed all 35 checks. Traffic usage returned
+`proxy_traffic_unavailable`/404, not an exhausted quota; no quota amount is claimed.
+
+An initial evidence attempt exposed a harness issue: restored profile tabs
+included duplicate PixelScan pages, and the helper selected the first matching
+URL instead of the current target. That unsettled capture is **not** acceptance
+evidence. Selection now resolves the current managed page's target ID at run
+time; nine old QA-owned tabs were closed, retaining the selected scan.
+
+A separate instrumented reload observed **fonts=false, canvas=false**, with
+the other 11 masking predicates true. It only recorded existing decisions, did
+not replace them, and detached the debugger afterwards. A subsequent clean
+reload explicitly checked that the diagnostic global was absent and completed
+normally. Its unmodified result is still **Inconsistent / Masking detected**,
+with **No proxy detected / No automated behavior detected**. The HTTP address
+shown differs from the QA host address; this is not a fresh WebRTC packet test.
+
+Evidence: `pixelscan-windows-wiring-056-final.png` and matching JSON
+(`instrumented=false`, `settled=true`); separate diagnostic report
+`mask-predicates-056-current.json`. Screenshots and private QA artifacts are
+retained outside the repository. The earlier unsettled captures are not used
+to infer a rendering regression. There is no PixelScan-green claim and no
+site-specific bypass or weakening of canvas protection.
