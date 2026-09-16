@@ -53,3 +53,18 @@ been tested here and no claim of a reproduced Windows host-font leak is made.
 
 No Windows privacy-completion or all-platform merge recommendation is justified
 until this gap is implemented and the actual binary acceptance passes.
+
+## Shared-policy preparation
+
+The macOS adapter now delegates family/character selection to platform-neutral
+`MatchManagedCatalogFamily` / `MatchManagedCatalogCharacter`. The filesystem
+loader remains platform-specific. Alias/style mappings and fallback order were
+moved without changes; Windows support is not enabled by this refactor.
+
+The real Chromium `clawbrowser_font_typeface_unittests` target rebuilt on the
+Linux QA host (3 build steps, 9.35s). All three tests passed, including checked
+catalog assets, generic mappings, exact full/PostScript aliases, named-style
+precedence, emoji priority, invalid code points and an empty-catalog negative
+control. Report: `shared-font-policy-054.xml`; the pinned-catalog case took
+101ms. This does not replace recompiling/testing the macOS adapter or a Windows
+binary. The last accepted browser artifact remains worker-font-053.
