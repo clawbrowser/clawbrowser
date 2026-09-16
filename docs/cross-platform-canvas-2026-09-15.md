@@ -1101,3 +1101,30 @@ Evidence: `pixelscan-windows-wiring-056-final.png` and matching JSON
 retained outside the repository. The earlier unsettled captures are not used
 to infer a rendering regression. There is no PixelScan-green claim and no
 site-specific bypass or weakening of canvas protection.
+
+### Managed PixelScan refresh on Linux 063 (2026-09-16)
+
+After patches 056–059, the full headful/sandboxed Linux suite passed 171 tests
+with 21 skips in 436.80s. All 714 comparable protected observations match 062.
+The managed QA profile was then started with the extracted `metric-overrides-063`
+Clawbrowser launcher, canvas/WebGL protections enabled and `--no-remote`.
+The QA user's running executable resolves to that artifact's `clawbrowser.real`;
+ELF SHA-256 is `7420c644d6388e39cc473ec615ca9f4ed664a9fc37ac374ddb91188a11816982`.
+Internal verification passed all 35 checks. Traffic statistics remained
+unavailable (404), not reported exhausted; domain-skill lookup returned 401
+independently of successful managed browser authentication.
+
+Verification selected its internal tab; the first cleanup attempt safely
+refused the wrong URL. After managed navigation back to PixelScan, one old
+QA-owned tab was closed. A clean reload of the current target completed with
+`instrumented=false`, `settled=true`: **Inconsistent / Masking detected**, plus
+**No proxy detected / No automated behavior detected**. The displayed HTTP
+address differs from the QA host; this does not replace a WebRTC packet test.
+Screenshot and JSON: `pixelscan-metric-overrides-063.*`, retained privately
+outside the repository. The screenshot was visually checked. The profile is
+left on the result with a bounded one-hour QA display service.
+
+No new classifier instrumentation was performed in this run, so the earlier
+056 fonts/canvas predicate breakdown must not be presented as a new 063 trace.
+The descriptor fixes improve independently reproduced rendering behavior but
+do not resolve the remaining PixelScan warning. No green-site acceptance claim.

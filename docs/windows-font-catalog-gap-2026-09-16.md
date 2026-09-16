@@ -383,7 +383,9 @@ On 062, ten new cases failed while all four size-adjust cases still passed
 (`vertical-descriptor-062.xml`, 17.92s). Patch 059 applies change-sensitive
 invalidation to the three setters. On extracted, sandboxed/headful/non-root
 artifact `metric-overrides-063`, all **14 cases pass in 18.28s**
-(`vertical-descriptor-063.xml`). Full 063 regression is pending at this commit.
+(`vertical-descriptor-063.xml`). Full 063 regression passed **171 tests with 21
+skips in 436.80s** (`full-suite-063.xml`); all 714 comparable protected rendering
+observations match 062. All five CI checks passed on `6a26917`.
 This is rendering consistency evidence, not a PixelScan or all-platform pass.
 
 ELF SHA-256: `7420c644d6388e39cc473ec615ca9f4ed664a9fc37ac374ddb91188a11816982`.
