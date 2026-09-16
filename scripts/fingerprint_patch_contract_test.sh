@@ -27,9 +27,17 @@ worker_descriptor_patch="${repo_root}/clawbrowser/patches/057-worker-font-descri
 size_adjust_patch="${repo_root}/clawbrowser/patches/058-font-size-adjust-invalidation.patch"
 metric_override_patch="${repo_root}/clawbrowser/patches/059-font-metric-override-invalidation.patch"
 normalized_canvas_patch="${repo_root}/clawbrowser/patches/060-experimental-normalized-canvas.patch"
+doh_proxy_patch="${repo_root}/clawbrowser/patches/061-managed-proxy-disable-direct-doh.patch"
 verify_script="${repo_root}/clawbrowser/verify/resources/verify.js"
 verify_html="${repo_root}/clawbrowser/verify/resources/verify.html"
 verify_source="${repo_root}/clawbrowser/verify/verify_page.cc"
+
+# Built-in DoH sends LOAD_BYPASS_PROXY probes. Managed launch intent must
+# disable it in effective resolver config, including explicit secure-DNS prefs.
+grep -Fq 'command_line->HasSwitch("fingerprint")' "${doh_proxy_patch}"
+grep -Fq 'command_line->HasSwitch("clawbrowser-require-proxy")' "${doh_proxy_patch}"
+grep -Fq 'if (managed_proxy_boundary || (!is_managed && ShouldDisableDohForManaged()))' "${doh_proxy_patch}"
+grep -Fq 'secure_dns_mode = net::SecureDnsMode::kOff;' "${doh_proxy_patch}"
 
 if grep -q 'surface_policy.webgl == "override"' "${webgl_patch}"; then
   echo "WebGL backend values must not be hidden behind surface_policy.webgl." >&2
