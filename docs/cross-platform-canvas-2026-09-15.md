@@ -1064,3 +1064,9 @@ OffscreenCanvas, warm Worker and fresh Worker. Together with the DOM provenance
 test, **3 passed in 4.43s** on the same extracted, sandboxed/headful 053 Linux
 artifact. Report: `dynamic-persistent-font-053.xml`. This adds cache-invalidation
 coverage, not new cross-platform or PixelScan acceptance.
+
+Both canvas variants additionally exercise `FontFaceSet.clear()` as well as
+`delete(face)`. Each requires actual membership before removal, absence after
+removal, resolved readiness and restoration of baseline metrics/pixels. The
+expanded module passed **5 tests in 7.13s** on the same 053 Linux artifact:
+`dynamic-clear-font-053.xml`. No new engine build was needed.
