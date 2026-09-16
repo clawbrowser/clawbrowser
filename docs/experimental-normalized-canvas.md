@@ -123,6 +123,36 @@ isolate the Canvas-mode difference.
   Canvas perturbation did not resolve it. The displayed DNS results have not
   yet received origin-side routing acceptance and are not labeled leak-free.
 
-Other checker runs and font/version diagnosis remain in progress. No
-macOS/Windows or green-detector claim; no default-policy change or release
-approval. A website score never replaces the controlled network gates.
+### Completed seven-site first pass
+
+These are observations on September 16, not timeless detector guarantees.
+
+| Site | Protected default | Normalized experiment |
+| --- | --- | --- |
+| [PixelScan](https://pixelscan.net/fingerprint-check) | Inconsistent / Masking | Inconsistent / Masking; diagnostic Canvas passes, fonts fail |
+| [CreepJS](https://abrahamjuliot.github.io/creepjs/) | 14% RGBA-noise label | No RGBA-noise label |
+| [BrowserScan](https://www.browserscan.net/) | 95%; browser-version deduction | 95%; same deduction |
+| [IPhey](https://iphey.com/) | Trustworthy, MX 100; WebRTC IP null | Trustworthy, MX 100; WebRTC IP null |
+| [BrowserLeaks Canvas](https://browserleaks.com/canvas) | 100% unique signature | 100% unique signature |
+| [AmIUnique](https://amiunique.org/fingerprint) | Unique among 5,519,960 fingerprints | Unique among 5,519,964 fingerprints |
+| [EFF Cover Your Tracks](https://coveryourtracks.eff.org/) | Unique; no tracking-ad/invisible-tracker blocking | Unique; no tracking-ad/invisible-tracker blocking |
+
+EFF estimated at least 18.28 identifying bits for each profile, against
+318,766 protected-run / 318,764 normalized-run observations in its past-45-day
+dataset. This product has not gained tracker blocking from a rendering change.
+Uniqueness is a different criterion from coherent spoofed surfaces or absence
+of real-IP leaks. These results do not support a claim of passing a majority
+of interchangeable tests: the tests are not interchangeable.
+
+Local evidence pairs are `checker-{creepjs,browserscan,iphey,browserleaks-canvas,
+amiunique,eff}-064-{protected,experimental}.{json,png}`. Each JSON preserves the
+ordinary page text and each PNG the full page. PixelScan clean evidence is
+listed above; its separate diagnostic must not be passed off as a clean scan.
+No accounts, external messages, purchases, cookie-consent acceptance or
+classifier exceptions were used.
+
+Next: investigate the remaining font classifier and the independently observed
+version discrepancy. Preserve network guards and the current default until
+cross-host/platform rendering and the identity-versioning contract are
+established. No macOS/Windows acceptance, default-policy change or release
+approval. A website score never replaces controlled network gates.
