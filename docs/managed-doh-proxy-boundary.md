@@ -45,9 +45,42 @@ managed probes but also blocked the unproxied Auth control, because startup
 adds an implicit fingerprint flag there. That candidate is **not accepted**.
 The corrected condition additionally requires a fixed proxy for implicit
 fingerprint intent, while explicit require-proxy intent always enforces the
-boundary. It needs a fresh build and live-control acceptance.
+boundary. The corrected 067 build and live-control result are below.
 macOS/Windows runtime acceptance is separate.
 
 The opt-in test is `test_doh_proxy_diagnostic.py`, enabled by
 `CLAWBROWSER_DOH_DIAGNOSTIC=1`. A successful control must observe direct TLS;
 absence of traffic in both cases is not acceptance.
+
+## Corrected Linux candidate 067
+
+Runtime source commit: `3b39222`. Incremental build: two steps in 3m08.03s.
+ELF SHA256: `47218b672d1377cdff5c6638b2126ad153ef734a5764efba99fb7507641c1de9`.
+QA archive SHA256: `c257d43826bef3d1cbdad826ef8faf1d67fa139953abd90903e265bd02446267`.
+The archive was extracted to a new path and tested as non-root with sandbox
+enabled. It was not published as a release or deployed to production.
+
+The four automatic/secure × unproxied/proxied cases passed in **40.07s**:
+
+| DoH mode | Unproxied TLS control | Managed proxy TLS connections |
+| --- | ---: | ---: |
+| Automatic | 12 | 0 |
+| Secure | 240 | 0 |
+
+Counts cover eight seconds per case and are not throughput benchmarks; the
+receiver deliberately closes handshakes, causing retries. Both stored mode
+preferences remained unchanged. The ordinary page's absolute proxy request
+was also asserted, preventing a direct page load from satisfying the gate.
+Evidence: `doh-modes-067.xml`.
+
+The regression has additionally been strengthened to count **all accepted TCP
+connections**, including those that never send a full TLS record, and to check
+the active Canvas policy. The full headful suite and normalized-policy DoH
+run are in progress at this checkpoint; their completion is not implied here.
+
+Fresh 067 STUN and TURN/TLS checks passed under both Canvas policies: live STUN
+controls produced four packets versus zero browser packets; live direct TURN
+controls produced seven packets versus zero direct browser packets. Both
+proxy schemes completed TLS relay-to-relay DataChannel echoes, with certificate
+validation enabled and zero capture drops. This preserves the earlier network
+functionality while closing the newly reproduced DoH bypass.
