@@ -985,3 +985,11 @@ universal browser speedup. Native/unprotected float16 baseline still costs
 conversion overhead, while native/default timing ranges overlap. Reports are
 `noise-abba-052-{unorm8,float16}-cpu{0,1}-{0,1,2,3}.xml`.
 The full 052 suite is a separate pending acceptance gate.
+
+The extracted 052 artifact subsequently passed the full headful Linux suite:
+**135 passed / 21 skipped in 388.82s**. The same two diagnostic-only exclusions
+were used. All **714 comparable protected observations are identical to 051**,
+and all **614 comparable observations match the existing Mac references**.
+This closes the broad Linux regression for this output-preserving optimization;
+it does not rebuild/certify macOS or Windows, close Desktop OAuth, or change
+the previously observed red PixelScan classification.
