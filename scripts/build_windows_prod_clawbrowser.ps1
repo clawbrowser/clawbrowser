@@ -1059,6 +1059,10 @@ function Enable-ClawbrowserWindowsExecutableName {
     throw "Could not find Windows mini installer browser entry in $ReleasePath"
   }
   Write-FileAscii $ReleasePath $Text
+  Invoke-Checked (Join-Path $DepotTools "python3.bat") @(
+    (Join-Path $ProjectRoot "clawbrowser\fonts\windows_package.py"), "installer",
+    "--manifest", (Join-Path $ProjectRoot "clawbrowser\fonts\catalog.json"),
+    "--release", $ReleasePath)
 }
 
 function Write-BuildArgs($Profile, $OutputDir) {
@@ -1122,6 +1126,10 @@ function Ensure-WindowsPrivateAssemblyLayout($ApplicationDir) {
 }
 
 function Prepare-WindowsInstallerInputs($OutputDir) {
+  Invoke-Checked (Join-Path $DepotTools "python3.bat") @(
+    (Join-Path $ProjectRoot "clawbrowser\fonts\windows_package.py"), "verify",
+    "--manifest", (Join-Path $ProjectRoot "clawbrowser\fonts\catalog.json"),
+    "--chromium", $ChromiumSrc, "--output", (Join-Path $ChromiumSrc $OutputDir))
   $OutDir = Join-Path $ChromiumSrc $OutputDir
   $ChromeExe = Join-Path $OutDir "chrome.exe"
   $ClawbrowserExe = Join-Path $OutDir "clawbrowser.exe"
@@ -1200,6 +1208,11 @@ function Stage-Clawbrowser($OutputDir, $ArtifactName) {
   }
 
   Ensure-WindowsPrivateAssemblyLayout $StageDir
+  Invoke-Checked (Join-Path $DepotTools "python3.bat") @(
+    (Join-Path $ProjectRoot "clawbrowser\fonts\windows_package.py"), "stage",
+    "--manifest", (Join-Path $ProjectRoot "clawbrowser\fonts\catalog.json"),
+    "--chromium", $ChromiumSrc, "--output", $OutDir,
+    "--destination", $StageDir)
   Write-BundleVersionManifest (Join-Path $StageDir "clawbrowser-release.json") $ArtifactName
   Write-BundleVersionManifest (Join-Path $ArtifactRoot "$ArtifactName.release.json") $ArtifactName
 
