@@ -194,13 +194,13 @@ python -m pytest -q -o junit_family=xunit1 --junitxml=windows-font-gate.xml `
   clawbrowser/test/integration/test_font_catalog_isolation.py::test_legacy_font_list_is_reconciled_before_child_launch `
   clawbrowser/test/integration/test_font_catalog_isolation.py::test_bundled_local_faces_resolve_full_and_postscript_names
 if ($LASTEXITCODE -ne 0) { throw 'Windows font gate failed' }
-python -c "import xml.etree.ElementTree as E; c=list(E.parse('windows-font-gate.xml').getroot().iter('testcase')); assert len(c)==31; assert all(not any(x.find(t) is not None for t in ('failure','error','skipped')) for x in c)"
+python -c "import xml.etree.ElementTree as E; c=list(E.parse('windows-font-gate.xml').getroot().iter('testcase')); assert len(c)==41; assert all(not any(x.find(t) is not None for t in ('failure','error','skipped')) for x in c)"
 if ($LASTEXITCODE -ne 0) { throw 'Missing, skipped or failed Windows font evidence' }
 ```
 
 Do not add `--no-sandbox`. Run against portable **and installed** builds, record
 binary/module/catalog hashes, and keep separate XML reports. This selected
-31-test gate does not replace real Windows host-font-inventory differential
+41-test gate does not replace real Windows host-font-inventory differential
 testing, full rendering/network regression, or desktop lifecycle acceptance.
 
 Linux compatibility of the changed harness passed 10 tests in 14.39s (including
@@ -296,7 +296,7 @@ and negative-control assertions remain strict. No Linux runtime change or
 new Linux browser build was needed for this Windows-only patch.
 
 The system-font additions brought the Windows acceptance selection to 12 tests
-(the TTC and descriptor regressions below bring it to 31). It must be run on
+(the TTC and descriptor regressions below bring it to 41). It must be run on
 a fresh Windows artifact and repeated with changed host menu font preferences
 to prove independence; Linux execution alone cannot establish that result.
 
@@ -364,7 +364,27 @@ parsed value changes. On extracted, sandboxed/headful/non-root Linux artifact
 value, invalid input raising SyntaxError without changing metrics, and warm/
 fresh canvas agreement. Reports: `native-font-policy-descriptor-061.xml` (four
 actual failures) and `native-font-policy-descriptor-062.xml` (four passes).
-The full 062 regression run is pending at this commit.
+The full 062 regression passed **161 tests with 21 skips in 416.46s**; all 714
+comparable protected rendering observations match 061. All five CI checks passed.
 
 ELF SHA-256: `95e6c99a69c615248e1360f26a2c66dcc765b39ea9958ec98eebc52d38abe33c`.
 Archive SHA-256: `9f940f7b785b9f25530162e96f966975d5c04575efe12c8d66b08b76859ce100`.
+
+## Vertical metric descriptor mutation (patch 059)
+
+The adjacent ascent, descent and line-gap setters also lacked invalidation.
+The expanded test measures canvas font bounding boxes and a two-line DOM block,
+with fresh-face controls, unchanged/invalid inputs and restoration. Ascent and
+descent are tested in document and worker contexts; line gap is tested in DOM
+only because canvas TextMetrics do not expose line gap. Both native-font and
+managed policies are covered.
+
+On 062, ten new cases failed while all four size-adjust cases still passed
+(`vertical-descriptor-062.xml`, 17.92s). Patch 059 applies change-sensitive
+invalidation to the three setters. On extracted, sandboxed/headful/non-root
+artifact `metric-overrides-063`, all **14 cases pass in 18.28s**
+(`vertical-descriptor-063.xml`). Full 063 regression is pending at this commit.
+This is rendering consistency evidence, not a PixelScan or all-platform pass.
+
+ELF SHA-256: `7420c644d6388e39cc473ec615ca9f4ed664a9fc37ac374ddb91188a11816982`.
+Archive SHA-256: `1562c7a5c3220d6eb7638f55c13e9f9c69eafd90bb1715b4054004100520d646`.
