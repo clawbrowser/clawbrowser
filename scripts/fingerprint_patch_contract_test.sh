@@ -26,6 +26,7 @@ local_collection_patch="${repo_root}/clawbrowser/patches/056-local-font-collecti
 worker_descriptor_patch="${repo_root}/clawbrowser/patches/057-worker-font-descriptor-invalidation.patch"
 size_adjust_patch="${repo_root}/clawbrowser/patches/058-font-size-adjust-invalidation.patch"
 metric_override_patch="${repo_root}/clawbrowser/patches/059-font-metric-override-invalidation.patch"
+normalized_canvas_patch="${repo_root}/clawbrowser/patches/060-experimental-normalized-canvas.patch"
 verify_script="${repo_root}/clawbrowser/verify/resources/verify.js"
 verify_html="${repo_root}/clawbrowser/verify/resources/verify.html"
 verify_source="${repo_root}/clawbrowser/verify/verify_page.cc"
@@ -274,5 +275,12 @@ for descriptor in Ascent Descent LineGap; do
   grep -A5 "AtRuleDescriptorID::${descriptor}Override" "${metric_override_patch}" |
     grep -Fq 'InvalidateFontFaceOnDescriptorUpdate()'
 done
+
+# The experiment must be explicit in both parent and child and retain the
+# protected snapshot-copy path. These source checks do not replace a build.
+grep -Fq 'clawbrowser-experimental-normalized-canvas' "${normalized_canvas_patch}"
+grep -Fq 'command_line.HasSwitch(kExperimentalNormalizedCanvasSwitch)' "${loader_source}"
+grep -Fq 'command_line->HasSwitch(kExperimentalNormalizedCanvasSwitch)' "${startup_source}"
+grep -Fq 'fp->experimental_normalized_canvas ||' "${normalized_canvas_patch}"
 
 echo "PASS"

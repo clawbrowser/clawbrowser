@@ -882,7 +882,8 @@ base::expected<StartupResult, std::string> RunStartup(
           ResolveSurfaceSpoofing(
               args.webgl_spoofing_enabled(),
               args.webgl_spoofing_suppressed(),
-              loaded && loaded->surface_policy.webgl == "override"));
+              loaded && loaded->surface_policy.webgl == "override"),
+      command_line->HasSwitch(kExperimentalNormalizedCanvasSwitch));
 
   auto dev_proxy_result = ApplyDevProxyOverride();
   if (!dev_proxy_result.has_value()) {

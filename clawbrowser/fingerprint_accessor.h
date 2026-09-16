@@ -170,6 +170,9 @@ struct COMPONENT_EXPORT(CLAWBROWSER_RUNTIME) RuntimeFingerprint {
   bool webgl_spoofing_enabled = false;
   int canvas_seed = 0;
   bool canvas_spoofing_enabled = false;
+  // Retains protected raster/font paths but omits seeded pixel perturbation.
+  // Experimental, process-local and currently supported only on Linux.
+  bool experimental_normalized_canvas = false;
   int audio_seed = 0;
   int client_rects_seed = 0;
   std::string timezone;
@@ -199,7 +202,8 @@ class COMPONENT_EXPORT(CLAWBROWSER_RUNTIME) FingerprintAccessor {
   static void Set(RuntimeFingerprint fingerprint,
                   std::optional<RuntimeProxyConfig> proxy = std::nullopt);
 
-  static void SetSpoofingPolicy(bool canvas_enabled, bool webgl_enabled);
+  static void SetSpoofingPolicy(bool canvas_enabled, bool webgl_enabled,
+                               bool normalized_canvas_requested = false);
 
   // Clear loaded data. For testing only.
   static void Reset();

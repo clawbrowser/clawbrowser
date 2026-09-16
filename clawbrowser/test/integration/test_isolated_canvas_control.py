@@ -95,7 +95,21 @@ async def test_canvas_window_offscreen_worker_native_host(tmp_path, record_prope
     )
 
 
-async def _canvas_context_corpus(tmp_path, record_property, canvas_mode, environments, scope):
+@pytest.mark.asyncio
+async def test_experimental_normalized_canvas_corpus(tmp_path, record_property):
+    configs = [os.environ.get("CLAWBROWSER_TEST_FONTCONFIG_" + x) for x in ("A", "B")]
+    if sys.platform != "linux" or not all(configs):
+        pytest.skip("requires Linux and two host-font controls")
+    await _canvas_context_corpus(
+        tmp_path, record_property, "override",
+        [{"FONTCONFIG_FILE": config} for config in configs],
+        "experimental-normalized-linux-two-font-controls",
+        ("--clawbrowser-experimental-normalized-canvas",),
+    )
+
+
+async def _canvas_context_corpus(tmp_path, record_property, canvas_mode, environments, scope,
+                                 extra_args=()):
     path, mock = canvas_control_files(tmp_path, canvas_mode)
     observations = []
     for control_index, environment in enumerate(environments):
@@ -103,7 +117,7 @@ async def _canvas_context_corpus(tmp_path, record_property, canvas_mode, environ
             async with _launch_browser_with_details(
                 fixture_name=str(path), backend_mode="mock", skip_verify=True,
                 headless=False, extra_env=environment,
-                extra_browser_args=args, fingerprints_fixture_path=mock,
+                extra_browser_args=extra_args + args, fingerprints_fixture_path=mock,
             ) as launch:
                 result = await launch["page"].evaluate(r"""async () => {
                 """ + CANVAS_CONTEXT_RECIPE + r"""

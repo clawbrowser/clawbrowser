@@ -254,7 +254,8 @@ void ApplySpoofingPolicyFromCommandLine(
       ResolveSurfaceSpoofing(
           command_line.HasSwitch(kEnableWebGLSpoofingSwitch),
           command_line.HasSwitch(kDisableWebGLSpoofingSwitch),
-          fp && fp->surface_policy.webgl == "override"));
+          fp && fp->surface_policy.webgl == "override"),
+      command_line.HasSwitch(kExperimentalNormalizedCanvasSwitch));
 }
 
 base::expected<void, std::string> LoadFingerprintContents(
