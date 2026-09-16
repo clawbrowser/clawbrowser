@@ -1,6 +1,7 @@
 #include "clawbrowser/font_catalog_typefaces.h"
 
 #include "base/strings/string_util.h"
+#include "clawbrowser/font_catalog_identity.h"
 #include "third_party/skia/include/core/SkData.h"
 #include "third_party/skia/include/core/SkFontMgr.h"
 #include "third_party/skia/include/core/SkStream.h"
@@ -57,6 +58,42 @@ sk_sp<SkTypeface> MatchCatalogCharacter(
     if (auto result = choices.matchStyle(style)) return result;
   }
   return nullptr;
+}
+
+sk_sp<SkTypeface> MatchManagedCatalogFamily(
+    const std::vector<CatalogTypeface>& faces,
+    std::string_view family,
+    const SkFontStyle& style) {
+  const auto alias = LinuxFontAliasFamily(family);
+  if (!alias.empty()) {
+    const auto lower = base::ToLowerASCII(family);
+    const bool bold = lower.find("bold") != std::string::npos;
+    const bool italic = lower.find("italic") != std::string::npos;
+    return MatchCatalogFamily(
+        faces, alias,
+        SkFontStyle(bold ? 700 : 400, SkFontStyle::kNormal_Width,
+                    italic ? SkFontStyle::kItalic_Slant : SkFontStyle::kUpright_Slant));
+  }
+  const auto name = base::ToLowerASCII(family);
+  if (name == "serif" || name == "times" || name == "times new roman")
+    return MatchCatalogFamily(faces, "Tinos", style);
+  if (name == "monospace" || name == "courier" || name == "courier new")
+    return MatchCatalogFamily(faces, "Cousine", style);
+  if (name == "sans" || name == "sans-serif" || name == "arial" ||
+      name == "helvetica" || name == "system-ui" || name == "-apple-system" ||
+      name == "blinkmacsystemfont" || name == ".applesystemuifont")
+    return MatchCatalogFamily(faces, "Arimo", style);
+  return MatchCatalogFamily(faces, family, style);
+}
+
+sk_sp<SkTypeface> MatchManagedCatalogCharacter(
+    const std::vector<CatalogTypeface>& faces,
+    SkUnichar character,
+    const SkFontStyle& style,
+    bool emoji) {
+  auto families = LinuxFontCatalogFamilies();
+  if (emoji) families.insert(families.begin(), "Noto Color Emoji");
+  return MatchCatalogCharacter(faces, families, style, character);
 }
 
 base::expected<std::vector<CatalogTypeface>, std::string>

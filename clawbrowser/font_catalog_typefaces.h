@@ -38,5 +38,17 @@ sk_sp<SkTypeface> MatchCatalogCharacter(
     const std::vector<std::string>& families,
     const SkFontStyle& style,
     SkUnichar character);
+
+// Shared managed-catalog policy for platform adapters. Resolves only exact
+// shipped aliases and generic mappings, never the platform font manager.
+sk_sp<SkTypeface> MatchManagedCatalogFamily(
+    const std::vector<CatalogTypeface>& faces,
+    std::string_view family,
+    const SkFontStyle& style);
+sk_sp<SkTypeface> MatchManagedCatalogCharacter(
+    const std::vector<CatalogTypeface>& faces,
+    SkUnichar character,
+    const SkFontStyle& style,
+    bool emoji);
 }  // namespace clawbrowser
 #endif

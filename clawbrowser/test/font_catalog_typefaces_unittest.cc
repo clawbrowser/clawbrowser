@@ -7,6 +7,15 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace clawbrowser {
+TEST(FontCatalogTypefacesTest, ManagedPolicyCannotEscapeEmptyCatalog) {
+  for (const auto* family : {"Arial", "serif", "monospace", "Arimo-Regular",
+                             "Papyrus", "Segoe UI", ""}) {
+    EXPECT_FALSE(MatchManagedCatalogFamily({}, family, SkFontStyle::Normal()));
+  }
+  EXPECT_FALSE(MatchManagedCatalogCharacter({}, 'A', SkFontStyle::Normal(), false));
+  EXPECT_FALSE(MatchManagedCatalogCharacter({}, 0x1f600, SkFontStyle::Normal(), true));
+}
+
 TEST(FontCatalogTypefacesTest, RejectsEmptyAndMalformedCatalog) {
   ValidatedFontCatalog catalog;
   EXPECT_FALSE(CreateCatalogTypefaces(catalog).has_value());
@@ -84,6 +93,48 @@ TEST(FontCatalogTypefacesTest, PinnedCatalogUsesOnlyExplicitBytes) {
   EXPECT_FALSE(MatchCatalogCharacter(*faces, {"Arimo"}, SkFontStyle::Normal(), 0x1f600));
   EXPECT_FALSE(MatchCatalogCharacter(*faces, {"DejaVu Sans"}, SkFontStyle::Normal(), 0xd800));
   EXPECT_FALSE(MatchCatalogCharacter(*faces, {"DejaVu Sans"}, SkFontStyle::Normal(), 0x110000));
+  // Exercise the exact shared policy used by the macOS adapter, and reusable
+  // by Windows, against real checked font bytes rather than a mock font mgr.
+  for (const auto* name : {"sans", "sans-serif", "Arial", "HELVeTICA", "system-ui",
+                           "-apple-system", "BlinkMacSystemFont", ".AppleSystemUIFont"}) {
+    auto matched = MatchManagedCatalogFamily(*faces, name, SkFontStyle::BoldItalic());
+    ASSERT_TRUE(matched) << name;
+    matched->getFamilyName(&family);
+    EXPECT_EQ(family, SkString("Arimo")) << name;
+    EXPECT_EQ(matched->fontStyle().weight(), 700) << name;
+    EXPECT_EQ(matched->fontStyle().slant(), SkFontStyle::kItalic_Slant) << name;
+  }
+  for (const auto* name : {"serif", "Times", "Times New Roman"}) {
+    auto matched = MatchManagedCatalogFamily(*faces, name, SkFontStyle::Normal());
+    ASSERT_TRUE(matched) << name;
+    matched->getFamilyName(&family);
+    EXPECT_EQ(family, SkString("Tinos")) << name;
+  }
+  for (const auto* name : {"monospace", "Courier", "Courier New"}) {
+    auto matched = MatchManagedCatalogFamily(*faces, name, SkFontStyle::Normal());
+    ASSERT_TRUE(matched) << name;
+    matched->getFamilyName(&family);
+    EXPECT_EQ(family, SkString("Cousine")) << name;
+  }
+  // A named face selects its own style, not the surrounding CSS request.
+  auto named_regular = MatchManagedCatalogFamily(*faces, "Arimo-Regular", SkFontStyle::BoldItalic());
+  ASSERT_TRUE(named_regular);
+  EXPECT_EQ(named_regular->fontStyle(), SkFontStyle::Normal());
+  auto named_bold_italic = MatchManagedCatalogFamily(*faces, "Arimo Bold Italic", SkFontStyle::Normal());
+  ASSERT_TRUE(named_bold_italic);
+  EXPECT_EQ(named_bold_italic->fontStyle(), SkFontStyle::BoldItalic());
+  for (const auto* name : {"Arimo-Regular-extra", "Arial Narrow", "Segoe UI", "Papyrus", ""})
+    EXPECT_FALSE(MatchManagedCatalogFamily(*faces, name, SkFontStyle::Normal())) << name;
+  auto managed_emoji = MatchManagedCatalogCharacter(*faces, 0x1f600, SkFontStyle::Normal(), true);
+  ASSERT_TRUE(managed_emoji);
+  managed_emoji->getFamilyName(&family);
+  EXPECT_EQ(family, SkString("Noto Color Emoji"));
+  auto managed_latin = MatchManagedCatalogCharacter(*faces, 'A', SkFontStyle::Normal(), false);
+  ASSERT_TRUE(managed_latin);
+  managed_latin->getFamilyName(&family);
+  EXPECT_EQ(family, SkString("Arimo"));
+  EXPECT_FALSE(MatchManagedCatalogCharacter(*faces, 0xd800, SkFontStyle::Normal(), false));
+  EXPECT_FALSE(MatchManagedCatalogCharacter(*faces, 0x110000, SkFontStyle::Normal(), true));
   RecordProperty("catalog_face_count", static_cast<int>(faces->size()));
 }
 }  // namespace clawbrowser
