@@ -161,3 +161,56 @@ ClawBrowser's separate Linux Canvas2D raster-path fix passed 215 C++ tests and
 54 headful tests (one existing skip), but does not make PixelScan green.
 Its production canvas protection remains enabled. This report has not been
 sent to an external party and is not a release or merge approval.
+
+## Fresh managed 065 result (September 16)
+
+The existing `us-browserscan-reduced-qa` profile was restarted through managed
+`nbc` against the 065 executable, without rotating its identity. The running
+`/proc/PID/exe` matched the expected extracted binary and SHA256
+`767337994307176a03117a32b234277d59bd45ef66245445cb0180919c2305a4`.
+Internal verification passed 35/35 checks. A separate live pixel canary confirmed
+the explicitly selected experimental normalized-Canvas policy; this is **not**
+the default protected policy. The QA traffic endpoint returned unavailable,
+not exhausted; live proxy verification succeeded. No auth/config files were read.
+
+The ordinary PixelScan scan completed and still showed **Masking detected**,
+**No proxy detected**, and **No automated behavior detected**. The screenshot
+was saved before any classifier instrumentation. A subsequent diagnostic
+observed **fonts=false and the other twelve predicates=true**, including
+Canvas, UA/Client Hints, Worker and WebGL. Classifier API responses were HTTP 200.
+This is the 065 observation, not an extrapolation from the previous 064 run.
+
+On the same 065 profile BrowserScan displayed **100% fingerprint authenticity**,
+with populated browser/IP/hardware fields and matching reduced HTTP/JS UA.
+Its DNS widget was not independently accepted from the page; controlled routing
+evidence remains separate. Neither the score nor the site's proxy label proves
+network safety. Both normal screenshots were visually reviewed.
+
+Evidence: `pixelscan-065-reduced-ua.{json,png}`,
+`pixelscan-mask-065-reduced-ua.json` (instrumented, separate),
+`checker-browserscan-065-reduced-ua.{json,png}`, and `managed-runtime-065.json`.
+
+### Family names are not necessarily local face names
+
+A diagnostic initially found that `local("Noto Sans Kannada")` and
+`local("Noto Sans Myanmar")` failed although requesting those CSS families
+changed the raster. This **did not establish a runtime inconsistency**:
+metadata from the actual bundled files identifies full names ending in
+`Regular` and PostScript names `NotoSansKannada-Regular` and
+`NotoSansMyanmar-Regular`. Both forms loaded successfully in the same managed
+profile. The short family-only probe had tested the wrong face identifier.
+
+The controlled headful 065 regression now compares each CSS family against
+both loaded full-name/PostScript faces across three generic fallbacks, Latin
+and Kannada/Burmese text, and both Canvas modes: **48 complete pixel/metric
+comparisons pass**. The absent-name tests additionally try full/PostScript-style
+variants for Abyssinica SIL, Papyrus and the missing-name control: **54 fallback
+comparisons pass**. The combined file passed six tests in 7.97s
+(`font-fullname-065.xml`). This strengthens the diagnostic; no runtime patch
+was needed and PixelScan's font condition remains unresolved.
+
+Live diagnostic evidence `font-labels-065-fullnames.json` confirms seven of
+the ten tested families are available through a valid face name; the three
+absent names are fallback-equivalent in all nine comparisons each. The earlier
+family-only observation is retained as `font-labels-065.json`, not presented
+as evidence that the two bundled Noto fonts are missing.
