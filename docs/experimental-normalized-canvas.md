@@ -136,6 +136,28 @@ decision involving header UA, JS UA, Client Hints and experimental probes.
 Its remaining warning is unresolved; neither overriding the site verdict nor
 changing the identity speculatively is an acceptance fix.
 
+Follow-up: backend PR3 `9d6a6ef` corrected the modern Chromium UA reduction
+contract (major.0.0.0 in UA; full version in Client Hints). A fresh 064 profile
+against that QA backend passed 35/35 internal checks, Window/Worker/HTTP identity
+comparison, and a settled BrowserScan page reported 100%. PixelScan still
+reported Inconsistent / Masking. The fresh profile is not a pure website A/B
+experiment because its identity and proxy exit differ.
+
+Runtime `2bc7857` also projects coherent legacy cached Chrome UAs into that
+reduced form in memory, identically in browser and child loaders. It does not
+regenerate or rewrite the cached envelope, change full Client Hints, seeds,
+or proxy settings. Its new loader regression failed in both processes before
+the change; 83 loader/startup unit tests passed afterwards. On the extracted
+`cached-ua-065` Linux artifact, all seven privacy-migration tests passed headful
+with sandbox (8.63s). The new Window/Worker/no-regeneration case failed on the
+old 064 artifact, providing a negative control. This is targeted acceptance,
+not a rerun of the full 064 network/canvas matrix or macOS/Windows acceptance.
+
+065 ELF SHA-256: `767337994307176a03117a32b234277d59bd45ef66245445cb0180919c2305a4`.
+Archive SHA-256: `2809e03b0616801b84e33b8b6f17991c517c03641523cbbc52a023e0fbf63954`.
+Evidence: `cached-ua-065.xml`, `checker-browserscan-064-reduced-ua-settled.{json,png}`,
+and the backend PR3 `docs/ua-reduction-qa.md` report. No release was published.
+
 ### Completed seven-site first pass
 
 These are observations on September 16, not timeless detector guarantees.
