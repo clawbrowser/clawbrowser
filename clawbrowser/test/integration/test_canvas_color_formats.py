@@ -1,6 +1,7 @@
 """Cross-context fidelity for supported Canvas color spaces and pixel formats."""
 import hashlib
 import json
+import sys
 
 import pytest
 
@@ -9,12 +10,16 @@ from test_isolated_canvas_control import canvas_control_files
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode", ["native", "override"])
+@pytest.mark.parametrize("mode", ["native", "override", "normalized"])
 async def test_canvas_color_formats_across_contexts(tmp_path, record_property, mode):
-    fixture, mock = canvas_control_files(tmp_path, mode)
+    if mode == "normalized" and sys.platform != "linux":
+        pytest.skip("normalized canvas experiment is Linux-only")
+    fixture, mock = canvas_control_files(tmp_path, "override" if mode == "normalized" else mode)
     async with _launch_browser_with_details(
         fixture_name=str(fixture), backend_mode="mock", skip_verify=True,
         headless=False, fingerprints_fixture_path=mock,
+        extra_browser_args=("--clawbrowser-experimental-normalized-canvas",)
+            if mode == "normalized" else (),
     ) as launch:
         results = await launch["page"].evaluate(r"""async () => {
             function render(canvas, settings) {

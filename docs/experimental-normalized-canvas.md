@@ -41,3 +41,27 @@ required before accepting the experiment.
 The current default must still perturb pixels; the test keeps that assertion.
 No site, canvas dimension, color, font-probe name or detector verdict is
 special-cased.
+
+### First Linux artifact results, September 16, 2026
+
+- Candidate: `normalized-experiment-064`, code `ac09fde` (subsequent color-format
+  test additions do not change the binary).
+- ELF SHA-256: `3c2930940919aaf4a45849bd69345173191e828585831bbf8798132fb2164a0a`.
+- Archive SHA-256: `3353d73b74fc969b322482bc01d8f5e7c75d4db657e2ac8e4a35abafc93583e4`.
+- Selected C++ startup/child-loader/noise tests: 92 passed in 3.435s.
+- Extracted-archive browser tests: 15 passed, zero skips, in 93.10s; non-root,
+  headful and sandbox enabled with scoped user-namespace permission.
+
+The browser run covers original/protected/normalized palette controls,
+protected and normalized GPU/source snapshots (including bitmaprenderer),
+three-policy origin-taint controls, sRGB/Display-P3 and unorm8/float16 readback
+and PNG controls. The normalized seeded drawing corpus also matches across
+Window, OffscreenCanvas and Worker, two independent host-font configurations,
+and normal/disabled Skia runtime optimizations on this single Linux host.
+The old 063 normalized palette failure is now a pass; the protected control
+still requires nonzero perturbation.
+
+Reports: `normalized-064-units.xml`, `normalized-before-063.xml`, and
+`normalized-targeted-064.xml` in private QA evidence. Full regression, fresh
+network acceptance with the experimental flag, the six-site comparison and
+PixelScan are still pending. No macOS/Windows or green-detector claim.
