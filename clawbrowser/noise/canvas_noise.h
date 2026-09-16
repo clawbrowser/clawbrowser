@@ -26,7 +26,7 @@ enum class CanvasPixelFormat {
 
 namespace canvas_noise_internal {
 
-inline size_t BytesPerPixel(CanvasPixelFormat format) {
+inline constexpr size_t BytesPerPixel(CanvasPixelFormat format) {
   switch (format) {
     case CanvasPixelFormat::kRgba8:
     case CanvasPixelFormat::kBgra8:
@@ -122,6 +122,42 @@ inline uint64_t PixelSeed(uint64_t base_seed, int64_t x, int64_t y) {
   return hash ? hash : 1;
 }
 
+// Dispatch the storage format once per buffer, not once per RGB component.
+// Keep the coordinate seed and channel sequence identical to the generic path.
+template <CanvasPixelFormat format>
+inline void ApplyValidatedNoise(std::span<uint8_t> buffer,
+                                size_t row_bytes,
+                                size_t width,
+                                size_t height,
+                                uint64_t seed,
+                                int64_t origin_x,
+                                int64_t origin_y) {
+  constexpr size_t kBytesPerPixel = BytesPerPixel(format);
+  for (size_t y = 0; y < height; ++y) {
+    auto row = buffer.subspan(y * row_bytes, width * kBytesPerPixel);
+    for (size_t x = 0; x < width; ++x) {
+      Prng prng(PixelSeed(seed, origin_x + static_cast<int64_t>(x),
+                         origin_y + static_cast<int64_t>(y)));
+      auto pixel = row.subspan(x * kBytesPerPixel, kBytesPerPixel);
+      for (size_t channel = 0; channel < 3; ++channel) {
+        const uint8_t bit = static_cast<uint8_t>(prng.NextUint32() & 1u);
+        if constexpr (format == CanvasPixelFormat::kRgba8) {
+          CanonicalizeUint8Lsb(&pixel[channel], bit);
+        } else if constexpr (format == CanvasPixelFormat::kBgra8) {
+          CanonicalizeUint8Lsb(&pixel[2 - channel], bit);
+        } else if constexpr (format == CanvasPixelFormat::kRgbaF16) {
+          CanonicalizeFloat16Lsb(
+              pixel.subspan(channel * sizeof(uint16_t), sizeof(uint16_t)).data(), bit);
+        } else {
+          static_assert(format == CanvasPixelFormat::kRgbaF32);
+          CanonicalizeFloat32Lsb(
+              pixel.subspan(channel * sizeof(float), sizeof(float)).data(), bit);
+        }
+      }
+    }
+  }
+}
+
 }  // namespace canvas_noise_internal
 
 // Canonicalizes one low-order RGB bit per channel in logical R, G, B order.
@@ -162,39 +198,24 @@ inline bool ApplyDeterministicCanvasNoise(uint8_t* pixels,
   // The layout checks above prove every row and pixel below is within it.
   // Keep raw pointer conversion at this boundary; traversal is bounds-checked.
   auto buffer = UNSAFE_BUFFERS(std::span<uint8_t>(pixels, byte_length));
-  for (size_t y = 0; y < height; ++y) {
-    auto row = buffer.subspan(y * row_bytes, active_row_bytes);
-    for (size_t x = 0; x < width; ++x) {
-      Prng prng(canvas_noise_internal::PixelSeed(
-          seed, origin_x + static_cast<int64_t>(x),
-          origin_y + static_cast<int64_t>(y)));
-      auto pixel = row.subspan(x * bytes_per_pixel, bytes_per_pixel);
-      for (size_t logical_channel = 0; logical_channel < 3;
-           ++logical_channel) {
-        const uint8_t canonical_lsb =
-            static_cast<uint8_t>(prng.NextUint32() & 1u);
-        switch (format) {
-          case CanvasPixelFormat::kRgba8:
-            canvas_noise_internal::CanonicalizeUint8Lsb(
-                &pixel[logical_channel], canonical_lsb);
-            break;
-          case CanvasPixelFormat::kBgra8:
-            canvas_noise_internal::CanonicalizeUint8Lsb(
-                &pixel[2 - logical_channel], canonical_lsb);
-            break;
-          case CanvasPixelFormat::kRgbaF16:
-            canvas_noise_internal::CanonicalizeFloat16Lsb(
-                pixel.subspan(logical_channel * sizeof(uint16_t),
-                              sizeof(uint16_t)).data(), canonical_lsb);
-            break;
-          case CanvasPixelFormat::kRgbaF32:
-            canvas_noise_internal::CanonicalizeFloat32Lsb(
-                pixel.subspan(logical_channel * sizeof(float),
-                              sizeof(float)).data(), canonical_lsb);
-            break;
-        }
-      }
-    }
+  using canvas_noise_internal::ApplyValidatedNoise;
+  switch (format) {
+    case CanvasPixelFormat::kRgba8:
+      ApplyValidatedNoise<CanvasPixelFormat::kRgba8>(
+          buffer, row_bytes, width, height, seed, origin_x, origin_y);
+      break;
+    case CanvasPixelFormat::kBgra8:
+      ApplyValidatedNoise<CanvasPixelFormat::kBgra8>(
+          buffer, row_bytes, width, height, seed, origin_x, origin_y);
+      break;
+    case CanvasPixelFormat::kRgbaF16:
+      ApplyValidatedNoise<CanvasPixelFormat::kRgbaF16>(
+          buffer, row_bytes, width, height, seed, origin_x, origin_y);
+      break;
+    case CanvasPixelFormat::kRgbaF32:
+      ApplyValidatedNoise<CanvasPixelFormat::kRgbaF32>(
+          buffer, row_bytes, width, height, seed, origin_x, origin_y);
+      break;
   }
   return true;
 }
