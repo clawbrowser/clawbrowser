@@ -9,7 +9,7 @@ diff --git a/chrome/browser/net/stub_resolver_config_reader.cc b/chrome/browser/
  #include "base/feature_list.h"
  #include "base/functional/bind.h"
  #include "base/functional/callback.h"
-@@ -341,7 +342,17 @@ SecureDnsConfig StubResolverConfigReader::GetAndUpdateConfiguration(
+@@ -341,7 +342,18 @@ SecureDnsConfig StubResolverConfigReader::GetAndUpdateConfiguration(
    SecureDnsConfig::ManagementMode forced_management_mode =
        SecureDnsConfig::ManagementMode::kNoOverride;
    bool is_managed = GetDnsOverHttpsConfigSource()->IsConfigManaged();
@@ -22,7 +22,8 @@ diff --git a/chrome/browser/net/stub_resolver_config_reader.cc b/chrome/browser/
 +  const base::CommandLine* command_line =
 +      base::CommandLine::ForCurrentProcess();
 +  const bool managed_proxy_boundary =
-+      command_line->HasSwitch("fingerprint") ||
++      (command_line->HasSwitch("fingerprint") &&
++       command_line->HasSwitch("proxy-server")) ||
 +      command_line->HasSwitch("clawbrowser-require-proxy");
 +  if (managed_proxy_boundary || (!is_managed && ShouldDisableDohForManaged())) {
      secure_dns_mode = net::SecureDnsMode::kOff;

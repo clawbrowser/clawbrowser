@@ -19,7 +19,8 @@ from test_proxy_tls_hostname import serving
 @pytest.mark.skipif(os.environ.get('CLAWBROWSER_DOH_DIAGNOSTIC') != '1',
                     reason='Opt-in background DoH probe investigation')
 @pytest.mark.parametrize('proxied', [False, True])
-async def test_background_doh_probe_obeys_profile_proxy(proxied, monkeypatch, record_property):
+@pytest.mark.parametrize('mode', ['automatic', 'secure'])
+async def test_background_doh_probe_obeys_profile_proxy(proxied, mode, monkeypatch, record_property):
     hello = []
 
     class Doh(socketserver.BaseRequestHandler):
@@ -42,7 +43,7 @@ async def test_background_doh_probe_obeys_profile_proxy(proxied, monkeypatch, re
             directory = config_dir / 'Browser' / ('test_profile' if proxied else 'Auth')
             directory.mkdir(parents=True, exist_ok=True)
             (directory / 'Local State').write_text(json.dumps({
-                'dns_over_https': {'mode': 'automatic',
+                'dns_over_https': {'mode': mode,
                     'templates': f'https://127.0.0.1:{doh_port}/dns-query'}}))
 
         monkeypatch.setattr(conftest, '_seed_config', seed)
@@ -60,7 +61,9 @@ async def test_background_doh_probe_obeys_profile_proxy(proxied, monkeypatch, re
                     if proxied else '/control') in hits
             await page.wait_for_timeout(8000)
             record_property('doh_probe', json.dumps({'proxied':proxied,
-                'direct_tls_client_hello':len(hello),'window_seconds':8}))
+                'mode':mode,'direct_tls_client_hello':len(hello),'window_seconds':8}))
+            state = launch['config_dir'] / 'Browser' / ('test_profile' if proxied else 'Auth') / 'Local State'
+            assert json.loads(state.read_text())['dns_over_https']['mode'] == mode
             if proxied:
                 assert not hello, 'DoH probe connected directly despite a profile proxy'
             else:

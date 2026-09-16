@@ -29,19 +29,24 @@ background DoH probing.
 
 Patch `061-managed-proxy-disable-direct-doh.patch` makes the effective stub
 resolver configuration turn DoH off when the browser command line expresses
-`--fingerprint` or `--clawbrowser-require-proxy` intent. This also takes precedence
+`--fingerprint` together with `--proxy-server`, or explicit
+`--clawbrowser-require-proxy` intent. This also takes precedence
 over explicit secure-DNS preferences/policy; such preferences cannot override
 the mandatory proxy boundary. It runs on configuration refresh as well as
 initial configuration and does not rewrite the stored preferences.
 
-Vanilla sessions without either managed-intent switch retain Chromium's DoH
+Unproxied sessions without explicit require-proxy intent retain Chromium's DoH
 behavior. Ordinary destination names still go to the proxy. Proxy-host bootstrap
 resolution remains a separate concern; this patch does not claim to eliminate
 all operating-system DNS or all browser background networking.
 
-At the initial fix commit the new Linux binary is still being linked. Do not
-mark this scenario accepted until the same live-control test passes on the
-new extracted artifact. macOS/Windows runtime acceptance is separate.
+The first 066 implementation checked fingerprint intent alone. It blocked
+managed probes but also blocked the unproxied Auth control, because startup
+adds an implicit fingerprint flag there. That candidate is **not accepted**.
+The corrected condition additionally requires a fixed proxy for implicit
+fingerprint intent, while explicit require-proxy intent always enforces the
+boundary. It needs a fresh build and live-control acceptance.
+macOS/Windows runtime acceptance is separate.
 
 The opt-in test is `test_doh_proxy_diagnostic.py`, enabled by
 `CLAWBROWSER_DOH_DIAGNOSTIC=1`. A successful control must observe direct TLS;
