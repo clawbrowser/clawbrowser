@@ -101,6 +101,7 @@ jobs:
             clawbrowser/test/integration/test_surfaces.py \
             clawbrowser/test/integration/test_privacy_migration.py \
             clawbrowser/test/integration/test_complex_font_fallback.py \
+            clawbrowser/test/integration/test_system_font_policy.py \
             clawbrowser/test/integration/test_dynamic_font_fallback.py
           python3 scripts/integration_binary_resolution_test.py
           python3 scripts/font_test_assets_test.py

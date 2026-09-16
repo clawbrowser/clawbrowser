@@ -21,6 +21,7 @@ css_font_patch="${repo_root}/clawbrowser/patches/034-css-font-probing.patch"
 font_fallback_patch="${repo_root}/clawbrowser/patches/035-font-fallback-probing.patch"
 windows_strike_patch="${repo_root}/clawbrowser/patches/054-managed-windows-font-rendering.patch"
 managed_strike_header="${repo_root}/clawbrowser/managed_font_rendering.h"
+windows_system_font_patch="${repo_root}/clawbrowser/patches/055-managed-windows-system-fonts.patch"
 verify_script="${repo_root}/clawbrowser/verify/resources/verify.js"
 verify_html="${repo_root}/clawbrowser/verify/resources/verify.html"
 verify_source="${repo_root}/clawbrowser/verify/verify_page.cc"
@@ -243,5 +244,14 @@ for setting in 'setSubpixel(true)' 'setLinearMetrics(true)' \
   grep -Fq "${setting}" "${managed_strike_header}"
   grep -Fq "${setting}" "${repo_root}/clawbrowser/patches/042-managed-linux-font-rendering.patch"
 done
+
+# system-ui is rewritten before CreateFontPlatformData; CSS system font
+# keywords also have a separate Windows host-metrics path.
+grep -A9 'FontCache::SystemFontFamily()' "${windows_system_font_patch}" |
+  grep -Fq '("Arimo")'
+grep -A8 'LayoutThemeFontProvider::SystemFontFamily(' "${windows_system_font_patch}" |
+  grep -q 'ShouldFilterLocalFonts'
+grep -A15 'LayoutThemeFontProvider::SystemFontSize(' "${windows_system_font_patch}" |
+  grep -q 'return DefaultFontSize(document)'
 
 echo "PASS"
