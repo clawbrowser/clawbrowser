@@ -64,8 +64,10 @@ if grep -q 'canvas_rendering_context_2d.cc' "${canvas_patch}"; then
   echo "Canvas noise must hook the shared BaseRenderingContext2D path." >&2
   exit 1
 fi
-grep -q 'logical_channel < 3' "${canvas_helper}"
-grep -Fq '&pixel[2 - logical_channel]' "${canvas_helper}"
+grep -Eq '(logical_)?channel < 3' "${canvas_helper}"
+grep -Eq '&pixel\[2 - (logical_)?channel\]' "${canvas_helper}"
+grep -q 'SpecializedTraversalMatchesGenericReference' \
+  "${repo_root}/clawbrowser/test/canvas_noise_unittest.cc"
 grep -q 'buffer.subspan' "${canvas_helper}"
 if grep -q 'std::memcpy' "${canvas_helper}"; then
   echo "Canvas helper must use bounded byte conversions, not raw memcpy." >&2
