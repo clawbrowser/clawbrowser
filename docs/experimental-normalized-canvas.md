@@ -62,6 +62,39 @@ The old 063 normalized palette failure is now a pass; the protected control
 still requires nonzero perturbation.
 
 Reports: `normalized-064-units.xml`, `normalized-before-063.xml`, and
-`normalized-targeted-064.xml` in private QA evidence. Full regression, fresh
-network acceptance with the experimental flag, the six-site comparison and
-PixelScan are still pending. No macOS/Windows or green-detector claim.
+`normalized-targeted-064.xml` in private QA evidence.
+
+The complete Linux integration run finished with 177 passed and 21 skipped in
+538.983s (`full-suite-064.xml`). Skipped cases are not counted as acceptance.
+
+Fresh network runs tested this exact extracted artifact in both protected and
+normalized modes. Every live browser phase includes an exact-color Canvas
+canary: protected mode changed 368 channels by at most one, normalized mode
+changed zero. Thus an ignored experimental flag cannot satisfy these results.
+
+| Controlled check | Protected | Normalized |
+| --- | --- | --- |
+| IPv4/IPv6 STUN, HTTP and SOCKS5 | 0 direct packets | 0 direct packets |
+| Independent STUN positive control | 4 packets | 4 packets |
+| TURN/TLS echo, HTTP and SOCKS5 | 2 passed | 2 passed |
+| Browser direct TURN packets | 0 | 0 |
+| Proxy-origin TURN packets | 257 | 248 |
+| Direct TLS positive control | 7 packets | 7 packets |
+| Packet capture drops | 0 | 0 |
+| Invalid profile/API/proxy startup paths | 5 passed | 5 passed |
+| Proxy 407 / 502 / offline direct requests | 0 / 0 / 0 | 0 / 0 / 0 |
+| Deliberately direct outage control | 35 detected | 35 detected |
+
+TURN used trusted TLS without certificate bypass; both selected candidate pairs
+were relay-to-relay with real DataChannel echo. STUN/TURN browser phases were
+non-root, headful and sandboxed. The separate nextctl origin-side outage test
+uses headless mode, `--no-sandbox` and a controlled test-certificate bypass;
+these limitations do not apply to the TURN run. Network evidence is limited
+to these controlled endpoints, not every possible destination/protocol.
+
+Evidence stems: `normalized-064-{protected,experimental}-stun-pcap.json`,
+`-turn-route.json`, `-turn-route.xml`, and `-outage.jsonl`. No proxy credentials,
+raw SDP or private packet captures are published.
+
+The six-site comparison and PixelScan are still pending. No macOS/Windows or
+green-detector claim; no default-policy change or release approval.

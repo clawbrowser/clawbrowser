@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from conftest import _launch_browser_with_details
+from canvas_network_mode import canvas_network_args, assert_canvas_network_mode
 
 
 RELAY_ECHO = r"""async turn => {
@@ -107,12 +108,15 @@ async def test_real_turn_tls_echo(scheme, record_property):
     async with _launch_browser_with_details(
         fixture_name="valid_fingerprint.json", backend_mode="mock",
         skip_verify=True, proxy_config=proxy, headless=False,
+        extra_browser_args=canvas_network_args(),
     ) as launch:
         # A remote proxy cannot reach this machine's localhost mock page, and
         # managed profiles intentionally have no implicit loopback bypass.
         # Use an explicit in-memory probe document, never a network error page.
         await launch["page"].goto("data:text/html,<title>TURN relay probe</title>")
         assert await launch["page"].title() == "TURN relay probe"
+        record_property("canvas_mode_canary", json.dumps(
+            await assert_canvas_network_mode(launch["page"]), sort_keys=True))
         result = await launch["page"].evaluate(RELAY_ECHO, turn)
     record_property("turn_tls_observation", json.dumps(result, sort_keys=True))
     assert result["echo"], result
