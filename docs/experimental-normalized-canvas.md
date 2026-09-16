@@ -96,5 +96,33 @@ Evidence stems: `normalized-064-{protected,experimental}-stun-pcap.json`,
 `-turn-route.json`, `-turn-route.xml`, and `-outage.jsonl`. No proxy credentials,
 raw SDP or private packet captures are published.
 
-The six-site comparison and PixelScan are still pending. No macOS/Windows or
-green-detector claim; no default-policy change or release approval.
+### Initial live-site observations
+
+Both modes were launched as managed, non-root headful ClawBrowser profiles on
+064, with 35/35 internal verification checks passing. The separate durable
+profiles have different identities/proxy exits and UA patch versions; this is
+not a same-profile randomized A/B experiment. Controlled fixture tests above
+isolate the Canvas-mode difference.
+
+- PixelScan: ordinary, settled scans in **both** modes report Inconsistent /
+  Masking detected, No proxy detected and No automated behavior. Screenshots
+  are preserved as `pixelscan-normalized-064-{protected,experimental}.png`.
+- A subsequent, explicitly instrumented diagnostic in the normalized profile
+  observed `canvas=true`, `fonts=false`, and the other eleven classifier
+  predicates true. It reads the existing booleans without replacing their
+  inputs or verdict; it is diagnosis, not a clean acceptance run. The old 063
+  diagnostic had both Canvas and fonts false. The remaining font classification
+  is unresolved, not assumed to be a false positive.
+- CreepJS: the protected profile reports `14% rgba noise`; the normalized
+  profile has no RGBA-noise label. Both show blocked host/STUN connections,
+  `0% headless`, `0% stealth`, and `50% like headless`. This is not an overall
+  undetectability verdict. Both expose the same observed font subset.
+- BrowserScan: **95% authenticity in both modes**, with a five-point deduction
+  for a different browser version. Both show Proxy No, Bot Detection No, and
+  WebRTC/STUN disabled. The version warning needs separate diagnosis; removing
+  Canvas perturbation did not resolve it. The displayed DNS results have not
+  yet received origin-side routing acceptance and are not labeled leak-free.
+
+Other checker runs and font/version diagnosis remain in progress. No
+macOS/Windows or green-detector claim; no default-policy change or release
+approval. A website score never replaces the controlled network gates.
