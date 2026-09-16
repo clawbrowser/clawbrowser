@@ -7,6 +7,7 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/path_service.h"
+#include "build/build_config.h"
 #include "clawbrowser/cli/args.h"
 #include "clawbrowser/fingerprint_accessor.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -402,6 +403,47 @@ TEST_F(FingerprintLoaderTest, CommandLineSpoofingFlagsApplyToChildPayload) {
   ASSERT_NE(FingerprintAccessor::Get(), nullptr);
   EXPECT_TRUE(FingerprintAccessor::Get()->canvas_spoofing_enabled);
   EXPECT_TRUE(FingerprintAccessor::Get()->webgl_spoofing_enabled);
+  EXPECT_FALSE(FingerprintAccessor::Get()->experimental_normalized_canvas);
+}
+
+TEST_F(FingerprintLoaderTest, ExperimentalNormalizedCanvasChildPayload) {
+  auto payload = BuildChildFingerprintPayload(GetFixturePath("valid_fingerprint.json"));
+  ASSERT_TRUE(payload.has_value()) << payload.error();
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII(kFingerprintChildDataSwitch, *payload);
+  cmd.AppendSwitch(kExperimentalNormalizedCanvasSwitch);
+  ASSERT_TRUE(LoadFingerprintFromCommandLine(cmd).has_value());
+  ASSERT_NE(FingerprintAccessor::Get(), nullptr);
+  EXPECT_TRUE(FingerprintAccessor::Get()->canvas_spoofing_enabled);
+  EXPECT_EQ(FingerprintAccessor::Get()->experimental_normalized_canvas,
+            BUILDFLAG(IS_LINUX));
+  cmd.AppendSwitch(kDisableCanvasSpoofingSwitch);
+  ASSERT_TRUE(LoadFingerprintFromCommandLine(cmd).has_value());
+  EXPECT_FALSE(FingerprintAccessor::Get()->experimental_normalized_canvas);
+}
+
+TEST_F(FingerprintLoaderTest, NormalizedCanvasRequiresProtectedFontAndCanvasPolicy) {
+  ASSERT_TRUE(LoadFingerprint(GetFixturePath("valid_fingerprint.json")).has_value());
+  auto fp = *FingerprintAccessor::Get();
+  FingerprintAccessor::SetSpoofingPolicy(true, false, true);
+  EXPECT_EQ(FingerprintAccessor::Get()->experimental_normalized_canvas,
+            BUILDFLAG(IS_LINUX));
+  FingerprintAccessor::SetSpoofingPolicy(true, false);
+  EXPECT_FALSE(FingerprintAccessor::Get()->experimental_normalized_canvas);
+  fp.surface_policy.fonts = "native";
+  FingerprintAccessor::Set(fp);
+  FingerprintAccessor::SetSpoofingPolicy(true, false, true);
+  EXPECT_FALSE(FingerprintAccessor::Get()->experimental_normalized_canvas);
+  fp.surface_policy.fonts = "native_or_allowlist";
+  fp.surface_policy.canvas = "native";
+  FingerprintAccessor::Set(fp);
+  FingerprintAccessor::SetSpoofingPolicy(true, false, true);
+  EXPECT_FALSE(FingerprintAccessor::Get()->experimental_normalized_canvas);
+  fp.surface_policy.canvas = "override";
+  fp.fonts.clear();
+  FingerprintAccessor::Set(fp);
+  FingerprintAccessor::SetSpoofingPolicy(true, false, true);
+  EXPECT_FALSE(FingerprintAccessor::Get()->experimental_normalized_canvas);
 }
 
 TEST_F(FingerprintLoaderTest, DisableWebGLSwitchWinsInChildPayload) {

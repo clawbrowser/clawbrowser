@@ -2,6 +2,7 @@
 import base64
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import threading
+import sys
 
 import pytest
 
@@ -39,12 +40,16 @@ def image_origin():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode", ["native", "override"])
+@pytest.mark.parametrize("mode", ["native", "override", "normalized"])
 async def test_canvas_snapshots_preserve_origin_taint(tmp_path, image_origin, mode):
-    fixture, mock = canvas_control_files(tmp_path, mode)
+    if mode == "normalized" and sys.platform != "linux":
+        pytest.skip("normalized canvas experiment is Linux-only")
+    fixture, mock = canvas_control_files(tmp_path, "override" if mode == "normalized" else mode)
     async with _launch_browser_with_details(
         fixture_name=str(fixture), backend_mode="mock", skip_verify=True,
         headless=False, fingerprints_fixture_path=mock,
+        extra_browser_args=("--clawbrowser-experimental-normalized-canvas",)
+            if mode == "normalized" else (),
     ) as launch:
         page = launch["page"]
         await page.goto(f"http://127.0.0.1:{image_origin}/")

@@ -8,12 +8,19 @@ from conftest import _launch_browser
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("protected", [False, True], ids=["native", "protected"])
-async def test_palette_png_roundtrip(protected, record_property):
+@pytest.mark.parametrize("mode", ["native", "protected", "normalized"])
+async def test_palette_png_roundtrip(mode, record_property):
+    protected = mode != "native"
+    if mode == "normalized":
+        import sys
+        if sys.platform != "linux":
+            pytest.skip("normalized canvas experiment is Linux-only")
     async with _launch_browser(
         fixture_name="valid_fingerprint.json" if protected else None,
         backend_mode="mock" if protected else "vanilla",
         skip_verify=True,
+        extra_browser_args=("--clawbrowser-experimental-normalized-canvas",)
+            if mode == "normalized" else (),
     ) as (page, _):
         result = await page.evaluate("""async () => {
             const colors = [[255,0,0],[0,255,0],[0,0,255],[255,255,0],
@@ -56,7 +63,7 @@ async def test_palette_png_roundtrip(protected, record_property):
         assert result["stableReadback"] and result["stableExport"], result
         assert result["roundtripMismatches"] == 0, result
         assert result["badAlpha"] == 0, result
-        if protected:
+        if mode == "protected":
             assert result["changed"] > 0, result
             assert result["maxDelta"] == 1, result
         else:

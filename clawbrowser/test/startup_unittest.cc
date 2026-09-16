@@ -439,6 +439,25 @@ TEST_F(StartupTest, CorruptMacCatalogStopsManagedStartup) {
 }
 #endif
 
+TEST_F(StartupTest, ExperimentalNormalizedCanvasPreservesManagedGuards) {
+  WriteCachedProfile("normalized_profile");
+  WriteConfigJson("test_key");
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "normalized_profile");
+  cmd.AppendSwitch(kExperimentalNormalizedCanvasSwitch);
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+  ASSERT_NE(FingerprintAccessor::Get(), nullptr);
+  EXPECT_TRUE(FingerprintAccessor::Get()->canvas_spoofing_enabled);
+  EXPECT_EQ(FingerprintAccessor::Get()->experimental_normalized_canvas,
+            BUILDFLAG(IS_LINUX));
+  EXPECT_TRUE(cmd.HasSwitch(kRequireFingerprintSwitch));
+  EXPECT_EQ(cmd.GetSwitchValueASCII("proxy-server"), "http://proxy.example.com:8080");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("force-webrtc-ip-handling-policy"),
+            "disable_non_proxied_udp");
+}
+
 TEST_F(StartupTest, FingerprintWithCachedProfile) {
   WriteCachedProfile("cached_profile");
   WriteConfigJson("test_key");
@@ -451,6 +470,7 @@ TEST_F(StartupTest, FingerprintWithCachedProfile) {
   ASSERT_NE(FingerprintAccessor::Get(), nullptr);
   EXPECT_TRUE(FingerprintAccessor::Get()->canvas_spoofing_enabled);
   EXPECT_FALSE(FingerprintAccessor::Get()->webgl_spoofing_enabled);
+  EXPECT_FALSE(FingerprintAccessor::Get()->experimental_normalized_canvas);
   // Command line flags should be set
   EXPECT_TRUE(cmd.HasSwitch(kFingerprintPathSwitch));
   EXPECT_TRUE(cmd.HasSwitch(kRequireFingerprintSwitch));

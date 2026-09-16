@@ -1,11 +1,29 @@
 """Canvas protection must precede GPU upload, not just CPU readback."""
 
 import pytest
+import sys
+
+from conftest import _launch_browser
 
 
 @pytest.mark.asyncio
 async def test_canvas_source_snapshots_protect_gpu_upload(browser_with_fingerprint):
     page, _ = browser_with_fingerprint
+    await _check_source_snapshots(page, noisy=True)
+
+
+@pytest.mark.asyncio
+async def test_normalized_canvas_source_snapshots():
+    if sys.platform != "linux":
+        pytest.skip("normalized canvas experiment is Linux-only")
+    async with _launch_browser(
+        fixture_name="valid_fingerprint.json", backend_mode="mock", skip_verify=True,
+        extra_browser_args=("--clawbrowser-experimental-normalized-canvas",),
+    ) as (page, _):
+        await _check_source_snapshots(page, noisy=False)
+
+
+async def _check_source_snapshots(page, noisy):
     result = await page.evaluate("""async () => {
         const n = 64;
         const canvas = document.createElement('canvas');
@@ -70,7 +88,10 @@ async def test_canvas_source_snapshots_protect_gpu_upload(browser_with_fingerpri
             protectedBytes: expected.filter((v, i) => v !== [100,150,200,255][i % 4]).length,
             liveUnchanged: expected.every((v, i) => v === after[i])};
     }""")
-    assert result['protectedBytes'] > 0, 'control must demonstrate active canvas noise'
+    if noisy:
+        assert result['protectedBytes'] > 0, 'control must demonstrate active canvas noise'
+    else:
+        assert result['protectedBytes'] == 0, result
     assert result['liveUnchanged'], 'snapshot must not mutate the canvas backing'
     assert result['ownership'] == [True, True], 'bitmap transfer must consume its input'
     assert len(result['observations']) == 14
