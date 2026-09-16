@@ -182,8 +182,15 @@ Proxy-origin packets were 252 (protected) / 256 (normalized); all captures had
 zero kernel drops. These were headful, non-root, sandboxed runs. Evidence stems
 are `cached-ua-065-{protected,experimental}-{stun-pcap,turn-route}` (JSON and TURN
 JUnit XML). The controlled services were stopped after testing. The separate
-outage/fail-closed gate still needs a fresh 065 run; its earlier 064 pass is not
-silently attributed to this archive.
+outage/fail-closed gate was subsequently run fresh on 065 in both modes.
+All five startup rejection cases passed: corrupt profile, missing host,
+missing port, unsupported scheme and unavailable API. HTTP/HTTPS/WS/WSS probes
+under proxy 407, 502 and offline conditions produced zero origin/direct
+requests. Attempt counts were 20/20/20 (protected) and 18/22/20 (normalized).
+Independent direct-browser controls detected 34/35 requests respectively.
+Reports: `cached-ua-065-{protected,experimental}-outage.jsonl`. Unlike the
+TURN/TLS runs, these controlled outage tests run headless with no-sandbox and
+test certificate bypass; they are not represented as sandbox/TLS validation.
 
 ### Completed seven-site first pass
 
