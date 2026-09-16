@@ -993,3 +993,21 @@ and all **614 comparable observations match the existing Mac references**.
 This closes the broad Linux regression for this output-preserving optimization;
 it does not rebuild/certify macOS or Windows, close Desktop OAuth, or change
 the previously observed red PixelScan classification.
+
+### Dynamic web-font fallback (2026-09-16)
+
+Candidate 052 passed a new headful font-cache invalidation regression using the
+actual packaged, manifest-hash-checked Tinos asset as an in-memory web-font with
+ASCII-only `unicode-range`. The positive Latin control switches to a custom font
+with different width; Arabic, Devanagari, Thai and the selected emoji sequence
+retain exactly their prior bundled-font provenance and widths. Removing the
+FontFace from `document.fonts` restores all five baseline observations.
+
+The test passed with default, isolated Noto, and isolated Liberation host
+catalogs (1.58s / 1.57s / 1.57s). All 15 text/state observations agree across
+these Linux configurations. Reports: `dynamic-font-fallback-052.xml`,
+`dynamic-font-fallback-052-noto.xml`, and
+`dynamic-font-fallback-052-liberation.xml`. This covers a previously untested
+load/remove transition, not every script or web-font configuration. No runtime
+change was needed. The equivalent macOS run remains pending; this result does
+not resolve PixelScan's classification or certify all platforms.
