@@ -103,6 +103,7 @@ jobs:
             clawbrowser/test/integration/test_complex_font_fallback.py \
             clawbrowser/test/integration/test_system_font_policy.py \
             clawbrowser/test/integration/test_local_collection_variations.py \
+            clawbrowser/test/integration/test_font_descriptor_native.py \
             clawbrowser/test/integration/test_dynamic_font_fallback.py
           python3 scripts/integration_binary_resolution_test.py
           python3 scripts/font_test_assets_test.py
