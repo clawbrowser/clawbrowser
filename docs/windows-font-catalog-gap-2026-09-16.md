@@ -166,3 +166,42 @@ and the previously Linux-only unit regression is enabled on all three desktop
 platforms. Eight font-policy tests passed in the Linux C++ target (5ms), report
 `windows-alias-policy-057.xml`. Windows execution of that C++ test remains open;
 this conditional change does not alter the accepted Linux 056 behavior.
+
+## Windows font E2E entry point
+
+Dynamic webfont, complex fallback, profile migration/local-name and glyph
+coverage tests now include Windows. Test font data must come from the chosen
+browser installation and be adjacent to its `chrome.dll`. Multiple installed
+versions are rejected unless `CLAWBROWSER_TEST_RESOURCE_DIR` identifies the
+tested version directory. The resolver has six unit tests, also wired into
+Windows CI; loose font files or another installation cannot satisfy it.
+
+On a Windows builder, after a **fresh** build/install, from this repository:
+
+```powershell
+$env:CLAWBROWSER_BINARY = 'C:\path\to\Clawbrowser\clawbrowser.exe'
+$env:CLAWBROWSER_TEST_HEADFUL = '1'
+# Only if multiple installed versions exist:
+# $env:CLAWBROWSER_TEST_RESOURCE_DIR = 'C:\path\to\Clawbrowser\151.0.7922.109'
+python -m pip install -r clawbrowser/test/integration/requirements.txt
+python -m pytest -q -o junit_family=xunit1 --junitxml=windows-font-gate.xml `
+  clawbrowser/test/integration/test_dynamic_font_fallback.py `
+  clawbrowser/test/integration/test_complex_font_fallback.py `
+  clawbrowser/test/integration/test_font_glyph_coverage.py `
+  clawbrowser/test/integration/test_font_catalog_isolation.py::test_legacy_font_list_is_reconciled_before_child_launch `
+  clawbrowser/test/integration/test_font_catalog_isolation.py::test_bundled_local_faces_resolve_full_and_postscript_names
+if ($LASTEXITCODE -ne 0) { throw 'Windows font gate failed' }
+python -c "import xml.etree.ElementTree as E; c=list(E.parse('windows-font-gate.xml').getroot().iter('testcase')); assert len(c)==10; assert all(not any(x.find(t) is not None for t in ('failure','error','skipped')) for x in c)"
+if ($LASTEXITCODE -ne 0) { throw 'Missing, skipped or failed Windows font evidence' }
+```
+
+Do not add `--no-sandbox`. Run against portable **and installed** builds, record
+binary/module/catalog hashes, and keep separate XML reports. This selected
+10-test gate does not replace real Windows host-font-inventory differential
+testing, full rendering/network regression, or desktop lifecycle acceptance.
+
+Linux compatibility of the changed harness passed 10 tests in 14.39s (including
+its Linux-only Fontconfig differential), plus the updated hash-checked glyph
+coverage test in 0.75s, against 056. Reports:
+`windows-enabled-font-harness-056.xml`, `windows-enabled-glyph-harness-056.xml`.
+No Windows E2E execution is claimed.

@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -9,19 +10,19 @@ import pytest
 
 from conftest import _launch_browser_with_details, _resolve_browser_binary
 from test_complex_font_fallback import platform_fonts
+from font_test_assets import bundled_font_asset
 
-pytestmark = pytest.mark.skipif(sys.platform not in ("linux", "darwin"),
-                                reason="Linux/macOS bundled catalog")
+pytestmark = pytest.mark.skipif(sys.platform not in ("linux", "darwin", "win32"),
+                                reason="Desktop bundled catalog")
 
 
 def bundled_tinos_payload():
     manifest = json.loads((Path(__file__).parents[2] / "fonts/catalog.json").read_text())
     binary = Path(_resolve_browser_binary()).resolve()
-    search_root = binary.parent if sys.platform == "linux" else binary.parents[1]
-    candidates = list(search_root.rglob("Tinos-Regular.ttf"))
+    asset = bundled_font_asset(binary, sys.platform, manifest['catalog_id'],
+                               'Tinos-Regular.ttf', os.environ.get('CLAWBROWSER_TEST_RESOURCE_DIR'))
     expected = next(f["sha256"] for f in manifest["fonts"] if f["file"] == "Tinos-Regular.ttf")
-    assert candidates, "Test requires the actual packaged font asset"
-    data = candidates[0].read_bytes()
+    data = asset.read_bytes()
     assert hashlib.sha256(data).hexdigest() == expected
     return base64.b64encode(data).decode("ascii")
 
