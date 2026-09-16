@@ -1050,3 +1050,9 @@ after loading and after removal. The failing 052 evidence is retained, giving a
 before/after regression rather than a source-only claim. Report:
 `dynamic-worker-font-053.xml`. The broad 053 regression was started separately
 and is still pending; macOS/Windows binary and PixelScan acceptance remain open.
+
+The broad 053 run subsequently completed: **137 passed / 21 skipped in
+391.96s**, with the same two diagnostic-module exclusions. All **714 comparable
+protected observations remain identical to 052**, and **614 match the saved
+Mac references**. The 21 skips are not passes; new worker behavior still needs
+actual macOS/Windows binary validation. Report: `full-suite-053.xml`.
