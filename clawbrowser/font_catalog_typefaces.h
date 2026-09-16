@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include "base/component_export.h"
 #include "base/types/expected.h"
 #include "clawbrowser/font_catalog.h"
 #include "third_party/skia/include/core/SkFontStyle.h"
@@ -22,16 +23,18 @@ struct CatalogTypeface {
 // collection faces and their named variations; never consults a host font mgr.
 // Missing/invalid fonts fail the entire catalog rather than silently omitting
 // a family and permitting an accidental system fallback.
+COMPONENT_EXPORT(CLAWBROWSER_FONT_TYPEFACES)
 base::expected<std::vector<CatalogTypeface>, std::string>
 CreateCatalogTypefaces(const ValidatedFontCatalog& catalog);
 
 // Pre-sandbox entry point: validates and decodes the same owned byte snapshot.
 // Returned typefaces no longer require any filesystem access to the catalog.
+COMPONENT_EXPORT(CLAWBROWSER_FONT_TYPEFACES)
 base::expected<std::vector<CatalogTypeface>, std::string>
 LoadCatalogTypefaces(const base::FilePath& catalog_dir,
                     std::string_view expected_manifest_sha256);
 
-sk_sp<SkTypeface> MatchCatalogFamily(
+COMPONENT_EXPORT(CLAWBROWSER_FONT_TYPEFACES) sk_sp<SkTypeface> MatchCatalogFamily(
     const std::vector<CatalogTypeface>& faces,
     std::string_view family,
     const SkFontStyle& style);
@@ -39,7 +42,7 @@ sk_sp<SkTypeface> MatchCatalogFamily(
 // Tries only the supplied families in order, selecting the closest CSS style
 // among faces that contain the character. No match returns nullptr; callers
 // must not reinterpret that as permission to consult the host font manager.
-sk_sp<SkTypeface> MatchCatalogCharacter(
+COMPONENT_EXPORT(CLAWBROWSER_FONT_TYPEFACES) sk_sp<SkTypeface> MatchCatalogCharacter(
     const std::vector<CatalogTypeface>& faces,
     const std::vector<std::string>& families,
     const SkFontStyle& style,
@@ -47,11 +50,11 @@ sk_sp<SkTypeface> MatchCatalogCharacter(
 
 // Shared managed-catalog policy for platform adapters. Resolves only exact
 // shipped aliases and generic mappings, never the platform font manager.
-sk_sp<SkTypeface> MatchManagedCatalogFamily(
+COMPONENT_EXPORT(CLAWBROWSER_FONT_TYPEFACES) sk_sp<SkTypeface> MatchManagedCatalogFamily(
     const std::vector<CatalogTypeface>& faces,
     std::string_view family,
     const SkFontStyle& style);
-sk_sp<SkTypeface> MatchManagedCatalogCharacter(
+COMPONENT_EXPORT(CLAWBROWSER_FONT_TYPEFACES) sk_sp<SkTypeface> MatchManagedCatalogCharacter(
     const std::vector<CatalogTypeface>& faces,
     SkUnichar character,
     const SkFontStyle& style,

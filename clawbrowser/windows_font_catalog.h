@@ -6,10 +6,11 @@
 namespace clawbrowser {
 // Must run on the renderer main thread before sandbox lockdown and before
 // workers can query fonts. No path, environment or user-profile overrides.
+COMPONENT_EXPORT(CLAWBROWSER_FONT_TYPEFACES)
 base::expected<void, std::string> InitializeWindowsFontCatalogBeforeSandbox();
-sk_sp<SkTypeface> WindowsCatalogFamily(std::string_view family,
+COMPONENT_EXPORT(CLAWBROWSER_FONT_TYPEFACES) sk_sp<SkTypeface> WindowsCatalogFamily(std::string_view family,
                                      const SkFontStyle& style);
-sk_sp<SkTypeface> WindowsCatalogCharacter(SkUnichar character,
+COMPONENT_EXPORT(CLAWBROWSER_FONT_TYPEFACES) sk_sp<SkTypeface> WindowsCatalogCharacter(SkUnichar character,
                                         const SkFontStyle& style,
                                         bool emoji);
 }  // namespace clawbrowser
