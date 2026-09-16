@@ -49,6 +49,9 @@ jobs:
           python clawbrowser/fonts/build_catalog_test.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python clawbrowser/fonts/windows_package_test.py
+      - name: Reject unverified existing Windows installer reuse
+        shell: pwsh
+        run: ./scripts/windows_installer_mode_test.ps1
       - name: Verify exact raster arithmetic with Windows Clang and MSVC library
         shell: cmd
         env:
