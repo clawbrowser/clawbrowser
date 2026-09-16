@@ -5,13 +5,17 @@
  #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 +#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
  #include "third_party/blink/renderer/platform/wtf/forward.h"
-@@ -40,1 +41,2 @@
+@@ -39,3 +40,4 @@
+
 -  void FontCacheInvalidated() override {}
 +  void FontCacheInvalidated() override;
 +  void FontFaceInvalidated(FontInvalidationReason) override;
-@@ -52,1 +54,1 @@
+
+@@ -51,3 +53,3 @@
+  protected:
 -  void DispatchInvalidationCallbacks();
 +  void DispatchInvalidationCallbacks(FontInvalidationReason);
+
 @@ -59,2 +61,3 @@
    Member<WorkerGlobalScope> worker_;
 +  HeapHashSet<WeakMember<FontSelectorClient>> clients_;
