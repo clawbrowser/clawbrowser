@@ -1128,3 +1128,29 @@ No new classifier instrumentation was performed in this run, so the earlier
 056 fonts/canvas predicate breakdown must not be presented as a new 063 trace.
 The descriptor fixes improve independently reproduced rendering behavior but
 do not resolve the remaining PixelScan warning. No green-site acceptance claim.
+
+### Separate 063 predicate trace (2026-09-16, 17:43 UTC)
+
+A subsequent instrumented run on the same managed 063 profile observed the
+existing masking predicates: `fonts=false`, `canvas=false`; the other eleven
+predicates were true. Two conditional debugger breakpoints were registered;
+their conditions recorded the already-computed booleans and returned false,
+without replacing classifier inputs or its decision. The debugger was disabled
+and detached in `finally`. This is not an uninstrumented acceptance run.
+The private report is `pixelscan-mask-predicates-063.json`; the earlier clean
+063 screenshot remains separate. Classifier API responses were HTTP 200;
+aborted analytics requests do not turn the two negative predicates into passes.
+
+The remaining canvas issue is not evidence of unstable PNG serialization:
+`test_canvas_palette_roundtrip.py` explicitly checks repeatability, exact
+export/readback agreement, alpha preservation and the intended one-unit RGB
+change. `CanonicalizeUint8Lsb` implements `(channel & 0xfe) | profile_bit`.
+For any channel whose original low bit differs from the profile bit, an exact
+original-color test necessarily fails. This conclusion is limited to this
+protection and exact-color test, not a claim about every fingerprint detector.
+
+Making that test pass by exempting its colors, dimensions or domain is not an
+acceptable fix. Removing noise globally is also not a validated replacement:
+the stock Linux controls still failed the separate font classifier, and the
+newest macOS/Windows runtime acceptance is pending. See
+`pixelscan-policy-decision-2026-09-16.md` for the unresolved product contract.
