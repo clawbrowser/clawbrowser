@@ -262,6 +262,7 @@ component("clawbrowser_font_typefaces") {
   sources = [
     "font_catalog_typefaces.cc",
     "font_catalog_typefaces.h",
+    "managed_font_rendering.h",
   ]
   public_deps = [
     ":clawbrowser_core",
@@ -282,6 +283,7 @@ component("clawbrowser_font_typefaces") {
 test("clawbrowser_font_typeface_unittests") {
   sources = [
     "test/font_catalog_typefaces_unittest.cc",
+    "test/managed_font_rendering_unittest.cc",
     "test/run_all_unittests.cc",
   ]
   deps = [
