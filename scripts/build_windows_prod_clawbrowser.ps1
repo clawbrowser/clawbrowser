@@ -1252,6 +1252,15 @@ function Stage-WindowsSetupArchive($OutputDir) {
     $SetupPath = Join-Path $TempDir "setup.exe"
     Copy-Item $MiniInstaller $SetupPath -Force
 
+    # Inspect the exact copied PE as data, never execute setup.exe. Adjacent
+    # staging assets alone do not prove that the installer embeds the catalog.
+    Invoke-Checked (Join-Path $DepotTools "python3.bat") @(
+      (Join-Path $ProjectRoot "clawbrowser\fonts\windows_installer_payload.py"),
+      "--installer", $SetupPath,
+      "--seven-zip", (Join-Path $ChromiumSrc "third_party\lzma_sdk\bin\win64\7za.exe"),
+      "--manifest", (Join-Path $ProjectRoot "clawbrowser\fonts\catalog.json"),
+      "--chromium", $ChromiumSrc, "--output", $OutDir)
+
     if (Test-Path (Join-Path $TempDir "chrome.exe")) {
       throw "Windows release archive must expose setup.exe only; unexpected chrome.exe in $TempDir"
     }

@@ -51,6 +51,9 @@ jobs:
           python clawbrowser/fonts/windows_package_test.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/font_test_assets_test.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:CLAWBROWSER_REQUIRE_7Z_TESTS = '1'
+          python clawbrowser/fonts/windows_installer_payload_test.py
       - name: Reject unverified existing Windows installer reuse
         shell: pwsh
         run: ./scripts/windows_installer_mode_test.ps1
