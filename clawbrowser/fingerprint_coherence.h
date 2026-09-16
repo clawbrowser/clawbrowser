@@ -60,7 +60,7 @@ inline bool IsLocalFontAllowed(const RuntimeFingerprint& fp,
       return true;
     }
   }
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
   const auto family = LinuxFontAliasFamily(name);
   for (const auto& allowed : fp.fonts) {
     if (!family.empty() && FontNameMatches(allowed, family)) return true;
