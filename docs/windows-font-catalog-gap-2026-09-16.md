@@ -157,3 +157,12 @@ can be relaxed only after an embedded-payload verifier is implemented; it is
 not a claim that the verifier already exists. A Windows PowerShell regression
 parses the complete build script and exercises the isolated guard without
 running build/deploy entry points.
+
+That guard passed on actual Windows CI (run `35087915478`, job
+`104767041657`); all five checks were green. A follow-up source audit also
+found that exact bundled full/PostScript aliases were still enabled only on
+Linux/macOS. The allowlist now recognizes those same pinned aliases on Windows,
+and the previously Linux-only unit regression is enabled on all three desktop
+platforms. Eight font-policy tests passed in the Linux C++ target (5ms), report
+`windows-alias-policy-057.xml`. Windows execution of that C++ test remains open;
+this conditional change does not alter the accepted Linux 056 behavior.
