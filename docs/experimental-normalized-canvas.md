@@ -283,6 +283,41 @@ unbounded observation window. Chromium's `PreconnectManagerImpl::TryToLaunchPrer
 looks up proxy configuration before issuing DNS; `OnProxyLookupFinished` skips
 local preresolution when a proxy exists. Runtime code was not changed here.
 
+### HTTPS hostname routing (065)
+
+`test_proxy_tls_hostname.py` passed six headful, non-root/sandbox cases per
+Canvas policy: **protected 10.99s, normalized 11.04s**. HTTP CONNECT, SOCKS5
+and authenticated SOCKS5 each delivered the exact original hostname and port
+to the proxy. A controlled TLS server returned an actual HTTPS page, with
+TLS 1.2/1.3 recorded at the server, both with normal resolution and with the
+origin mapped to `~NOTFOUND`. The active Canvas canary was checked in each case.
+
+Each test generates a fresh random hostname under `example.com`, certificate
+and key. Using this suffix avoids relying on a resolver's special handling
+of `.invalid`. A separate Python client verifies the test certificate and its
+hostname and receives a live TLS response. **The browser uses a narrowly scoped
+SPKI exception for that temporary certificate**, not public-CA trust and not a
+global `--ignore-certificate-errors`. This is a routing gate, not acceptance of
+the browser's certificate validation policy. Temporary keys are never published.
+
+The port-53 observer required a successful independent `dig` control, all six
+JUnit cases actually executed without failures/skips, and zero capture loss.
+Both runs recorded **4 control DNS observations, 0 origin-name observations,
+0 kernel drops**. Reports: `tls-dns-065-{protected,normalized}-example.{json,xml}`.
+The previous `.invalid` exploratory runs also passed but are not the final
+ordinary-suffix acceptance evidence.
+
+The QA-layout-specific operator runner is `scripts/qa_tls_dns_linux065.py`.
+Use `QA_TLS_DNS_LABEL=tls-dns-065-protected-example` or
+`tls-dns-065-normalized-example` and the corresponding
+`CLAWBROWSER_QA_NORMALIZED_CANVAS=0` or `1`. Its private capture directory and
+reports must not already exist. Raw DNS stays in the private mode-0700 QA
+directory; only aggregate results are copied out. It does not change network,
+resolver or firewall configuration. Runtime code was not changed for this gate.
+
+Remaining DNS scope: DoH/DoT, proxy-host bootstrap, HTTPS-page prefetch hints,
+other platforms and unbounded observation windows are not accepted by this test.
+
 Next: investigate the remaining font classifier and the uncovered DNS scopes.
 The reduced-UA BrowserScan result is recorded earlier in this report.
 Preserve network guards and the current default until
