@@ -220,8 +220,35 @@ listed above; its separate diagnostic must not be passed off as a clean scan.
 No accounts, external messages, purchases, cookie-consent acceptance or
 classifier exceptions were used.
 
-Next: investigate the remaining font classifier and the independently observed
-version discrepancy. Preserve network guards and the current default until
+### Origin hostname routing (065, September 16)
+
+`test_proxy_hostname_routing.py` passed **6 headful tests in 10.40s** on the
+065 artifact, as non-root `builder` with sandbox enabled. HTTP, SOCKS5 and
+authenticated SOCKS5 each delivered the original hostname to the controlled
+proxy, both with normal resolution and with that hostname mapped to
+`~NOTFOUND` in Chromium's resolver. Each run uses a fresh `.invalid` hostname
+and checks an actual page response, not only a successful launch.
+
+A concurrent `tcpdump -i any` observation of port 53 recorded **2 observations
+of the independent `dig` control, 0 observations of the test origin names,
+and 0 kernel drops**. System resolver/network configuration was unchanged.
+Evidence: `dns-route-065.json` and `dns-route-065.xml`; raw DNS output remains
+private. This run used the default protected Canvas policy.
+
+Scope is ordinary HTTP destination-name routing via an IP-literal proxy.
+It does **not** accept DoH, DoT, proxy-host bootstrap resolution, arbitrary-page
+DNS-prefetch, HTTPS destination-name routing, or other platforms. In the
+authenticated bridge source, `ConnectTcp` resolves the upstream proxy host;
+`AppendSocksAddress` sends origin domain names using SOCKS address type 3.
+
+The first 3-case run had one test-harness failure: a startup request to an IP
+literal was incorrectly required to use SOCKS domain addressing. The harness
+now accepts valid literal addressing while requiring the test origin's exact
+domain at the proxy. No runtime code was changed for this result.
+
+Next: investigate the remaining font classifier and the DNS scopes above.
+The reduced-UA BrowserScan result is recorded earlier in this report.
+Preserve network guards and the current default until
 cross-host/platform rendering and the identity-versioning contract are
 established. No macOS/Windows acceptance, default-policy change or release
 approval. A website score never replaces controlled network gates.
