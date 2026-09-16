@@ -35,6 +35,7 @@ verify_source="${repo_root}/clawbrowser/verify/verify_page.cc"
 # Built-in DoH sends LOAD_BYPASS_PROXY probes. Managed launch intent must
 # disable it in effective resolver config, including explicit secure-DNS prefs.
 grep -Fq 'command_line->HasSwitch("fingerprint")' "${doh_proxy_patch}"
+grep -Fq 'command_line->HasSwitch("proxy-server")' "${doh_proxy_patch}"
 grep -Fq 'command_line->HasSwitch("clawbrowser-require-proxy")' "${doh_proxy_patch}"
 grep -Fq 'if (managed_proxy_boundary || (!is_managed && ShouldDisableDohForManaged()))' "${doh_proxy_patch}"
 grep -Fq 'secure_dns_mode = net::SecureDnsMode::kOff;' "${doh_proxy_patch}"
