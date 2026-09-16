@@ -140,3 +140,20 @@ Archive SHA-256:
 `8ef2849aa98c5e3188573cb40b336fdeac3534a9724b483f99ec8e8ef2c0f285`.
 The full sandboxed/headful Linux regression is running separately; no pass is
 claimed yet. Windows compilation and installed-browser acceptance remain open.
+
+The 056 full Linux regression completed: **140 passed, 21 skipped in 395.10s**,
+with the same two diagnostic-module exclusions. All 714 comparable protected
+observations match 053, and 614 match the saved Mac references. These references
+are not a current macOS rebuild. Report: `full-suite-056.xml`.
+
+Windows CI run `35085855856`, job `104760376172`, passed all 9 catalog-build
+and 7 packaging tests (0.286s / 0.152s). This still does not execute an installer.
+
+Production `-StageExistingArtifacts` is now explicitly rejected: adjacent
+validated assets cannot certify the embedded payload of an old
+`mini_installer.exe`. Builders must omit that option and run the installer
+build step. Development portable reuse is unaffected. This conservative guard
+can be relaxed only after an embedded-payload verifier is implemented; it is
+not a claim that the verifier already exists. A Windows PowerShell regression
+parses the complete build script and exercises the isolated guard without
+running build/deploy entry points.

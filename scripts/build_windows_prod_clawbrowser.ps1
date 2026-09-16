@@ -1228,6 +1228,14 @@ function Stage-Clawbrowser($OutputDir, $ArtifactName) {
   Write-Host "EXE=$(Join-Path $StageDir 'clawbrowser.exe')"
 }
 
+function Assert-WindowsInstallerBuildMode($Profile, [bool]$ReuseExisting) {
+  # Adjacent verified fonts do not prove the old PE embeds them. Until an
+  # embedded-payload verifier exists, require the installer build step.
+  if ($Profile -eq "Prod" -and $ReuseExisting) {
+    throw "Cannot reuse an unverified Windows mini_installer.exe. Run without -StageExistingArtifacts to rebuild the installer with the pinned font catalog."
+  }
+}
+
 function Stage-WindowsSetupArchive($OutputDir) {
   $OutDir = Join-Path $ChromiumSrc $OutputDir
   $MiniInstaller = Join-Path $OutDir "mini_installer.exe"
@@ -1278,6 +1286,7 @@ Initialize-CompilerCacheServer -Restart
 
 $BuildSpecs = Get-BuildSpecs
 foreach ($Spec in $BuildSpecs) {
+  Assert-WindowsInstallerBuildMode $Spec.Profile ([bool]$StageExistingArtifacts)
   Write-Host "Configuring $($Spec.Profile) build: $($Spec.BuildDir)"
   if ($CompilerCacheWrapper) {
     Write-Host "Compiler cache: $CompilerCacheWrapper"
@@ -1288,13 +1297,7 @@ foreach ($Spec in $BuildSpecs) {
 
   if ($StageExistingArtifacts) {
     Write-Host "Generated $($Spec.BuildDir). Staging existing artifacts without building."
-    if ($Spec.Profile -eq "Prod") {
-      Prepare-WindowsInstallerInputs $Spec.BuildDir
-    }
     Stage-Clawbrowser $Spec.BuildDir $Spec.ArtifactName
-    if ($Spec.Profile -eq "Prod") {
-      Stage-WindowsSetupArchive $Spec.BuildDir
-    }
     continue
   }
 
