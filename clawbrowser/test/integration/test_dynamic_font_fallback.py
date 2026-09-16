@@ -78,13 +78,14 @@ async def test_unicode_range_webfont_load_and_removal_preserve_fallback(record_p
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("persistent_context", [False, True], ids=["fresh", "persistent"])
-async def test_dynamic_webfont_canvas_matches_worker(record_property, persistent_context):
+@pytest.mark.parametrize("removal", ["delete", "clear"])
+async def test_dynamic_webfont_canvas_matches_worker(record_property, persistent_context, removal):
     async with _launch_browser_with_details(
         fixture_name="valid_fingerprint.json", backend_mode="mock",
         skip_verify=True, headless=False,
     ) as launch:
-        observations = await launch["page"].evaluate('''async ({payload, persistent}) => {
-            async function probe(payload, kind, persistent) {
+        observations = await launch["page"].evaluate('''async ({payload, persistent, removal}) => {
+            async function probe(payload, kind, persistent, removal) {
                 async function bounded(promise, stage) {
                     let timer;
                     try {return await Promise.race([promise,new Promise((_,reject)=>{
@@ -133,16 +134,19 @@ async def test_dynamic_webfont_canvas_matches_worker(record_property, persistent
                     // cannot hide a separate stale fallback-cache failure.
                     const readyAfterAdd=await readyDiagnostic();
                 const loaded=await capture();
-                    const removed=fontSet.delete(face);
+                    const hadFace=fontSet.has(face);
+                    if (removal === 'clear') fontSet.clear();
+                    else fontSet.delete(face);
+                    const removed=hadFace && !fontSet.has(face);
                     const readyAfterDelete=await readyDiagnostic();
                 const after=await capture();
                 return {before:before||after,loaded,after,removed,readyAfterAdd,readyAfterDelete};
             }
-            const dom=await probe(payload,'dom',persistent);
-            const offscreen=await probe(payload,'offscreen',persistent);
+            const dom=await probe(payload,'dom',persistent,removal);
+            const offscreen=await probe(payload,'offscreen',persistent,removal);
             async function workerProbe(kind) {
               const url=URL.createObjectURL(new Blob([
-                'onmessage=async e=>{try{postMessage({result:await ('+probe.toString()+')(e.data.payload,e.data.kind,e.data.persistent)})}' +
+                'onmessage=async e=>{try{postMessage({result:await ('+probe.toString()+')(e.data.payload,e.data.kind,e.data.persistent,e.data.removal)})}' +
                 'catch(error){postMessage({error:String(error)})}}'
             ],{type:'text/javascript'}));
             const worker=new Worker(url); let timer;
@@ -151,13 +155,14 @@ async def test_dynamic_webfont_canvas_matches_worker(record_property, persistent
                     timer=setTimeout(()=>reject(new Error('font worker timeout')),15000);
                     worker.onerror=e=>reject(new Error(e.message));
                     worker.onmessage=e=>e.data.error?reject(new Error(e.data.error)):resolve(e.data.result);
-                    worker.postMessage({payload,kind,persistent});
+                    worker.postMessage({payload,kind,persistent,removal});
                 });
                 return result;
             } finally {clearTimeout(timer);worker.terminate();URL.revokeObjectURL(url);}
             }
             return {dom,offscreen,worker:await workerProbe('worker-warm'),workerFresh:await workerProbe('worker-fresh')};
-        }''', {"payload": bundled_tinos_payload(), "persistent": persistent_context})
+        }''', {"payload": bundled_tinos_payload(), "persistent": persistent_context,
+               "removal": removal})
     record_property("dynamic_font_canvas", json.dumps(observations))
     for kind, states in observations.items():
         assert states["readyAfterAdd"] and states["readyAfterDelete"], kind
