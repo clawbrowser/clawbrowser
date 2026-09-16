@@ -5,11 +5,86 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace clawbrowser {
 namespace {
+
+// The old generic traversal is deliberately retained as a reference for the
+// format-specialized hot loop. Tests below separately cover component math.
+void ApplyGenericNoiseReference(std::span<uint8_t> buffer,
+                                size_t row_bytes,
+                                size_t width,
+                                size_t height,
+                                CanvasPixelFormat format,
+                                uint64_t seed,
+                                int64_t origin_x,
+                                int64_t origin_y) {
+  const size_t bytes_per_pixel = canvas_noise_internal::BytesPerPixel(format);
+  for (size_t y = 0; y < height; ++y) {
+    auto row = buffer.subspan(y * row_bytes, width * bytes_per_pixel);
+    for (size_t x = 0; x < width; ++x) {
+      Prng prng(canvas_noise_internal::PixelSeed(
+          seed, origin_x + static_cast<int64_t>(x),
+          origin_y + static_cast<int64_t>(y)));
+      auto pixel = row.subspan(x * bytes_per_pixel, bytes_per_pixel);
+      for (size_t channel = 0; channel < 3; ++channel) {
+        const uint8_t bit = static_cast<uint8_t>(prng.NextUint32() & 1u);
+        switch (format) {
+          case CanvasPixelFormat::kRgba8:
+            canvas_noise_internal::CanonicalizeUint8Lsb(&pixel[channel], bit);
+            break;
+          case CanvasPixelFormat::kBgra8:
+            canvas_noise_internal::CanonicalizeUint8Lsb(&pixel[2 - channel], bit);
+            break;
+          case CanvasPixelFormat::kRgbaF16:
+            canvas_noise_internal::CanonicalizeFloat16Lsb(
+                pixel.subspan(channel * 2, 2).data(), bit);
+            break;
+          case CanvasPixelFormat::kRgbaF32:
+            canvas_noise_internal::CanonicalizeFloat32Lsb(
+                pixel.subspan(channel * 4, 4).data(), bit);
+            break;
+        }
+      }
+    }
+  }
+}
+
+TEST(CanvasNoiseTest, SpecializedTraversalMatchesGenericReference) {
+  Prng input(0x123456789abcdefULL);
+  for (auto format : {CanvasPixelFormat::kRgba8, CanvasPixelFormat::kBgra8,
+                      CanvasPixelFormat::kRgbaF16, CanvasPixelFormat::kRgbaF32}) {
+    for (size_t sample = 0; sample < 256; ++sample) {
+      SCOPED_TRACE(sample);
+      SCOPED_TRACE(static_cast<int>(format));
+      const size_t width = sample % 31 + 1;
+      const size_t height = sample % 17 + 1;
+      const size_t stride = width * canvas_noise_internal::BytesPerPixel(format) + sample % 13;
+      // Include misalignment, arbitrary floating-point bit patterns, row
+      // padding, and untouched prefix/suffix canaries in the comparison.
+      std::vector<uint8_t> expected(stride * height + 2);
+      for (auto& byte : expected)
+        byte = static_cast<uint8_t>(input.NextUint32());
+      auto actual = expected;
+      const uint64_t seed = sample == 0 ? 0 : sample == 1 ? UINT64_MAX : input.NextUint32();
+      const int64_t x = static_cast<int64_t>(sample) - 128;
+      const int64_t y = 127 - static_cast<int64_t>(sample);
+      ApplyGenericNoiseReference(std::span(expected).subspan(1, stride * height),
+                                 stride, width, height, format, seed, x, y);
+      ASSERT_TRUE(ApplyDeterministicCanvasNoise(
+          std::span(actual).subspan(1).data(), stride * height, stride, width, height,
+          format, seed, x, y));
+      EXPECT_EQ(actual, expected);
+      ASSERT_TRUE(ApplyDeterministicCanvasNoise(
+          std::span(actual).subspan(1).data(), stride * height, stride, width, height,
+          format, seed, x, y));
+      EXPECT_EQ(actual, expected) << "Specialization must retain idempotence";
+    }
+  }
+}
 
 TEST(CanvasNoiseTest, RgbaAndBgraUseTheSameLogicalChannelSequence) {
   std::array<uint8_t, 4> rgba = {50, 100, 150, 77};
