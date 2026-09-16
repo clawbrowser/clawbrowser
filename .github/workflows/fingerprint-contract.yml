@@ -49,6 +49,8 @@ jobs:
           python clawbrowser/fonts/build_catalog_test.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python clawbrowser/fonts/windows_package_test.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/font_test_assets_test.py
       - name: Reject unverified existing Windows installer reuse
         shell: pwsh
         run: ./scripts/windows_installer_mode_test.ps1
@@ -98,6 +100,7 @@ jobs:
             clawbrowser/test/integration/test_complex_font_fallback.py \
             clawbrowser/test/integration/test_dynamic_font_fallback.py
           python3 scripts/integration_binary_resolution_test.py
+          python3 scripts/font_test_assets_test.py
           python3 scripts/compare_canvas_observations_test.py
           python3 -m json.tool \
             clawbrowser/test/fixtures/valid_fingerprint.json >/dev/null
