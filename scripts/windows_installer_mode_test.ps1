@@ -25,4 +25,17 @@ $Calls = @($Ast.FindAll({ param($Node)
   $Node.GetCommandName() -eq "Assert-WindowsInstallerBuildMode"
 }, $true))
 if ($Calls.Count -ne 1) { throw "Build entry point must invoke the guard exactly once" }
+$Stage = $Ast.Find({ param($Node)
+  $Node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+  $Node.Name -eq "Stage-WindowsSetupArchive"
+}, $true)
+if (!$Stage) { throw "Setup archive stage missing" }
+$StageText = $Stage.Extent.Text
+$CopyAt = $StageText.IndexOf('Copy-Item $MiniInstaller $SetupPath')
+$VerifyAt = $StageText.IndexOf('windows_installer_payload.py')
+$ZipAt = $StageText.IndexOf('Compress-Archive')
+if ($CopyAt -lt 0 -or $VerifyAt -le $CopyAt -or $ZipAt -le $VerifyAt -or
+    !$StageText.Contains('"--installer", $SetupPath')) {
+  throw "Copied setup PE must pass payload verification before being archived"
+}
 Write-Host "PASS: fresh production build allowed, stale installer reuse rejected, development reuse allowed"

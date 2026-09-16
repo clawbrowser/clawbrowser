@@ -235,3 +235,26 @@ acceptance must still compare protected metrics/pixels with different host
 smoothing preferences, exercise `geometricPrecision`, and run the installed and
 portable gates above. The accepted Linux browser remains 056: this new runtime
 call site is Windows-only and does not change Linux behavior.
+
+## Embedded installer catalog gate
+
+`Stage-WindowsSetupArchive` now validates the **copied `setup.exe`** before
+archiving it. `windows_installer_payload.py` maps the PE with
+`LOAD_LIBRARY_AS_DATAFILE` (no installer execution), reads the pinned full
+`B7 / CHROME.PACKED.7Z` resource and checks its nested `chrome.7z` archive.
+Only the full installer format is supported; missing/differential payloads
+fail closed. The validator checks one versioned catalog adjacent to `chrome.dll`,
+the installed launcher, exact catalog file inventory, sizes and all bytes
+against the separately validated pinned font payload. Archive members are
+streamed to verifier-owned numbered temporary files, never extracted to paths
+provided by an archive. A successful report identifies the resource hash,
+version, catalog and verified file count; it is not runtime acceptance.
+
+The old-installer reuse prohibition remains in place. A new AST guard requires
+the copied PE verification to run before ZIP creation. Eight regression tests
+cover layout, missing/extra/corrupt assets, unsafe/duplicate paths, links and
+encryption, actual nested 7z archives, and Windows PE resource access. On Linux
+QA, six passed in 0.083s and the two Windows API cases were explicitly skipped.
+Windows CI requires 7z and runs both PE cases against a test-owned copy of the
+Python executable with a synthetic embedded resource; that copy is never
+executed. A real ClawBrowser installer has **not** yet been produced or checked.
