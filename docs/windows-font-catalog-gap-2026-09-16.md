@@ -68,3 +68,29 @@ precedence, emoji priority, invalid code points and an empty-catalog negative
 control. Report: `shared-font-policy-054.xml`; the pinned-catalog case took
 101ms. This does not replace recompiling/testing the macOS adapter or a Windows
 binary. The last accepted browser artifact remains worker-font-053.
+
+## Preload and byte-integrity preparation
+
+`LoadCatalogTypefaces` validates and decodes a single owned snapshot. A new
+real-font unit test deletes its own temporary catalog after loading and proves
+the returned face can still resolve a glyph and expose its owned stream. Wrong
+manifest hashes are rejected. The four C++ tests passed on Linux (102ms for
+the full pinned catalog), report `preloaded-font-bytes-055.xml`.
+
+A Windows adapter now resolves resources relative to the loaded module, not
+the launcher, and has explicit pre-sandbox initialization with no lazy disk
+lookup or system-font fallback. GN can generate the pinned Windows catalog.
+**This adapter is not yet hooked into renderer startup or Windows FontCache,
+and has not been compiled on Windows.** Installer staging is still pending.
+The pinned RendererMain loads the fingerprint before `InitializeSkia()`;
+Windows sandbox engagement occurs later. Integration must preload after Skia
+initialization and before sandbox engagement, only for managed font mode.
+
+The audit also found a platform-specific staging defect: Windows text-mode
+newlines could make the stored manifest bytes differ from the hashed canonical
+bytes. Manifest/config/marker/header output now uses exact UTF-8 byte writes;
+reuse validation compares raw manifest and marker bytes. Two new regressions
+fail on the previous implementation (simulated Windows newline translation
+and a CRLF-corrupted reused manifest). All 9 build-catalog and 7 staging tests
+pass locally. The Windows CI job now runs the build-catalog regressions on a
+real Windows runner; this is staging evidence, not browser acceptance.

@@ -10,6 +10,15 @@
 #include "third_party/skia/include/ports/SkTypeface_fontations.h"
 
 namespace clawbrowser {
+base::expected<std::vector<CatalogTypeface>, std::string>
+LoadCatalogTypefaces(const base::FilePath& catalog_dir,
+                    std::string_view expected_manifest_sha256) {
+  auto snapshot = LoadValidatedFontCatalog(catalog_dir, expected_manifest_sha256);
+  if (!snapshot.has_value())
+    return base::unexpected(snapshot.error());
+  return CreateCatalogTypefaces(*snapshot);
+}
+
 namespace {
 class CatalogStyleSet final : public SkFontStyleSet {
  public:

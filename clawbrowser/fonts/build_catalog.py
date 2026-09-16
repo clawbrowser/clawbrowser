@@ -20,9 +20,9 @@ def build(manifest, chromium, destination, header):
     if (destination/'manifest.json').exists():
         # A versioned output is immutable. A changed manifest needs a new ID;
         # corrupt or incomplete output must never be silently accepted.
-        if (destination/'manifest.json').read_text()!=canonical:
+        if (destination/'manifest.json').read_bytes()!=canonical.encode('utf-8'):
             raise ValueError('existing catalog differs; bump catalog_id')
-        if (destination/'STAGED').read_text()!=raw['catalog_id']+'\n'+digest+'\n':
+        if (destination/'STAGED').read_bytes()!=(raw['catalog_id']+'\n'+digest+'\n').encode('utf-8'):
             raise ValueError('incomplete catalog staging marker')
         notices={'UPSTREAM-LICENSE':chromium/'third_party/test_fonts/LICENSE',
                  'NOTO-LICENSE':manifest.parent/'font-vendor-prototype/NOTO-LICENSE'}
@@ -46,8 +46,8 @@ def build(manifest, chromium, destination, header):
           'inline constexpr char kFontCatalogDirectory[] = "clawbrowser-fonts/'+raw['catalog_id']+'";\n'
           '}\n#endif\n')
     header.parent.mkdir(parents=True,exist_ok=True)
-    if not header.exists() or header.read_text()!=text:
-        header.write_text(text)
+    if not header.exists() or header.read_bytes()!=text.encode('utf-8'):
+        header.write_bytes(text.encode('utf-8'))
 
 
 if __name__=='__main__':
