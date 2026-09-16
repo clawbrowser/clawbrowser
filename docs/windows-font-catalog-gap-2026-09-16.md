@@ -193,13 +193,13 @@ python -m pytest -q -o junit_family=xunit1 --junitxml=windows-font-gate.xml `
   clawbrowser/test/integration/test_font_catalog_isolation.py::test_legacy_font_list_is_reconciled_before_child_launch `
   clawbrowser/test/integration/test_font_catalog_isolation.py::test_bundled_local_faces_resolve_full_and_postscript_names
 if ($LASTEXITCODE -ne 0) { throw 'Windows font gate failed' }
-python -c "import xml.etree.ElementTree as E; c=list(E.parse('windows-font-gate.xml').getroot().iter('testcase')); assert len(c)==17; assert all(not any(x.find(t) is not None for t in ('failure','error','skipped')) for x in c)"
+python -c "import xml.etree.ElementTree as E; c=list(E.parse('windows-font-gate.xml').getroot().iter('testcase')); assert len(c)==27; assert all(not any(x.find(t) is not None for t in ('failure','error','skipped')) for x in c)"
 if ($LASTEXITCODE -ne 0) { throw 'Missing, skipped or failed Windows font evidence' }
 ```
 
 Do not add `--no-sandbox`. Run against portable **and installed** builds, record
 binary/module/catalog hashes, and keep separate XML reports. This selected
-17-test gate does not replace real Windows host-font-inventory differential
+27-test gate does not replace real Windows host-font-inventory differential
 testing, full rendering/network regression, or desktop lifecycle acceptance.
 
 Linux compatibility of the changed harness passed 10 tests in 14.39s (including
@@ -295,7 +295,7 @@ and negative-control assertions remain strict. No Linux runtime change or
 new Linux browser build was needed for this Windows-only patch.
 
 The system-font additions brought the Windows acceptance selection to 12 tests
-(the TTC regression below brings it to 17). It must be run on
+(the TTC and descriptor regressions below bring it to 27). It must be run on
 a fresh Windows artifact and repeated with changed host menu font preferences
 to prove independence; Linux execution alone cannot establish that result.
 
@@ -321,3 +321,28 @@ Archive SHA-256: `99eb28e788c3dc36e965d7ab5cfaf8251dada6568c4e6586cd260b47e56293
 This shared-code fix still needs the fresh macOS and Windows artifact gates;
 the five tests are included in the Windows command above. It is not evidence
 that PixelScan is green or that current builds pass on all platforms.
+
+## Worker descriptor mutation (patch 057)
+
+The extended TTC test changes a loaded face's `variationSettings` from weight
+100 to 900 and back, comparing persistent/fresh canvas metrics against a newly
+created control face. Document cases additionally compare DOM range widths.
+Artifact 060 passed all document cases, but all five Worker cases retained
+stale metrics in both persistent and newly created OffscreenCanvas contexts.
+The control face changed, so this was not a missing-font fallback.
+
+`FontFace::InvalidateFontFaceOnDescriptorUpdate` returned early without a
+Document. Patch 057 resolves the worker's existing font selector instead and
+uses the same cache removal/addition and invalidation path. No host-font lookup,
+site exception, or privacy toggle is introduced. This corrects general worker
+descriptor handling, including native profiles; it is not limited to TTC.
+
+On extracted Linux artifact `worker-descriptor-061`, all **15 targeted tests
+pass in 17.91s** with sandbox, display and non-root execution. Before:
+`local-collection-worker-mutation-060.xml` (5 failed, 10 passed). After:
+`local-collection-worker-mutation-061.xml` (15 passed). The full 061 regression
+run is pending at this commit; fresh macOS/Windows browser acceptance remains
+outstanding.
+
+ELF SHA-256: `309cba11707793eede6aae0e6849c9c94d70eebcee9ddc80293465a6510dd9ac`.
+Archive SHA-256: `c5e5f17b4d65a12debc3bffc7062df54886d63ab3dfc8b84c4c1c79ac109e20f`.
