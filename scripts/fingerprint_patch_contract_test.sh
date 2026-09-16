@@ -25,6 +25,7 @@ windows_system_font_patch="${repo_root}/clawbrowser/patches/055-managed-windows-
 local_collection_patch="${repo_root}/clawbrowser/patches/056-local-font-collection-variations.patch"
 worker_descriptor_patch="${repo_root}/clawbrowser/patches/057-worker-font-descriptor-invalidation.patch"
 size_adjust_patch="${repo_root}/clawbrowser/patches/058-font-size-adjust-invalidation.patch"
+metric_override_patch="${repo_root}/clawbrowser/patches/059-font-metric-override-invalidation.patch"
 verify_script="${repo_root}/clawbrowser/verify/resources/verify.js"
 verify_html="${repo_root}/clawbrowser/verify/resources/verify.html"
 verify_source="${repo_root}/clawbrowser/verify/verify_page.cc"
@@ -269,5 +270,9 @@ grep -Fq 'font_selector = worker->GetFontSelector()' "${worker_descriptor_patch}
 grep -q 'core/css/font_face.cc' "${size_adjust_patch}"
 grep -Fq 'old_size_adjust != size_adjust_' "${size_adjust_patch}"
 grep -Fq 'InvalidateFontFaceOnDescriptorUpdate()' "${size_adjust_patch}"
+for descriptor in Ascent Descent LineGap; do
+  grep -A5 "AtRuleDescriptorID::${descriptor}Override" "${metric_override_patch}" |
+    grep -Fq 'InvalidateFontFaceOnDescriptorUpdate()'
+done
 
 echo "PASS"

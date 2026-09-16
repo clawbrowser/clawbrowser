@@ -1,0 +1,30 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+--- a/third_party/blink/renderer/core/css/font_face.cc
++++ b/third_party/blink/renderer/core/css/font_face.cc
+@@ -450,4 +450,8 @@
+                                  ExceptionState& exception_state) {
++  Member<const CSSValue> old_ascent = ascent_override_;
+   SetPropertyFromString(context, s, AtRuleDescriptorID::AscentOverride,
+                         &exception_state);
++  if (old_ascent != ascent_override_) {
++    InvalidateFontFaceOnDescriptorUpdate();
++  }
+ }
+@@ -458,4 +462,8 @@
+                                   ExceptionState& exception_state) {
++  Member<const CSSValue> old_descent = descent_override_;
+   SetPropertyFromString(context, s, AtRuleDescriptorID::DescentOverride,
+                         &exception_state);
++  if (old_descent != descent_override_) {
++    InvalidateFontFaceOnDescriptorUpdate();
++  }
+ }
+@@ -466,4 +474,8 @@
+                                   ExceptionState& exception_state) {
++  Member<const CSSValue> old_line_gap = line_gap_override_;
+   SetPropertyFromString(context, s, AtRuleDescriptorID::LineGapOverride,
+                         &exception_state);
++  if (old_line_gap != line_gap_override_) {
++    InvalidateFontFaceOnDescriptorUpdate();
++  }
+ }
