@@ -25,6 +25,12 @@ struct CatalogTypeface {
 base::expected<std::vector<CatalogTypeface>, std::string>
 CreateCatalogTypefaces(const ValidatedFontCatalog& catalog);
 
+// Pre-sandbox entry point: validates and decodes the same owned byte snapshot.
+// Returned typefaces no longer require any filesystem access to the catalog.
+base::expected<std::vector<CatalogTypeface>, std::string>
+LoadCatalogTypefaces(const base::FilePath& catalog_dir,
+                    std::string_view expected_manifest_sha256);
+
 sk_sp<SkTypeface> MatchCatalogFamily(
     const std::vector<CatalogTypeface>& faces,
     std::string_view family,

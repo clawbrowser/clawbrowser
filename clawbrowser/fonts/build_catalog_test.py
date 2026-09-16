@@ -54,6 +54,28 @@ class BuildCatalogTests(unittest.TestCase):
             self.run_build()
         self.assertFalse(self.destination.exists())
 
+    def test_manifest_digest_matches_raw_bytes_under_windows_text_translation(self):
+        original = Path.write_text
+
+        def windows_text_write(path, text, *args, **kwargs):
+            return original(path, text.replace("\n", "\r\n"), *args, **kwargs)
+
+        with patch.object(Path, "write_text", windows_text_write):
+            self.run_build()
+        raw = (self.destination / "manifest.json").read_bytes()
+        self.assertNotIn(b"\r", raw)
+        digest = hashlib.sha256(raw).hexdigest()
+        self.assertIn(digest, self.header.read_text())
+        self.assertEqual((self.destination / "STAGED").read_bytes(),
+                         ("test-catalog\n" + digest + "\n").encode())
+
+    def test_crlf_manifest_cannot_hide_behind_universal_newline_reads(self):
+        self.run_build()
+        manifest = self.destination / "manifest.json"
+        manifest.write_bytes(manifest.read_bytes().replace(b"\n", b"\r\n"))
+        with self.assertRaisesRegex(ValueError, "bump catalog_id"):
+            self.run_build()
+
     def test_corrupt_font_rejected_on_reuse(self):
         self.run_build()
         (self.destination / "fonts/Example.ttf").write_bytes(b"corrupt")

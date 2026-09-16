@@ -1,12 +1,51 @@
 #include "clawbrowser/font_catalog_typefaces.h"
 #include <cstdlib>
 #include "base/files/file_util.h"
+#include "base/files/scoped_temp_dir.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
+#include "crypto/hash.h"
 #include "third_party/skia/include/core/SkString.h"
 #include "third_party/skia/include/core/SkFontArguments.h"
 #include "third_party/skia/include/core/SkStream.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace clawbrowser {
+TEST(FontCatalogTypefacesTest, LoadedFacesOutliveCatalogFiles) {
+  const char* directory = std::getenv("CLAWBROWSER_TEST_CATALOG_DIR");
+  if (!directory) GTEST_SKIP() << "requires pinned QA catalog";
+  std::string bytes;
+  ASSERT_TRUE(base::ReadFileToString(
+      base::FilePath::FromUTF8Unsafe(directory).AppendASCII("fonts")
+          .AppendASCII("Tinos-Regular.ttf"), &bytes));
+  const auto digest = [](std::string_view data) {
+    return base::ToLowerASCII(base::HexEncode(crypto::hash::Sha256(data)));
+  };
+  base::ScopedTempDir temporary;
+  ASSERT_TRUE(temporary.CreateUniqueTempDir());
+  const auto fonts = temporary.GetPath().AppendASCII("fonts");
+  ASSERT_TRUE(base::CreateDirectory(fonts));
+  ASSERT_TRUE(base::WriteFile(fonts.AppendASCII("Tinos-Regular.ttf"), bytes));
+  const std::string manifest =
+      "{\"catalog_id\":\"owned-byte-test\",\"fonts\":[{\"file\":\"Tinos-Regular.ttf\","
+      "\"sha256\":\"" + digest(bytes) + "\"}]}";
+  ASSERT_TRUE(base::WriteFile(temporary.GetPath().AppendASCII("manifest.json"), manifest));
+  EXPECT_FALSE(LoadCatalogTypefaces(temporary.GetPath(), std::string(64, '0')).has_value());
+  auto loaded = LoadCatalogTypefaces(temporary.GetPath(), digest(manifest));
+  ASSERT_TRUE(loaded.has_value()) << loaded.error();
+  // Delete only this test-owned temporary fixture. Rendering must retain the
+  // validated bytes rather than reopen a path after sandbox lockdown.
+  ASSERT_TRUE(temporary.Delete());
+  auto face = MatchManagedCatalogFamily(*loaded, "serif", SkFontStyle::Normal());
+  ASSERT_TRUE(face);
+  EXPECT_NE(face->unicharToGlyph('A'), 0);
+  int index = 0;
+  auto stream = face->openStream(&index);
+  ASSERT_TRUE(stream);
+  EXPECT_EQ(stream->getLength(), bytes.size());
+  EXPECT_FALSE(MatchManagedCatalogFamily(*loaded, "Arial", SkFontStyle::Normal()));
+}
+
 TEST(FontCatalogTypefacesTest, ManagedPolicyCannotEscapeEmptyCatalog) {
   for (const auto* family : {"Arial", "serif", "monospace", "Arimo-Regular",
                              "Papyrus", "Segoe UI", ""}) {
