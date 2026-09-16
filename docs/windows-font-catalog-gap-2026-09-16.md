@@ -190,16 +190,17 @@ python -m pytest -q -o junit_family=xunit1 --junitxml=windows-font-gate.xml `
   clawbrowser/test/integration/test_font_glyph_coverage.py `
   clawbrowser/test/integration/test_system_font_policy.py `
   clawbrowser/test/integration/test_local_collection_variations.py `
+  clawbrowser/test/integration/test_font_descriptor_native.py `
   clawbrowser/test/integration/test_font_catalog_isolation.py::test_legacy_font_list_is_reconciled_before_child_launch `
   clawbrowser/test/integration/test_font_catalog_isolation.py::test_bundled_local_faces_resolve_full_and_postscript_names
 if ($LASTEXITCODE -ne 0) { throw 'Windows font gate failed' }
-python -c "import xml.etree.ElementTree as E; c=list(E.parse('windows-font-gate.xml').getroot().iter('testcase')); assert len(c)==27; assert all(not any(x.find(t) is not None for t in ('failure','error','skipped')) for x in c)"
+python -c "import xml.etree.ElementTree as E; c=list(E.parse('windows-font-gate.xml').getroot().iter('testcase')); assert len(c)==31; assert all(not any(x.find(t) is not None for t in ('failure','error','skipped')) for x in c)"
 if ($LASTEXITCODE -ne 0) { throw 'Missing, skipped or failed Windows font evidence' }
 ```
 
 Do not add `--no-sandbox`. Run against portable **and installed** builds, record
 binary/module/catalog hashes, and keep separate XML reports. This selected
-27-test gate does not replace real Windows host-font-inventory differential
+31-test gate does not replace real Windows host-font-inventory differential
 testing, full rendering/network regression, or desktop lifecycle acceptance.
 
 Linux compatibility of the changed harness passed 10 tests in 14.39s (including
@@ -295,7 +296,7 @@ and negative-control assertions remain strict. No Linux runtime change or
 new Linux browser build was needed for this Windows-only patch.
 
 The system-font additions brought the Windows acceptance selection to 12 tests
-(the TTC and descriptor regressions below bring it to 27). It must be run on
+(the TTC and descriptor regressions below bring it to 31). It must be run on
 a fresh Windows artifact and repeated with changed host menu font preferences
 to prove independence; Linux execution alone cannot establish that result.
 
@@ -341,8 +342,29 @@ On extracted Linux artifact `worker-descriptor-061`, all **15 targeted tests
 pass in 17.91s** with sandbox, display and non-root execution. Before:
 `local-collection-worker-mutation-060.xml` (5 failed, 10 passed). After:
 `local-collection-worker-mutation-061.xml` (15 passed). The full 061 regression
-run is pending at this commit; fresh macOS/Windows browser acceptance remains
-outstanding.
+passed **157 tests with 21 skips in 407.82s**; all 714 comparable protected
+rendering observations match 060. Fresh macOS/Windows browser acceptance remains
+outstanding; skips do not count as passes.
 
 ELF SHA-256: `309cba11707793eede6aae0e6849c9c94d70eebcee9ddc80293465a6510dd9ac`.
 Archive SHA-256: `c5e5f17b4d65a12debc3bffc7062df54886d63ab3dfc8b84c4c1c79ac109e20f`.
+
+## Loaded webfont size-adjust mutation (patch 058)
+
+`setSizeAdjust` did not request descriptor invalidation at all. With verified
+bundled Tinos bytes loaded as a webfont, changing 50% to 150% retained the old
+width in document and worker canvases. Both managed and native **font policies**
+failed; these are fingerprinted test profiles, not wholly unmanaged browsers.
+An initial attempt without a fingerprint failed the mock startup contract and
+is not evidence of a native rendering failure.
+
+Patch 058 follows the existing variation setter: invalidate only after the
+parsed value changes. On extracted, sandboxed/headful/non-root Linux artifact
+`size-adjust-062`, all four cases pass in 5.11s, including restoration, unchanged
+value, invalid input raising SyntaxError without changing metrics, and warm/
+fresh canvas agreement. Reports: `native-font-policy-descriptor-061.xml` (four
+actual failures) and `native-font-policy-descriptor-062.xml` (four passes).
+The full 062 regression run is pending at this commit.
+
+ELF SHA-256: `95e6c99a69c615248e1360f26a2c66dcc765b39ea9958ec98eebc52d38abe33c`.
+Archive SHA-256: `9f940f7b785b9f25530162e96f966975d5c04575efe12c8d66b08b76859ce100`.
