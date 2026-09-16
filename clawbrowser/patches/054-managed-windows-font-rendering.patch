@@ -1,0 +1,47 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+--- a/third_party/blink/renderer/platform/fonts/win/font_platform_data_win.cc
++++ b/third_party/blink/renderer/platform/fonts/win/font_platform_data_win.cc
+@@ -31,6 +31,9 @@
+ 
+ #include <windows.h>
+ 
++#include "clawbrowser/fingerprint_coherence.h"
++#include "clawbrowser/managed_font_rendering.h"
++#include "third_party/blink/renderer/platform/fonts/font_description.h"
+ #include "third_party/blink/renderer/platform/fonts/font_cache.h"
+ #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "third_party/blink/renderer/platform/web_test_support.h"
+@@ -41,7 +44,8 @@
+ 
+ namespace blink {
+ 
+-SkFont FontPlatformData::CreateSkFont(const FontDescription*) const {
++SkFont FontPlatformData::CreateSkFont(
++    const FontDescription* font_description) const {
+   SkFont font(typeface_);
+   font.setSize(SkFloatToScalar(text_size_));
+   font.setEmbolden(synthetic_bold_);
+@@ -68,12 +72,22 @@
+     font.setSubpixel(true);
+   }
+ 
++  font.setEmbeddedBitmaps(!avoid_embedded_bitmaps_);
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  if (fp && clawbrowser::ShouldFilterLocalFonts(*fp)) {
++    // Host ClearType / smoothing preferences must not re-identify a closed
++    // catalog profile. Leave native profiles and explicit web-test controls
++    // unchanged. Match the managed Linux Fontations strike policy.
++    clawbrowser::ApplyManagedFontRendering(
++        font, font_description &&
++                  font_description->TextRendering() == kGeometricPrecision);
++  }
++
+   if (WebTestSupport::IsRunningWebTest() &&
+       !WebTestSupport::IsTextSubpixelPositioningAllowedForTest()) {
+     font.setSubpixel(false);
+   }
+ 
+-  font.setEmbeddedBitmaps(!avoid_embedded_bitmaps_);
+   return font;
+ }
+ 

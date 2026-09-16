@@ -19,6 +19,8 @@ css_screen_patch="${repo_root}/clawbrowser/patches/036-css-media-screen.patch"
 font_enum_patch="${repo_root}/clawbrowser/patches/011-fonts-filter.patch"
 css_font_patch="${repo_root}/clawbrowser/patches/034-css-font-probing.patch"
 font_fallback_patch="${repo_root}/clawbrowser/patches/035-font-fallback-probing.patch"
+windows_strike_patch="${repo_root}/clawbrowser/patches/054-managed-windows-font-rendering.patch"
+managed_strike_header="${repo_root}/clawbrowser/managed_font_rendering.h"
 verify_script="${repo_root}/clawbrowser/verify/resources/verify.js"
 verify_html="${repo_root}/clawbrowser/verify/resources/verify.html"
 verify_source="${repo_root}/clawbrowser/verify/verify_page.cc"
@@ -226,5 +228,20 @@ grep -A10 'void CSSFontSelectorBase::WillUseFontData' "${css_font_patch}" |
   grep -q 'IsLocalFontBlocked'
 grep -q 'ValidateFingerprintForRuntime' "${loader_source}"
 grep -q 'protected font allowlist contains an empty' "${loader_source}"
+
+# Windows has a separate CreateSkFont implementation: the Linux patch alone
+# cannot normalize its system smoothing preferences. This is a source-wiring
+# contract, not a substitute for a Windows browser rendering test.
+grep -q 'fonts/win/font_platform_data_win.cc' "${windows_strike_patch}"
+grep -Fq 'if (fp && clawbrowser::ShouldFilterLocalFonts(*fp))' "${windows_strike_patch}"
+grep -A9 'ShouldFilterLocalFonts' "${windows_strike_patch}" |
+  grep -q 'ApplyManagedFontRendering'
+grep -q 'TextRendering() == kGeometricPrecision' "${windows_strike_patch}"
+for setting in 'setSubpixel(true)' 'setLinearMetrics(true)' \
+    'setEmbeddedBitmaps(false)' 'setForceAutoHinting(false)' \
+    'setEdging(SkFont::Edging::kSubpixelAntiAlias)'; do
+  grep -Fq "${setting}" "${managed_strike_header}"
+  grep -Fq "${setting}" "${repo_root}/clawbrowser/patches/042-managed-linux-font-rendering.patch"
+done
 
 echo "PASS"

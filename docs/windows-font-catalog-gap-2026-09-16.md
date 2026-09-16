@@ -205,3 +205,33 @@ its Linux-only Fontconfig differential), plus the updated hash-checked glyph
 coverage test in 0.75s, against 056. Reports:
 `windows-enabled-font-harness-056.xml`, `windows-enabled-glyph-harness-056.xml`.
 No Windows E2E execution is claimed.
+
+## Windows strike normalization
+
+The source audit found a second Windows-only gap: patch 042 modifies the
+non-Windows `FontPlatformData::CreateSkFont`, whereas Windows has its own
+implementation. Even with identical catalog bytes, the latter inherited host
+ClearType/antialiasing choices, did not force linear metrics, and could retain
+embedded bitmap strikes.
+
+Patch 054 now applies the managed Linux Fontations strike settings only when
+`ShouldFilterLocalFonts` is true. It preserves font identity, size, synthetic
+style and transforms; `geometricPrecision` selects no hinting, otherwise normal
+hinting. Native profiles retain their previous code path. The explicit Chromium
+web-test subpixel-positioning override still runs after normalization.
+
+`ApplyManagedFontRendering` is covered by two actual Skia C++ unit tests:
+384 combinations of incoming strike preferences and a style-preservation test.
+Both passed on the Linux QA build in 4ms after compiling the new test target
+(15.94s). The first compilation caught a missing explicit `SkFontTypes.h`
+include; it was corrected before the successful run. Report:
+`windows-strike-policy-058.xml` (a unit-test report, **not a new browser build**).
+The source-wiring contract also checks that the Windows helper is guarded and
+matches the Linux settings. Patch application was checked against pinned
+Chromium 151.0.7922.109 and then applied to the QA source tree.
+
+No Windows binary was compiled or executed for this result. Native Windows
+acceptance must still compare protected metrics/pixels with different host
+smoothing preferences, exercise `geometricPrecision`, and run the installed and
+portable gates above. The accepted Linux browser remains 056: this new runtime
+call site is Windows-only and does not change Linux behavior.
