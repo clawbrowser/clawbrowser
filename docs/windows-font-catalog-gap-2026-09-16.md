@@ -188,16 +188,17 @@ python -m pytest -q -o junit_family=xunit1 --junitxml=windows-font-gate.xml `
   clawbrowser/test/integration/test_dynamic_font_fallback.py `
   clawbrowser/test/integration/test_complex_font_fallback.py `
   clawbrowser/test/integration/test_font_glyph_coverage.py `
+  clawbrowser/test/integration/test_system_font_policy.py `
   clawbrowser/test/integration/test_font_catalog_isolation.py::test_legacy_font_list_is_reconciled_before_child_launch `
   clawbrowser/test/integration/test_font_catalog_isolation.py::test_bundled_local_faces_resolve_full_and_postscript_names
 if ($LASTEXITCODE -ne 0) { throw 'Windows font gate failed' }
-python -c "import xml.etree.ElementTree as E; c=list(E.parse('windows-font-gate.xml').getroot().iter('testcase')); assert len(c)==10; assert all(not any(x.find(t) is not None for t in ('failure','error','skipped')) for x in c)"
+python -c "import xml.etree.ElementTree as E; c=list(E.parse('windows-font-gate.xml').getroot().iter('testcase')); assert len(c)==12; assert all(not any(x.find(t) is not None for t in ('failure','error','skipped')) for x in c)"
 if ($LASTEXITCODE -ne 0) { throw 'Missing, skipped or failed Windows font evidence' }
 ```
 
 Do not add `--no-sandbox`. Run against portable **and installed** builds, record
 binary/module/catalog hashes, and keep separate XML reports. This selected
-10-test gate does not replace real Windows host-font-inventory differential
+12-test gate does not replace real Windows host-font-inventory differential
 testing, full rendering/network regression, or desktop lifecycle acceptance.
 
 Linux compatibility of the changed harness passed 10 tests in 14.39s (including
@@ -258,3 +259,40 @@ QA, six passed in 0.083s and the two Windows API cases were explicitly skipped.
 Windows CI requires 7z and runs both PE cases against a test-owned copy of the
 Python executable with a synthetic embedded resource; that copy is never
 executed. A real ClawBrowser installer has **not** yet been produced or checked.
+
+## System font call-chain audit
+
+The remaining direct native fallback calls were traced, not treated as leaks
+merely because they appear in source. Windows `GetDWriteFallbackFamily` and
+`GetFallbackFamilyNameFromHardcodedChoices` are reached after the managed return
+in `PlatformFallbackFontForCharacter`. The macOS CoreText fallback and native
+family creation paths are likewise behind the managed catalog returns.
+`CrashWithFontInfo::countFamilies` records crash diagnostics, not a successful
+page-visible lookup; the unique-name availability path goes through the guarded
+`GetFontPlatformData` call.
+
+There was, however, an earlier Windows path: `GetFontPlatformData(system-ui)`
+resolves `FontCache::SystemFontFamily()` **before** invoking the catalog matcher.
+It previously returned the host menu font, often not in the pinned catalog.
+Also, CSS `menu`, `small-caption` and `status-bar` obtained host font names and
+heights from `LayoutThemeFontProvider` before any typeface lookup. Filtering
+the eventual glyph lookup does not hide those computed CSS values.
+
+Patch 055 routes managed `system-ui` directly to Arimo. Managed CSS system-font
+keywords use the existing default GUI family and default-provider font size,
+while native profiles retain the Windows preferences. The control-specific
+size rules remain unchanged. This is a source-confirmed gap and a source fix;
+it is **not** a Windows binary reproduction or Windows acceptance pass.
+
+The two new desktop integration tests passed on sandboxed/headful Linux 056
+in 2.33s (`system-font-policy-056-r2.xml`): system-ui metrics equal Arimo, with
+Tinos as a differing negative control, and all six CSS system font keywords
+resolve to the default provider's Arial/16px. An initial test incorrectly
+assumed CSS Arial itself must equal Arimo; the managed allowlist does not make
+that guarantee, so that unrelated assumption was removed. The system-ui/Arimo
+and negative-control assertions remain strict. No Linux runtime change or
+new Linux browser build was needed for this Windows-only patch.
+
+The Windows acceptance command above now selects 12 tests. It must be run on
+a fresh Windows artifact and repeated with changed host menu font preferences
+to prove independence; Linux execution alone cannot establish that result.

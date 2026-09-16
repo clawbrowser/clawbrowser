@@ -1,0 +1,53 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+--- a/third_party/blink/renderer/platform/fonts/win/font_cache_skia_win.cc
++++ b/third_party/blink/renderer/platform/fonts/win/font_cache_skia_win.cc
+@@ -159,6 +159,13 @@
+ 
+ // static
+ const AtomicString& FontCache::SystemFontFamily() {
++  if (UsesManagedCatalog()) {
++    // GetFontPlatformData resolves system-ui here before reaching the catalog
++    // family matcher. Do not replace it with a host-specific menu font that
++    // could be absent from the pinned catalog and fall back to a serif face.
++    DEFINE_THREAD_SAFE_STATIC_LOCAL(const AtomicString, family, ("Arimo"));
++    return family;
++  }
+   return MenuFontFamily();
+ }
+ 
+--- a/third_party/blink/renderer/core/layout/layout_theme_font_provider_win.cc
++++ b/third_party/blink/renderer/core/layout/layout_theme_font_provider_win.cc
+@@ -27,5 +27,6 @@
+ #include "third_party/blink/renderer/core/layout/layout_theme_font_provider.h"
+ 
++#include "clawbrowser/fingerprint_coherence.h"
+ #include "third_party/blink/renderer/core/css_value_keywords.h"
+ #include "third_party/blink/renderer/platform/fonts/font_cache.h"
+ #include "third_party/blink/renderer/platform/fonts/font_description.h"
+@@ -42,6 +43,10 @@
+ // static
+ const AtomicString& LayoutThemeFontProvider::SystemFontFamily(
+     CSSValueID system_font_id) {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && clawbrowser::ShouldFilterLocalFonts(*fp)) {
++    return DefaultGUIFont();
++  }
+   switch (system_font_id) {
+     case CSSValueID::kSmallCaption:
+       return FontCache::SmallCaptionFontFamily();
+@@ -57,6 +62,15 @@
+ // static
+ float LayoutThemeFontProvider::SystemFontSize(CSSValueID system_font_id,
+                                               const Document* document) {
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && clawbrowser::ShouldFilterLocalFonts(*fp) &&
++      (system_font_id == CSSValueID::kSmallCaption ||
++       system_font_id == CSSValueID::kMenu ||
++       system_font_id == CSSValueID::kStatusBar)) {
++    // Match the platform-independent provider, not NONCLIENTMETRICS from the
++    // host desktop. Other IDs (including control sizes) retain that policy.
++    return DefaultFontSize(document);
++  }
+   switch (system_font_id) {
+     case CSSValueID::kSmallCaption:
+       return FontCache::SmallCaptionFontHeight();
