@@ -189,16 +189,17 @@ python -m pytest -q -o junit_family=xunit1 --junitxml=windows-font-gate.xml `
   clawbrowser/test/integration/test_complex_font_fallback.py `
   clawbrowser/test/integration/test_font_glyph_coverage.py `
   clawbrowser/test/integration/test_system_font_policy.py `
+  clawbrowser/test/integration/test_local_collection_variations.py `
   clawbrowser/test/integration/test_font_catalog_isolation.py::test_legacy_font_list_is_reconciled_before_child_launch `
   clawbrowser/test/integration/test_font_catalog_isolation.py::test_bundled_local_faces_resolve_full_and_postscript_names
 if ($LASTEXITCODE -ne 0) { throw 'Windows font gate failed' }
-python -c "import xml.etree.ElementTree as E; c=list(E.parse('windows-font-gate.xml').getroot().iter('testcase')); assert len(c)==12; assert all(not any(x.find(t) is not None for t in ('failure','error','skipped')) for x in c)"
+python -c "import xml.etree.ElementTree as E; c=list(E.parse('windows-font-gate.xml').getroot().iter('testcase')); assert len(c)==17; assert all(not any(x.find(t) is not None for t in ('failure','error','skipped')) for x in c)"
 if ($LASTEXITCODE -ne 0) { throw 'Missing, skipped or failed Windows font evidence' }
 ```
 
 Do not add `--no-sandbox`. Run against portable **and installed** builds, record
 binary/module/catalog hashes, and keep separate XML reports. This selected
-12-test gate does not replace real Windows host-font-inventory differential
+17-test gate does not replace real Windows host-font-inventory differential
 testing, full rendering/network regression, or desktop lifecycle acceptance.
 
 Linux compatibility of the changed harness passed 10 tests in 14.39s (including
@@ -293,6 +294,30 @@ that guarantee, so that unrelated assumption was removed. The system-ui/Arimo
 and negative-control assertions remain strict. No Linux runtime change or
 new Linux browser build was needed for this Windows-only patch.
 
-The Windows acceptance command above now selects 12 tests. It must be run on
+The system-font additions brought the Windows acceptance selection to 12 tests
+(the TTC regression below brings it to 17). It must be run on
 a fresh Windows artifact and repeated with changed host menu font preferences
 to prove independence; Linux execution alone cannot establish that result.
+
+## Shared local TTC variation fix (patch 056)
+
+`LocalFontFaceSource` cloned local fonts without passing their collection index.
+For a nonzero TTC member, Fontations returned the original face and silently
+ignored the requested variation axes. This was reproduced on Linux artifact
+056: `local("Noto Sans CJK SC")` gave identical metrics at weights 100 and 900,
+while the direct family control changed. The before report has one failing
+test; it is not a passing baseline.
+
+Patch 056 obtains the index from the already-loaded typeface stream only in
+managed mode and passes it to the clone. It does not enumerate host fonts or
+change the native-profile path. Linux artifact `local-collection-060` passes
+all five JP/SC/KR/TC/HK variants (6.28s), then the full headful, sandboxed,
+non-root suite: **147 passed, 21 skipped in 398.57s**. Reports are
+`local-collection-before-056.xml`, `local-collection-after-060.xml`, and
+`full-suite-060.xml`. Skips are not acceptance passes.
+
+ELF SHA-256: `cceb32d337ff467dc28dec32a60cc68438ff409da52bde93b8eb92fc7d38cc9a`.
+Archive SHA-256: `99eb28e788c3dc36e965d7ab5cfaf8251dada6568c4e6586cd260b47e5629395`.
+This shared-code fix still needs the fresh macOS and Windows artifact gates;
+the five tests are included in the Windows command above. It is not evidence
+that PixelScan is green or that current builds pass on all platforms.

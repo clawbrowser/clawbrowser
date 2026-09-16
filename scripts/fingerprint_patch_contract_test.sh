@@ -22,6 +22,7 @@ font_fallback_patch="${repo_root}/clawbrowser/patches/035-font-fallback-probing.
 windows_strike_patch="${repo_root}/clawbrowser/patches/054-managed-windows-font-rendering.patch"
 managed_strike_header="${repo_root}/clawbrowser/managed_font_rendering.h"
 windows_system_font_patch="${repo_root}/clawbrowser/patches/055-managed-windows-system-fonts.patch"
+local_collection_patch="${repo_root}/clawbrowser/patches/056-local-font-collection-variations.patch"
 verify_script="${repo_root}/clawbrowser/verify/resources/verify.js"
 verify_html="${repo_root}/clawbrowser/verify/resources/verify.html"
 verify_source="${repo_root}/clawbrowser/verify/verify_page.cc"
@@ -253,5 +254,12 @@ grep -A8 'LayoutThemeFontProvider::SystemFontFamily(' "${windows_system_font_pat
   grep -q 'ShouldFilterLocalFonts'
 grep -A15 'LayoutThemeFontProvider::SystemFontSize(' "${windows_system_font_patch}" |
   grep -q 'return DefaultFontSize(document)'
+
+# local() TTC faces must clone the actual collection member, not default zero.
+# This checks wiring only; the five-region browser test proves weight changes.
+grep -q 'core/css/local_font_face_source.cc' "${local_collection_patch}"
+grep -Fq 'fp && clawbrowser::ShouldFilterLocalFonts(*fp)' "${local_collection_patch}"
+grep -Fq 'typeface->openStream(&collection_index)' "${local_collection_patch}"
+grep -Fq 'font_description.GetFontPalette(), collection_index)' "${local_collection_patch}"
 
 echo "PASS"
