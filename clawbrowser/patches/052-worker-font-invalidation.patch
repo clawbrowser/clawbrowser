@@ -1,0 +1,68 @@
+# Pinned against Chromium 151.0.7922.109
+--- a/third_party/blink/renderer/core/css/offscreen_font_selector.h
++++ b/third_party/blink/renderer/core/css/offscreen_font_selector.h
+@@ -14,2 +14,3 @@
+ #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
++#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
+ #include "third_party/blink/renderer/platform/wtf/forward.h"
+@@ -40,1 +41,2 @@
+-  void FontCacheInvalidated() override {}
++  void FontCacheInvalidated() override;
++  void FontFaceInvalidated(FontInvalidationReason) override;
+@@ -52,1 +54,1 @@
+-  void DispatchInvalidationCallbacks();
++  void DispatchInvalidationCallbacks(FontInvalidationReason);
+@@ -59,2 +61,3 @@
+   Member<WorkerGlobalScope> worker_;
++  HeapHashSet<WeakMember<FontSelectorClient>> clients_;
+ };
+--- a/third_party/blink/renderer/core/css/offscreen_font_selector.cc
++++ b/third_party/blink/renderer/core/css/offscreen_font_selector.cc
+@@ -34,3 +34,6 @@
+ void OffscreenFontSelector::RegisterForInvalidationCallbacks(
+-    FontSelectorClient* client) {}
++    FontSelectorClient* client) {
++  CHECK(client);
++  clients_.insert(client);
++}
+ 
+@@ -37,3 +40,23 @@
+ void OffscreenFontSelector::UnregisterForInvalidationCallbacks(
+-    FontSelectorClient* client) {}
++    FontSelectorClient* client) {
++  clients_.erase(client);
++}
++
++void OffscreenFontSelector::DispatchInvalidationCallbacks(
++    FontInvalidationReason reason) {
++  HeapVector<Member<FontSelectorClient>> clients(clients_);
++  for (auto& client : clients) {
++    if (client) {
++      client->FontsNeedUpdate(this, reason);
++    }
++  }
++}
++
++void OffscreenFontSelector::FontFaceInvalidated(FontInvalidationReason reason) {
++  DispatchInvalidationCallbacks(reason);
++}
++
++void OffscreenFontSelector::FontCacheInvalidated() {
++  DispatchInvalidationCallbacks(FontInvalidationReason::kGeneralInvalidation);
++}
+ 
+@@ -65,4 +88,5 @@
+ void OffscreenFontSelector::Trace(Visitor* visitor) const {
+   visitor->Trace(worker_);
++  visitor->Trace(clients_);
+   CSSFontSelectorBase::Trace(visitor);
+ }
+--- a/third_party/blink/renderer/core/css/font_face_set_worker.cc
++++ b/third_party/blink/renderer/core/css/font_face_set_worker.cc
+@@ -62,3 +62,6 @@
+ ScriptPromise<FontFaceSet> FontFaceSetWorker::ready(ScriptState* script_state) {
++  // Unlike documents, workers have no layout lifecycle to signal readiness.
++  // An already-loaded binary FontFace does not enter the loading set either.
++  HandlePendingEventsAndPromisesSoon();
+   return ready_->Promise(script_state->World());
+ }
