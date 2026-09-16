@@ -45,7 +45,10 @@ jobs:
         with:
           python-version: '3.12'
       - name: Verify font manifest bytes and reuse checks on Windows
-        run: python clawbrowser/fonts/build_catalog_test.py
+        run: |
+          python clawbrowser/fonts/build_catalog_test.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python clawbrowser/fonts/windows_package_test.py
       - name: Verify exact raster arithmetic with Windows Clang and MSVC library
         shell: cmd
         env:
@@ -104,6 +107,7 @@ jobs:
         run: |
           python3 clawbrowser/fonts/stage_fonts_test.py
           python3 clawbrowser/fonts/build_catalog_test.py
+          python3 clawbrowser/fonts/windows_package_test.py
           python3 scripts/linux_runtime_fonts_test.py
       - name: Run network control unit regressions (no browser or secrets)
         run: |

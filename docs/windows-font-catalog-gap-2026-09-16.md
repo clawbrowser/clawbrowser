@@ -114,3 +114,29 @@ this does **not** compile or exercise Windows-only branches.
 The preceding staging change passed all **9 tests on Windows CI**, run
 `35081750192`, job `104747142355` (0.156s). Installer/portable packaging and
 actual Windows acceptance remain required before shipping this wiring.
+
+## Packaging integration
+
+`windows_package.py` generates exact (non-wildcard) catalog entries in the
+mini-installer's GENERAL section, all beneath `VersionDir` alongside the
+loaded browser module. The Windows build script invokes this before building
+the installer, validates catalog inputs before installer preparation, and
+copies validated bytes into the portable package before archiving it.
+Conflicting existing bytes are not overwritten. Missing/extra fonts, wrong
+hashes/notices/manifest/marker, unsafe names and case-insensitive duplicate
+font filenames are rejected.
+
+Seven new packaging tests pass locally and are added to both Linux and Windows
+CI. The helper also validated/copied all real QA catalog assets and generated
+33 entries against a copy of the pinned Chromium `chrome.release`. This proves
+the helper's real-input path, not execution of a Windows mini-installer or
+verification of its embedded payload. In particular, staging an old existing
+`mini_installer.exe` still requires independent installed-payload verification.
+
+The Linux compatibility build completed (55 steps, 270.69s) and a fresh archive
+was staged/extracted as `windows-wiring-056`. ELF SHA-256:
+`155b4ad2c83d2a11337d3c21debba9604a7ea0fc75c4f05b632faf5b7d726c0a`.
+Archive SHA-256:
+`8ef2849aa98c5e3188573cb40b336fdeac3534a9724b483f99ec8e8ef2c0f285`.
+The full sandboxed/headful Linux regression is running separately; no pass is
+claimed yet. Windows compilation and installed-browser acceptance remain open.
