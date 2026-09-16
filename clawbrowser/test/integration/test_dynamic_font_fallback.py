@@ -14,8 +14,7 @@ pytestmark = pytest.mark.skipif(sys.platform not in ("linux", "darwin"),
                                 reason="Linux/macOS bundled catalog")
 
 
-@pytest.mark.asyncio
-async def test_unicode_range_webfont_load_and_removal_preserve_fallback(record_property):
+def bundled_tinos_payload():
     manifest = json.loads((Path(__file__).parents[2] / "fonts/catalog.json").read_text())
     binary = Path(_resolve_browser_binary()).resolve()
     search_root = binary.parent if sys.platform == "linux" else binary.parents[1]
@@ -24,7 +23,12 @@ async def test_unicode_range_webfont_load_and_removal_preserve_fallback(record_p
     assert candidates, "Test requires the actual packaged font asset"
     data = candidates[0].read_bytes()
     assert hashlib.sha256(data).hexdigest() == expected
-    payload = base64.b64encode(data).decode("ascii")
+    return base64.b64encode(data).decode("ascii")
+
+
+@pytest.mark.asyncio
+async def test_unicode_range_webfont_load_and_removal_preserve_fallback(record_property):
+    payload = bundled_tinos_payload()
     samples = ["مرحبا", "नमस्ते", "สวัสดี", "👩\u200d💻"]
     async with _launch_browser_with_details(
         fixture_name="valid_fingerprint.json", backend_mode="mock",
@@ -70,3 +74,89 @@ async def test_unicode_range_webfont_load_and_removal_preserve_fallback(record_p
     record_property("dynamic_font_fallback", json.dumps({
         "platform": sys.platform, "before": before, "loaded": loaded, "after": after,
     }))
+
+
+@pytest.mark.asyncio
+async def test_dynamic_webfont_canvas_matches_worker(record_property):
+    async with _launch_browser_with_details(
+        fixture_name="valid_fingerprint.json", backend_mode="mock",
+        skip_verify=True, headless=False,
+    ) as launch:
+        observations = await launch["page"].evaluate('''async payload => {
+            async function probe(payload, kind) {
+                async function bounded(promise, stage) {
+                    let timer;
+                    try {return await Promise.race([promise,new Promise((_,reject)=>{
+                        timer=setTimeout(()=>reject(new Error(kind+': '+stage+' timeout')),3000);
+                    })]);} finally {clearTimeout(timer);}
+                }
+                async function readyDiagnostic() {
+                    let timer;
+                    try {return await Promise.race([fontSet.ready.then(()=>true),new Promise(resolve=>{
+                        timer=setTimeout(()=>resolve(false),3000);
+                    })]);} finally {clearTimeout(timer);}
+                }
+                const fontSet = typeof document === 'undefined' ? self.fonts : document.fonts;
+                const texts = ['Latin WWW iii', 'مرحبا', 'नमस्ते', 'สวัสดี', '👩‍💻'];
+                async function capture() {
+                    const rows = [];
+                    for (const text of texts) {
+                        const canvas = kind === 'dom' ? document.createElement('canvas') : new OffscreenCanvas(256,64);
+                        canvas.width=256; canvas.height=64;
+                        const ctx=canvas.getContext('2d', {willReadFrequently:true});
+                        ctx.fillStyle='white'; ctx.fillRect(0,0,256,64);
+                        ctx.font='28px WebLatin,sans-serif'; ctx.fillStyle='black';
+                        ctx.fillText(text,8,40);
+                        const metrics=ctx.measureText(text);
+                        const pixels=ctx.getImageData(0,0,256,64).data;
+                        const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',pixels)),
+                            v=>v.toString(16).padStart(2,'0')).join('');
+                        rows.push({text,width:metrics.width,left:metrics.actualBoundingBoxLeft,
+                            right:metrics.actualBoundingBoxRight,ascent:metrics.actualBoundingBoxAscent,
+                            descent:metrics.actualBoundingBoxDescent,hash});
+                    }
+                    return rows;
+                }
+                const before=kind==='worker-fresh'?null:await capture();
+                const face=new FontFace('WebLatin',Uint8Array.from(atob(payload),c=>c.charCodeAt(0)),
+                    {unicodeRange:'U+0000-007F'});
+                    await bounded(face.load(),'face.load'); fontSet.add(face);
+                    // Record both readiness and rendering so a stuck promise
+                    // cannot hide a separate stale fallback-cache failure.
+                    const readyAfterAdd=await readyDiagnostic();
+                const loaded=await capture();
+                    const removed=fontSet.delete(face);
+                    const readyAfterDelete=await readyDiagnostic();
+                const after=await capture();
+                return {before:before||after,loaded,after,removed,readyAfterAdd,readyAfterDelete};
+            }
+            const dom=await probe(payload,'dom');
+            const offscreen=await probe(payload,'offscreen');
+            async function workerProbe(kind) {
+              const url=URL.createObjectURL(new Blob([
+                'onmessage=async e=>{try{postMessage({result:await ('+probe.toString()+')(e.data.payload,e.data.kind)})}' +
+                'catch(error){postMessage({error:String(error)})}}'
+            ],{type:'text/javascript'}));
+            const worker=new Worker(url); let timer;
+            try {
+                const result=await new Promise((resolve,reject)=>{
+                    timer=setTimeout(()=>reject(new Error('font worker timeout')),15000);
+                    worker.onerror=e=>reject(new Error(e.message));
+                    worker.onmessage=e=>e.data.error?reject(new Error(e.data.error)):resolve(e.data.result);
+                    worker.postMessage({payload,kind});
+                });
+                return result;
+            } finally {clearTimeout(timer);worker.terminate();URL.revokeObjectURL(url);}
+            }
+            return {dom,offscreen,worker:await workerProbe('worker-warm'),workerFresh:await workerProbe('worker-fresh')};
+        }''', bundled_tinos_payload())
+    record_property("dynamic_font_canvas", json.dumps(observations))
+    for kind, states in observations.items():
+        assert states["readyAfterAdd"] and states["readyAfterDelete"], kind
+        assert states["removed"]
+        assert states["before"] == states["after"], kind
+        assert states["before"][0]["width"] != states["loaded"][0]["width"], kind
+        assert states["before"][0]["hash"] != states["loaded"][0]["hash"], kind
+        assert states["before"][1:] == states["loaded"][1:], kind
+    for state in ["before", "loaded", "after"]:
+        assert observations["dom"][state] == observations["offscreen"][state] == observations["worker"][state] == observations["workerFresh"][state], state

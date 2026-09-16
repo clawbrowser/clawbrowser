@@ -1011,3 +1011,30 @@ these Linux configurations. Reports: `dynamic-font-fallback-052.xml`,
 load/remove transition, not every script or web-font configuration. No runtime
 change was needed. The equivalent macOS run remains pending; this result does
 not resolve PixelScan's classification or certify all platforms.
+
+### Worker dynamic-font regression found (2026-09-16, fix pending binary test)
+
+Extending the preceding test to OffscreenCanvas in dedicated workers found a
+real 052 mismatch. For `Latin WWW iii`, DOM and main-thread OffscreenCanvas
+change width from 174.220703125 to 175.7109375 when the web-font loads, then
+restore the baseline after removal. A worker that measured the family first
+stays at 174.220703125 after loading. A fresh worker that first measures after
+loading stays at 175.7109375 even after removal. Pixel hashes follow those stale
+states. Separately, the worker FontFaceSet ready promise does not settle within
+the diagnostic timeout after adding an already-loaded binary face.
+
+Source inspection found empty registration/unregistration callbacks and no
+FontFace invalidation override in OffscreenFontSelector. Patch 052 adds the
+same weak-client invalidation dispatch used by the document selector, including
+font-cache changes and GC tracing. Worker `ready()` schedules the existing
+pending-event handler, since workers have no document-layout readiness trigger.
+The regression requires readiness plus load/remove metric and pixel equality
+across DOM, main-thread OffscreenCanvas, warm workers and fresh workers.
+
+The patch applied with zero fuzz to the pinned source and a real Linux rebuild
+was started. **This fix is not yet binary-validated.** Preserved failing reports
+are `dynamic-worker-font-052.xml`, `dynamic-worker-font-052-diagnostic.xml`,
+`dynamic-worker-font-052-render.xml`, and
+`dynamic-worker-font-052-cache-diagnostic.xml`. These observations establish
+rendering inconsistency, not disclosure of a host font or proof that it explains
+PixelScan's classification.
