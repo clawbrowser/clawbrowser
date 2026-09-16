@@ -1038,3 +1038,15 @@ are `dynamic-worker-font-052.xml`, `dynamic-worker-font-052-diagnostic.xml`,
 `dynamic-worker-font-052-cache-diagnostic.xml`. These observations establish
 rendering inconsistency, not disclosure of a host font or proof that it explains
 PixelScan's classification.
+
+The subsequent **worker-font-053** Linux build completed in 291.98s. Its ELF
+SHA-256 is `bf603255eab13a6192bae4cdda5fb42ab650b54881c5275e2b8163d08f48a77e`;
+archive SHA-256 is
+`af4fa35f941a92cc09a1e60e32c70f0fd8ac4b8b9ae12bc12ba6e3ac00b51ecb`.
+The two dynamic-font tests passed in **3.06s** on the extracted archive,
+headful/sandboxed as the non-root QA user. Both worker readiness promises now
+resolve and all four contexts agree on metrics/pixel hashes before loading,
+after loading and after removal. The failing 052 evidence is retained, giving a
+before/after regression rather than a source-only claim. Report:
+`dynamic-worker-font-053.xml`. The broad 053 regression was started separately
+and is still pending; macOS/Windows binary and PixelScan acceptance remain open.
