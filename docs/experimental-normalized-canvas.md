@@ -173,6 +173,18 @@ This supports the distinction between a requested font label and actual local
 font availability, not a blanket dismissal of PixelScan's remaining font result.
 Evidence: `font-probe-fallback-065.xml`.
 
+Fresh 065 controlled network checks also passed in both Canvas modes:
+HTTP/SOCKS5 over IPv4/IPv6 STUN produced zero direct browser packets with four
+independent positive-control packets per mode. TURN/TLS produced two successful
+relay-to-relay DataChannel echoes per mode, verified the TLS certificate, and
+recorded zero direct browser packets against seven direct-control packets.
+Proxy-origin packets were 252 (protected) / 256 (normalized); all captures had
+zero kernel drops. These were headful, non-root, sandboxed runs. Evidence stems
+are `cached-ua-065-{protected,experimental}-{stun-pcap,turn-route}` (JSON and TURN
+JUnit XML). The controlled services were stopped after testing. The separate
+outage/fail-closed gate still needs a fresh 065 run; its earlier 064 pass is not
+silently attributed to this archive.
+
 ### Completed seven-site first pass
 
 These are observations on September 16, not timeless detector guarantees.
