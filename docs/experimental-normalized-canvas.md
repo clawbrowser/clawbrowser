@@ -158,6 +158,21 @@ Archive SHA-256: `2809e03b0616801b84e33b8b6f17991c517c03641523cbbc52a023e0fbf639
 Evidence: `cached-ua-065.xml`, `checker-browserscan-064-reduced-ua-settled.{json,png}`,
 and the backend PR3 `docs/ua-reduction-qa.md` report. No release was published.
 
+The subsequent complete headful 065 suite passed **185 tests with 21 skips**
+in 528.59s (`full-suite-065-recheck.xml`). The first run had 183 passes and two
+old full-UA expectations in profile-isolation/implicit-selection tests; both
+were corrected to the reduced-UA contract without removing their isolation
+assertions, and the complete suite was rerun. Skips remain unaccepted coverage.
+
+A further font-probe regression passed in protected and normalized Canvas modes
+(two tests, 2.66s): three unavailable family names, three generic families and
+three multilingual strings produced 54 complete-pixel/metric comparisons equal
+to their generic fallbacks. `FontFace(local)` failed for each unavailable name;
+nonempty ink, positive metrics and an active Canvas-mode canary were required.
+This supports the distinction between a requested font label and actual local
+font availability, not a blanket dismissal of PixelScan's remaining font result.
+Evidence: `font-probe-fallback-065.xml`.
+
 ### Completed seven-site first pass
 
 These are observations on September 16, not timeless detector guarantees.
