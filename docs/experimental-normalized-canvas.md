@@ -246,7 +246,44 @@ literal was incorrectly required to use SOCKS domain addressing. The harness
 now accepts valid literal addressing while requiring the test origin's exact
 domain at the proxy. No runtime code was changed for this result.
 
-Next: investigate the remaining font classifier and the DNS scopes above.
+### Page-initiated DNS hints (065)
+
+`test_proxy_dns_hints.py` supplies opt-in controlled `dns-prefetch` and
+`preconnect` stimuli. Its pytest result alone is **not** a DNS acceptance gate.
+The operator runner `scripts/qa_dns_hints_linux065.py` additionally requires
+both hints in an unproxied ClawBrowser control to produce observable DNS traffic,
+zero corresponding observations with HTTP/SOCKS5/authenticated SOCKS5, and zero
+capture drops. Fresh random names under `example.com` distinguish the cases.
+The page is controlled; no live accounts or user profiles are involved.
+
+The runner is scoped to the existing Linux QA layout under `/opt/clawbrowser-qa`,
+the pinned 065 artifact, non-root `builder` browser processes, and `xvfb-run`.
+Run it as the QA operator with tcpdump privileges, not on a production host.
+It refuses existing evidence paths and stores raw DNS output in a mode-0700
+private directory. It does not change resolver configuration or firewall rules.
+Use `QA_DNS_HINT_LABEL=dns-hints-065-protected-15s` or
+`dns-hints-065-normalized-15s`, `CLAWBROWSER_DNS_HINT_SECONDS=15`, and the
+corresponding `CLAWBROWSER_QA_NORMALIZED_CANVAS=0` or `1`. The test asserts an
+active Canvas-mode canary for each managed case.
+
+The initial four-second observation passed all four stimulus cases in 22.61s:
+28 port-53 observations for each unproxied hint, zero for every proxied hint,
+and zero capture drops (`dns-hints-065.{json,xml}`). These are packet-text
+observations, including requests/responses and loopback, not unique DNS queries.
+The extended protected run passed four cases in 67.08s with 15 seconds per case
+and the same 28/28 direct, zero proxied, zero-drop result.
+The normalized-Canvas run also passed four cases in 67.48s, with 15 seconds
+per case and the same counts. Evidence:
+`dns-hints-065-{protected,normalized}-15s.{json,xml}`. Thus both Canvas policies
+passed this bounded DNS-hint gate; this does not extend its DNS or platform scope.
+
+This checks HTTP-document hints with IP-literal proxies and normal system DNS.
+It does not accept HTTPS documents, DoH/DoT, proxy-host bootstrap DNS, or an
+unbounded observation window. Chromium's `PreconnectManagerImpl::TryToLaunchPreresolveJobs`
+looks up proxy configuration before issuing DNS; `OnProxyLookupFinished` skips
+local preresolution when a proxy exists. Runtime code was not changed here.
+
+Next: investigate the remaining font classifier and the uncovered DNS scopes.
 The reduced-UA BrowserScan result is recorded earlier in this report.
 Preserve network guards and the current default until
 cross-host/platform rendering and the identity-versioning contract are
