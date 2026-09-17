@@ -214,3 +214,42 @@ the ten tested families are available through a valid face name; the three
 absent names are fallback-equivalent in all nine comparisons each. The earlier
 family-only observation is retained as `font-labels-065.json`, not presented
 as evidence that the two bundled Noto fonts are missing.
+
+## Managed 067 website confirmation (September 17, UTC)
+
+After the previous QA display expired and the managed profile reported stopped,
+the same profile was started through `nbc` with the extracted 067 runtime.
+No identity rotation or auth/config inspection was performed. Internal verify
+passed 35/35. The live process executable and SHA256 matched the 067 artifact
+in [the DoH boundary report](managed-doh-proxy-boundary.md); a live canary
+confirmed experimental normalized Canvas (zero changed pixels).
+
+An ordinary PixelScan run completed before classifier instrumentation:
+**Inconsistent / Masking detected**, **No proxy detected**, and **No automated
+behavior detected**. A separate instrumented run observed **fonts=false** and
+the other twelve predicates true, with classifier API HTTP 200 responses.
+The displayed font hash `dd840e733d45ca22e94dec4a106d5383` and five font labels
+match the 065 observation. The DoH correction therefore does not resolve the
+remaining font-classifier result; no site-specific exception was introduced.
+
+BrowserScan on the same running 067 profile displayed **100% authenticity**
+after hardware and font fields populated, with matching reduced HTTP/JS UA,
+Canvas `F49629D5`, WebGL `6037CFEC`, and font hash `40C579C5`, matching 065.
+Its WebRTC/STUN widgets said disabled; working proxied relay is established by
+the separate controlled TURN tests, not that label. Its DNS widget displayed
+resolver addresses, but these are not independently attributed to host versus
+proxy from this screenshot and do not establish DNS leak acceptance.
+
+The initial BrowserScan capture occurred while hardware/font fields were still
+empty despite a displayed 100% score. It is **not completed evidence**. The
+capture readiness check was strengthened to require Canvas hash, renderer,
+screen dimensions and nonempty font results; the completed capture is below.
+No reload or identity change was needed to let asynchronous results populate.
+
+Evidence (normal screenshots visually reviewed):
+`managed-runtime-067.json`, `pixelscan-067-doh-boundary.{json,png}`,
+`pixelscan-mask-067-doh-boundary.json` (instrumented only), and
+`checker-browserscan-067-complete.{json,png}`.
+The incomplete initial capture is retained separately as
+`checker-browserscan-067-doh-boundary.{json,png}`. This is Linux QA evidence,
+not default-policy PixelScan acceptance or all-platform release approval.
