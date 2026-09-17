@@ -7,7 +7,8 @@ import pytest
 
 from conftest import _launch_browser_with_details
 
-pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="Linux bundled catalog")
+pytestmark = pytest.mark.skipif(sys.platform not in ("linux", "darwin", "win32"),
+                                reason="Desktop bundled catalog")
 
 
 async def platform_fonts(page, selector):

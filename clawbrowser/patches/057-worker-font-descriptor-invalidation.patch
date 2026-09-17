@@ -1,0 +1,18 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+--- a/third_party/blink/renderer/core/css/font_face.cc
++++ b/third_party/blink/renderer/core/css/font_face.cc
+@@ -1058,7 +1058,11 @@
+   Document* document = GetDocument();
+-  if (!document) {
+-    return;
++  FontSelector* font_selector = nullptr;
++  if (document) {
++    font_selector = document->GetStyleEngine().GetFontSelector();
++  } else if (auto* worker =
++                 DynamicTo<WorkerGlobalScope>(GetExecutionContext())) {
++    // Descriptor changes must invalidate the same worker cache as add/delete.
++    font_selector = worker->GetFontSelector();
+   }
+ 
+-  FontSelector* font_selector = document->GetStyleEngine().GetFontSelector();
+   if (!font_selector) {

@@ -3,8 +3,10 @@
 
 import argparse
 import json
+import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 FINGERPRINTS_FIXTURE = WORKSPACE_ROOT / "api/mocks/fingerprints.json"
@@ -77,6 +79,37 @@ class MockHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        # Act as a bounded fixture HTTP proxy, never as an Internet proxy.
+        # Surface tests need genuine localhost origins (secure-context APIs),
+        # but the browser must reach them through its configured proxy.
+        if self.path.startswith("http://") or self.path.startswith("https://"):
+            target = urlsplit(self.path)
+            if target.scheme != "http" or target.hostname not in {"127.0.0.1", "localhost"}:
+                self.send_error(403, "Only local HTTP fixture destinations are permitted")
+                return
+            path = target.path or "/"
+            if target.query:
+                path += "?" + target.query
+            connection = http.client.HTTPConnection("127.0.0.1", target.port or 80, timeout=5)
+            try:
+                headers = {k: v for k, v in self.headers.items()
+                           if k.lower() not in {"proxy-authorization", "proxy-connection", "connection"}}
+                connection.request("GET", path, headers=headers)
+                response = connection.getresponse()
+                body = response.read()
+                self.send_response(response.status)
+                for key, value in response.getheaders():
+                    if key.lower() not in {"connection", "transfer-encoding", "content-length"}:
+                        self.send_header(key, value)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except OSError:
+                self.send_error(502)
+            finally:
+                connection.close()
+            return
+
         if self.path == "/v1/auth/api-key/validate":
             if not self._require_api_key():
                 return
@@ -104,6 +137,12 @@ class MockHandler(BaseHTTPRequestHandler):
             self.wfile.write(b'{"ok":true}\n')
             return
 
+        if self.path == "/__headers-hints":
+            self._write_json(200, {"ok": True}, {
+                "Accept-CH": "Sec-CH-UA-Full-Version-List, Sec-CH-UA-Arch, Sec-CH-UA-Bitness"
+            })
+            return
+
         if self.path == "/__headers":
             self._write_json(
                 200,
@@ -113,6 +152,31 @@ class MockHandler(BaseHTTPRequestHandler):
                     }
                 },
             )
+            return
+
+        if self.path == "/__identity-worker.js":
+            source = b"""
+self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
+self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
+self.addEventListener('message', event => event.waitUntil((async () => {
+  const result = {
+    ua: navigator.userAgent, platform: navigator.platform,
+    languages: [...navigator.languages], cores: navigator.hardwareConcurrency,
+    memory: navigator.deviceMemory,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    offset: new Date().getTimezoneOffset(),
+    hints: navigator.userAgentData ? await navigator.userAgentData.getHighEntropyValues(
+      ['fullVersionList', 'platformVersion', 'architecture', 'bitness']) : null,
+  };
+  event.ports[0].postMessage(result);
+})()));
+"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/javascript")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(source)))
+            self.end_headers()
+            self.wfile.write(source)
             return
 
         if self.path == "/__blank":
@@ -222,12 +286,14 @@ class MockHandler(BaseHTTPRequestHandler):
         if content_length:
             self.rfile.read(content_length)
 
-    def _write_json(self, status_code: int, payload):
+    def _write_json(self, status_code: int, payload, extra_headers=None):
         encoded = json.dumps(payload).encode("utf-8")
         self.send_response(status_code)
         self._write_cors_headers()
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(encoded)))
+        for name, value in (extra_headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(encoded)
 

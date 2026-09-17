@@ -1,11 +1,29 @@
 """Canvas protection must precede GPU upload, not just CPU readback."""
 
 import pytest
+import sys
+
+from conftest import _launch_browser
 
 
 @pytest.mark.asyncio
 async def test_canvas_source_snapshots_protect_gpu_upload(browser_with_fingerprint):
     page, _ = browser_with_fingerprint
+    await _check_source_snapshots(page, noisy=True)
+
+
+@pytest.mark.asyncio
+async def test_normalized_canvas_source_snapshots():
+    if sys.platform != "linux":
+        pytest.skip("normalized canvas experiment is Linux-only")
+    async with _launch_browser(
+        fixture_name="valid_fingerprint.json", backend_mode="mock", skip_verify=True,
+        extra_browser_args=("--clawbrowser-experimental-normalized-canvas",),
+    ) as (page, _):
+        await _check_source_snapshots(page, noisy=False)
+
+
+async def _check_source_snapshots(page, noisy):
     result = await page.evaluate("""async () => {
         const n = 64;
         const canvas = document.createElement('canvas');
@@ -50,15 +68,33 @@ async def test_canvas_source_snapshots_protect_gpu_upload(browser_with_fingerpri
         }
         const transferred = offscreen.transferToImageBitmap();
         for (const version of ['webgl', 'webgl2']) upload(transferred, version, 'transferred');
+        // bitmaprenderer owns the transferred backing, rather than drawing it
+        // through Canvas2D. Its snapshots must retain the same protection.
+        const ownership = [];
+        for (const kind of ['dom', 'offscreen']) {
+            const target = kind === 'dom' ? document.createElement('canvas') : new OffscreenCanvas(n,n);
+            target.width = target.height = n;
+            const renderer = target.getContext('bitmaprenderer');
+            if (!renderer) throw new Error(kind + ' bitmaprenderer unavailable');
+            const image = await createImageBitmap(canvas);
+            renderer.transferFromImageBitmap(image);
+            ownership.push(image.width === 0 && image.height === 0);
+            for (const version of ['webgl', 'webgl2']) upload(target, version, kind + '-bitmaprenderer');
+            renderer.transferFromImageBitmap(null);
+        }
         for (const image of [bitmap, offscreenBitmap, transferred]) image.close();
         const after = canvas.getContext('2d').getImageData(0, 0, n, n).data;
-        return {observations,
+        return {observations, ownership,
             protectedBytes: expected.filter((v, i) => v !== [100,150,200,255][i % 4]).length,
             liveUnchanged: expected.every((v, i) => v === after[i])};
     }""")
-    assert result['protectedBytes'] > 0, 'control must demonstrate active canvas noise'
+    if noisy:
+        assert result['protectedBytes'] > 0, 'control must demonstrate active canvas noise'
+    else:
+        assert result['protectedBytes'] == 0, result
     assert result['liveUnchanged'], 'snapshot must not mutate the canvas backing'
-    assert len(result['observations']) == 10
+    assert result['ownership'] == [True, True], 'bitmap transfer must consume its input'
+    assert len(result['observations']) == 14
     for observation in result['observations']:
         assert observation['status'] == 36053, observation  # FRAMEBUFFER_COMPLETE
         assert observation['error'] == 0, observation

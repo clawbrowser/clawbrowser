@@ -786,6 +786,29 @@ if paths and all(path.startswith(overlay_prefixes) for path in paths):
 PY
 }
 
+patch_creates_target() {
+  python3 - "${PROJECT_DIR}" "$1" <<'PY'
+from pathlib import Path, PurePosixPath
+import sys
+
+target = sys.argv[2]
+if PurePosixPath(target).is_absolute() or ".." in PurePosixPath(target).parts:
+    raise SystemExit(1)
+for patch in sorted((Path(sys.argv[1]) / "clawbrowser" / "patches").glob("[0-9][0-9][0-9]-*.patch")):
+    old = None
+    for line in patch.read_text().splitlines():
+        if line.startswith("--- "):
+            old = line[4:]
+        elif line.startswith("+++ "):
+            new = line[4:]
+            if new.startswith("b/"):
+                new = new[2:]
+            if old == "/dev/null" and new == target:
+                raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
 reset_patch_targets_to_pin() {
   local src_dir
   local actual_revision
@@ -805,6 +828,20 @@ reset_patch_targets_to_pin() {
 
   while IFS= read -r path; do
     [[ -n "${path}" ]] || continue
+    if [[ "${path}" == third_party/skia/* ]]; then
+      local skia_dir="${src_dir}/third_party/skia"
+      local skia_path="${path#third_party/skia/}"
+      [[ -e "${skia_dir}/.git" ]] || die "Missing nested Skia checkout"
+      if git -C "${skia_dir}" cat-file -e "HEAD:${skia_path}" >/dev/null 2>&1; then
+        git -C "${skia_dir}" restore --source HEAD --worktree -- "${skia_path}"
+      elif patch_creates_target "${path}"; then
+        log "Removing patch-created Skia file: ${skia_path}"
+        rm -f -- "${skia_dir}/${skia_path}"
+      else
+        die "Skia patch target is absent from nested HEAD and not declared new: ${skia_path}"
+      fi
+      continue
+    fi
     if [[ "${path}" == v8/* && -d "${src_dir}/v8/.git" ]]; then
       local v8_path="${path#v8/}"
       if git -C "${src_dir}/v8" cat-file -e "HEAD:${v8_path}" >/dev/null 2>&1; then

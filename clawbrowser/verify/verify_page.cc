@@ -143,17 +143,24 @@ bool VerifyFailureExitEnabledForCommandLine(
 int ManagedProxyPrivacyCapabilityForCommandLine(
     const base::CommandLine& command_line,
     bool fingerprint_proxy_loaded) {
+  constexpr char kRequiredWebRtcPolicy[] = "disable_non_proxied_udp";
   if (!fingerprint_proxy_loaded ||
       !command_line.HasSwitch(kRequireProxySwitch) ||
       command_line.GetSwitchValueASCII("proxy-server").empty() ||
+      command_line.GetSwitchValueASCII("webrtc-ip-handling-policy") !=
+          kRequiredWebRtcPolicy ||
+      command_line.GetSwitchValueASCII("force-webrtc-ip-handling-policy") !=
+          kRequiredWebRtcPolicy ||
       command_line.HasSwitch("no-proxy-server") ||
       command_line.HasSwitch("proxy-pac-url") ||
       command_line.HasSwitch("proxy-auto-detect") ||
-      command_line.HasSwitch("proxy-bypass-list")) {
+      // This subtractive rule closes Chromium's implicit loopback/link-local
+      // bypass. It is required, not a user exception; all other lists fail.
+      command_line.GetSwitchValueASCII("proxy-bypass-list") != "<-loopback>") {
     return 0;
   }
 
-  return 1;
+  return 2;
 }
 
 VerifyPageUI::VerifyPageUI(content::WebUI* web_ui)
@@ -190,6 +197,7 @@ void VerifyPageUI::SetupDataSource(content::WebUIDataSource* source) {
   source->SetDefaultResource(IDR_CLAWBROWSER_VERIFY_HTML);
 
   source->AddString("has_expected_values", "false");
+  source->AddString("has_proxy", "false");
   source->AddString("user_agent", "");
   source->AddString("platform", "");
   source->AddString("language_primary", "");
@@ -236,6 +244,8 @@ void VerifyPageUI::SetupDataSource(content::WebUIDataSource* source) {
                     base::NumberToString(managed_proxy_privacy));
 
   source->AddString("has_expected_values", "true");
+  source->AddString("has_proxy",
+                    FingerprintAccessor::GetProxy() ? "true" : "false");
   source->AddString("user_agent", fp->user_agent);
   source->AddString("platform", fp->platform);
   source->AddString("language_primary",

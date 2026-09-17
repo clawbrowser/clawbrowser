@@ -94,9 +94,12 @@ def _seed_profile(
     *,
     fingerprint_id: str = FINGERPRINT_ID,
     created_at: Optional[str] = None,
+    proxy_config=None,
 ):
     fingerprint_path = FIXTURE_DIR / fixture_name
     fingerprint_data = _read_json(fingerprint_path)
+    if proxy_config is not None:
+        fingerprint_data["response"]["proxy"] = dict(proxy_config)
     if created_at is not None:
         fingerprint_data["created_at"] = created_at
     profile_dir = config_dir / "Browser" / fingerprint_id
@@ -299,6 +302,7 @@ async def _launch_browser(
     extra_browser_args=(),
     extra_env=None,
     headless=True,
+    proxy_config=None,
 ):
     async with _launch_browser_with_details(
         fixture_name=fixture_name,
@@ -312,6 +316,7 @@ async def _launch_browser(
         extra_browser_args=extra_browser_args,
         extra_env=extra_env,
         headless=headless,
+        proxy_config=proxy_config,
     ) as launch:
         yield launch["page"], launch["fingerprint_data"]
 
@@ -330,6 +335,7 @@ async def _launch_browser_with_details(
     extra_browser_args=(),
     extra_env=None,
     headless=True,
+    proxy_config=None,
 ):
     if expect_verify and skip_verify:
         raise ValueError("expect_verify and skip_verify are mutually exclusive")
@@ -342,6 +348,13 @@ async def _launch_browser_with_details(
     browser_port = _reserve_port()
     mock_port = _reserve_port()
     backend = _resolve_backend(mode=backend_mode)
+    # Mock fingerprints use a deliberately nonfunctional example proxy. Supply
+    # a real local test proxy instead of relying on Chromium's implicit bypass.
+    mock_proxy = {"scheme": "http", "host": "127.0.0.1", "port": mock_port}
+    if backend["use_mock"] and proxy_config is None and fixture_name is not None:
+        fixture_proxy = _read_json(FIXTURE_DIR / fixture_name).get("response", {}).get("proxy", {})
+        if fixture_proxy.get("host") == "proxy.example.com":
+            proxy_config = {**fixture_proxy, **mock_proxy}
     effective_fingerprint_id = fingerprint_id
     if effective_fingerprint_id is None and fixture_name is not None:
         effective_fingerprint_id = FINGERPRINT_ID
@@ -358,6 +371,7 @@ async def _launch_browser_with_details(
                 config_dir,
                 fixture_name,
                 fingerprint_id=effective_fingerprint_id,
+                proxy_config=proxy_config,
             )
 
         mock_log_path = home_dir / "mock_server.log"
@@ -377,6 +391,20 @@ async def _launch_browser_with_details(
             fingerprints_fixture_path.write_text(
                 json.dumps(default_fixture), encoding="utf-8"
             )
+
+        if backend["use_mock"]:
+            mock_fixture = _read_json(fingerprints_fixture_path)
+            generated_proxy = mock_fixture.get("response", {}).get("proxy", {})
+            if generated_proxy.get("host") == "proxy.example.com":
+                mock_fixture["response"]["proxy"] = {**generated_proxy, **mock_proxy}
+                fingerprints_fixture_path = home_dir / "routed_fingerprints.json"
+                fingerprints_fixture_path.write_text(json.dumps(mock_fixture), encoding="utf-8")
+            verify_fixture = _read_json(proxy_fixture_path)
+            expected_proxy = verify_fixture.get("request", {}).get("proxy", {})
+            if expected_proxy.get("host") == "proxy.example.com":
+                verify_fixture["request"]["proxy"] = {**expected_proxy, **mock_proxy}
+                proxy_fixture_path = home_dir / "routed_proxy_verify.json"
+                proxy_fixture_path.write_text(json.dumps(verify_fixture), encoding="utf-8")
 
         with mock_log_path.open("w", encoding="utf-8") as mock_log_file:
             mock_args = [

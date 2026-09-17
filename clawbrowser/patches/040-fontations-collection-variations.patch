@@ -1,0 +1,80 @@
+--- a/third_party/skia/src/ports/SkTypeface_fontations.cpp
++++ b/third_party/skia/src/ports/SkTypeface_fontations.cpp
+@@ -1015,6 +1015,7 @@
+     }
+ 
+     SkFontArguments fusedArgs;
++    fusedArgs.setCollectionIndex(fTtcIndex);
+     fusedArgs.setVariationDesignPosition({fusedDesignPosition.get(), SkToInt(numAxes)});
+     fusedArgs.setPalette(args.getPalette());
+ 
+--- a/third_party/blink/renderer/platform/fonts/font_custom_platform_data.h
++++ b/third_party/blink/renderer/platform/fonts/font_custom_platform_data.h
+@@ -88,7 +88,8 @@
+       const ResolvedFontFeatures& resolved_font_features,
+       FontOrientation = FontOrientation::kHorizontal,
+       const FontVariationSettings* = nullptr,
+-      const FontPalette* = nullptr) const;
++      const FontPalette* = nullptr,
++      int collection_index = 0) const;
+ 
+   String FamilyNameForInspector() const;
+ 
+--- a/third_party/blink/renderer/platform/fonts/font_custom_platform_data.cc
++++ b/third_party/blink/renderer/platform/fonts/font_custom_platform_data.cc
+@@ -111,7 +111,8 @@
+     const ResolvedFontFeatures& resolved_font_features,
+     FontOrientation orientation,
+     const FontVariationSettings* variation_settings,
+-    const FontPalette* palette) const {
++    const FontPalette* palette,
++    int collection_index) const {
+   DCHECK(base_typeface_);
+ 
+   sk_sp<SkTypeface> return_typeface = base_typeface_;
+@@ -228,6 +229,7 @@
+     }
+ 
+     SkFontArguments font_args;
++    font_args.setCollectionIndex(collection_index);
+     font_args.setVariationDesignPosition(
+         {variation.data(), static_cast<int>(variation.size())});
+     sk_sp<SkTypeface> sk_variation_font(base_typeface_->makeClone(font_args));
+@@ -248,6 +250,7 @@
+     // font family name, or should that be done at the CSS family level?
+ 
+     SkFontArguments font_args;
++    font_args.setCollectionIndex(collection_index);
+     SkFontArguments::Palette sk_palette{0, nullptr, 0};
+ 
+     Vector<FontPalette::FontPaletteOverride> color_overrides;
+--- a/third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm
++++ b/third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm
+@@ -44,6 +44,7 @@
+ #include "base/timer/elapsed_timer.h"
+ #include "clawbrowser/fingerprint_coherence.h"
+ #include "clawbrowser/mac_font_catalog.h"
++#include "third_party/skia/include/core/SkStream.h"
+ #include "third_party/blink/renderer/platform/fonts/font_custom_platform_data.h"
+ #include "third_party/blink/public/platform/platform.h"
+ #include "third_party/blink/renderer/platform/font_family_names.h"
+@@ -297,12 +298,18 @@
+        (d.Weight() > FontSelectionValue(500) && !typeface->isBold()));
+   const bool italic = d.SyntheticItalicAllowed() &&
+       (d.IsSyntheticItalic() || (d.Style() && !typeface->isItalic()));
++  // Catalog faces can be nonzero entries in a TTC. Fontations rejects a
++  // clone request with a different collection index, including default zero.
++  int collection_index = 0;
++  auto stream = typeface->openStream(&collection_index);
++  CHECK(stream);
+   return FontCustomPlatformData::Create(std::move(typeface), 0)
+       ->GetFontPlatformData(
+           size, d.AdjustedSpecifiedSize(), bold, italic,
+           d.GetFontSelectionRequest(), FontSelectionCapabilities(),
+           d.FontOpticalSizing(), d.TextRendering(), d.ResolveFontFeatures(),
+-          d.Orientation(), d.VariationSettings(), d.GetFontPalette());
++          d.Orientation(), d.VariationSettings(), d.GetFontPalette(),
++          collection_index);
+ }
+ 
+ bool IsSystemFontName(const AtomicString& font_name) {

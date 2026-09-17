@@ -1,0 +1,18 @@
+--- a/third_party/skia/src/opts/SkRasterPipeline_opts.h
++++ b/third_party/skia/src/opts/SkRasterPipeline_opts.h
+@@ -5464,4 +5464,5 @@
+ /**
+- * div255 favors speed over accuracy. It uses formula [2] on NEON (where we can compute it as fast
+- * as [3]), and uses [3] elsewhere.
++ * ClawBrowser uses exact formula [2] on every CPU. The upstream approximation
++ * [3] on non-NEON leaks host-dependent low bits through coverage and blending,
++ * even when font assets, metrics, and surface properties are identical.
+  */
+@@ -5473,4 +5474,5 @@
+ #else
+-    // Otherwise, use [3], which is never wrong by more than 1:
+-    return (v+255)/256;
++    // Same rounding as NEON; benchmark this general software-raster change.
++    v += 128;
++    return (v+(v/256))/256;
+ #endif

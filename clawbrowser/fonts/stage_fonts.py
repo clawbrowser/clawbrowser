@@ -57,7 +57,9 @@ def stage(manifest_path, chromium, destination, *, allow_empty_directory=False):
     (destination / 'UPSTREAM-LICENSE').write_bytes(license_data)
     if vendor_license is not None:
         (destination / 'NOTO-LICENSE').write_bytes(vendor_license)
-    (destination / 'manifest.json').write_text(manifest_text)
+    # Hash and persist identical UTF-8 bytes on every OS, including Windows
+    # where text-mode output would otherwise translate LF to CRLF.
+    (destination / 'manifest.json').write_bytes(manifest_text.encode('utf-8'))
     lines = ['<?xml version="1.0"?>',
              '<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">',
              '<fontconfig>', '  <reset-dirs/>',
@@ -71,9 +73,9 @@ def stage(manifest_path, chromium, destination, *, allow_empty_directory=False):
         lines.append('  <match target="pattern"><edit name="family" mode="append" binding="weak">'
                      '<string>' + escape(family) + '</string></edit></match>')
     lines.append('</fontconfig>')
-    (destination / 'fonts.conf').write_text('\n'.join(lines) + '\n')
+    (destination / 'fonts.conf').write_bytes(('\n'.join(lines) + '\n').encode('utf-8'))
     # Written last: absence means staging was interrupted; never launch from it.
-    (destination / 'STAGED').write_text(manifest['catalog_id'] + '\n' + manifest_digest + '\n')
+    (destination / 'STAGED').write_bytes((manifest['catalog_id'] + '\n' + manifest_digest + '\n').encode('utf-8'))
     return {'catalog': manifest['catalog_id'], 'fonts': len(files),
             'bytes': sum(len(data) for _, data in files), 'manifestSha256': manifest_digest,
             'releaseReady': False}

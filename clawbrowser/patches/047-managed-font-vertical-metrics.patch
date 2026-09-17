@@ -1,0 +1,30 @@
+--- a/third_party/blink/renderer/platform/fonts/font_metrics.cc
++++ b/third_party/blink/renderer/platform/fonts/font_metrics.cc
+@@ -35,2 +35,3 @@
+ #include "build/build_config.h"
++#include "clawbrowser/fingerprint_coherence.h"
+ #include "third_party/blink/renderer/platform/fonts/font_platform_data.h"
+@@ -60,2 +61,6 @@
+   DCHECK(face);
++  const auto* fingerprint = clawbrowser::FingerprintAccessor::Get();
++  const bool managed_fonts =
++      fingerprint && clawbrowser::ShouldFilterLocalFonts(*fingerprint);
++  // Closed-catalog metrics must not inherit host-specific hinting hacks.
+ 
+@@ -82,2 +87,3 @@
+-  if (!ascent_override && !descent_override && !font.isForceAutoHinting() &&
++  if (!managed_fonts && !ascent_override && !descent_override &&
++      !font.isForceAutoHinting() &&
+       (font.getHinting() == SkFontHinting::kFull ||
+@@ -125,2 +131,2 @@
+-    if (descent < metrics.fDescent &&
++    if (!managed_fonts && descent < metrics.fDescent &&
+         platform_data.GetFontRenderStyle().use_subpixel_positioning &&
+@@ -144,4 +150,5 @@
+-  if (family_name == font_family_names::kTimes ||
++  if (!managed_fonts &&
++      (family_name == font_family_names::kTimes ||
+       family_name == font_family_names::kHelvetica ||
+-      family_name == font_family_names::kCourier)
++      family_name == font_family_names::kCourier))
+     ascent += floorf(((ascent + descent) * 0.15f) + 0.5f);

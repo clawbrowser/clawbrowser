@@ -1059,6 +1059,10 @@ function Enable-ClawbrowserWindowsExecutableName {
     throw "Could not find Windows mini installer browser entry in $ReleasePath"
   }
   Write-FileAscii $ReleasePath $Text
+  Invoke-Checked (Join-Path $DepotTools "python3.bat") @(
+    (Join-Path $ProjectRoot "clawbrowser\fonts\windows_package.py"), "installer",
+    "--manifest", (Join-Path $ProjectRoot "clawbrowser\fonts\catalog.json"),
+    "--release", $ReleasePath)
 }
 
 function Write-BuildArgs($Profile, $OutputDir) {
@@ -1122,6 +1126,10 @@ function Ensure-WindowsPrivateAssemblyLayout($ApplicationDir) {
 }
 
 function Prepare-WindowsInstallerInputs($OutputDir) {
+  Invoke-Checked (Join-Path $DepotTools "python3.bat") @(
+    (Join-Path $ProjectRoot "clawbrowser\fonts\windows_package.py"), "verify",
+    "--manifest", (Join-Path $ProjectRoot "clawbrowser\fonts\catalog.json"),
+    "--chromium", $ChromiumSrc, "--output", (Join-Path $ChromiumSrc $OutputDir))
   $OutDir = Join-Path $ChromiumSrc $OutputDir
   $ChromeExe = Join-Path $OutDir "chrome.exe"
   $ClawbrowserExe = Join-Path $OutDir "clawbrowser.exe"
@@ -1200,6 +1208,11 @@ function Stage-Clawbrowser($OutputDir, $ArtifactName) {
   }
 
   Ensure-WindowsPrivateAssemblyLayout $StageDir
+  Invoke-Checked (Join-Path $DepotTools "python3.bat") @(
+    (Join-Path $ProjectRoot "clawbrowser\fonts\windows_package.py"), "stage",
+    "--manifest", (Join-Path $ProjectRoot "clawbrowser\fonts\catalog.json"),
+    "--chromium", $ChromiumSrc, "--output", $OutDir,
+    "--destination", $StageDir)
   Write-BundleVersionManifest (Join-Path $StageDir "clawbrowser-release.json") $ArtifactName
   Write-BundleVersionManifest (Join-Path $ArtifactRoot "$ArtifactName.release.json") $ArtifactName
 
@@ -1213,6 +1226,14 @@ function Stage-Clawbrowser($OutputDir, $ArtifactName) {
   }
   Write-Host "STAGE=$StageDir"
   Write-Host "EXE=$(Join-Path $StageDir 'clawbrowser.exe')"
+}
+
+function Assert-WindowsInstallerBuildMode($Profile, [bool]$ReuseExisting) {
+  # Adjacent verified fonts do not prove the old PE embeds them. Until an
+  # embedded-payload verifier exists, require the installer build step.
+  if ($Profile -eq "Prod" -and $ReuseExisting) {
+    throw "Cannot reuse an unverified Windows mini_installer.exe. Run without -StageExistingArtifacts to rebuild the installer with the pinned font catalog."
+  }
 }
 
 function Stage-WindowsSetupArchive($OutputDir) {
@@ -1230,6 +1251,15 @@ function Stage-WindowsSetupArchive($OutputDir) {
   try {
     $SetupPath = Join-Path $TempDir "setup.exe"
     Copy-Item $MiniInstaller $SetupPath -Force
+
+    # Inspect the exact copied PE as data, never execute setup.exe. Adjacent
+    # staging assets alone do not prove that the installer embeds the catalog.
+    Invoke-Checked (Join-Path $DepotTools "python3.bat") @(
+      (Join-Path $ProjectRoot "clawbrowser\fonts\windows_installer_payload.py"),
+      "--installer", $SetupPath,
+      "--seven-zip", (Join-Path $ChromiumSrc "third_party\lzma_sdk\bin\win64\7za.exe"),
+      "--manifest", (Join-Path $ProjectRoot "clawbrowser\fonts\catalog.json"),
+      "--chromium", $ChromiumSrc, "--output", $OutDir)
 
     if (Test-Path (Join-Path $TempDir "chrome.exe")) {
       throw "Windows release archive must expose setup.exe only; unexpected chrome.exe in $TempDir"
@@ -1265,6 +1295,7 @@ Initialize-CompilerCacheServer -Restart
 
 $BuildSpecs = Get-BuildSpecs
 foreach ($Spec in $BuildSpecs) {
+  Assert-WindowsInstallerBuildMode $Spec.Profile ([bool]$StageExistingArtifacts)
   Write-Host "Configuring $($Spec.Profile) build: $($Spec.BuildDir)"
   if ($CompilerCacheWrapper) {
     Write-Host "Compiler cache: $CompilerCacheWrapper"
@@ -1275,13 +1306,7 @@ foreach ($Spec in $BuildSpecs) {
 
   if ($StageExistingArtifacts) {
     Write-Host "Generated $($Spec.BuildDir). Staging existing artifacts without building."
-    if ($Spec.Profile -eq "Prod") {
-      Prepare-WindowsInstallerInputs $Spec.BuildDir
-    }
     Stage-Clawbrowser $Spec.BuildDir $Spec.ArtifactName
-    if ($Spec.Profile -eq "Prod") {
-      Stage-WindowsSetupArchive $Spec.BuildDir
-    }
     continue
   }
 

@@ -1,0 +1,30 @@
+--- a/third_party/blink/renderer/platform/graphics/canvas_resource_provider.cc
++++ b/third_party/blink/renderer/platform/graphics/canvas_resource_provider.cc
+@@ -28,3 +28,4 @@
+ #include "build/build_config.h"
++#include "clawbrowser/fingerprint_accessor.h"
+ #include "cc/paint/decode_stashing_image_provider.h"
+ #include "cc/paint/display_item_list.h"
+@@ -389,2 +390,12 @@
+ SkSurfaceProps Canvas2DBitmapProvider::GetSkSurfaceProps() const {
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  if (fp && fp->canvas_spoofing_enabled &&
++      fp->surface_policy.canvas == "override") {
++    // Software raster still inherits host text gamma, contrast and LCD
++    // geometry unless specified. Protected canvases use grayscale coverage
++    // and sRGB text transfer (Skia gamma 0), without contrast boosting.
++    // Native canvas and non-2D providers retain their original surface props.
++    return SkSurfaceProps{0, kUnknown_SkPixelGeometry, 0.0f, 0.0f};
++  }
++
+   const bool can_use_lcd_text = GetAlphaType() == kOpaque_SkAlphaType;
+@@ -2538,2 +2549,9 @@
+ SkSurfaceProps Canvas2DResourceProviderSharedImage::GetSkSurfaceProps() const {
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  if (fp && fp->canvas_spoofing_enabled &&
++      fp->surface_policy.canvas == "override") {
++    // Keep shared-image software canvases on the same protected text path
++    // as the bitmap provider, independent of host display configuration.
++    return SkSurfaceProps{0, kUnknown_SkPixelGeometry, 0.0f, 0.0f};
++  }
+   const bool can_use_lcd_text = GetAlphaType() == kOpaque_SkAlphaType;

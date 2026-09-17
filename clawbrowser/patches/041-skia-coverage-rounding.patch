@@ -1,0 +1,16 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039.
+# Exact low-precision coverage interpolation on both NEON and x86 SIMD.
+--- a/third_party/skia/src/opts/SkRasterPipeline_opts.h
++++ b/third_party/skia/src/opts/SkRasterPipeline_opts.h
+@@ -5509,7 +5509,10 @@
+
+ SI U16 from_float(float f) { return U16_(f * 255.0f + 0.5f); }
+
+-SI U16 lerp(U16 from, U16 to, U16 t) { return div255( from*inv(t) + to*t ); }
++// Keep coverage rounding identical across CPU architectures. div255 uses an
++// approximation on x86 but exact rounding on NEON, exposing the host even
++// when Canvas2D uses the same software backing and fingerprint on both.
++SI U16 lerp(U16 from, U16 to, U16 t) { return div255_accurate( from*inv(t) + to*t ); }
+
+ template <typename D, typename S>
+ SI D cast(S src) {
