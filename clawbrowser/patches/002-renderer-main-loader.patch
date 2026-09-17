@@ -17,13 +17,14 @@
  #include "content/public/common/content_switches.h"
  #include "content/public/common/main_function_params.h"
  #include "content/public/renderer/content_renderer_client.h"
-@@ -157,6 +159,11 @@
+@@ -157,6 +159,12 @@
  
    const base::CommandLine& command_line = *parameters.command_line;
  
 +  if (auto result = clawbrowser::LoadFingerprintFromCommandLine(command_line);
 +      !result.has_value()) {
 +    LOG(ERROR) << "[clawbrowser] renderer: " << result.error();
++    return 1;
 +  }
 +
  #if BUILDFLAG(IS_MAC)

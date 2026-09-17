@@ -4,7 +4,8 @@
     "browser": "chrome",
     "country": "US",
     "city": "New York",
-    "connection_type": "residential"
+    "connection_type": "residential",
+    "runtime_gpu": "swiftshader"
   },
   "response": {
     "fingerprint": {
@@ -23,8 +24,8 @@
         "memory": 8
       },
       "webgl": {
-        "vendor": "Apple Inc.",
-        "renderer": "Apple M1"
+        "vendor": "Google Inc. (Google)",
+        "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device), SwiftShader driver)"
       },
       "canvas_seed": 1234567890,
       "audio_seed": 987654321,
@@ -143,7 +144,7 @@
       },
       "surface_policy": {
         "canvas": {
-          "mode": "native"
+          "mode": "override"
         },
         "audio": {
           "mode": "native"

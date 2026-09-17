@@ -10,6 +10,7 @@ ClawArgs::ClawArgs()
       json_output_(false),
       skip_verify_(false),
       verify_automation_(false),
+      require_proxy_(false),
       canvas_spoofing_enabled_(false),
       webgl_spoofing_enabled_(false),
       canvas_spoofing_suppressed_(false),
@@ -43,6 +44,7 @@ ClawArgs ClawArgs::Parse(const base::CommandLine& command_line) {
   args.verbose_ = command_line.HasSwitch("verbose");
   args.skip_verify_ = command_line.HasSwitch("skip-verify");
   args.verify_automation_ = command_line.HasSwitch("verify-automation");
+  args.require_proxy_ = command_line.HasSwitch(kRequireProxySwitch);
   args.canvas_spoofing_suppressed_ =
       command_line.HasSwitch(kDisableCanvasSpoofingSwitch);
   args.webgl_spoofing_suppressed_ =

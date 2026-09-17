@@ -17,6 +17,7 @@ TEST(ArgsTest, ParseFingerprintId) {
   EXPECT_FALSE(args.list());
   EXPECT_FALSE(args.verbose());
   EXPECT_FALSE(args.skip_verify());
+  EXPECT_FALSE(args.require_proxy());
 }
 
 TEST(ArgsTest, ParsePathLikeFingerprintId) {
@@ -77,6 +78,14 @@ TEST(ArgsTest, ParseVerifyAutomation) {
 
   ClawArgs args = ClawArgs::Parse(cmd);
   EXPECT_TRUE(args.verify_automation());
+}
+
+TEST(ArgsTest, ParseRequireProxy) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitch(kRequireProxySwitch);
+
+  ClawArgs args = ClawArgs::Parse(cmd);
+  EXPECT_TRUE(args.require_proxy());
 }
 
 TEST(ArgsTest, SpoofingFlagsDefaultOff) {

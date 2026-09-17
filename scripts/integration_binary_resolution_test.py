@@ -100,6 +100,44 @@ class IntegrationBinaryResolutionTest(unittest.TestCase):
             finally:
                 module.WORKSPACE_ROOT = original_workspace_root
 
+    def test_conftest_rejects_unbranded_macos_bundle(self):
+        module = _load_conftest_module()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            workspace_root = Path(tmp_dir)
+            chromium_binary = (
+                workspace_root
+                / "out/CBFast/Chromium.app/Contents/MacOS/Chromium"
+            )
+            chromium_binary.parent.mkdir(parents=True)
+            chromium_binary.write_text("")
+            chromium_binary.chmod(0o755)
+
+            original_workspace_root = module.WORKSPACE_ROOT
+            module.WORKSPACE_ROOT = workspace_root
+            try:
+                with self.assertRaises(FileNotFoundError):
+                    module._resolve_browser_binary()
+            finally:
+                module.WORKSPACE_ROOT = original_workspace_root
+
+    def test_conftest_rejects_explicit_unbranded_binary(self):
+        module = _load_conftest_module()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            chromium_binary = Path(tmp_dir) / "Chromium"
+            chromium_binary.write_text("")
+            chromium_binary.chmod(0o755)
+
+            previous = os.environ.get("CLAWBROWSER_BINARY")
+            os.environ["CLAWBROWSER_BINARY"] = str(chromium_binary)
+            try:
+                with self.assertRaises(FileNotFoundError):
+                    module._resolve_browser_binary()
+            finally:
+                if previous is None:
+                    os.environ.pop("CLAWBROWSER_BINARY", None)
+                else:
+                    os.environ["CLAWBROWSER_BINARY"] = previous
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -19,6 +19,7 @@
 #include "clawbrowser/fingerprint_loader.h"
 #include "clawbrowser/logging.h"
 #include "clawbrowser/profile_envelope.h"
+#include "components/version_info/version_info.h"
 #include "net/base/net_errors.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_version.h"
@@ -76,6 +77,7 @@ class StartupTest : public testing::Test {
     env_->UnSetVar("CLAWBROWSER_API_BASE_URL");
     env_->UnSetVar("CLAWBROWSER_DEFAULT_FINGERPRINT_ID");
     env_->UnSetVar("CLAWBROWSER_DEV_PROXY_URL");
+    env_->UnSetVar("CLAWBROWSER_RUNTIME_GPU");
   }
 
   void WriteConfigJson(const std::string& api_key,
@@ -151,6 +153,16 @@ class StartupTest : public testing::Test {
     ASSERT_TRUE(base::ReadFileToString(fixture, &json));
     ASSERT_TRUE(base::WriteFile(profile_dir.AppendASCII("fingerprint.json"),
                                 json));
+  }
+
+  void WriteLegacyPrivacyPolicyCachedProfile(const std::string& id) {
+    WriteCachedProfile(id);
+    ProfileEnvelope envelope = ReadSavedProfile(id);
+    envelope.request.runtime_gpu = "apple-metal";
+    envelope.response.fingerprint.surface_policy.canvas.mode = "native";
+    envelope.response.fingerprint.surface_policy.webgl.mode = "native";
+    auto save_result = CreateProfileManager().SaveProfile(id, envelope);
+    ASSERT_TRUE(save_result.has_value()) << save_result.error();
   }
 
   void WriteCachedProfileWithProxy(const std::string& id,
@@ -267,7 +279,10 @@ class StartupTest : public testing::Test {
         "screen": {"width": 1920, "height": 1080, "avail_width": 1920,
                    "avail_height": 1040, "color_depth": 24, "pixel_ratio": 1.0},
         "hardware": {"concurrency": 8, "memory": 8},
-        "webgl": {"vendor": "v", "renderer": "r"},
+        "webgl": {
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device), SwiftShader driver)"
+        },
         "canvas_seed": 1, "audio_seed": 2, "client_rects_seed": 3,
         "timezone": "UTC",
         "language": ["en"],
@@ -277,7 +292,7 @@ class StartupTest : public testing::Test {
           "Accept-Language": "en"
         },
         "surface_policy": {
-          "canvas": {"mode": "native"},
+          "canvas": {"mode": "override"},
           "audio": {"mode": "native"},
           "client_rects": {"mode": "native"},
           "webgl": {"mode": "native"},
@@ -376,8 +391,12 @@ TEST_F(StartupTest, FingerprintWithCachedProfile) {
   EXPECT_FALSE(result->should_exit);
   // Fingerprint should be loaded
   ASSERT_NE(FingerprintAccessor::Get(), nullptr);
+  EXPECT_TRUE(FingerprintAccessor::Get()->canvas_spoofing_enabled);
+  EXPECT_FALSE(FingerprintAccessor::Get()->webgl_spoofing_enabled);
   // Command line flags should be set
   EXPECT_TRUE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_TRUE(cmd.HasSwitch(kRequireFingerprintSwitch));
+  EXPECT_TRUE(cmd.HasSwitch(kDisableWebGLSpoofingSwitch));
   EXPECT_FALSE(cmd.HasSwitch("clawbrowser-fp-data"));
   EXPECT_TRUE(cmd.HasSwitch("user-data-dir"));
   EXPECT_TRUE(cmd.HasSwitch("proxy-server"));
@@ -394,11 +413,66 @@ TEST_F(StartupTest, FingerprintWithCachedProfile) {
   // override (patch 024) that returns BuildUserAgentMetadata(fingerprint).
   // That path is covered by clawbrowser/test/integration/test_surfaces.py
   // (test_navigator_user_agent_data, test_sec_ch_ua_headers).
-#if BUILDFLAG(IS_MAC)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   EXPECT_TRUE(cmd.HasSwitch(kFingerprintChildDataSwitch));
 #else
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintChildDataSwitch));
 #endif
+}
+
+TEST_F(StartupTest, CachedNativeCanvasOrHostGPUIsRegenerated) {
+  WriteLegacyPrivacyPolicyCachedProfile("legacy_privacy_profile");
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+  const std::string user_agent =
+      "Mozilla/5.0 AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36";
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson(user_agent));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "legacy_privacy_profile");
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+
+  ProfileEnvelope saved = ReadSavedProfile("legacy_privacy_profile");
+  EXPECT_EQ(saved.response.fingerprint.surface_policy.canvas.mode, "override");
+  EXPECT_EQ(saved.response.fingerprint.surface_policy.webgl.mode, "native");
+  ASSERT_TRUE(saved.request.runtime_gpu.has_value());
+  EXPECT_EQ(*saved.request.runtime_gpu, "swiftshader");
+  EXPECT_EQ(saved.request.country, "US");
+  ASSERT_TRUE(saved.request.city.has_value());
+  EXPECT_EQ(*saved.request.city, "New York");
+  ASSERT_TRUE(saved.request.connection_type.has_value());
+  EXPECT_EQ(*saved.request.connection_type, "residential");
+}
+
+TEST_F(StartupTest, CachedNativeFontsAreRegenerated) {
+  WriteCachedProfile("native_fonts_profile");
+  ProfileEnvelope envelope = ReadSavedProfile("native_fonts_profile");
+  envelope.response.fingerprint.surface_policy.canvas.mode = "override";
+  envelope.response.fingerprint.surface_policy.fonts.mode = "native";
+  envelope.request.runtime_gpu = "swiftshader";
+  auto save_result =
+      CreateProfileManager().SaveProfile("native_fonts_profile", envelope);
+  ASSERT_TRUE(save_result.has_value()) << save_result.error();
+
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson("fresh-ua"));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "native_fonts_profile");
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+
+  ProfileEnvelope saved = ReadSavedProfile("native_fonts_profile");
+  EXPECT_EQ(saved.response.fingerprint.surface_policy.fonts.mode,
+            "native_or_allowlist");
 }
 
 TEST(SurfaceSpoofingResolutionTest, PolicyEnablesWithoutAnyFlag) {
@@ -461,7 +535,8 @@ TEST_F(StartupTest, WindowSizeFitsInsideSpoofedScreen) {
 }
 
 TEST_F(StartupTest, ExplicitWindowSizeIsNotOverridden) {
-  // A caller-supplied size is a deliberate, controlled override and must win.
+  // A caller-supplied size is a deliberate, controlled override and must win,
+  // while an unspecified position is still anchored at the virtual origin.
   WriteCachedProfile("cached_profile");
   WriteConfigJson("test_key");
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
@@ -471,9 +546,22 @@ TEST_F(StartupTest, ExplicitWindowSizeIsNotOverridden) {
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value()) << result.error();
   EXPECT_EQ(cmd.GetSwitchValueASCII("window-size"), "801,601");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("window-position"), "0,0");
 }
 
-TEST_F(StartupTest, SpoofingFlagsApplyToLoadedBrowserFingerprint) {
+TEST_F(StartupTest, ExplicitWindowPositionIsNotOverridden) {
+  WriteCachedProfile("cached_profile");
+  WriteConfigJson("test_key");
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "cached_profile");
+  cmd.AppendSwitchASCII("window-position", "317,223");
+
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_EQ(cmd.GetSwitchValueASCII("window-position"), "317,223");
+}
+
+TEST_F(StartupTest, SwiftShaderDisablesWebGLStringSpoofingEvenWhenForced) {
   WriteCachedProfile("cached_profile");
   WriteConfigJson("test_key");
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
@@ -487,7 +575,9 @@ TEST_F(StartupTest, SpoofingFlagsApplyToLoadedBrowserFingerprint) {
   EXPECT_FALSE(result->should_exit);
   ASSERT_NE(FingerprintAccessor::Get(), nullptr);
   EXPECT_TRUE(FingerprintAccessor::Get()->canvas_spoofing_enabled);
-  EXPECT_TRUE(FingerprintAccessor::Get()->webgl_spoofing_enabled);
+  EXPECT_FALSE(FingerprintAccessor::Get()->webgl_spoofing_enabled);
+  EXPECT_TRUE(cmd.HasSwitch(kEnableWebGLSpoofingSwitch));
+  EXPECT_TRUE(cmd.HasSwitch(kDisableWebGLSpoofingSwitch));
 }
 
 TEST_F(StartupTest,
@@ -523,7 +613,7 @@ TEST_F(StartupTest,
   EXPECT_EQ(cmd.GetSwitchValueASCII("proxy-server").find("dev_pass"),
             std::string::npos);
 
-#if BUILDFLAG(IS_MAC)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   ASSERT_TRUE(cmd.HasSwitch(kFingerprintChildDataSwitch));
   std::string child_json;
   ASSERT_TRUE(base::Base64Decode(
@@ -599,6 +689,40 @@ TEST_F(StartupTest, ConfigureEarlyStartupSetsFingerprintUserDataDir) {
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
 }
 
+TEST_F(StartupTest, ConfigureEarlyStartupIsolatesFingerprintWebGL) {
+  WriteConfigJson("test_key");
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "isolated_webgl_profile");
+  cmd.AppendSwitchASCII("use-gl", "desktop");
+  cmd.AppendSwitchASCII("use-angle", "metal");
+  cmd.AppendSwitchASCII("use-webgpu-adapter", "default");
+  cmd.AppendSwitch(kDisableWebGLSpoofingSwitch);
+
+  auto result = ConfigureEarlyStartup(&cmd);
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-gl"), "angle");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-angle"), "swiftshader");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-webgpu-adapter"), "swiftshader");
+  EXPECT_TRUE(cmd.HasSwitch(kDisableWebGLSpoofingSwitch));
+}
+
+TEST_F(StartupTest, ConfigureEarlyStartupKeepsDisableGPUWithSwiftShader) {
+  WriteConfigJson("test_key");
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "software_webgl_profile");
+  cmd.AppendSwitch("disable-gpu");
+
+  auto result = ConfigureEarlyStartup(&cmd);
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+  EXPECT_TRUE(cmd.HasSwitch("disable-gpu"));
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-gl"), "angle");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-angle"), "swiftshader");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-webgpu-adapter"), "swiftshader");
+  EXPECT_TRUE(cmd.HasSwitch(kDisableWebGLSpoofingSwitch));
+}
+
 TEST_F(StartupTest, ConfigureEarlyStartupUsesDefaultFingerprintEnv) {
   WriteConfigJson("test_key");
   env_->SetVar("CLAWBROWSER_DEFAULT_FINGERPRINT_ID", "clawbrowser_default");
@@ -654,6 +778,7 @@ TEST_F(StartupTest, ConfigureEarlyStartupRoutesCachedProfileToAuthWithoutApiKey)
   cmd.AppendSwitch("restore-last-session");
   cmd.AppendSwitch("no-startup-window");
   cmd.AppendArg("clawbrowser://verify/");
+  cmd.AppendArg("https://example.test/private");
 
   auto result = ConfigureEarlyStartup(&cmd);
 
@@ -804,6 +929,7 @@ TEST_F(StartupTest, FingerprintNoApiKeyWithoutCachedProfileOpensAuth) {
   cmd.AppendSwitch("restore-last-session");
   cmd.AppendSwitch("no-startup-window");
   cmd.AppendArg("clawbrowser://verify/");
+  cmd.AppendArg("https://example.test/private");
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value());
   EXPECT_FALSE(result->should_exit);
@@ -816,6 +942,49 @@ TEST_F(StartupTest, FingerprintNoApiKeyWithoutCachedProfileOpensAuth) {
             std::string::npos);
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
+}
+
+TEST_F(StartupTest, RequiredProxyWithoutApiKeyFailsClosed) {
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "required_proxy_no_key");
+  cmd.AppendSwitch(kRequireProxySwitch);
+
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+  EXPECT_TRUE(cmd.GetArgs().empty());
+  EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
+}
+
+TEST_F(StartupTest, RequiredProxyRejectsBrowserNativeProxyOverrides) {
+  WriteConfigJson("test_key");
+  constexpr const char* kConflictingSwitches[] = {
+      "proxy-server",
+      "no-proxy-server",
+      "proxy-pac-url",
+      "proxy-auto-detect",
+      "proxy-bypass-list",
+      "webrtc-ip-handling-policy",
+      "force-webrtc-ip-handling-policy",
+  };
+
+  for (const char* switch_name : kConflictingSwitches) {
+    SCOPED_TRACE(switch_name);
+    base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+    cmd.AppendSwitchASCII("fingerprint", "required_proxy_conflict");
+    cmd.AppendSwitch(kRequireProxySwitch);
+    cmd.AppendSwitchASCII(switch_name, "caller-value");
+
+    auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+
+    ASSERT_TRUE(result.has_value()) << result.error();
+    EXPECT_TRUE(result->should_exit);
+    EXPECT_EQ(result->exit_code, 1);
+    EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+  }
 }
 
 TEST_F(StartupTest, FingerprintApiCallSuccess) {
@@ -858,6 +1027,48 @@ TEST_F(StartupTest, FingerprintApiCallSuccess) {
   EXPECT_EQ(FingerprintAccessor::Get()->user_agent, "test-ua");
   ProfileEnvelope saved = ReadSavedProfile("api_profile");
   EXPECT_EQ(saved.request.browser, "chrome");
+}
+
+TEST_F(StartupTest, RequiredProxyMissingFromApiResponseFailsClosed) {
+  WriteConfigJson("test_key");
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson("missing-proxy-ua"));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "required_proxy_profile");
+  cmd.AppendSwitch(kRequireProxySwitch);
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+  EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
+}
+
+TEST_F(StartupTest, IncompleteProxyResponseFailsClosed) {
+  WriteCachedProfile("incomplete_proxy_profile");
+  ProfileEnvelope envelope = ReadSavedProfile("incomplete_proxy_profile");
+  ASSERT_TRUE(envelope.response.proxy.has_value());
+  envelope.response.proxy->host.reset();
+  auto save_result =
+      CreateProfileManager().SaveProfile("incomplete_proxy_profile", envelope);
+  ASSERT_TRUE(save_result.has_value()) << save_result.error();
+
+  WriteConfigJson("test_key");
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "incomplete_proxy_profile");
+  cmd.AppendSwitch(kRequireProxySwitch);
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+  EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
 }
 
 TEST_F(StartupTest, FreshStartWithApiKeyRunsInImplicitFingerprintMode) {
@@ -1040,7 +1251,7 @@ TEST_F(StartupTest, FingerprintApiCallWithoutConfiguredBaseUrlRespectsBuildDefau
   EXPECT_EQ(result->exit_code, 1);
 }
 
-TEST_F(StartupTest, FingerprintApiCall401) {
+TEST_F(StartupTest, FingerprintApiCall401FailsClosed) {
   env_->SetVar("CLAWBROWSER_API_KEY", "bad_key");
   env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
 
@@ -1053,6 +1264,7 @@ TEST_F(StartupTest, FingerprintApiCall401) {
   cmd.AppendSwitch("restore-last-session");
   cmd.AppendSwitch("no-startup-window");
   cmd.AppendArg("clawbrowser://verify/");
+  cmd.AppendArg("https://example.test/private");
   auto early = ConfigureEarlyStartup(&cmd);
   ASSERT_TRUE(early.has_value()) << early.error();
   EXPECT_FALSE(early->should_exit);
@@ -1062,19 +1274,24 @@ TEST_F(StartupTest, FingerprintApiCall401) {
 
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value());
-  EXPECT_FALSE(result->should_exit);
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
-  EXPECT_FALSE(cmd.HasSwitch("restore-last-session"));
-  EXPECT_FALSE(cmd.HasSwitch("no-startup-window"));
-  ASSERT_EQ(cmd.GetArgs().size(), 1u);
-  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://auth/"));
-  EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Auth"),
-            std::string::npos);
+  EXPECT_TRUE(cmd.HasSwitch("restore-last-session"));
+  EXPECT_TRUE(cmd.HasSwitch("no-startup-window"));
+  ASSERT_EQ(cmd.GetArgs().size(), 2u);
+  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://verify/"));
+  EXPECT_EQ(cmd.GetArgs()[1],
+            FILE_PATH_LITERAL("https://example.test/private"));
+  EXPECT_EQ(UserDataDirSwitch(cmd),
+            NormalizePathForComparison(
+                CreateProfileManager().GetUserDataDir("bad_key_profile")));
 }
 
-TEST_F(StartupTest, FingerprintApiCall403OpensAuth) {
+TEST_F(StartupTest, FingerprintApiCall403FailsClosed) {
   env_->SetVar("CLAWBROWSER_API_KEY", "forbidden_key");
   env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
 
@@ -1090,17 +1307,19 @@ TEST_F(StartupTest, FingerprintApiCall403OpensAuth) {
 
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value());
-  EXPECT_FALSE(result->should_exit);
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
-  ASSERT_EQ(cmd.GetArgs().size(), 1u);
-  EXPECT_EQ(cmd.GetArgs()[0], FILE_PATH_LITERAL("clawbrowser://auth/"));
-  EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Auth"),
-            std::string::npos);
+  EXPECT_TRUE(cmd.GetArgs().empty());
+  EXPECT_EQ(UserDataDirSwitch(cmd),
+            NormalizePathForComparison(CreateProfileManager().GetUserDataDir(
+                "forbidden_key_profile")));
 }
 
-TEST_F(StartupTest, FingerprintApiCall500FallsBackWithoutAuth) {
+TEST_F(StartupTest, FingerprintApiCall500FailsClosed) {
   env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
   env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
 
@@ -1110,22 +1329,30 @@ TEST_F(StartupTest, FingerprintApiCall500FallsBackWithoutAuth) {
 
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
   cmd.AppendSwitchASCII("fingerprint", "server_error_profile");
+  cmd.AppendSwitchASCII("output", "json");
   auto early = ConfigureEarlyStartup(&cmd);
   ASSERT_TRUE(early.has_value()) << early.error();
   EXPECT_FALSE(early->should_exit);
 
+  testing::internal::CaptureStdout();
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  std::string stdout_output = testing::internal::GetCapturedStdout();
   ASSERT_TRUE(result.has_value());
-  EXPECT_FALSE(result->should_exit);
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
+  EXPECT_NE(stdout_output.find("\"error\":\"fingerprint_api_error\""),
+            std::string::npos);
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
   EXPECT_TRUE(cmd.GetArgs().empty());
-  EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Default"),
-            std::string::npos);
+  EXPECT_EQ(UserDataDirSwitch(cmd),
+            NormalizePathForComparison(CreateProfileManager().GetUserDataDir(
+                "server_error_profile")));
 }
 
-TEST_F(StartupTest, FingerprintApiNetworkFailureFallsBackWithoutAuth) {
+TEST_F(StartupTest, FingerprintApiNetworkFailureFailsClosed) {
   env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
   env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
 
@@ -1142,17 +1369,20 @@ TEST_F(StartupTest, FingerprintApiNetworkFailureFallsBackWithoutAuth) {
 
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value());
-  EXPECT_FALSE(result->should_exit);
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
   EXPECT_TRUE(cmd.GetArgs().empty());
-  EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Default"),
-            std::string::npos);
+  EXPECT_EQ(UserDataDirSwitch(cmd),
+            NormalizePathForComparison(CreateProfileManager().GetUserDataDir(
+                "network_failure_profile")));
 }
 
 TEST_F(StartupTest,
-       FingerprintApiLargeSeedParseFailureFallsBackWithoutAuth) {
+       FingerprintApiLargeSeedParseFailureFailsClosed) {
   env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
   env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
 
@@ -1182,17 +1412,100 @@ TEST_F(StartupTest,
 
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value());
-  EXPECT_FALSE(result->should_exit);
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
   EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
   EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
   EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
   EXPECT_TRUE(cmd.GetArgs().empty());
-  EXPECT_NE(cmd.GetSwitchValueASCII("user-data-dir").find("Default"),
+  EXPECT_EQ(UserDataDirSwitch(cmd),
+            NormalizePathForComparison(CreateProfileManager().GetUserDataDir(
+                "large_seed_failure_profile")));
+}
+
+TEST_F(StartupTest, FingerprintSaveFailureFailsClosed) {
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson("save-failure-ua"));
+
+  const std::string profile_id = "save_failure_profile";
+  ProfileManager manager = CreateProfileManager();
+  const base::FilePath profile_dir = manager.GetUserDataDir(profile_id);
+  ASSERT_TRUE(base::CreateDirectory(profile_dir.DirName()));
+  // A regular file where the profile directory must be makes SaveProfile fail
+  // deterministically without relying on platform-specific permissions.
+  ASSERT_TRUE(base::WriteFile(profile_dir, "directory collision"));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", profile_id);
+  cmd.AppendSwitchASCII("output", "json");
+  testing::internal::CaptureStdout();
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  std::string stdout_output = testing::internal::GetCapturedStdout();
+
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
+  EXPECT_NE(stdout_output.find("\"error\":\"fingerprint_save_failed\""),
             std::string::npos);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+  EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
+  EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
+}
+
+TEST_F(StartupTest, FingerprintLoadFailureAfterSaveFailsClosed) {
+#if BUILDFLAG(IS_POSIX)
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson("load-failure-ua"));
+
+  const std::string profile_id = "load_failure_profile";
+  ProfileManager manager = CreateProfileManager();
+  const base::FilePath profile_dir = manager.GetUserDataDir(profile_id);
+  ASSERT_TRUE(base::CreateDirectory(profile_dir));
+  // SaveProfile can write through /dev/null, but the following read produces
+  // empty input. This reaches the post-save LoadFingerprint failure path.
+  ASSERT_TRUE(base::CreateSymbolicLink(
+      base::FilePath(FILE_PATH_LITERAL("/dev/null")),
+      profile_dir.AppendASCII("fingerprint.json")));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", profile_id);
+  cmd.AppendSwitchASCII("output", "json");
+  testing::internal::CaptureStdout();
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  std::string stdout_output = testing::internal::GetCapturedStdout();
+
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_TRUE(result->should_exit);
+  EXPECT_EQ(result->exit_code, 1);
+  EXPECT_NE(stdout_output.find("\"error\":\"fingerprint_load_failed\""),
+            std::string::npos);
+  EXPECT_EQ(FingerprintAccessor::Get(), nullptr);
+  EXPECT_FALSE(cmd.HasSwitch(kFingerprintPathSwitch));
+  EXPECT_FALSE(cmd.HasSwitch(kRequireFingerprintSwitch));
+  EXPECT_FALSE(cmd.HasSwitch("proxy-server"));
+#else
+  GTEST_SKIP() << "The deterministic write-success/read-failure fixture uses "
+                  "/dev/null.";
+#endif
 }
 
 TEST_F(StartupTest, RegenerateReplaysStoredParams) {
   WriteCachedProfile("regen_profile");
+  ProfileEnvelope stale = ReadSavedProfile("regen_profile");
+  stale.request.runtime_browser_version = "120.0.0.0";
+  stale.request.runtime_os = "windows";
+  stale.request.runtime_os_version = "10.0";
+  stale.request.runtime_arch = "x86";
+  auto save_result = CreateProfileManager().SaveProfile("regen_profile", stale);
+  ASSERT_TRUE(save_result.has_value()) << save_result.error();
   env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
   env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
 
@@ -1230,6 +1543,28 @@ TEST_F(StartupTest, RegenerateReplaysStoredParams) {
   // New fingerprint should be loaded
   ASSERT_NE(FingerprintAccessor::Get(), nullptr);
   EXPECT_EQ(FingerprintAccessor::Get()->user_agent, "new-ua");
+
+  ProfileEnvelope saved = ReadSavedProfile("regen_profile");
+  ASSERT_TRUE(saved.request.runtime_browser_version.has_value());
+  EXPECT_EQ(*saved.request.runtime_browser_version,
+            version_info::GetVersionNumber());
+  ASSERT_TRUE(saved.request.runtime_os.has_value());
+#if BUILDFLAG(IS_MAC)
+  EXPECT_EQ(*saved.request.runtime_os, "macos");
+#elif BUILDFLAG(IS_WIN)
+  EXPECT_EQ(*saved.request.runtime_os, "windows");
+#elif BUILDFLAG(IS_LINUX)
+  EXPECT_EQ(*saved.request.runtime_os, "linux");
+#endif
+  EXPECT_FALSE(saved.request.runtime_os_version.has_value());
+  ASSERT_TRUE(saved.request.runtime_arch.has_value());
+#if defined(ARCH_CPU_ARM64)
+  EXPECT_EQ(*saved.request.runtime_arch, "arm64");
+#elif defined(ARCH_CPU_X86_64)
+  EXPECT_EQ(*saved.request.runtime_arch, "amd64");
+#elif defined(ARCH_CPU_X86)
+  EXPECT_EQ(*saved.request.runtime_arch, "x86");
+#endif
 }
 
 TEST_F(StartupTest, RegenerateOverwritesEncryptedProxyCredentials) {
@@ -1332,6 +1667,10 @@ TEST_F(StartupTest, FingerprintApiCallSendsRuntimeHintsFromLaunchFlags) {
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value()) << result.error();
   EXPECT_FALSE(result->should_exit);
+  EXPECT_TRUE(cmd.HasSwitch("disable-gpu"));
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-gl"), "angle");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-angle"), "swiftshader");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-webgpu-adapter"), "swiftshader");
 
   ProfileEnvelope saved = ReadSavedProfile("runtime_profile");
   ASSERT_TRUE(saved.request.runtime_browser_version.has_value());
@@ -1345,6 +1684,33 @@ TEST_F(StartupTest, FingerprintApiCallSendsRuntimeHintsFromLaunchFlags) {
   EXPECT_EQ(*saved.request.runtime_gpu, "swiftshader");
   ASSERT_TRUE(saved.request.runtime_headless.has_value());
   EXPECT_TRUE(*saved.request.runtime_headless);
+}
+
+TEST_F(StartupTest, FingerprintApiCallSendsEffectiveSwiftShaderGPUHint) {
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+  env_->SetVar("CLAWBROWSER_RUNTIME_GPU", "apple-metal");
+
+  const std::string user_agent =
+      "Mozilla/5.0 AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36";
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson(user_agent));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "isolated_gpu_profile");
+
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-gl"), "angle");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("use-angle"), "swiftshader");
+
+  ProfileEnvelope saved = ReadSavedProfile("isolated_gpu_profile");
+  ASSERT_TRUE(saved.request.runtime_gpu.has_value());
+  EXPECT_EQ(*saved.request.runtime_gpu, "swiftshader");
+  ASSERT_TRUE(saved.request.runtime_headless.has_value());
+  EXPECT_FALSE(*saved.request.runtime_headless);
 }
 
 TEST_F(StartupTest, FingerprintApiCallAllowsCityOnlyOverrides) {

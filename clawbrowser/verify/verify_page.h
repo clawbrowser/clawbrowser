@@ -18,6 +18,13 @@ class ApiClient;
 bool VerifyFailureExitEnabledForCommandLine(
     const base::CommandLine& command_line);
 
+// Returns the active managed-proxy privacy contract supported by this
+// process. Version 1 means that a fingerprint-backed proxy was loaded and the
+// browser was launched through the fail-closed proxy contract.
+int ManagedProxyPrivacyCapabilityForCommandLine(
+    const base::CommandLine& command_line,
+    bool fingerprint_proxy_loaded);
+
 // WebUI controller for clawbrowser://verify page.
 // Injects expected fingerprint values and handles proxy verification.
 class VerifyPageUI : public content::WebUIController {

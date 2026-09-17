@@ -10,9 +10,7 @@ from pathlib import Path
 def _default_browser_binary():
     candidates = [
         Path("out/CBProdMacArm64/Clawbrowser.app/Contents/MacOS/Clawbrowser"),
-        Path("out/CBProdMacArm64/Chromium.app/Contents/MacOS/Chromium"),
         Path("out/CBFast/Clawbrowser.app/Contents/MacOS/Clawbrowser"),
-        Path("out/CBFast/Chromium.app/Contents/MacOS/Chromium"),
         Path("out/Default/clawbrowser"),
     ]
     for candidate in candidates:

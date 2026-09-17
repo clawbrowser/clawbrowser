@@ -11,40 +11,23 @@ diff --git a/third_party/blink/renderer/modules/font_access/font_access.cc b/thi
  #include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
  #include "third_party/blink/public/platform/platform.h"
  #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
-@@ -31,8 +33,22 @@ namespace {
- 
- const char kFeaturePolicyBlocked[] =
-     "Access to the feature \"local-fonts\" is disallowed by Permissions Policy";
+@@ -131,6 +133,19 @@ void FontAccess::DidGetEnumerationResponse(
+     return;
+   }
+
++  // The profile contract contains CSS family names, not the immutable font
++  // files, PostScript identities, styles, or variable axes required to safely
++  // virtualize this permissioned API. Returning even one host-backed row also
++  // exposes that font's binary through FontMetadata.blob(). Preserve normal
++  // permission/status handling above, but expose no host enumeration for a
++  // protected profile until the runtime ships a complete bundled-font catalog.
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && clawbrowser::ShouldFilterLocalFonts(*fp)) {
++    HeapVector<Member<FontMetadata>> entries;
++    resolver->Resolve(std::move(entries));
++    return;
++  }
 +
-+// Enumeration is only half of the surface: CSS font matching can probe the same
-+// fonts by measuring text. Both paths share one allowlist, defined in
-+// clawbrowser/fingerprint_coherence.h, so they cannot disagree about which
-+// fonts this profile claims to have installed.
-+bool IsFingerprintFontAllowed(const clawbrowser::RuntimeFingerprint& fp,
-+                              const std::string& postscript_name,
-+                              const std::string& full_name,
-+                              const std::string& family) {
-+  return clawbrowser::IsLocalFontAllowed(fp, postscript_name) ||
-+         clawbrowser::IsLocalFontAllowed(fp, full_name) ||
-+         clawbrowser::IsLocalFontAllowed(fp, family);
- }
- 
-+}  // namespace
-+
- // static
- const char FontAccess::kSupplementName[] = "FontAccess";
- 
-@@ -154,6 +170,13 @@ void FontAccess::DidGetEnumerationResponse(
-   table.ParseFromArray(mapped_mem.data(),
-                        base::checked_cast<int>(mapped_mem.size()));
-   for (const auto& element : table.fonts()) {
-+    if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
-+        fp && clawbrowser::ShouldFilterLocalFonts(*fp) &&
-+        !IsFingerprintFontAllowed(*fp, element.postscript_name(),
-+                                  element.full_name(), element.family())) {
-+      continue;
-+    }
-+
-     // If the optional postscript name filter is set in QueryOptions,
-     // only allow items that match.
-     if (hasPostscriptNameFilter &&
+   // Font data exists; process and fill in the data.
+   base::ReadOnlySharedMemoryMapping mapping = region.Map();
+   FontEnumerationTable table;

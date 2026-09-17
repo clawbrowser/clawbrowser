@@ -6,7 +6,8 @@
     "browser": "chrome",
     "country": "US",
     "city": "New York",
-    "connection_type": "residential"
+    "connection_type": "residential",
+    "runtime_gpu": "swiftshader"
   },
   "response": {
     "fingerprint": {
@@ -145,7 +146,7 @@
       },
       "surface_policy": {
         "canvas": {
-          "mode": "native"
+          "mode": "override"
         },
         "audio": {
           "mode": "native"

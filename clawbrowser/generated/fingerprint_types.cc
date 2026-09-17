@@ -143,6 +143,8 @@ base::expected<GenerateRequest, std::string> GenerateRequest::FromDict(
 
   if (std::optional<bool> parsed = dict.FindBool("runtime_headless")) value.runtime_headless = *parsed;
 
+  if (const std::string* parsed = dict.FindString("runtime_font_catalog")) value.runtime_font_catalog = *parsed;
+
   return base::ok(std::move(value));
 }
 
@@ -167,6 +169,7 @@ base::DictValue GenerateRequest::ToDict() const {
   if (runtime_arch.has_value()) dict.Set("runtime_arch", *runtime_arch);
   if (runtime_gpu.has_value()) dict.Set("runtime_gpu", *runtime_gpu);
   if (runtime_headless.has_value()) dict.Set("runtime_headless", *runtime_headless);
+  if (runtime_font_catalog.has_value()) dict.Set("runtime_font_catalog", *runtime_font_catalog);
   return dict;
 }
 

@@ -1,0 +1,242 @@
+{
+  "catalog_id": "clawbrowser-fonts-prototype-3",
+  "release_ready": false,
+  "chromium_revision": "28a7a6c409e03c701d3474ef9e3b1f0be6249039",
+  "source_directory": "third_party/test_fonts/test_fonts",
+  "fonts": [
+    {
+      "file": "Arimo-Regular.ttf",
+      "sha256": "eafef8c99e94d10f17506c125e24d98a84256e0e665e6c659498eca96b19e148",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "Arimo-Bold.ttf",
+      "sha256": "89a9a8f88a1da4cc2a96238a19239ef85e12205ea06122e226dd36932cbd482e",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "Arimo-Italic.ttf",
+      "sha256": "edcc229e781249b3f623061f5ac3f94b5fa6b880c85876f73b09b99b23ab6223",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "Arimo-BoldItalic.ttf",
+      "sha256": "35c0e8abf09b2f8855bb8e90ffbd5bee362c19f12a159298053ecb493332fe9a",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "Tinos-Regular.ttf",
+      "sha256": "ef438a1c6449f1e38e2fb50768440d1c3e489fd9db3862ff479180291fec5b29",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "Tinos-Bold.ttf",
+      "sha256": "6a0afe87068ba5ddeb6a9bb7b9d0dc41666966c044767df69de3efb7e33f5af8",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "Tinos-Italic.ttf",
+      "sha256": "751c979043c9641dad389ab9c680c2c9ffb0a0c7352153f48b9ebd958e8963d8",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "Tinos-BoldItalic.ttf",
+      "sha256": "52c4d87a988eb1f1c25e1fcb97970d456a2fb252e0fa2116e2b4bb33e7824bda",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "Cousine-Regular.ttf",
+      "sha256": "69e1ea59eb770014204e5174f805750f9a793db4a2531e6516b30b7460d470b3",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "Cousine-Bold.ttf",
+      "sha256": "42d14baaf1802f8edf7659346a8574b41c4c78e264eb81cdb0891ca6686354ce",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "Cousine-Italic.ttf",
+      "sha256": "9b2b98e5d389fe74968af2abb440ac4b6fcd24e2a1aba5ed895b0337b6b0b5e6",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "Cousine-BoldItalic.ttf",
+      "sha256": "ef65b8624e7993977feb9f9ba18f514a1fa9adc4e1c4737c8839574685c188ae",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "DejaVuSans.ttf",
+      "sha256": "7da195a74c55bef988d0d48f9508bd5d849425c1770dba5d7bfc6ce9ed848954",
+      "license": "Bitstream-Vera"
+    },
+    {
+      "file": "NotoSansCJK-VF.otf.ttc",
+      "sha256": "d3d8256cdec8dbcb3552284bc6b20c734dd60c2ee9df83b5758e34807c4bac32",
+      "license": "OFL-1.1",
+      "copyright": "© 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'.",
+      "version": "2.004"
+    },
+    {
+      "file": "Lohit-Devanagari.ttf",
+      "sha256": "3bf009ac8ff1ffb5b4d83a140b22d8b6da85e9d2b974de8e1c1b9409fb49c4b6",
+      "license": "OFL-1.1"
+    },
+    {
+      "file": "NotoSansThai-Regular.ttf",
+      "source": "vendor",
+      "sha256": "404ddfb5ed0aaa6b6ec8a85700d682978992062d67da93903967b56cbd9a4acc",
+      "license": "OFL-1.1",
+      "upstream": "https://github.com/notofonts/noto-fonts",
+      "revision": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+      "path": "hinted/ttf/NotoSansThai/NotoSansThai-Regular.ttf"
+    },
+    {
+      "file": "NotoColorEmoji.ttf",
+      "sha256": "060a297e16a27b69e5ef3080fa9900d8e60c875076b0be1cec7747f178c0dc5b",
+      "license": "OFL-1.1",
+      "copyright": "Copyright 2013 Google Inc."
+    },
+    {
+      "file": "NotoSansBengali-Regular.ttf",
+      "sha256": "6300c5370cd688b0641343de4c786de6d412bb6c578d129dae75e93a0322dcab",
+      "license": "OFL-1.1",
+      "copyright": "Copyright 2017-2022 Google Inc. All Rights Reserved.",
+      "source": "vendor",
+      "upstream": "https://github.com/notofonts/noto-fonts",
+      "revision": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+      "path": "hinted/ttf/NotoSansBengali/NotoSansBengali-Regular.ttf"
+    },
+    {
+      "file": "NotoSansEthiopic-Regular.ttf",
+      "sha256": "e3a81ca66eb6d6b1a50a287c1dba18195541f69e0986f8b49a42658aa592ff0d",
+      "license": "OFL-1.1",
+      "copyright": "Copyright 2022 Google LLC. All Rights Reserved.",
+      "source": "vendor",
+      "upstream": "https://github.com/notofonts/noto-fonts",
+      "revision": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+      "path": "hinted/ttf/NotoSansEthiopic/NotoSansEthiopic-Regular.ttf"
+    },
+    {
+      "file": "NotoSansGujarati-Regular.ttf",
+      "sha256": "8d5c22d7b729ef2839e6d1fe2cde77b2d083907be3659bca63676baa76e01fd6",
+      "license": "OFL-1.1",
+      "copyright": "Copyright 2019 Google Inc. All Rights Reserved.",
+      "source": "vendor",
+      "upstream": "https://github.com/notofonts/noto-fonts",
+      "revision": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+      "path": "hinted/ttf/NotoSansGujarati/NotoSansGujarati-Regular.ttf"
+    },
+    {
+      "file": "NotoSansGurmukhi-Regular.ttf",
+      "sha256": "bbde4d85fdfb998eff6921cb2c7a9a7924a1c95560a6aa9a06172530e4f596da",
+      "license": "OFL-1.1",
+      "copyright": "Copyright 2019-2022 Google Inc. All Rights Reserved.",
+      "source": "vendor",
+      "upstream": "https://github.com/notofonts/noto-fonts",
+      "revision": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+      "path": "hinted/ttf/NotoSansGurmukhi/NotoSansGurmukhi-Regular.ttf"
+    },
+    {
+      "file": "NotoSansKannada-Regular.ttf",
+      "sha256": "5c804033c57f2c2844b1cd425f45b9a78d81d2f71bf358351b24258ebe168aea",
+      "license": "OFL-1.1",
+      "copyright": "Copyright 2018-2022 Google Inc. All Rights Reserved.",
+      "source": "vendor",
+      "upstream": "https://github.com/notofonts/noto-fonts",
+      "revision": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+      "path": "hinted/ttf/NotoSansKannada/NotoSansKannada-Regular.ttf"
+    },
+    {
+      "file": "NotoSansKhmer-Regular.ttf",
+      "sha256": "5c1ec068352f1e1fe8e7a3218230360d054e104d377ef40c0423b17c34c3c259",
+      "license": "OFL-1.1",
+      "copyright": "Copyright 2016-2022 Google Inc. All Rights Reserved.",
+      "source": "vendor",
+      "upstream": "https://github.com/notofonts/noto-fonts",
+      "revision": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+      "path": "hinted/ttf/NotoSansKhmer/NotoSansKhmer-Regular.ttf"
+    },
+    {
+      "file": "NotoSansMalayalam-Regular.ttf",
+      "sha256": "42eb462ff13e820ebbeaaec4e7b426bd1de145d02cef8b634f5a3efd376b513c",
+      "license": "OFL-1.1",
+      "copyright": "Copyright 2018 Google Inc. All Rights Reserved.",
+      "source": "vendor",
+      "upstream": "https://github.com/notofonts/noto-fonts",
+      "revision": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+      "path": "hinted/ttf/NotoSansMalayalam/NotoSansMalayalam-Regular.ttf"
+    },
+    {
+      "file": "NotoSansMyanmar-Regular.ttf",
+      "sha256": "9dd2bc76a822a974efce803a4b07302d14d01d5c1fa9e33a258d15a9cb513a7d",
+      "license": "OFL-1.1",
+      "copyright": "Copyright 2015-2002 Google Inc. All Rights Reserved.",
+      "source": "vendor",
+      "upstream": "https://github.com/notofonts/noto-fonts",
+      "revision": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+      "path": "hinted/ttf/NotoSansMyanmar/NotoSansMyanmar-Regular.ttf"
+    },
+    {
+      "file": "NotoSansSinhala-Regular.ttf",
+      "sha256": "a966549310b2d3046ba25bbeef11985428ff9356fa656fd6118bc90fb82df031",
+      "license": "OFL-1.1",
+      "copyright": "Copyright 2016-2022 Google Inc. All Rights Reserved.",
+      "source": "vendor",
+      "upstream": "https://github.com/notofonts/noto-fonts",
+      "revision": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+      "path": "hinted/ttf/NotoSansSinhala/NotoSansSinhala-Regular.ttf"
+    },
+    {
+      "file": "NotoSansTamil-Regular.ttf",
+      "sha256": "6532db33b8b264abe3a098a40619feb489b5ddf5ab1d2b46e72b51eeb548001b",
+      "license": "OFL-1.1",
+      "copyright": "Copyright 2017-2022 Google Inc. All Rights Reserved.",
+      "source": "vendor",
+      "upstream": "https://github.com/notofonts/noto-fonts",
+      "revision": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+      "path": "hinted/ttf/NotoSansTamil/NotoSansTamil-Regular.ttf"
+    },
+    {
+      "file": "NotoSansTelugu-Regular.ttf",
+      "sha256": "2c05072e8018a9be1cb0582953d9edf9a0cf129cdfb74e611de763b09c411f7f",
+      "license": "OFL-1.1",
+      "copyright": "Copyright 2019-2022 Google LLC. All Rights Reserved.",
+      "source": "vendor",
+      "upstream": "https://github.com/notofonts/noto-fonts",
+      "revision": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+      "path": "hinted/ttf/NotoSansTelugu/NotoSansTelugu-Regular.ttf"
+    }
+  ],
+  "generics": {
+    "sans": "Arimo",
+    "sans-serif": "Arimo",
+    "serif": "Tinos",
+    "monospace": "Cousine"
+  },
+  "fallback": [
+    "DejaVu Sans",
+    "Noto Sans CJK JP",
+    "Lohit Devanagari",
+    "Noto Sans Thai",
+    "Noto Color Emoji",
+    "Noto Sans Bengali",
+    "Noto Sans Ethiopic",
+    "Noto Sans Gujarati",
+    "Noto Sans Gurmukhi",
+    "Noto Sans Kannada",
+    "Noto Sans Khmer",
+    "Noto Sans Malayalam",
+    "Noto Sans Myanmar",
+    "Noto Sans Sinhala",
+    "Noto Sans Tamil",
+    "Noto Sans Telugu"
+  ],
+  "release_gaps": [
+    "CJK/emoji/complex-script coverage",
+    "per-file copyright notices",
+    "GN and release packaging",
+    "early browser startup fail-closed integration",
+    "backend catalog contract",
+    "cross-platform acceptance"
+  ]
+}
