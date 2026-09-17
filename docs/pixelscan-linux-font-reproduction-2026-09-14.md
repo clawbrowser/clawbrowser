@@ -253,3 +253,28 @@ Evidence (normal screenshots visually reviewed):
 The incomplete initial capture is retained separately as
 `checker-browserscan-067-doh-boundary.{json,png}`. This is Linux QA evidence,
 not default-policy PixelScan acceptance or all-platform release approval.
+
+### Independent inline-SVG font-oracle regression
+
+The existing SVG-image-to-Canvas test did not cover inline SVG's direct text
+metric APIs. A new investigation checked whether these could recover a blocked
+host font despite ordinary HTML and Canvas isolation. This is a general privacy
+boundary test, not a claim that PixelScan uses these particular APIs.
+
+`test_svg_font_metrics.py` compares computed text length, bounding box,
+per-character start/end positions, extents, substring lengths and rotations,
+plus HTML width, for blocked-family requests versus their explicit generic
+fallback. It covers three family requests, three generics, Latin/Arabic/mixed
+Indic-CJK strings, normal/bold-italic styles, two Linux host-font configurations,
+and protected/experimental-normalized Canvas: **216 comparisons**. All agree
+with fallback and remain identical between host-font configurations.
+
+The independent unproxied/no-fingerprint control proves that those configurations
+actually change SVG layout: generic widths are `[173, 180, 238]` with Noto and
+`[164, 166, 238]` with Liberation. Nonzero bounds, character counts and distinct
+generic widths reject empty or constant-metric false successes.
+
+All three headful, non-root, sandboxed tests passed on 067 in **7.45s**
+(`svg-font-metrics-067-controls.xml`). No new runtime defect was reproduced and
+no product patch was needed. This adds regression coverage; it does **not**
+resolve or reclassify PixelScan's remaining font warning.
