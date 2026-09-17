@@ -26,6 +26,9 @@ concurrency:
 jobs:
   resolve_publish_target:
     name: Resolve Docker publish target
+    # QA prereleases may contain only one architecture. Publish Docker only
+    # for stable releases, or an explicit operator workflow_dispatch.
+    if: github.event_name != 'release' || github.event.release.prerelease == false
     runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.vars.outputs.image }}
