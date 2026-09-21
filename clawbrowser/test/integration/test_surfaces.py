@@ -3,15 +3,16 @@
 import asyncio
 import json
 import sys
+from urllib.parse import urljoin
 
 import pytest
 
 
 def _expected_fixture_fonts(fp):
-    # The legacy fixture requests fonts absent from the Linux bundle. Startup
+    # The legacy fixture requests fonts absent from the Linux/macOS bundle. Startup
     # migrates it to this explicit catalog. Keep this expectation independent
     # of the browser's saved JSON so a wrong migration cannot bless itself.
-    if sys.platform == 'linux':
+    if sys.platform in ('linux', 'darwin'):
         return ['Arimo', 'Tinos', 'Cousine', 'DejaVu Sans',
                 'Noto Sans CJK JP', 'Noto Sans CJK KR', 'Noto Sans CJK SC',
                 'Noto Sans CJK TC', 'Noto Sans CJK HK',
@@ -137,6 +138,36 @@ async def test_sec_ch_ua_headers(browser_with_fingerprint):
 
 
 @pytest.mark.asyncio
+async def test_navigation_sec_ch_ua_headers(browser_with_fingerprint):
+    # Navigation headers come from the browser-process delegate, whereas fetch
+    # uses the renderer metadata. Testing fetch alone misses this divergence.
+    page, data = browser_with_fingerprint
+    fp = data["response"]["fingerprint"]
+    response = await page.goto(urljoin(page.url, '/__headers'), wait_until='load')
+    assert response is not None and response.ok
+    payload = await response.json()
+    headers = {key.lower(): value for key, value in payload['headers'].items()}
+    for name in ('User-Agent', 'Sec-CH-UA', 'Sec-CH-UA-Mobile', 'Sec-CH-UA-Platform'):
+        assert headers[name.lower()] == fp['headers'][name], (name, headers)
+
+
+@pytest.mark.asyncio
+async def test_navigation_high_entropy_client_hints(browser_with_fingerprint):
+    page, data = browser_with_fingerprint
+    expected = data['response']['fingerprint']['user_agent_data']
+    await page.goto(urljoin(page.url, '/__headers-hints'), wait_until='load')
+    response = await page.goto(urljoin(page.url, '/__headers'), wait_until='load')
+    assert response is not None and response.ok
+    payload = await response.json()
+    headers = {key.lower(): value for key, value in payload['headers'].items()}
+    brands = ', '.join(f'"{item["brand"]}";v="{item["version"]}"'
+                       for item in expected['fullVersionList'])
+    assert headers.get('sec-ch-ua-full-version-list') == brands, headers
+    assert headers.get('sec-ch-ua-arch') == json.dumps(expected['architecture']), headers
+    assert headers.get('sec-ch-ua-bitness') == json.dumps(expected['bitness']), headers
+
+
+@pytest.mark.asyncio
 async def test_navigator_language(browser_with_fingerprint):
     page, data = browser_with_fingerprint
     fp = data["response"]["fingerprint"]
@@ -166,6 +197,69 @@ async def test_navigator_device_memory(browser_with_fingerprint):
     fp = data["response"]["fingerprint"]
     actual = await page.evaluate("navigator.deviceMemory")
     assert actual == fp["hardware"]["memory"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('worker_kind', ['dedicated', 'shared', 'service'])
+async def test_navigator_identity_matches_worker(browser_with_fingerprint, worker_kind):
+    page, _ = browser_with_fingerprint
+    actual = await page.evaluate("""async workerKind => {
+        const probe = async () => ({
+            ua: navigator.userAgent, platform: navigator.platform,
+            languages: [...navigator.languages],
+            cores: navigator.hardwareConcurrency, memory: navigator.deviceMemory,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            offset: new Date().getTimezoneOffset(),
+            hints: navigator.userAgentData ? await navigator.userAgentData
+                .getHighEntropyValues(['fullVersionList', 'platformVersion',
+                                      'architecture', 'bitness']) : null,
+        });
+        if (workerKind === 'service') {
+            const registration = await navigator.serviceWorker.register('/__identity-worker.js');
+            const channel = new MessageChannel();
+            try {
+                const active = registration.active || registration.installing || registration.waiting;
+                if (!active) throw new Error('Missing service worker');
+                if (active.state !== 'activated') await new Promise((resolve, reject) => {
+                    const timer = setTimeout(() => reject(new Error('Activation timeout')), 10000);
+                    active.addEventListener('statechange', () => {
+                        if (active.state === 'activated') { clearTimeout(timer); resolve(); }
+                    });
+                });
+                const result = await new Promise((resolve, reject) => {
+                    const timer = setTimeout(() => reject(new Error('Service worker timeout')), 10000);
+                    channel.port1.onmessage = event => { clearTimeout(timer); resolve(event.data); };
+                    active.postMessage(null, [channel.port2]);
+                });
+                return {window: await probe(), worker: result};
+            } finally {
+                channel.port1.close();
+                await registration.unregister();
+            }
+        }
+        const source = workerKind === 'shared'
+            ? `onconnect = e => { const p = e.ports[0]; p.onmessage = async () => {
+                p.postMessage(await (${probe.toString()})()); close(); }; p.start(); }`
+            : `onmessage = async () => postMessage(await (${probe.toString()})())`;
+        const url = URL.createObjectURL(new Blob([source], {type: 'text/javascript'}));
+        const worker = workerKind === 'shared' ? new SharedWorker(url) : new Worker(url);
+        const channel = workerKind === 'shared' ? worker.port : worker;
+        try {
+            const result = await new Promise((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('Worker timed out')), 10000);
+                channel.onmessage = event => { clearTimeout(timer); resolve(event.data); };
+                worker.onerror = event => { clearTimeout(timer); reject(new Error(event.message)); };
+                if (workerKind === 'shared') channel.start();
+                channel.postMessage(null);
+            });
+            return {window: await probe(), worker: result};
+        } finally {
+            if (workerKind === 'shared') channel.close();
+            else worker.terminate();
+            URL.revokeObjectURL(url);
+        }
+    }""", worker_kind)
+    assert actual['window'] == actual['worker']
 
 
 @pytest.mark.asyncio
@@ -1153,7 +1247,7 @@ async def test_fonts_detect_all_expected(browser_with_fingerprint):
     page, data = browser_with_fingerprint
     fp = data["response"]["fingerprint"]
 
-    if sys.platform == 'linux':
+    if sys.platform in ('linux', 'darwin'):
         fonts = _expected_fixture_fonts(fp)
         await page.evaluate('''fonts => fonts.forEach((family, i) => {
             const el = document.createElement('span');
@@ -1170,6 +1264,16 @@ async def test_fonts_detect_all_expected(browser_with_fingerprint):
                 family === 'Noto Sans Thai' ? 'ก' : 'A');
             document.body.appendChild(el);
         })''', fonts)
+        # PlatformFonts reports fonts used by laid-out text, not merely CSS
+        # declarations. Force layout before consulting CDP's glyph usage.
+        await page.evaluate('''async () => {
+            await document.fonts.ready;
+            for (const node of document.querySelectorAll('[id^="catalog-font-"]')) {
+                if (node.getBoundingClientRect().width <= 0) {
+                    throw new Error('Font sample has no laid-out width');
+                }
+            }
+        }''')
         cdp = await page.context.new_cdp_session(page)
         try:
             await cdp.send('DOM.enable')
@@ -1189,28 +1293,37 @@ async def test_fonts_detect_all_expected(browser_with_fingerprint):
             await cdp.detach()
         return
 
-    detected = await page.evaluate(
-        """fonts => {
-        return fonts.filter(font => {
-            const measureWidth = fontFamily => {
-                const span = document.createElement('span');
-                span.style.fontFamily = fontFamily;
-                span.style.fontSize = '32px';
-                span.textContent = 'mmmmmmmmmmlli';
-                document.body.appendChild(span);
-                const width = span.offsetWidth;
-                document.body.removeChild(span);
-                return width;
-            };
-
-            return measureWidth(`"${font}", monospace`) !==
-                measureWidth('monospace');
+    # Equal metrics do not imply a missing font: on macOS Courier New can
+    # have the same measured width as generic monospace. Inspect actual glyph
+    # provenance instead of accepting/rejecting a family from a width delta.
+    await page.evaluate('''async fonts => {
+        fonts.forEach((family, i) => {
+            const el = document.createElement('span');
+            el.id = 'expected-font-' + i;
+            el.style.font = '32px ' + JSON.stringify(family);
+            el.textContent = 'mmmmmmmmmmlli';
+            document.body.appendChild(el);
         });
-    }""",
-        fp["fonts"],
-    )
-
-    assert detected == fp["fonts"]
+        await document.fonts.ready;
+        document.body.getBoundingClientRect();
+    }''', fp['fonts'])
+    cdp = await page.context.new_cdp_session(page)
+    try:
+        await cdp.send('DOM.enable')
+        await cdp.send('CSS.enable')
+        root = (await cdp.send('DOM.getDocument'))['root']['nodeId']
+        for i, family in enumerate(fp['fonts']):
+            node = (await cdp.send('DOM.querySelector', {
+                'nodeId': root, 'selector': f'#expected-font-{i}',
+            }))['nodeId']
+            actual = (await cdp.send('CSS.getPlatformFontsForNode', {
+                'nodeId': node,
+            }))['fonts']
+            assert actual, family
+            assert all(font['familyName'] == family and font['glyphCount'] > 0
+                       for font in actual), (family, actual)
+    finally:
+        await cdp.detach()
 
 
 @pytest.mark.asyncio
@@ -1264,7 +1377,7 @@ async def test_fonts_block_non_allowlisted_local_sources(browser_with_fingerprin
         "LiberationSans",      # Linux PostScript name
         "Ubuntu",              # Linux full name
     ]
-    if sys.platform == 'linux':
+    if sys.platform in ('linux', 'darwin'):
         # Exact PostScript alias of the now-bundled DejaVu Sans family.
         # Its positive load is covered by the bundled-local-face regression.
         allowed.add('dejavusans')

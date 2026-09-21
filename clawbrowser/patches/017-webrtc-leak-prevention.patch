@@ -67,3 +67,28 @@ diff --git a/third_party/blink/renderer/modules/peerconnection/rtc_peer_connecti
      // The generated candidate may have been added to the pending or current
      // local description, take a snapshot and surface them to the main thread.
      // Remote descriptions are also surfaced because
+@@ -634,15 +639,21 @@ class RTCPeerConnectionHandler::Observer
+   void OnIceCandidateError(const std::string& address,
+                            int port,
+                            const std::string& url,
+                            int error_code,
+                            const std::string& error_text) override {
++    const bool redact_local_address =
++        clawbrowser::FingerprintAccessor::GetProxy() != nullptr;
+     PostCrossThreadTask(
+         *main_thread_, FROM_HERE,
+         CrossThreadBindOnce(
+             &RTCPeerConnectionHandler::Observer::OnIceCandidateErrorImpl,
+             WrapCrossThreadPersistent(this),
+-            port ? String::FromUtf8(address) : String(),
+-            static_cast<uint16_t>(port),
+-            String::Format("%s:%d", address.c_str(), port),
++            redact_local_address
++                ? String()
++                : (port ? String::FromUtf8(address) : String()),
++            static_cast<uint16_t>(redact_local_address ? 0 : port),
++            redact_local_address
++                ? String()
++                : String::Format("%s:%d", address.c_str(), port),
+             String::FromUtf8(url), error_code, String::FromUtf8(error_text)));
+   }

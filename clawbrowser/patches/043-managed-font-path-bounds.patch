@@ -1,0 +1,54 @@
+--- a/third_party/blink/renderer/platform/fonts/skia/skia_text_metrics.cc
++++ b/third_party/blink/renderer/platform/fonts/skia/skia_text_metrics.cc
+@@ -7,3 +7,4 @@
+ #include "base/containers/span.h"
+ #include "build/build_config.h"
++#include "clawbrowser/fingerprint_coherence.h"
+ #include "third_party/blink/renderer/platform/fonts/shaping/harfbuzz_face.h"
+@@ -15,3 +16,10 @@
+ namespace blink {
+ 
++namespace {
++bool UsesManagedGlyphBounds() {
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  return fp && clawbrowser::ShouldFilterLocalFonts(*fp);
++}
++}  // namespace
++
+ void SkFontGetGlyphWidthForHarfBuzz(const SkStrikeRef& strike_ref,
+@@ -95,3 +104,8 @@
+   uint16_t glyph = codepoint;
+ 
++  if (UsesManagedGlyphBounds()) {
++    // Match the closed catalog's outline metrics across host platforms.
++    // The precise helper keeps bitmap-only glyphs on their metrics fallback.
++    SkFontGetPreciseBoundsForGlyph(font, glyph, &sk_bounds);
++  } else {
+ #if BUILDFLAG(IS_APPLE)
+@@ -106,3 +120,4 @@
+   sk_bounds = font.getBounds(glyph, nullptr);
+ #endif
++  }
+   if (!font.isSubpixel()) {
+@@ -142,2 +157,12 @@
+ void SkFontGetBoundsForGlyph(const SkFont& font, Glyph glyph, SkRect* bounds) {
++  if (UsesManagedGlyphBounds()) {
++    SkFontGetPreciseBoundsForGlyph(font, glyph, bounds);
++    if (!font.isSubpixel()) {
++      // Preserve outward rounding for non-subpixel strike overflow bounds.
++      SkIRect rounded;
++      bounds->roundOut(&rounded);
++      bounds->set(rounded);
++    }
++    return;
++  }
+ #if BUILDFLAG(IS_APPLE)
+@@ -179,2 +204,8 @@
+                               base::span<SkRect> bounds) {
++  if (UsesManagedGlyphBounds()) {
++    for (unsigned i = 0; i < glyphs.size(); i++) {
++      SkFontGetBoundsForGlyph(font, glyphs[i], &bounds[i]);
++    }
++    return;
++  }
+ #if BUILDFLAG(IS_APPLE)

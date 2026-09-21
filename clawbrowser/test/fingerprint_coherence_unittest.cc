@@ -23,7 +23,7 @@ TEST(BundledFontIdentityTest, RecognizesOnlyShippedNames) {
   EXPECT_FALSE(IsBundledLinuxFontName("Arimo-ArbitrarySuffix"));
 }
 
-#if BUILDFLAG(IS_LINUX)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
 TEST(BundledFontIdentityTest, FamilyAllowsShippedUniqueNamesOnly) {
   RuntimeFingerprint fp;
   fp.fonts = {"Arimo"};

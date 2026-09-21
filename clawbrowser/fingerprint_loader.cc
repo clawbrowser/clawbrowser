@@ -12,6 +12,7 @@
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/strings/string_util.h"
+#include "base/version.h"
 #include "build/build_config.h"
 #include "clawbrowser/cli/args.h"
 #include "clawbrowser/fingerprint_accessor.h"
@@ -92,6 +93,38 @@ void ApplyTimezoneOverride(const Fingerprint& fingerprint) {
   std::unique_ptr<icu::TimeZone> timezone(
       icu::TimeZone::createTimeZone(icu_timezone));
   icu::TimeZone::adoptDefault(timezone.release());
+}
+
+void ReduceCachedChromeUserAgent(RuntimeFingerprint* runtime) {
+  // A compatibility projection, not profile regeneration: preserve the full
+  // CH identity, proxy, seeds and on-disk envelope. Both browser and children
+  // pass through this function, including profiles from older backends.
+  if (runtime->browser_family != "chrome") {
+    return;
+  }
+  const base::Version version(runtime->browser_version);
+  if (!version.IsValid() || version.components().size() != 4 ||
+      version.components()[0] < 113) {
+    return;
+  }
+  const std::string reduced = std::to_string(version.components()[0]) + ".0.0.0";
+  const size_t marker = runtime->user_agent.find("Chrome/");
+  if (marker == std::string::npos) {
+    return;
+  }
+  const size_t begin = marker + 7;
+  const size_t end = runtime->user_agent.find(' ', begin);
+  const std::string token = runtime->user_agent.substr(begin, end - begin);
+  // Do not hide unrelated malformed/inconsistent identity data.
+  if (token != runtime->browser_version && token != reduced) {
+    return;
+  }
+  runtime->user_agent.replace(begin, token.size(), reduced);
+  for (auto& [name, value] : runtime->headers) {
+    if (base::EqualsCaseInsensitiveASCII(name, "User-Agent")) {
+      value = runtime->user_agent;
+    }
+  }
 }
 
 RuntimeFingerprint ToRuntimeFingerprint(const Fingerprint& fingerprint) {
@@ -196,6 +229,7 @@ RuntimeFingerprint ToRuntimeFingerprint(const Fingerprint& fingerprint) {
   runtime.surface_policy.speech_voices =
       fingerprint.surface_policy.speech_voices.mode;
 
+  ReduceCachedChromeUserAgent(&runtime);
   return runtime;
 }
 
@@ -254,7 +288,8 @@ void ApplySpoofingPolicyFromCommandLine(
       ResolveSurfaceSpoofing(
           command_line.HasSwitch(kEnableWebGLSpoofingSwitch),
           command_line.HasSwitch(kDisableWebGLSpoofingSwitch),
-          fp && fp->surface_policy.webgl == "override"));
+          fp && fp->surface_policy.webgl == "override"),
+      command_line.HasSwitch(kExperimentalNormalizedCanvasSwitch));
 }
 
 base::expected<void, std::string> LoadFingerprintContents(

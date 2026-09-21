@@ -9,13 +9,79 @@ permissions:
   contents: read
 
 jobs:
+  # Numerical/staging portability only: these jobs do not certify a browser artifact.
+  raster-portability:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            compiler: clang++
+          - os: macos-latest
+            compiler: clang++
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact raster arithmetic on host compiler
+        env:
+          CXX: ${{ matrix.compiler }}
+        run: |
+          uname -sm
+          "$CXX" --version
+          bash scripts/skia_fma_rounding_test.sh
+          bash scripts/skia_source_over_test.sh
+          bash scripts/skia_half_test.sh
+          if [[ "$RUNNER_OS" == Linux ]] && grep -qw avx2 /proc/cpuinfo; then
+            CLAWBROWSER_TEST_PRAGMA_AVX2=1 bash scripts/skia_source_over_test.sh
+          fi
+
+  raster-portability-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify font manifest bytes and reuse checks on Windows
+        run: |
+          python clawbrowser/fonts/build_catalog_test.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python clawbrowser/fonts/windows_package_test.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/font_test_assets_test.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:CLAWBROWSER_REQUIRE_7Z_TESTS = '1'
+          python clawbrowser/fonts/windows_installer_payload_test.py
+      - name: Reject unverified existing Windows installer reuse
+        shell: pwsh
+        run: ./scripts/windows_installer_mode_test.ps1
+      - name: Verify exact raster arithmetic with Windows Clang and MSVC library
+        shell: cmd
+        env:
+          CXX: clang++
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do call "%%i\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          if errorlevel 1 exit /b 1
+          clang++ --version
+          bash scripts/skia_fma_rounding_test.sh
+          if errorlevel 1 exit /b 1
+          bash scripts/skia_source_over_test.sh
+          if errorlevel 1 exit /b 1
+          bash scripts/skia_half_test.sh
+
   contract:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Verify executable WebUI regressions
         run: |
           node scripts/verify_fonts_test.js
@@ -34,11 +100,29 @@ jobs:
             clawbrowser/test/integration/conftest.py \
             clawbrowser/test/integration/test_surfaces.py \
             clawbrowser/test/integration/test_privacy_migration.py \
-            clawbrowser/test/integration/test_complex_font_fallback.py
+            clawbrowser/test/integration/test_complex_font_fallback.py \
+            clawbrowser/test/integration/test_system_font_policy.py \
+            clawbrowser/test/integration/test_local_collection_variations.py \
+            clawbrowser/test/integration/test_font_descriptor_native.py \
+            clawbrowser/test/integration/test_dynamic_font_fallback.py
           python3 scripts/integration_binary_resolution_test.py
+          python3 scripts/font_test_assets_test.py
+          python3 scripts/compare_canvas_observations_test.py
           python3 -m json.tool \
             clawbrowser/test/fixtures/valid_fingerprint.json >/dev/null
+      - name: Verify exact baseline raster arithmetic
+        run: |
+          bash scripts/skia_fma_rounding_test.sh
+          bash scripts/skia_source_over_test.sh
+          bash scripts/skia_half_test.sh
       - name: Verify font catalog staging integrity
         run: |
           python3 clawbrowser/fonts/stage_fonts_test.py
           python3 clawbrowser/fonts/build_catalog_test.py
+          python3 clawbrowser/fonts/windows_package_test.py
+          python3 scripts/linux_runtime_fonts_test.py
+      - name: Run network control unit regressions (no browser or secrets)
+        run: |
+          python3 -m pip install -r clawbrowser/test/integration/requirements.txt
+          python3 -m compileall -q clawbrowser/test/integration
+          python3 -m pytest clawbrowser/test/integration/test_stun_control.py -q

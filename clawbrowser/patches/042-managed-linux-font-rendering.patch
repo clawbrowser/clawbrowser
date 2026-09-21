@@ -1,0 +1,34 @@
+--- a/third_party/blink/renderer/platform/fonts/font_platform_data.cc
++++ b/third_party/blink/renderer/platform/fonts/font_platform_data.cc
+@@ -24,3 +24,4 @@
+ #include "build/build_config.h"
++#include "clawbrowser/fingerprint_coherence.h"
+ #include "hb-ot.h"
+ #include "hb.h"
+@@ -265,3 +266,4 @@
+-SkFont FontPlatformData::CreateSkFont(const FontDescription*) const {
++SkFont FontPlatformData::CreateSkFont(
++    const FontDescription* font_description) const {
+   SkFont font(typeface_);
+   style_.ApplyToSkFont(&font);
+@@ -276,3 +278,20 @@
+   font.setEmbeddedBitmaps(!avoid_embedded_bitmaps_);
+ 
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  if (fp && clawbrowser::ShouldFilterLocalFonts(*fp)) {
++    // A closed catalog alone does not isolate the host: Linux fontconfig
++    // defaults can still round advances and change glyph coverage. Use the
++    // same Fontations strike defaults as the managed macOS catalog path.
++    // Native font policy keeps the platform's original render preferences.
++    font.setSubpixel(true);
++    font.setLinearMetrics(true);
++    font.setEmbeddedBitmaps(false);
++    font.setForceAutoHinting(false);
++    font.setEdging(SkFont::Edging::kSubpixelAntiAlias);
++    font.setHinting(font_description &&
++                           font_description->TextRendering() == kGeometricPrecision
++                       ? SkFontHinting::kNone
++                       : SkFontHinting::kNormal);
++  }
++
+   if (RuntimeEnabledFeatures::NoFontAntialiasingEnabled() &&

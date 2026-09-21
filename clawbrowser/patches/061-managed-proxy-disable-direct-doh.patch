@@ -1,0 +1,31 @@
+diff --git a/chrome/browser/net/stub_resolver_config_reader.cc b/chrome/browser/net/stub_resolver_config_reader.cc
+--- a/chrome/browser/net/stub_resolver_config_reader.cc
++++ b/chrome/browser/net/stub_resolver_config_reader.cc
+@@ -10,6 +10,7 @@
+ #include <vector>
+ 
+ #include "base/check.h"
++#include "base/command_line.h"
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback.h"
+@@ -341,7 +342,18 @@ SecureDnsConfig StubResolverConfigReader::GetAndUpdateConfiguration(
+   SecureDnsConfig::ManagementMode forced_management_mode =
+       SecureDnsConfig::ManagementMode::kNoOverride;
+   bool is_managed = GetDnsOverHttpsConfigSource()->IsConfigManaged();
+-  if (!is_managed && ShouldDisableDohForManaged()) {
++  // Chromium's DoH transactions and availability probes set LOAD_BYPASS_PROXY.
++  // A managed fingerprint must not reveal its host route to a DNS provider,
++  // including before the first navigation or after a preference update.
++  // Enforce this in the effective configuration, without rewriting user prefs.
++  // Explicit DNS policy must not override the mandatory proxy boundary either.
++  const base::CommandLine* command_line =
++      base::CommandLine::ForCurrentProcess();
++  const bool managed_proxy_boundary =
++      (command_line->HasSwitch("fingerprint") &&
++       command_line->HasSwitch("proxy-server")) ||
++      command_line->HasSwitch("clawbrowser-require-proxy");
++  if (managed_proxy_boundary || (!is_managed && ShouldDisableDohForManaged())) {
+     secure_dns_mode = net::SecureDnsMode::kOff;
+     forced_management_mode = SecureDnsConfig::ManagementMode::kDisabledManaged;
+   } else {

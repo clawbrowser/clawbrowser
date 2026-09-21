@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "base/no_destructor.h"
+#include "build/build_config.h"
 
 namespace clawbrowser {
 
@@ -123,13 +124,22 @@ void FingerprintAccessor::Set(RuntimeFingerprint fingerprint,
 
 // static
 void FingerprintAccessor::SetSpoofingPolicy(bool canvas_enabled,
-                                            bool webgl_enabled) {
+                                            bool webgl_enabled,
+                                            bool normalized_canvas_requested) {
   auto& state = RuntimeStateStorage();
   if (!state) {
     return;
   }
   state->fingerprint.canvas_spoofing_enabled = canvas_enabled;
   state->fingerprint.webgl_spoofing_enabled = webgl_enabled;
+  state->fingerprint.experimental_normalized_canvas = false;
+#if BUILDFLAG(IS_LINUX)
+  const auto& fp = state->fingerprint;
+  state->fingerprint.experimental_normalized_canvas =
+      normalized_canvas_requested && canvas_enabled &&
+      fp.surface_policy.canvas == "override" &&
+      fp.surface_policy.fonts == "native_or_allowlist" && !fp.fonts.empty();
+#endif
 }
 
 // static

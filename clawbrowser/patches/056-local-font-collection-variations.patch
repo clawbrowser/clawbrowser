@@ -1,0 +1,38 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+--- a/third_party/blink/renderer/core/css/local_font_face_source.cc
++++ b/third_party/blink/renderer/core/css/local_font_face_source.cc
+@@ -21,6 +21,7 @@
+ #include "third_party/blink/renderer/platform/fonts/simple_font_data.h"
+ #include "third_party/blink/renderer/platform/heap/persistent.h"
+ #include "third_party/blink/renderer/platform/wtf/functional.h"
++#include "third_party/skia/include/core/SkStream.h"
+ 
+ namespace blink {
+ 
+@@ -123,6 +124,18 @@
+ 
+   sk_sp<SkTypeface> typeface(unique_lookup_result->PlatformData().TypefaceSp());
+ 
++  int collection_index = 0;
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && clawbrowser::ShouldFilterLocalFonts(*fp)) {
++    // A local() face can be a nonzero TTC member. Fontations returns the
++    // unchanged face when a clone is requested with a different index, so
++    // the default zero silently discards CSS variation and palette changes.
++    // Read only the already-loaded typeface, never a host font lookup.
++    auto stream = typeface->openStream(&collection_index);
++    if (!stream)
++      return nullptr;
++  }
++
+   // From the SkTypeface, here we're reusing the FontCustomPlatformData code
+   // which performs application of font-variation-settings, optical sizing and
+   // mapping of style (stretch, style, weight) to canonical variation axes. (See
+@@ -147,6 +160,6 @@
+           font_description.ResolveFontFeatures(),
+           font_description.Orientation(), font_description.VariationSettings(),
+-          font_description.GetFontPalette());
++          font_description.GetFontPalette(), collection_index);
+ 
+   FontPlatformData* platform_data_avoid_bitmaps =
+       MakeGarbageCollected<FontPlatformData>(*platform_data);

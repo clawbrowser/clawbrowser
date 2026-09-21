@@ -923,6 +923,12 @@ package_macos_arm64() {
 copy_linux_runtime() {
   local build_dir="$1"
   local stage_dir="$2"
+  local catalog_id
+
+  catalog_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["catalog_id"])' "${repo_dir}/clawbrowser/fonts/catalog_build.json")"
+  [[ "${catalog_id}" =~ ^[a-zA-Z0-9_-]+$ ]] || die "Invalid active font catalog id"
+  [[ -f "${build_dir}/clawbrowser-fonts/${catalog_id}/manifest.json" ]] || \
+    die "Missing active font catalog: ${catalog_id}"
 
   mkdir -p "${stage_dir}"
   rsync -a --prune-empty-dirs \
@@ -943,7 +949,8 @@ copy_linux_runtime() {
     --include='/locales/*.pak' \
     --include='/resources/***' \
     --include='/swiftshader/***' \
-    --include='/clawbrowser-fonts/***' \
+    --include='/clawbrowser-fonts/' \
+    --include="/clawbrowser-fonts/${catalog_id}/***" \
     --include='/MEIPreload/***' \
     --exclude='/*.json' \
     --exclude='*' \

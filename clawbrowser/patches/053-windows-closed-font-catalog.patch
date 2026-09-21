@@ -1,0 +1,149 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+--- a/content/renderer/renderer_main.cc
++++ b/content/renderer/renderer_main.cc
+@@ -40,6 +40,10 @@
+ #include "content/common/features.h"
+ #include "content/common/skia_utils.h"
+ #include "clawbrowser/fingerprint_loader.h"
++#include "clawbrowser/fingerprint_coherence.h"
++#if BUILDFLAG(IS_WIN)
++#include "clawbrowser/windows_font_catalog.h"
++#endif
+ #include "content/public/common/content_switches.h"
+ #include "content/public/common/main_function_params.h"
+ #include "content/public/renderer/content_renderer_client.h"
+@@ -188,6 +192,19 @@
+
+   InitializeSkia();
+
++#if BUILDFLAG(IS_WIN)
++  // Keep checked catalog bytes in memory before sandbox lockdown. Never grant
++  // the renderer new filesystem permissions or lazily fall back to host fonts.
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && clawbrowser::ShouldFilterLocalFonts(*fp)) {
++    auto fonts = clawbrowser::InitializeWindowsFontCatalogBeforeSandbox();
++    if (!fonts.has_value()) {
++      LOG(ERROR) << "[clawbrowser] renderer font catalog: " << fonts.error();
++      return 1;
++    }
++  }
++#endif
++
+ #if !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CHROMEOS)
+   // On Linux, Windows, and ChromeOS, the font manager is overridden or
+   // specially handled in RendererBlinkPlatformImpl(). On other platforms,
+--- a/content/renderer/BUILD.gn
++++ b/content/renderer/BUILD.gn
+@@ -229,6 +229,7 @@
+   deps = [
+     "//base",
+     "//clawbrowser:clawbrowser_core",
++    "//clawbrowser:clawbrowser_font_typefaces",
+     "//base:i18n",
+     "//build:chromecast_buildflags",
+     "//cc",
+--- a/third_party/blink/renderer/platform/fonts/win/font_cache_skia_win.cc
++++ b/third_party/blink/renderer/platform/fonts/win/font_cache_skia_win.cc
+@@ -41,6 +41,9 @@
+ #include "base/feature_list.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/trace_event/trace_event.h"
++#include "clawbrowser/fingerprint_coherence.h"
++#include "clawbrowser/windows_font_catalog.h"
++#include "third_party/blink/renderer/platform/fonts/font_custom_platform_data.h"
+ #include "skia/ext/font_utils.h"
+ #include "third_party/blink/public/platform/web_font_prewarmer.h"
+ #include "third_party/blink/renderer/platform/fonts/bitmap_glyphs_block_list.h"
+@@ -72,6 +75,33 @@
+ int32_t FontCache::status_font_height_ = 0;
+
+ namespace {
++
++bool UsesManagedCatalog() {
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  return fp && clawbrowser::ShouldFilterLocalFonts(*fp);
++}
++
++const FontPlatformData* CatalogPlatformData(const FontDescription& d,
++                                          sk_sp<SkTypeface> typeface,
++                                          float size) {
++  if (!typeface)
++    return nullptr;
++  const bool bold = d.SyntheticBoldAllowed() &&
++      (d.IsSyntheticBold() ||
++       (d.Weight() > FontSelectionValue(500) && !typeface->isBold()));
++  const bool italic = d.SyntheticItalicAllowed() &&
++      (d.IsSyntheticItalic() || (d.Style() && !typeface->isItalic()));
++  int collection_index = 0;
++  auto stream = typeface->openStream(&collection_index);
++  CHECK(stream);
++  return FontCustomPlatformData::Create(std::move(typeface), 0)
++      ->GetFontPlatformData(
++          size, d.AdjustedSpecifiedSize(), bold, italic,
++          d.GetFontSelectionRequest(), FontSelectionCapabilities(),
++          d.FontOpticalSizing(), d.TextRendering(), d.ResolveFontFeatures(),
++          d.Orientation(), d.VariationSettings(), d.GetFontPalette(),
++          collection_index);
++}
+
+ int32_t EnsureMinimumFontHeightIfNeeded(int32_t font_height) {
+   // Adjustment for codepage 936 to make the fonts more legible in Simplified
+@@ -266,6 +296,16 @@
+     FontFallbackPriority fallback_priority) {
+   TRACE_EVENT0("ui", "FontCache::PlatformFallbackFontForCharacter");
+
++  if (UsesManagedCatalog()) {
++    const auto* data = CatalogPlatformData(
++        font_description,
++        clawbrowser::WindowsCatalogCharacter(
++            character, font_description.SkiaFontStyle(),
++            IsEmojiPresentationEmoji(fallback_priority)),
++        font_description.EffectiveFontSize());
++    return data ? FontDataFromFontPlatformData(data) : nullptr;
++  }
++
+   // First try the specified font with standard style & weight.
+   if (!IsEmojiPresentationEmoji(fallback_priority) &&
+       (font_description.Style() == kItalicSlopeValue ||
+@@ -412,6 +452,14 @@
+     AlternateFontName alternate_font_name) {
+   TRACE_EVENT0("ui", "FontCache::CreateFontPlatformData");
+
++  if (UsesManagedCatalog()) {
++    return CatalogPlatformData(
++        font_description,
++        clawbrowser::WindowsCatalogFamily(creation_params.Family().Utf8(),
++                                         font_description.SkiaFontStyle()),
++        font_size);
++  }
++
+   DCHECK_EQ(creation_params.CreationType(), kCreateFontByFamily);
+   sk_sp<SkTypeface> typeface;
+
+--- a/third_party/blink/renderer/platform/fonts/skia/font_cache_skia.cc
++++ b/third_party/blink/renderer/platform/fonts/skia/font_cache_skia.cc
+@@ -39,6 +39,7 @@
+ #include "base/strings/string_view_util.h"
+ #include "base/timer/elapsed_timer.h"
+ #include "build/build_config.h"
++#include "clawbrowser/fingerprint_coherence.h"
+ #include "skia/ext/font_utils.h"
+ #include "third_party/blink/public/platform/linux/web_sandbox_support.h"
+ #include "third_party/blink/public/platform/platform.h"
+@@ -145,6 +146,16 @@
+
+ const SimpleFontData* FontCache::GetLastResortFallbackFont(
+     const FontDescription& description) {
++#if BUILDFLAG(IS_WIN)
++  if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
++      fp && clawbrowser::ShouldFilterLocalFonts(*fp)) {
++    const auto* data = GetFontPlatformData(
++        description, FontFaceCreationParams(AtomicString("Tinos")),
++        AlternateFontName::kLastResort);
++    CHECK(data);
++    return FontDataFromFontPlatformData(data);
++  }
++#endif
+   const FontFaceCreationParams fallback_creation_params(
+       GetFallbackFontFamily(description));
+   const FontPlatformData* font_platform_data = GetFontPlatformData(

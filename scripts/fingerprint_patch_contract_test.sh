@@ -19,9 +19,26 @@ css_screen_patch="${repo_root}/clawbrowser/patches/036-css-media-screen.patch"
 font_enum_patch="${repo_root}/clawbrowser/patches/011-fonts-filter.patch"
 css_font_patch="${repo_root}/clawbrowser/patches/034-css-font-probing.patch"
 font_fallback_patch="${repo_root}/clawbrowser/patches/035-font-fallback-probing.patch"
+windows_strike_patch="${repo_root}/clawbrowser/patches/054-managed-windows-font-rendering.patch"
+managed_strike_header="${repo_root}/clawbrowser/managed_font_rendering.h"
+windows_system_font_patch="${repo_root}/clawbrowser/patches/055-managed-windows-system-fonts.patch"
+local_collection_patch="${repo_root}/clawbrowser/patches/056-local-font-collection-variations.patch"
+worker_descriptor_patch="${repo_root}/clawbrowser/patches/057-worker-font-descriptor-invalidation.patch"
+size_adjust_patch="${repo_root}/clawbrowser/patches/058-font-size-adjust-invalidation.patch"
+metric_override_patch="${repo_root}/clawbrowser/patches/059-font-metric-override-invalidation.patch"
+normalized_canvas_patch="${repo_root}/clawbrowser/patches/060-experimental-normalized-canvas.patch"
+doh_proxy_patch="${repo_root}/clawbrowser/patches/061-managed-proxy-disable-direct-doh.patch"
 verify_script="${repo_root}/clawbrowser/verify/resources/verify.js"
 verify_html="${repo_root}/clawbrowser/verify/resources/verify.html"
 verify_source="${repo_root}/clawbrowser/verify/verify_page.cc"
+
+# Built-in DoH sends LOAD_BYPASS_PROXY probes. Managed launch intent must
+# disable it in effective resolver config, including explicit secure-DNS prefs.
+grep -Fq 'command_line->HasSwitch("fingerprint")' "${doh_proxy_patch}"
+grep -Fq 'command_line->HasSwitch("proxy-server")' "${doh_proxy_patch}"
+grep -Fq 'command_line->HasSwitch("clawbrowser-require-proxy")' "${doh_proxy_patch}"
+grep -Fq 'if (managed_proxy_boundary || (!is_managed && ShouldDisableDohForManaged()))' "${doh_proxy_patch}"
+grep -Fq 'secure_dns_mode = net::SecureDnsMode::kOff;' "${doh_proxy_patch}"
 
 if grep -q 'surface_policy.webgl == "override"' "${webgl_patch}"; then
   echo "WebGL backend values must not be hidden behind surface_policy.webgl." >&2
@@ -64,8 +81,10 @@ if grep -q 'canvas_rendering_context_2d.cc' "${canvas_patch}"; then
   echo "Canvas noise must hook the shared BaseRenderingContext2D path." >&2
   exit 1
 fi
-grep -q 'logical_channel < 3' "${canvas_helper}"
-grep -Fq '&pixel[2 - logical_channel]' "${canvas_helper}"
+grep -Eq '(logical_)?channel < 3' "${canvas_helper}"
+grep -Eq '&pixel\[2 - (logical_)?channel\]' "${canvas_helper}"
+grep -q 'SpecializedTraversalMatchesGenericReference' \
+  "${repo_root}/clawbrowser/test/canvas_noise_unittest.cc"
 grep -q 'buffer.subspan' "${canvas_helper}"
 if grep -q 'std::memcpy' "${canvas_helper}"; then
   echo "Canvas helper must use bounded byte conversions, not raw memcpy." >&2
@@ -117,7 +136,7 @@ grep -q 'invalid_proxy_config' "${startup_source}"
 grep -q 'ManagedProxyPrivacyCapabilityForCommandLine' "${verify_source}"
 grep -q 'data-managed-proxy-privacy="\$i18n{managed_proxy_privacy}"' \
   "${verify_html}"
-grep -q 'capabilityData.dataset.managedProxyPrivacy' "${verify_script}"
+grep -q 'dataset.managedProxyPrivacy' "${verify_script}"
 grep -q 'AppendSwitch(kRequireFingerprintSwitch)' "${startup_source}"
 grep -A35 'void ApplyFingerprintWebGLIsolation' "${startup_source}" |
   grep -q 'AppendSwitch(kDisableWebGLSpoofingSwitch)'
@@ -224,5 +243,53 @@ grep -A10 'void CSSFontSelectorBase::WillUseFontData' "${css_font_patch}" |
   grep -q 'IsLocalFontBlocked'
 grep -q 'ValidateFingerprintForRuntime' "${loader_source}"
 grep -q 'protected font allowlist contains an empty' "${loader_source}"
+
+# Windows has a separate CreateSkFont implementation: the Linux patch alone
+# cannot normalize its system smoothing preferences. This is a source-wiring
+# contract, not a substitute for a Windows browser rendering test.
+grep -q 'fonts/win/font_platform_data_win.cc' "${windows_strike_patch}"
+grep -Fq 'if (fp && clawbrowser::ShouldFilterLocalFonts(*fp))' "${windows_strike_patch}"
+grep -A9 'ShouldFilterLocalFonts' "${windows_strike_patch}" |
+  grep -q 'ApplyManagedFontRendering'
+grep -q 'TextRendering() == kGeometricPrecision' "${windows_strike_patch}"
+for setting in 'setSubpixel(true)' 'setLinearMetrics(true)' \
+    'setEmbeddedBitmaps(false)' 'setForceAutoHinting(false)' \
+    'setEdging(SkFont::Edging::kSubpixelAntiAlias)'; do
+  grep -Fq "${setting}" "${managed_strike_header}"
+  grep -Fq "${setting}" "${repo_root}/clawbrowser/patches/042-managed-linux-font-rendering.patch"
+done
+
+# system-ui is rewritten before CreateFontPlatformData; CSS system font
+# keywords also have a separate Windows host-metrics path.
+grep -A9 'FontCache::SystemFontFamily()' "${windows_system_font_patch}" |
+  grep -Fq '("Arimo")'
+grep -A8 'LayoutThemeFontProvider::SystemFontFamily(' "${windows_system_font_patch}" |
+  grep -q 'ShouldFilterLocalFonts'
+grep -A15 'LayoutThemeFontProvider::SystemFontSize(' "${windows_system_font_patch}" |
+  grep -q 'return DefaultFontSize(document)'
+
+# local() TTC faces must clone the actual collection member, not default zero.
+# This checks wiring only; the five-region browser test proves weight changes.
+grep -q 'core/css/local_font_face_source.cc' "${local_collection_patch}"
+grep -Fq 'fp && clawbrowser::ShouldFilterLocalFonts(*fp)' "${local_collection_patch}"
+grep -Fq 'typeface->openStream(&collection_index)' "${local_collection_patch}"
+grep -Fq 'font_description.GetFontPalette(), collection_index)' "${local_collection_patch}"
+grep -q 'core/css/font_face.cc' "${worker_descriptor_patch}"
+grep -Fq 'DynamicTo<WorkerGlobalScope>(GetExecutionContext())' "${worker_descriptor_patch}"
+grep -Fq 'font_selector = worker->GetFontSelector()' "${worker_descriptor_patch}"
+grep -q 'core/css/font_face.cc' "${size_adjust_patch}"
+grep -Fq 'old_size_adjust != size_adjust_' "${size_adjust_patch}"
+grep -Fq 'InvalidateFontFaceOnDescriptorUpdate()' "${size_adjust_patch}"
+for descriptor in Ascent Descent LineGap; do
+  grep -A5 "AtRuleDescriptorID::${descriptor}Override" "${metric_override_patch}" |
+    grep -Fq 'InvalidateFontFaceOnDescriptorUpdate()'
+done
+
+# The experiment must be explicit in both parent and child and retain the
+# protected snapshot-copy path. These source checks do not replace a build.
+grep -Fq 'clawbrowser-experimental-normalized-canvas' "${normalized_canvas_patch}"
+grep -Fq 'command_line.HasSwitch(kExperimentalNormalizedCanvasSwitch)' "${loader_source}"
+grep -Fq 'command_line->HasSwitch(kExperimentalNormalizedCanvasSwitch)' "${startup_source}"
+grep -Fq 'fp->experimental_normalized_canvas ||' "${normalized_canvas_patch}"
 
 echo "PASS"

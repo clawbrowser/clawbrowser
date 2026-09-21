@@ -5,14 +5,16 @@
 // Runtime-owned capability used by nextctl before it trusts a managed
 // session. C++ derives it from the active fingerprint/proxy launch contract;
 // it must never be inferred from the browser version alone.
+function managedProxyPrivacyCapability(data) {
+  const parsed = Number.parseInt(
+    data && data.dataset.managedProxyPrivacy || '0', 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   const capabilityData = document.getElementById('expected-data');
-  const managedProxyPrivacy = Number.parseInt(
-    capabilityData && capabilityData.dataset.managedProxyPrivacy || '0', 10);
   window.__clawbrowser_capabilities = Object.freeze({
-    managed_proxy_privacy: Number.isFinite(managedProxyPrivacy)
-      ? managedProxyPrivacy
-      : 0,
+    managed_proxy_privacy: managedProxyPrivacyCapability(capabilityData),
   });
 }
 
@@ -191,14 +193,109 @@ function surfaceSkipCheck(surface, policyMode, spoofingEnabled) {
   };
 }
 
+function iceCandidateType(candidate) {
+  const explicitType = String(candidate && candidate.type || '').toLowerCase();
+  if (explicitType) {
+    return explicitType;
+  }
+
+  const candidateLine = String(candidate && candidate.candidate || candidate || '');
+  const match = candidateLine.match(/\styp\s+(host|srflx|prflx|relay)(?:\s|$)/i);
+  return match ? match[1].toLowerCase() : 'unknown';
+}
+
+function iceCandidateRelatedAddress(candidate) {
+  const explicitAddress = String(
+    candidate && candidate.relatedAddress || ''
+  ).toLowerCase();
+  if (explicitAddress) {
+    return explicitAddress;
+  }
+
+  const candidateLine = String(candidate && candidate.candidate || candidate || '');
+  const match = candidateLine.match(/\sraddr\s+([^\s]+)/i);
+  return match ? match[1].toLowerCase() : '';
+}
+
+function sdpIceCandidates(sdp) {
+  return String(sdp || '')
+    .split(/\r?\n/)
+    .filter(line => /^a=candidate:/i.test(line))
+    .map(line => ({ candidate: line.slice(2), source: 'sdp' }));
+}
+
+function isUnspecifiedIceAddress(address) {
+  const normalized = String(address || '').trim().toLowerCase();
+  if (!normalized || normalized === '0.0.0.0' ||
+      normalized === '::' || normalized === '[::]') {
+    return true;
+  }
+
+  // RTCIceCandidateErrorEvent.hostCandidate is serialized as address:port.
+  // Accept only the port-bearing forms of the same unspecified addresses.
+  return /^0\.0\.0\.0:\d+$/.test(normalized) ||
+    /^\[::\]:\d+$/.test(normalized) || /^:::\d+$/.test(normalized);
+}
+
+function summarizeWebRtcCandidates(result) {
+  const normalizedCandidates = result && Array.isArray(result.candidates)
+    ? result.candidates
+    : [];
+  const iceErrors = result && Array.isArray(result.errors)
+    ? result.errors
+    : [];
+  const gatheringComplete = Boolean(result && result.complete);
+  const candidateTypes = normalizedCandidates.map(iceCandidateType);
+  const unsafeTypes = candidateTypes.filter(type => type !== 'relay');
+  const relatedAddresses = normalizedCandidates
+    .map(iceCandidateRelatedAddress)
+    .filter(address => !isUnspecifiedIceAddress(address));
+  const exposedErrorAddresses = iceErrors.flatMap(error => [
+    error && error.address,
+    error && error.hostCandidate,
+  ]).filter(address => !isUnspecifiedIceAddress(address));
+  const pass = gatheringComplete && unsafeTypes.length === 0 &&
+    relatedAddresses.length === 0 && exposedErrorAddresses.length === 0;
+  let actual = candidateTypes.length === 0
+    ? 'gathering complete; no ICE candidates exposed'
+    : `candidate types: ${Array.from(new Set(candidateTypes)).join(', ')}`;
+
+  let detail = 'no direct or related address exposed';
+  if (unsafeTypes.length > 0) {
+    detail = `unsafe candidate types: ${Array.from(new Set(unsafeTypes)).join(', ')}`;
+  } else if (relatedAddresses.length > 0) {
+    detail = 'relay candidate exposed a related address';
+  } else if (exposedErrorAddresses.length > 0) {
+    actual = 'ICE candidate error exposed an address';
+    detail = 'ICE candidate error exposed an address';
+  } else if (!gatheringComplete) {
+    actual = 'ICE gathering timed out';
+    detail = 'ICE gathering did not complete';
+  }
+
+  return {
+    surface: 'webrtc.iceCandidates',
+    pass,
+    expected: 'completed gathering; relay candidates only; no related or ICE error address',
+    actual,
+    detail,
+  };
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     exhaustProxyRetries,
     formatProxyLocation,
     formatProxyScheme,
+    managedProxyPrivacyCapability,
     nextProxyRetryAction,
+    iceCandidateType,
+    iceCandidateRelatedAddress,
+    isUnspecifiedIceAddress,
+    sdpIceCandidates,
     shouldRetryProxyResult,
     shouldValidateSurface,
+    summarizeWebRtcCandidates,
     surfaceSkipCheck,
     summarizeProxyResult
   };
@@ -210,6 +307,7 @@ if (typeof document !== 'undefined') {
   const expected = !data || data.dataset.hasExpectedValues !== 'true'
     ? null
     : {
+        has_proxy: data.dataset.hasProxy === 'true',
         user_agent: data.dataset.userAgent || '',
         platform: data.dataset.platform || '',
         language_primary: data.dataset.languagePrimary || '',
@@ -483,6 +581,122 @@ if (typeof document !== 'undefined') {
     }
   }
 
+  function collectIceCandidates(iceServers) {
+    return new Promise((resolve, reject) => {
+      const peerConnection = new RTCPeerConnection({ iceServers });
+      const candidates = [];
+      const errors = [];
+      let resolved = false;
+      let timeoutId;
+      const finish = async complete => {
+        if (resolved) {
+          return;
+        }
+        resolved = true;
+        clearTimeout(timeoutId);
+        const sdpCandidates = sdpIceCandidates(
+          peerConnection.localDescription && peerConnection.localDescription.sdp
+        );
+        const statsCandidates = [];
+        let statsComplete = true;
+        let statsTimeoutId;
+        try {
+          const stats = await Promise.race([
+            peerConnection.getStats(),
+            new Promise((_, reject) => {
+              statsTimeoutId = setTimeout(
+                () => reject(new Error('getStats timed out')),
+                2000
+              );
+            }),
+          ]);
+          stats.forEach(report => {
+            if (report.type !== 'local-candidate') {
+              return;
+            }
+            statsCandidates.push({
+              candidate: '',
+              type: report.candidateType || '',
+              address: report.address || report.ip || '',
+              relatedAddress: report.relatedAddress || '',
+              source: 'stats',
+            });
+          });
+        } catch (error) {
+          statsComplete = false;
+        } finally {
+          clearTimeout(statsTimeoutId);
+        }
+        peerConnection.close();
+        resolve({
+          candidates: [
+            ...candidates,
+            ...sdpCandidates,
+            ...statsCandidates,
+          ],
+          errors,
+          complete: complete && statsComplete,
+        });
+      };
+
+      peerConnection.onicecandidate = event => {
+        if (!event.candidate) {
+          if (peerConnection.iceGatheringState === 'complete') {
+            void finish(true);
+          }
+          return;
+        }
+        candidates.push({
+          candidate: event.candidate.candidate || '',
+          type: event.candidate.type || '',
+          address: event.candidate.address || '',
+          relatedAddress: event.candidate.relatedAddress || '',
+          source: 'event',
+        });
+      };
+      peerConnection.onicecandidateerror = event => {
+        errors.push({
+          address: event.address || '',
+          hostCandidate: event.hostCandidate || '',
+          port: event.port || 0,
+        });
+      };
+      peerConnection.onicegatheringstatechange = () => {
+        if (peerConnection.iceGatheringState === 'complete') {
+          void finish(true);
+        }
+      };
+
+      peerConnection.createDataChannel('clawbrowser-webrtc-verify');
+      peerConnection.createOffer()
+        .then(offer => peerConnection.setLocalDescription(offer))
+        .catch(error => {
+          clearTimeout(timeoutId);
+          peerConnection.close();
+          reject(error);
+        });
+      timeoutId = setTimeout(() => void finish(false), 7000);
+    });
+  }
+
+  async function verifyWebRtcCandidates() {
+    try {
+      // The built-in diagnostic must not contact a third-party STUN service.
+      // Controlled STUN/TURN endpoints belong in opt-in integration tests.
+      const observation = await collectIceCandidates([]);
+      setCheck(summarizeWebRtcCandidates(observation));
+    } catch (error) {
+      setCheck({
+        surface: 'webrtc.iceCandidates',
+        pass: false,
+        expected: 'completed gathering; relay candidates only; no related or ICE error address',
+        actual: 'check failed',
+        detail: error && error.message ? error.message : String(error),
+      });
+    }
+    completeAsyncCheck('webrtc');
+  }
+
   // Navigator
   check('navigator.userAgent', expected.user_agent, navigator.userAgent);
   check('navigator.platform', expected.platform, navigator.platform);
@@ -735,6 +949,11 @@ if (typeof document !== 'undefined') {
         finishVoices(speechSynthesis.getVoices());
       }, 3000);
     }
+  }
+
+  if (expected.has_proxy) {
+    beginAsyncCheck('webrtc');
+    void verifyWebRtcCandidates();
   }
 
   beginAsyncCheck('proxy');

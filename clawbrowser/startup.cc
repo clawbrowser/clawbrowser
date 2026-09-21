@@ -38,7 +38,10 @@
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "crypto/hash.h"
 
-#if BUILDFLAG(IS_LINUX)
+#if BUILDFLAG(IS_MAC)
+#include "base/apple/bundle_locations.h"
+#endif
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
 #include "font_catalog_build.h"
 #endif
 
@@ -169,6 +172,13 @@ void ApplyFingerprintWebGLIsolation(const ClawArgs& args,
   // bundled fallback adapter as well; otherwise WebGL reports SwiftShader
   // while navigator.gpu still exposes the host Metal/D3D/Vulkan device.
   command_line->AppendSwitchASCII("use-webgpu-adapter", "swiftshader");
+#if BUILDFLAG(IS_LINUX)
+  // Canvas2D otherwise selects CPU or GPU rasterization independently of the
+  // WebGL adapter. Those paths produce different observable pixels even with
+  // identical bundled fonts. Keep one raster path for Linux identities;
+  // vanilla mode above retains the user's acceleration preference.
+  command_line->AppendSwitch("disable-accelerated-2d-canvas");
+#endif
 
   // Renderer/GPU children reconstruct the surface policy from the profile and
   // raw command-line switches. Force the resolved native WebGL policy onto
@@ -443,7 +453,7 @@ void ApplyRuntimeRequestHints(const base::CommandLine& command_line,
   // SwiftShader would keep asking the backend for an incompatible renderer.
   request->runtime_gpu = RuntimeGPUHint(command_line);
   request->runtime_headless = RuntimeHeadless(command_line);
-#if BUILDFLAG(IS_LINUX)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
   request->runtime_font_catalog = kLinuxFontCatalogID;
 #else
   request->runtime_font_catalog.reset();
@@ -544,6 +554,20 @@ ApplyDevProxyOverride() {
 }
 
 base::expected<void, std::string> ConfigureBundledFontsBeforeThreads() {
+#if BUILDFLAG(IS_WIN)
+  base::FilePath module_dir;
+  if (!base::PathService::Get(base::DIR_MODULE, &module_dir))
+    return base::unexpected("cannot locate managed font resource module");
+  auto valid = ValidateFontCatalog(module_dir.AppendASCII(kFontCatalogDirectory),
+                                   kFontCatalogManifestHash);
+  if (!valid.has_value()) return base::unexpected(valid.error());
+#endif
+#if BUILDFLAG(IS_MAC)
+  auto valid = ValidateFontCatalog(
+      base::apple::FrameworkBundlePath().AppendASCII("Resources").AppendASCII(kFontCatalogDirectory),
+      kFontCatalogManifestHash);
+  if (!valid.has_value()) return base::unexpected(valid.error());
+#endif
 #if BUILDFLAG(IS_LINUX)
   base::FilePath executable_dir;
   if (!base::PathService::Get(base::DIR_EXE, &executable_dir))
@@ -804,7 +828,7 @@ base::expected<StartupResult, std::string> RunStartup(
   // The installed catalog is authoritative even with cached profiles or an
   // older backend that ignores the capability hint. Keep supported explicit
   // subsets; replace an entirely incompatible legacy list with the bundle.
-#if BUILDFLAG(IS_LINUX)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
   auto font_profile = profile_manager.ReadProfile(fp_id);
   if (!font_profile.has_value()) {
     return base::ok(FailManagedFingerprintStartup(
@@ -858,7 +882,8 @@ base::expected<StartupResult, std::string> RunStartup(
           ResolveSurfaceSpoofing(
               args.webgl_spoofing_enabled(),
               args.webgl_spoofing_suppressed(),
-              loaded && loaded->surface_policy.webgl == "override"));
+              loaded && loaded->surface_policy.webgl == "override"),
+      command_line->HasSwitch(kExperimentalNormalizedCanvasSwitch));
 
   auto dev_proxy_result = ApplyDevProxyOverride();
   if (!dev_proxy_result.has_value()) {

@@ -1,0 +1,164 @@
+--- a/third_party/skia/gn/core.gni
++++ b/third_party/skia/gn/core.gni
+@@ -671,3 +671,4 @@
+   "$_src/opts/SkClawbrowserFma.h",
+   "$_src/opts/SkClawbrowserSrcOver.h",
++  "$_src/opts/SkClawbrowserHalf.h",
+   "$_src/opts/SkSwizzler_opts.inc",
+--- /dev/null
++++ b/third_party/skia/src/opts/SkClawbrowserHalf.h
+@@ -0,0 +1,100 @@
++// IEEE binary16 conversion for raster paths without hardware half support.
++#ifndef SkClawbrowserHalf_DEFINED
++#define SkClawbrowserHalf_DEFINED
++#include <bit>
++#include <cstdint>
++#if defined(__SSE2__) || defined(_M_X64)
++#include <emmintrin.h>
++#endif
++#if defined(_MSC_VER)
++#define SK_CLAWBROWSER_HALF_INLINE __forceinline
++#else
++#define SK_CLAWBROWSER_HALF_INLINE inline __attribute__((always_inline))
++#endif
++namespace skia_private {
++SK_CLAWBROWSER_HALF_INLINE uint16_t ClawbrowserFloatToHalf(float f) {
++    const uint32_t bits = std::bit_cast<uint32_t>(f);
++    const uint32_t sign = (bits >> 16) & 0x8000;
++    const uint32_t exponent = (bits >> 23) & 255;
++    uint32_t mantissa = bits & 0x7fffff;
++    if (exponent == 255) {
++        return sign | 0x7c00 | (mantissa ? ((mantissa >> 13) | 0x200) : 0);
++    }
++    if (exponent > 142) return sign | 0x7c00;
++    if (exponent < 102) return sign;
++    if (exponent < 113) {
++        mantissa |= 0x800000;
++        const unsigned shift = 126 - exponent;  // 14..24, never an invalid shift.
++        const uint32_t truncated = mantissa >> shift;
++        const uint32_t remainder = mantissa & ((1u << shift) - 1);
++        const uint32_t halfway = 1u << (shift - 1);
++        return sign | (truncated + (remainder > halfway ||
++                                    (remainder == halfway && (truncated & 1))));
++    }
++    // Round to nearest, ties to even. Carry may increment the half exponent.
++    return sign | (((exponent - 112) << 10) +
++                   ((mantissa + 0xfff + ((mantissa >> 13) & 1)) >> 13));
++}
++SK_CLAWBROWSER_HALF_INLINE float ClawbrowserHalfToFloat(uint16_t half) {
++    const uint32_t sign = uint32_t(half & 0x8000) << 16;
++    uint32_t exponent = (half >> 10) & 31;
++    uint32_t mantissa = half & 1023;
++    uint32_t bits;
++    if (exponent == 31) {
++        bits = sign | 0x7f800000 | (mantissa << 13) | (mantissa ? 0x400000 : 0);
++    } else if (exponent == 0) {
++        if (mantissa == 0) return std::bit_cast<float>(sign);
++        int unbiased = -14;
++        while ((mantissa & 1024) == 0) { mantissa <<= 1; --unbiased; }
++        bits = sign | (uint32_t(unbiased + 127) << 23) | ((mantissa & 1023) << 13);
++    } else {
++        bits = sign | ((exponent + 112) << 23) | (mantissa << 13);
++    }
++    return std::bit_cast<float>(bits);
++}
++#if defined(__SSE2__) || defined(_M_X64)
++// Low four half lanes; SSE2-only so the baseline does not require F16C.
++SK_CLAWBROWSER_HALF_INLINE __m128 ClawbrowserHalfToFloat4(__m128i packed) {
++    const __m128i h = _mm_unpacklo_epi16(packed, _mm_setzero_si128());
++    const __m128i mag = _mm_and_si128(h, _mm_set1_epi32(0x7fff));
++    const __m128i zero = _mm_cmpeq_epi32(mag, _mm_setzero_si128());
++    const __m128i special = _mm_or_si128(
++        _mm_andnot_si128(zero, _mm_cmplt_epi32(mag, _mm_set1_epi32(0x400))),
++        _mm_cmpgt_epi32(mag, _mm_set1_epi32(0x7bff)));
++    if (_mm_movemask_epi8(special)) {
++        alignas(16) uint16_t source[8];
++        _mm_store_si128(reinterpret_cast<__m128i*>(source), packed);
++        return _mm_setr_ps(ClawbrowserHalfToFloat(source[0]), ClawbrowserHalfToFloat(source[1]),
++                           ClawbrowserHalfToFloat(source[2]), ClawbrowserHalfToFloat(source[3]));
++    }
++    const __m128i sign = _mm_slli_epi32(_mm_and_si128(h, _mm_set1_epi32(0x8000)), 16);
++    const __m128i normal = _mm_add_epi32(_mm_slli_epi32(mag, 13), _mm_set1_epi32(112 << 23));
++    return _mm_castsi128_ps(_mm_or_si128(sign, _mm_andnot_si128(zero, normal)));
++}
++SK_CLAWBROWSER_HALF_INLINE __m128i ClawbrowserFloatToHalf4(__m128 f) {
++    const __m128i bits = _mm_castps_si128(f);
++    const __m128i mag = _mm_and_si128(bits, _mm_set1_epi32(0x7fffffff));
++    const __m128i zero = _mm_cmpeq_epi32(mag, _mm_setzero_si128());
++    const __m128i special = _mm_or_si128(
++        _mm_andnot_si128(zero, _mm_cmplt_epi32(mag, _mm_set1_epi32(0x38800000))),
++        _mm_cmpgt_epi32(mag, _mm_set1_epi32(0x477fffff)));
++    if (_mm_movemask_epi8(special)) {
++        alignas(16) float source[4];
++        _mm_store_ps(source, f);
++        return _mm_setr_epi16(ClawbrowserFloatToHalf(source[0]), ClawbrowserFloatToHalf(source[1]),
++                              ClawbrowserFloatToHalf(source[2]), ClawbrowserFloatToHalf(source[3]),
++                              0, 0, 0, 0);
++    }
++    const __m128i sign = _mm_and_si128(_mm_srli_epi32(bits, 16), _mm_set1_epi32(0x8000));
++    const __m128i tie = _mm_and_si128(_mm_srli_epi32(mag, 13), _mm_set1_epi32(1));
++    const __m128i rounded = _mm_add_epi32(mag, _mm_add_epi32(_mm_set1_epi32(0xfff), tie));
++    const __m128i normal = _mm_sub_epi32(_mm_srli_epi32(rounded, 13), _mm_set1_epi32(112 << 10));
++    const __m128i half = _mm_or_si128(sign, _mm_andnot_si128(zero, normal));
++    // SSE2 only has signed 32->16 packing. Bias into its range, then unbias.
++    return _mm_xor_si128(_mm_packs_epi32(_mm_sub_epi32(half, _mm_set1_epi32(32768)),
++                                        _mm_setzero_si128()), _mm_set1_epi16(-32768));
++}
++#endif
++}  // namespace skia_private
++#undef SK_CLAWBROWSER_HALF_INLINE
++#endif
+--- a/third_party/skia/src/opts/SkRasterPipeline_opts.h
++++ b/third_party/skia/src/opts/SkRasterPipeline_opts.h
+@@ -19,3 +19,4 @@
+ #include "src/shaders/SkPerlinNoiseShaderType.h"
+ #include "src/opts/SkClawbrowserFma.h"
++#include "src/opts/SkClawbrowserHalf.h"
+ #include "src/sksl/tracing/SkSLTraceHook.h"
+@@ -1440,11 +1441,13 @@
+ #else
+-    // Remember, a half is 1-5-10 (sign-exponent-mantissa) with 15 exponent bias.
+-    U32 sem = expand(h),
+-        s   = sem & 0x8000,
+-         em = sem ^ s;
+-
+-    // Convert to 1-8-23 float with 127 bias, flushing denorm halfs (including zero) to zero.
+-    auto denorm = (I32)em < 0x0400;      // I32 comparison is often quicker, and always safe here.
+-    return if_then_else(denorm, F0
+-                              , sk_bit_cast<F>( (s<<16) + (em<<13) + ((127-15)<<23) ));
++#if defined(SKRP_CPU_SSE2)
++    return (F)skia_private::ClawbrowserHalfToFloat4(_mm_loadl_epi64(reinterpret_cast<const __m128i*>(&h)));
++#else
++    uint16_t source[sizeof(U16) / sizeof(uint16_t)];
++    float result[sizeof(F) / sizeof(float)];
++    memcpy(source, &h, sizeof(h));
++    for (size_t i = 0; i < sizeof(F) / sizeof(float); ++i) {
++        result[i] = skia_private::ClawbrowserHalfToFloat(source[i]);
++    }
++    return sk_unaligned_load<F>(result);
++#endif
+ #endif
+@@ -1463,11 +1462,14 @@
+ #else
+-    // Remember, a float is 1-8-23 (sign-exponent-mantissa) with 127 exponent bias.
+-    U32 sem = sk_bit_cast<U32>(f),
+-        s   = sem & 0x80000000,
+-         em = sem ^ s;
+-
+-    // Convert to 1-5-10 half with 15 bias, flushing denorm halfs (including zero) to zero.
+-    auto denorm = (I32)em < 0x38800000;  // I32 comparison is often quicker, and always safe here.
+-    return pack((U32)if_then_else(denorm, I32_(0)
+-                                        , (I32)((s>>16) + (em>>13) - ((127-15)<<10))));
++#if defined(SKRP_CPU_SSE2)
++    const __m128i result = skia_private::ClawbrowserFloatToHalf4((__m128)f);
++    return sk_unaligned_load<U16>(&result);
++#else
++    float source[sizeof(F) / sizeof(float)];
++    uint16_t result[sizeof(U16) / sizeof(uint16_t)];
++    memcpy(source, &f, sizeof(f));
++    for (size_t i = 0; i < sizeof(F) / sizeof(float); ++i) {
++        result[i] = skia_private::ClawbrowserFloatToHalf(source[i]);
++    }
++    return sk_unaligned_load<U16>(result);
++#endif
+ #endif

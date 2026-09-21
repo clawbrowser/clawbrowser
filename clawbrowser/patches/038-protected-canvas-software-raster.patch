@@ -1,0 +1,50 @@
+diff --git a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+--- a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
++++ b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+@@ -26,6 +26,8 @@
+  */
+ 
+ #include "third_party/blink/renderer/core/html/canvas/html_canvas_element.h"
++
++#include "clawbrowser/fingerprint_accessor.h"
+ 
+ #include <math.h>
+ 
+@@ -1483,6 +1485,13 @@
+ }
+ 
+ bool HTMLCanvasElement::ShouldAccelerate() const {
++  // Protected Canvas2D must not expose different GPU/CPU raster results when
++  // a page changes willReadFrequently. Native policy and WebGL stay untouched.
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  if (fp && fp->canvas_spoofing_enabled &&
++      fp->surface_policy.canvas == "override") {
++    return false;
++  }
+   if (context_ && !IsRenderingContext2D())
+     return false;
+ 
+diff --git a/third_party/blink/renderer/modules/canvas/offscreencanvas2d/offscreen_canvas_rendering_context_2d.cc b/third_party/blink/renderer/modules/canvas/offscreencanvas2d/offscreen_canvas_rendering_context_2d.cc
+--- a/third_party/blink/renderer/modules/canvas/offscreencanvas2d/offscreen_canvas_rendering_context_2d.cc
++++ b/third_party/blink/renderer/modules/canvas/offscreencanvas2d/offscreen_canvas_rendering_context_2d.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "third_party/blink/renderer/modules/canvas/offscreencanvas2d/offscreen_canvas_rendering_context_2d.h"
+ 
++#include "clawbrowser/fingerprint_accessor.h"
++
+ #include <optional>
+ 
+ #include "base/metrics/histogram_functions.h"
+@@ -223,7 +225,11 @@
+   }
+ 
+   gfx::Size surface_size(host->width(), host->height());
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  const bool protected_canvas = fp && fp->canvas_spoofing_enabled &&
++                                fp->surface_policy.canvas == "override";
+   const bool use_gpu_raster =
++      !protected_canvas &&
+       SharedGpuContext::IsGpuCompositingEnabled() &&
+       RuntimeEnabledFeatures::Accelerated2dCanvasEnabled() &&
+       !(CreationAttributes().will_read_frequently ==

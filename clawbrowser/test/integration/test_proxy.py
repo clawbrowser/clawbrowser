@@ -1,10 +1,16 @@
-"""Integration tests: proxy and WebRTC leak prevention."""
+"""Integration tests: managed fingerprint proxies and WebRTC leak prevention."""
 
 import json
+import os
 
 import pytest
+from stun_control import assert_stun_server_responds
 
 from clawbrowser.test.integration.test_surfaces import _timezones_match
+from clawbrowser.test.integration.webrtc_probe import (
+    assert_relay_only,
+    collect_webrtc_observations,
+)
 
 
 async def open_popup(page, url: str):
@@ -27,6 +33,7 @@ def expected_verify_surfaces(data):
         surfaces.append("plugins")
     if "proxy" in data["response"]:
         surfaces.append("proxy")
+        surfaces.append("webrtc.iceCandidates")
     if "speech_voices" in fingerprint:
         surfaces.append("speechSynthesis.voices")
     return surfaces
@@ -45,36 +52,43 @@ def json_surface(result, surface):
 
 
 @pytest.mark.asyncio
-async def test_webrtc_no_host_candidates(browser_with_fingerprint):
-    """When proxy is configured, WebRTC should only produce relay candidates."""
+async def test_fingerprint_proxy_webrtc_no_direct_candidates(
+    browser_with_fingerprint,
+):
+    """A fingerprint-backed proxy must not expose direct WebRTC routes."""
     page, data = browser_with_fingerprint
     if "proxy" not in data["response"]:
         pytest.skip("No proxy in test fixture")
 
-    script = """() => new Promise((resolve) => {
-        const pc = new RTCPeerConnection({
-            iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
-        });
-        pc.createDataChannel('test');
-        const candidates = [];
-        pc.onicecandidate = (e) => {
-            if (e.candidate) {
-                candidates.push(e.candidate.candidate);
-            } else {
-                resolve(candidates);
-            }
-        };
-        pc.createOffer().then(offer => pc.setLocalDescription(offer));
-        setTimeout(() => resolve(candidates), 5000);
-    })"""
+    observations = await collect_webrtc_observations(
+        page,
+        [[]],
+    )
+    assert_relay_only(observations)
 
-    candidates = await page.evaluate(script)
-    for candidate in candidates:
-        parts = candidate.split(" ")
-        if len(parts) > 7:
-            assert parts[7] not in ("host", "srflx"), (
-                f"Non-relay candidate found: {candidate}"
-            )
+
+@pytest.mark.asyncio
+async def test_webrtc_controlled_stun_no_direct_candidates(
+    browser_with_fingerprint,
+):
+    """An opt-in controlled STUN probe must expose no direct route."""
+    stun_url = os.environ.get("CLAWBROWSER_REAL_STUN_URL")
+    if not stun_url:
+        pytest.skip("CLAWBROWSER_REAL_STUN_URL is not configured")
+
+    # Empty browser candidates are meaningful only with a live endpoint.
+    # This unprotected operator-side control is not a browser leak.
+    assert_stun_server_responds(stun_url)
+
+    page, data = browser_with_fingerprint
+    if "proxy" not in data["response"]:
+        pytest.skip("No proxy in test fixture")
+
+    observations = await collect_webrtc_observations(
+        page,
+        [[{"urls": stun_url}]],
+    )
+    assert_relay_only(observations)
 
 
 @pytest.mark.asyncio
@@ -109,6 +123,8 @@ async def test_verify_page(verify_browser_with_fingerprint):
         assert proxy_check["pass"] is True
         assert proxy_check["actual_country"] == "US"
         assert proxy_check["actual_city"] == "New York"
+        webrtc_check = check_for_surface(result, "webrtc.iceCandidates")
+        assert webrtc_check["pass"] is True
     if "speech_voices" in fp:
         actual, expected = json_surface(result, "speechSynthesis.voices")
         assert actual == expected == fp["speech_voices"]
@@ -146,6 +162,8 @@ async def test_verify_page_proxy_mismatch(verify_browser_with_proxy_mismatch):
     assert proxy_check["pass"] is False
     assert proxy_check["actual_country"] == "CA"
     assert proxy_check["actual_city"] == "Toronto"
+    webrtc_check = check_for_surface(result, "webrtc.iceCandidates")
+    assert webrtc_check["pass"] is True
     if "speech_voices" in fp:
         actual, expected = json_surface(result, "speechSynthesis.voices")
         assert actual == expected == fp["speech_voices"]

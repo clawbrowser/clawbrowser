@@ -1,0 +1,411 @@
+# Linux privacy acceptance — 2026-09-14
+
+Status: **Draft; not release approval.** No production deployment or merge.
+
+## Worker platform correction (10:34 UTC)
+
+A new Dedicated Worker regression failed on the previously tested binary:
+the fixture's page reported `MacIntel`, but its worker reported the host's
+`Linux x86_64`. The other seven compared identity fields agreed. This is a
+real cross-context platform disclosure, not an explanation of PixelScan's
+masking verdict for the same-platform Linux profile.
+
+Commit `83013e04ac7a1ff8189f63247e651f6cf6772091` adds the fingerprint platform
+override in `NavigatorBase::platform()` and the regression test. Incremental
+Chromium build completed successfully in 5m36s. New executable SHA-256:
+`4880b44c98a172232b2ef81bd1bd0c8448b95409f5d81c50d3821eba4f95c5d7`.
+The prior relocated artifact was retained; the new copy contains refreshed
+binary, snapshots and resource packs. It uses the same pinned font bundle.
+
+Retest results on Linux, sandbox enabled:
+
+- Dedicated Worker regression and adjacent navigator checks: **8 passed**,
+  headful, 9.20s.
+- Entire `test_surfaces.py`: **43 passed, 1 skipped**, headful, 56.84s. The
+  skipped native-canvas case is inapplicable to this override-policy fixture.
+- Compiled C++ suite: **211 passed**.
+- Real candidate backend/API/proxy integration: **2 passed**, 5.214s, using
+  backend `e876e082f36ec743c23a910383ab733a9bfd0f8f`.
+
+The first relocated launch encountered the host's missing per-path AppArmor
+user-namespace permission. Adding the same exact-path rule as the previous
+artifact resolved this environment failure without disabling Chromium sandbox.
+This is not a signed release package, desktop UI
+acceptance, or cross-platform verification. Remaining release gates below still
+apply. Earlier external-site screenshots were captured on the older binary.
+
+### Additional worker contexts (10:53 UTC)
+
+The identity regression now covers Dedicated, Shared and Service Workers.
+All three passed headful on `4880b44` in 3.57s. Separate negative-control runs
+on `93b36fd` reproduce `MacIntel` versus host `Linux x86_64` in both Shared and
+Service Workers (the original Dedicated negative was already recorded).
+The service worker runs from the integration fixture's loopback HTTP origin;
+its registration is removed after the check. This is a real renderer/runtime
+test against a controlled fixture, not a desktop account or external-site E2E.
+This extension changes tests only; the verified binary is unchanged.
+
+### QA archive round trip
+
+Archive SHA-256:
+`4f10c3424b86cd56c486cc75834b15b63b0fceedaa558be61afa165976a949a1`.
+The extracted tree matched the source tree byte-for-byte, including executable
+`4880b44`. Headful worker/font/complex-text checks: **10 passed**, 14.81s.
+An initial font test returned an empty CDP glyph-usage list before layout;
+the test now awaits font readiness and forces sample layout before querying
+used fonts. The catalog test then passed ten consecutive runs without a binary
+change. The initial failure is retained in the QA evidence.
+
+The real API/proxy run from the extracted tree was **1 passed, 1 failed**:
+one launch hit `ERR_TIMED_OUT`. Corresponding backend logs now report caller
+context cancellation after approximately ten seconds, not a generator-budget
+timeout. Archive integrity does not close this intermittent launch issue.
+This manually assembled QA archive is not the signed release pipeline output.
+
+## Tested artifact
+
+- Linux x86_64, Ubuntu 26.04, headful under Xvfb, sandbox enabled.
+- Chromium 151.0.7922.109; executable SHA-256
+  `93b36fd816c00d14a9ae4c6be13ed53ff58cd40b450807f02d99831a38ab71bf`.
+- Real candidate backend and authorized managed proxy, not cached fixtures.
+- GeoLite2-City loaded read-only; database build June 12, 2026. This does not
+  certify current city-level geolocation accuracy.
+
+## New evidence
+
+Actual backend integration tests: 2 passed. Headful Verify: 32 passed and 3
+skipped, not 35 active passes. Skips concern native WebGL checks. Direct WebGL1
+and WebGL2 contexts are available and expose coherent SwiftShader. A physical
+GPU machine remains necessary to confirm physical-GPU isolation there.
+
+AmIUnique observed the profile screen, matching HTTP/JS UA, and bundled fonts.
+PixelScan fingerprint scan reported **Masking detected**. This remains unresolved;
+neither a detector score nor this page alone proves the font isolation contract.
+
+### PixelScan WebRTC checker: red verdict is not evidence of host-IP leakage
+
+The real page at <https://pixelscan.net/webrtc-check> was opened via its observed
+navigation link and the Start Check button was clicked. Screenshot inspection
+confirmed a red verdict with empty local and external ICE/STUN/TURN fields.
+Its displayed address did not match either address family of the QA host.
+
+Network observation identified that same displayed address in the HTTP response
+from `/s/api/wr`. Static inspection of the downloaded checker module explains
+the verdict: its success flag requires the response's `publicIp` to occur in
+the concatenated external IPv4/IPv6 STUN/TURN arrays. With all those arrays
+empty, success is false and the UI renders “Potential Leak”. Thus absence of
+candidates is also classified as a leak by this checker.
+
+Checker module SHA-256:
+`39152720f7308930a1db7e430f4cce8bb4c57bdb2689d04b7e4f78e42e8d4173`.
+Downloaded vendor source is not redistributed here. This finding does not
+justify synthesizing candidates or changing browser behavior to obtain a green
+badge. Functional relay and host-egress blocking require separate controlled
+network tests; those cannot be replaced with this screenshot.
+
+### UA version investigation
+
+The backend intentionally selects a full Chrome version from a same-major
+catalog, rather than exposing the executable's exact build. The observed
+151.0.787x.0 values are explained by `ResolveRuntimeBrowserVersion`, not by an
+unexpected old executable. Captured UA, `uaFullVersion` and Chrome/Chromium
+`fullVersionList` values agree. Focused backend version/header tests passed.
+This does not establish the cause of the general Masking detected verdict.
+
+## Startup deadline follow-up
+
+The observed cancellation was preceded by proxy geo lookup, not evidence of a
+15-second Python hang. Browser requests allowed only10s while proxy discovery
+allowed15s. Backend PR3 now bounds generation end-to-end at30s and defaults its
+HTTP write timeout to40s; explicitly overridden deployments need the same review.
+Browser PR31 allows35s for generation and20s for verification. Portable nextctl
+readiness allows60s; caller cancellation remains respected.
+
+New Linux executable SHA256:
+`c0e9cfad3f6ebe254be3ff24b4d781a9dc801e62833045c3e674835f7fe944c1`.
+213 C++ tests passed. Two new deadline tests fail with the old10s implementation
+and pass with the change. A loopback relay delaying real backend generation
+responses11s produced two ERR_TIMED_OUT failures on4880b44 and two passes on
+c0e9cfa. Ordinary real backend tests also passed2/2. This is a controlled response
+delay, not a claim that an unreliable external proxy can never time out.
+Headful surfaces passed45 with1 existing native-canvas-policy skip in56.00s.
+QA backend image4427c2f is running; the previous container was retained. The
+temporary delay relay is stopped. No production deployment or merge performed.
+
+## Active-catalog packaging
+
+The release copy function previously included stale font catalogs from an
+incremental build output. It now reads the active catalog ID from catalog_build.json,
+rejects unsafe IDs and missing active manifests, and copies only that directory.
+Three packaging regressions failed before and passed after (macOS and Linux).
+The rebuilt archive contains only prototype-3; the browser executable is unchanged.
+Archive SHA256: `a4f6d98c9fd5e85912ac2158f122778c9aa0ac34cf2712628d3d08c7d5f4ca8b`.
+Fresh extraction matched staged contents and passed both real API/proxy tests.
+Seven headful font/complex-script/emoji tests passed in10.84s after extraction.
+This executes the release staging functions, not the full ARM64/AppImage pipeline.
+
+## PixelScan classification follow-up
+
+Captured same-domain response diagnostics on the unchanged c0e9cfa binary.
+PixelScan `/s/api/co` returns `comparedResult.match=true` (Linux) but
+`osFontsStatus=false`. Its loaded public fingerprint component combines the
+font result with other checks using logical AND. Thus this font classification
+is a sufficient cause of the negative masking result, not proof of host-font
+leakage. Other failing predicates have not been ruled out. The component's
+hardware-memory allowlist includes both16 and32; do not clamp these to8 to
+appease a presumed outdated detector. `/cbv` `legitimate=false` belongs to a
+separate browser-classification path, not that masking conjunction.
+
+Backend PR3 commit `ee7fff4` improves version coherence independently: prefer
+known patch alternatives on the runtime build branch rather than early builds
+of the same major. A regression failed with151.0.7874.0 before the fix. The
+fingerprint/provider/app/API Go suites pass afterwards. Added7922 patch versions
+were verified against the official Chrome-for-Testing catalog on September14.
+
+A separate QA backend on loopback18081 produced151.0.7922.77, with matching
+Window/Worker UA and Client Hints and passing internal Verify. PixelScan still
+reports masking and the same negative font classification. This version change
+does NOT resolve that verdict. Proxy geography varied between runs; this is not
+a strict single-variable network experiment. Evidence directories:
+`mask-diagnostic-c0e9cfa`, `mask-buildbranch-ee7fff4`, `mask-detail-ee7fff4`.
+No browser privacy guard was disabled and no production service was changed.
+
+The follow-up `mask-fontinput-ee7fff4` run captured the known font-check request
+fields: `platform="Linux x86_64"`, `fonts=["DejaVu Sans"]`, `canvas=false`.
+The canvas-test predicate is also required by the masking conjunction, so both
+negative predicates need characterization. The exact failing canvas invariant
+has not yet been identified. PixelScan probes a fixed candidate-font list;
+this is not a complete enumeration of the bundled catalog or evidence of host
+font exposure. The full backend `go test ./...` suite also passed.
+
+## Canvas noise characterization and font-isolation recheck
+
+The loaded PixelScan 2D test paints small solid-color tiles, exports PNG,
+decodes it, and requires original channel values to remain exact. The new
+`test_canvas_palette_roundtrip.py` distinguishes this requirement from unstable
+readback or a broken PNG round trip, using native and protected controls on
+the same c0e9cfa executable without visiting an external site.
+
+Both controls passed: native pixels are unchanged; the protected fixture changes
+554 channels by at most1. Alpha is unchanged, repeat readback/export are stable,
+and the protected PNG round trip has zero mismatches. Both `toDataURL` methods
+remain native with signature length38. The detector's exact-color requirement
+conflicts with the intentional pixel protection for this input. This is not an
+unfixed round-trip defect; it is also not a claim that every canvas path is safe.
+No policy change to suppress protection on detector inputs was made.
+
+The combined headful palette, GPU-upload snapshot, font-catalog and complex
+fallback suite passed8/8 in11.32s. The two independent host font configurations
+resolve monospace to Noto Sans Mono and Liberation Mono respectively, but the
+protected text metrics are equal across them. This rechecks host-catalog
+isolation; it does not imply PixelScan accepts the bundled font selection.
+Evidence: `canvas-font-ab-c0e9cfa.xml` (including palette observations).
+The actual QA backend `ee7fff4` and proxy tests also passed2/2 in6.727s on
+this binary (`real-backend-ee7fff4-final.xml`).
+
+## Linux Canvas2D raster-path follow-up
+
+An explicit diagnostic-only native-canvas response control made PixelScan's
+canvas test positive, but its font classification and masking verdict remained
+negative. Therefore disabling canvas protection alone is not a fix. The normal
+backend policy remains `override`. The font canvas-probe labels raster groups
+with their first candidate name; its reported Abyssinica SIL could not be loaded
+through local FontFace. Do not treat that label as proof of an exposed host font.
+
+The diagnostic matrix found an independent coherence issue: switching between
+GPU and CPU Canvas2D changes output with identical bundled fonts. Linux managed
+startup now pins `disable-accelerated-2d-canvas`; non-managed startup is unchanged.
+This retains pixel protection and does not add a detector-specific exception.
+The new startup test failed before the change. The non-root C++ suite passes
+215 tests afterwards. Initial root execution invalidated a filesystem-permission
+test; that run is not the acceptance result.
+
+New executable SHA256:
+`a98431433f88fdd5152e8cadb50c1887ab12c0f84825575e24571d63ea6bc62a`.
+Relocated candidate (not a final release archive) passed54 headful tests with1
+existing native-canvas-policy skip in79.82s. This includes the six-run native
+canvas diagnostic matrix without manually pinning the rasterizer in the test,
+protected palette and GPU-upload checks, worker/screen surfaces, host-font
+isolation, local fonts and complex fallback. Internal Verify also passed with
+the real QA backend; PixelScan's normal policy still yields negative canvas
+and font predicates. Hardware/architecture independence is not established by
+the single-host raster-option matrix.
+The new binary's real backend/proxy tests passed too. A repeated diagnostic
+native-canvas site run confirmed `canvas=true`, `osFontsStatus=false` and
+`Masking detected`; the initial control's navigation errors are not counted
+as acceptance. The temporary response-control relay is stopped. No production
+canvas policy or font catalog was changed to obtain a detector result.
+
+## Stock Chrome reference
+
+The negative Linux font classification also reproduced on stock Google Chrome
+153.0.8010.36, including a minimal native launch with webdriver=false and a
+richer standard Ubuntu font set. The UI still showed Masking detected but
+No automated behavior detected. This is evidence that the font result is not
+unique to ClawBrowser patches, not proof that every warning is incorrect.
+See [the standalone reproduction report](pixelscan-linux-font-reproduction-2026-09-14.md)
+for environment, API result, automation and teardown limitations. No upstream
+message was sent. A green PixelScan result remains unachieved.
+
+## Trusted TURN/TLS repeated on a984314
+
+On September 14 at 16:13 UTC, the headful Linux operator test repeated actual
+DataChannel echo through both authorized HTTP and SOCKS5 proxies using executable
+SHA256 `a98431433f88fdd5152e8cadb50c1887ab12c0f84825575e24571d63ea6bc62a`.
+Both runs passed: two selected relay/relay pairs, TLS relay protocol, positive
+sent/received byte counts, relay-only emitted candidates and successful echo.
+The sandbox remained enabled and the existing trusted IP certificate was used.
+
+The initial runs exchanged data but failed the immediate stats assertion with
+`in-progress`. The operator harness now polls for at most five seconds after
+echo, retaining the requirement that both selected pairs reach `succeeded`.
+Both reruns passed that unchanged requirement. Raw initial and rerun records
+remain private; sanitized evidence is `turn-tls-a984314.json` in the QA evidence
+directory. The temporary relay was stopped afterward.
+
+This is a mock-identity fixture with real proxies and a real TLS relay, not
+desktop OAuth acceptance. No fresh packet capture was taken; this result must
+not be described as independent packet-level proof against every IP leak.
+
+### Repeating the portable test
+
+`clawbrowser/test/integration/test_real_turn_tls.py` now contains the opt-in
+regression, without QA-server paths or credentials. Set private configuration
+file paths in `CLAWBROWSER_QA_TURN_TLS_CONFIG`,
+`CLAWBROWSER_QA_HTTP_PROXY_CONFIG`, and `CLAWBROWSER_QA_SOCKS5_PROXY_CONFIG`.
+The TURN file is an RTC iceServer object with only `turns:` URLs; proxy files
+use the usual fingerprint-profile proxy schema. Provide the candidate through
+`CLAWBROWSER_BINARY`, then run the test in a visible display or Xvfb:
+
+```sh
+python -m pytest clawbrowser/test/integration/test_real_turn_tls.py -q \
+  -o junit_family=xunit1 --junitxml=turn-tls.xml
+```
+
+No credentials should be put in command arguments or committed config files.
+The test does not set `iceTransportPolicy: relay`, so it checks that the
+browser's policy suppresses direct candidates. Saved observations exclude
+addresses, SDP and secrets. Without operator configuration both cases skip.
+On the a984314 candidate the committed portable implementation passed both
+schemes in 16.94 seconds; the unconfigured run skipped both as expected.
+
+## Remaining release gates
+
+### September 14 final Linux archive checks
+
+The release staging functions produced `release-a984314-final.tar.gz` (238 MiB),
+SHA256 `cb074da7ae821de6dd75448b036237cba0006b9dfbbcd18a24d6c222a25b2607`.
+The archive was extracted to a fresh directory. Its executable retains SHA256
+`a98431433f88fdd5152e8cadb50c1887ab12c0f84825575e24571d63ea6bc62a`, and the
+only bundled font catalog is `clawbrowser-fonts-prototype-3`. No source-tree
+runtime path was used for these browser launches; the sandbox stayed enabled.
+
+| Check on extracted archive | Result | Evidence filename |
+| --- | --- | --- |
+| Selected headful privacy matrix | 54 passed, 1 expected policy skip, 74.54 s | archive-a984314-headful.xml |
+| Entire integration directory before new STUN-control unit tests | 90 passed, 8 skipped, 104.60 s | archive-a984314-all-integration.xml |
+| Real QA backend and proxy verification | 2 passed | real-backend-archive-a984314-final.xml |
+| Real HTTP/SOCKS5 TURN/TLS DataChannel echo | 2 passed, 15.61 s | archive-turn-tls-a984314.xml |
+| Independent SOCKS5 exit-IP comparison and TURN candidates | 2 passed | archive-a984314-socks.xml |
+| Live controlled IPv4 and IPv6 STUN endpoints | 1 passed each | archive-a984314-stun-live-ipv4.xml, archive-a984314-stun-live-ipv6.xml |
+| New STUN control helper unit tests | 12 passed | stun-control-unit.xml |
+
+Seven of the eight broad-run skips are opt-in external tests subsequently
+executed above. The remaining skip requires native canvas policy while the
+normal fixture deliberately has protection enabled. These counts overlap;
+they must not be summed as distinct tests. Native canvas also has its separate
+diagnostic matrix, not a change to the shipping default.
+
+The STUN retest found a test-quality issue: an empty-candidate result passed
+even though the original relay configuration listened only on IPv4. That first
+IPv6 pass is invalid evidence. The test now requires an independent UDP binding
+response with the matching transaction ID, cookie, response type and length.
+It fails against the unavailable IPv6 listener, then passes with the bounded
+dual-stack relay and successful independent controls on both families. The
+relay was stopped. This is observable-candidate evidence, not a fresh packet
+capture. The helper control itself intentionally uses the operator's direct
+socket and must not be misclassified as a browser leak.
+
+The archive is a QA candidate, not a published or signed all-platform release.
+
+Additional Canvas color-format regression on the same extracted archive:
+`test_canvas_color_formats.py` passed both native and protected policies
+(2 passed, 15.28 s; `canvas-color-formats-a984.xml`). The 96 observations cover
+sRGB/Display-P3, unorm8/float16 backing stores, both getImageData pixel formats,
+both read-frequency hints, and DOM/Offscreen/Worker contexts. Actual context
+and image metadata are asserted to prevent silent format fallback. Repeated
+reads are byte-stable and hashes agree across contexts/read-frequency hints
+for each matching format combination. This does not assert that different
+formats or policies have identical bytes, or prove cross-machine rendering
+equivalence. Canvas protection remains enabled in the protected case; this
+is not evidence that PixelScan's noise detection is resolved.
+
+PNG and origin-security follow-up on the same archive:
+`test_canvas_png_formats.py`, `test_canvas_origin_clean.py`, and the color-format
+test passed together (6 passed, 25.07 s;
+`canvas-formats-origin-final-a984.xml`). PNG coverage has 24 observations across
+both policies, both color spaces/backing formats, and DOM/Offscreen/Worker:
+repeat exports are stable, live canvas reads unchanged, all eight alpha levels
+preserved, and decoded pixels agree across contexts. All 12 corresponding
+protected/native decoded hashes differ in the initial PNG evidence; no
+lossless float16-to-PNG RGB claim is made.
+
+The origin-security test serves a real local image without CORS permission,
+with same-origin positive controls. Its 80 checks cover both policies,
+DOM/Offscreen/createImageBitmap/transferToImageBitmap sources, and getImageData,
+PNG export and WebGL1/2 upload. Cross-origin operations raise SecurityError;
+the corresponding same-origin operations succeed. These are local headful
+integration checks, not external-site or desktop-login acceptance. PR CI
+compiles these test sources; execution evidence comes from the QA host.
+
+The subsequent whole-directory run after these additions reported **106 passed,
+12 skipped in 120.26 s** (`integration-b9201d2-a984.xml`). The twelve skips are
+four host-font-control cases (no catalog-control environment in this run),
+seven opt-in backend/proxy/STUN/TURN cases, and the native-policy test with the
+normal protected fixture. These are not twelve passes. Configured evidence
+for these separate scopes is recorded above; counts overlap and should not be
+added. The runtime binary and archive remain unchanged.
+
+### Final archive browser-only STUN packet capture
+
+A subsequent capture tested the extracted a984314 binary with normal HTTP and
+SOCKS5 proxy configurations, headful and sandboxed. Independent STUN binding
+controls first succeeded against both IPv4 and IPv6 listeners on UDP 3479.
+Only afterwards was the browser-phase capture started, with listening confirmed
+before launching either test. Both proxy schemes completed both ICE probes with
+candidate counts `[0, 0]` and passed the relay-only candidate assertion.
+
+The browser-only capture contained **0 packets**, with **0 kernel drops**;
+independent reading of the pcap confirmed zero records. A separate positive
+capture using the same interface/filter then recorded **4 packets** from the
+operator's two successful STUN request/response controls (IPv4 and IPv6), also
+with zero kernel drops. This validates the capture path and live endpoints
+without mixing control traffic into browser evidence.
+
+Private files `stun-a984314-final.pcap` and
+`stun-a984314-positive-control.pcap` have mode 0600. The bounded capture and
+STUN services were explicitly stopped and confirmed inactive. This is scoped
+evidence for direct UDP STUN traffic to the controlled endpoints, not a claim
+that every protocol/destination is leak-free, and not a substitute for the
+separate successful TURN/TLS DataChannel echo tests. It does not resolve the
+PixelScan masking classification or validate another platform.
+
+Fresh site run on the c0e9cfa active-catalog archive (September14): internal
+Verify active checks passed with3 WebGL policy skips. AmIUnique and PixelScan
+both loaded200; HTTP and JS UA agree, screen is2560x1440 versus Xvfb1440x1000.
+PixelScan still reports masking/inconsistency. Its WebRTC checker labels proxy
+IPv4 71.227.65.176 as Potential Leak while all ICE/STUN/TURN fields are empty;
+the same address is returned by its HTTP /s/api/wr endpoint and matches proxy
+verification, not the QA host IP. This is not a functional TURN test or an
+all-clear detector result. These are operator integration tests, not desktop OAuth.
+
+- Validate rollout timeout overrides and actual desktop startup on the new
+  deadline contract; bounded proxy failures remain possible.
+- Complete the real desktop app lifecycle/update-guard journey. Backend test
+  credentials are not a substitute for actual desktop login acceptance.
+- Resolve or explicitly characterize the general fingerprint detector result.
+- Validate macOS/Windows and relevant physical GPU/display configurations.
+- Produce and validate the actual release packages, not just this Linux binary.
+
+Browser #30/#31, nextctl #26, backend #3 and app #235 must not be represented
+as universally release-ready on the basis of these Linux checks.
