@@ -170,12 +170,17 @@ tbody tr:last-child td {
 }
 
 #proxy-status {
-  margin-top: 16px;
+  margin-bottom: 20px;
   padding: 12px 14px;
   border: 1px solid var(--panel-border);
   border-radius: 14px;
   background: var(--panel-secondary);
   color: var(--text);
+}
+
+/* Filled only when the checks finish; no empty box above the results. */
+#proxy-status:empty {
+  display: none;
 }
 
 @media (max-width: 720px) {
