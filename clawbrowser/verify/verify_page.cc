@@ -356,11 +356,9 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
   const ProxyExpectation expected = LoadVerifyExpectedProxyLocation(
       GetClawbrowserConfigDir(), proxy->country);
 
-  if (!proxy->host.has_value() || !proxy->port.has_value() ||
-      !proxy->country.has_value() || !proxy->username.has_value() ||
-      !proxy->password.has_value()) {
+  if (!proxy->host.has_value() || !proxy->port.has_value()) {
     base::DictValue result;
-    result.Set("match", true);
+    result.Set("match", false);
     result.Set("actual_country", proxy->country.value_or("N/A"));
     result.Set("scheme", proxy_scheme);
     result.Set("error_code", "incomplete_proxy_config");
@@ -377,9 +375,11 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
   request.proxy.scheme = proxy_scheme;
   request.proxy.host = *proxy->host;
   request.proxy.port = *proxy->port;
-  request.proxy.username = *proxy->username;
-  request.proxy.password = *proxy->password;
-  request.expected_country = expected.country.value_or(*proxy->country);
+  request.proxy.username = proxy->username.value_or("");
+  request.proxy.password = proxy->password.value_or("");
+  // A personal proxy has no managed country. An empty expected country asks
+  // the service to prove the proxy has a real exit IP without imposing a geo.
+  request.expected_country = expected.country.value_or(proxy->country.value_or(""));
   if (expected.city.has_value())
     request.expected_city = *expected.city;
 
