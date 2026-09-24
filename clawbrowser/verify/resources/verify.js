@@ -574,7 +574,7 @@ if (typeof document !== 'undefined') {
       chrome.send('verifyProxy');
     } catch (e) {
       resolveProxyResult({
-        match: true,
+        match: false,
         actual_country: 'N/A',
         detail: 'proxy verification unavailable',
       });
