@@ -380,17 +380,12 @@ bool RuntimeHeadless(const base::CommandLine& command_line) {
   return command_line.HasSwitch("headless");
 }
 
-bool CachedProfileNeedsPrivacyUpgrade(ProfileManager* profile_manager,
-                                      const std::string& profile_id) {
-  auto cached = profile_manager->ReadProfile(profile_id);
-  if (!cached.has_value()) {
-    return true;
-  }
-  const auto& policy = cached->response.fingerprint.surface_policy;
+bool CachedProfileNeedsPrivacyUpgrade(const ProfileEnvelope& cached) {
+  const auto& policy = cached.response.fingerprint.surface_policy;
   return policy.canvas.mode != "override" ||
          policy.fonts.mode != "native_or_allowlist" ||
-         !cached->request.runtime_gpu.has_value() ||
-         !base::StartsWith(*cached->request.runtime_gpu, "swiftshader",
+         !cached.request.runtime_gpu.has_value() ||
+         !base::StartsWith(*cached.request.runtime_gpu, "swiftshader",
                            base::CompareCase::INSENSITIVE_ASCII);
 }
 
@@ -725,10 +720,23 @@ base::expected<StartupResult, std::string> RunStartup(
   // Fingerprint mode
   const std::string& fp_id = args.fingerprint_id();
   const bool has_cached_profile = profile_manager.HasCachedProfile(fp_id);
+  std::optional<ProfileEnvelope> cached_profile;
+  if (has_cached_profile) {
+    auto cached = profile_manager.ReadProfile(fp_id);
+    if (!cached.has_value()) {
+      if (args.require_proxy()) {
+        return base::ok(FailManagedFingerprintStartup(
+            args, "fingerprint_load_failed",
+            "cannot read a proxy-bound fingerprint profile: " +
+                cached.error()));
+      }
+    } else {
+      cached_profile = std::move(*cached);
+    }
+  }
   const bool needs_fetch =
-      args.regenerate() || !has_cached_profile ||
-      (has_cached_profile &&
-       CachedProfileNeedsPrivacyUpgrade(&profile_manager, fp_id));
+      args.regenerate() || !cached_profile.has_value() ||
+      CachedProfileNeedsPrivacyUpgrade(*cached_profile);
   std::optional<std::string> api_key = profile_manager.ResolveApiKey();
   if (!api_key.has_value()) {
     if (args.require_proxy()) {
@@ -765,11 +773,8 @@ base::expected<StartupResult, std::string> RunStartup(
     params.platform = DefaultProfilePlatform();
     params.browser = kBackendBrowserName;
     params.country = "US";
-    if (has_cached_profile) {
-      auto cached = profile_manager.ReadProfile(fp_id);
-      if (cached.has_value()) {
-        params = cached->request;
-      }
+    if (cached_profile.has_value()) {
+      params = cached_profile->request;
     }
     ApplyGenerateRequestOverrides(args, &params);
     ApplyRuntimeRequestHints(*command_line, &params);
@@ -816,6 +821,21 @@ base::expected<StartupResult, std::string> RunStartup(
     envelope.created_at = base::TimeFormatAsIso8601(base::Time::Now());
     envelope.request = params;
     envelope.response = std::move(*api_result);
+
+    if (cached_profile.has_value() && cached_profile->manual_proxy_bound) {
+      // The generate request cannot express an explicitly selected proxy.
+      // Its response may contain a managed proxy, even when the cached
+      // fingerprint was created for a user's manual proxy. Preserve the
+      // selected endpoint and credentials across privacy upgrades and
+      // explicit fingerprint regeneration.
+      if (!cached_profile->response.proxy.has_value()) {
+        return base::ok(FailManagedFingerprintStartup(
+            args, "manual_proxy_missing",
+            "manual proxy binding has no saved proxy configuration"));
+      }
+      envelope.manual_proxy_bound = true;
+      envelope.response.proxy = cached_profile->response.proxy;
+    }
 
     auto save_result = profile_manager.SaveProfile(fp_id, envelope);
     if (!save_result.has_value()) {

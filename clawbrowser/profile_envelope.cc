@@ -123,6 +123,16 @@ base::expected<ProfileEnvelope, std::string> ProfileEnvelope::Parse(
   }
   envelope.response = std::move(*generate_response);
 
+  if (const base::Value* bound = root.Find("manual_proxy_bound")) {
+    if (!bound->is_bool()) {
+      return base::unexpected("manual_proxy_bound must be a boolean");
+    }
+    envelope.manual_proxy_bound = bound->GetBool();
+    if (envelope.manual_proxy_bound && !envelope.response.proxy.has_value()) {
+      return base::unexpected("manual proxy binding requires a proxy config");
+    }
+  }
+
   auto restore_result =
       RestoreEncryptedProxyCredentials(root, &envelope.response);
   if (!restore_result.has_value()) {
@@ -140,6 +150,10 @@ std::string ProfileEnvelope::Serialize() const {
   }
   root.Set("created_at", created_at);
   root.Set("request", request.ToDict());
+  if (manual_proxy_bound) {
+    CHECK(response.proxy.has_value());
+    root.Set("manual_proxy_bound", true);
+  }
 
   base::DictValue response_dict = response.ToDict();
   if (response.proxy.has_value()) {

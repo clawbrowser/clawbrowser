@@ -24,6 +24,9 @@ struct ProfileEnvelope {
   std::string created_at;
   GenerateRequest request;
   GenerateResponse response;
+  // The caller selected response.proxy explicitly. Fingerprint refreshes must
+  // never replace it with a proxy supplied by the fingerprint service.
+  bool manual_proxy_bound = false;
   bool schema_outdated = false;  // Set if schema_version < current
 
   static constexpr int kCurrentSchemaVersion = 2;

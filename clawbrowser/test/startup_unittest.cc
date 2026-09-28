@@ -530,6 +530,77 @@ TEST_F(StartupTest, CachedNativeCanvasOrHostGPUIsRegenerated) {
   EXPECT_EQ(*saved.request.connection_type, "residential");
 }
 
+TEST_F(StartupTest, FingerprintRefreshPreservesBoundManualProxy) {
+  WriteCachedProfile("manual_proxy_profile");
+  ProfileEnvelope cached = ReadSavedProfile("manual_proxy_profile");
+  cached.manual_proxy_bound = true;
+  cached.response.fingerprint.surface_policy.canvas.mode = "native";
+  ASSERT_TRUE(cached.response.proxy.has_value());
+  cached.response.proxy->host = "manual.example.com";
+  cached.response.proxy->port = 3128;
+  cached.response.proxy->username = "manual-user";
+  cached.response.proxy->password = "manual-secret";
+  auto save_result = CreateProfileManager().SaveProfile("manual_proxy_profile", cached);
+  ASSERT_TRUE(save_result.has_value()) << save_result.error();
+
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson(
+          "fresh-ua",
+          R"({"scheme":"http","host":"gate.nodemaven.com","port":8080,"country":"US"})"));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "manual_proxy_profile");
+  cmd.AppendSwitch("clawbrowser-require-proxy");
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+
+  ProfileEnvelope saved = ReadSavedProfile("manual_proxy_profile");
+  EXPECT_TRUE(saved.manual_proxy_bound);
+  EXPECT_EQ(saved.response.fingerprint.user_agent, "fresh-ua");
+  ASSERT_TRUE(saved.response.proxy.has_value());
+  EXPECT_EQ(saved.response.proxy->host.value_or(""), "manual.example.com");
+  EXPECT_EQ(saved.response.proxy->username.value_or(""), "manual-user");
+  EXPECT_EQ(saved.response.proxy->password.value_or(""), "manual-secret");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("proxy-server"),
+            "http://manual.example.com:3128");
+}
+
+TEST_F(StartupTest, ExplicitRegenerationKeepsManualProxyWithoutApiProxy) {
+  WriteCachedProfile("manual_regenerate_profile");
+  ProfileEnvelope cached = ReadSavedProfile("manual_regenerate_profile");
+  cached.manual_proxy_bound = true;
+  ASSERT_TRUE(cached.response.proxy.has_value());
+  cached.response.proxy->host = "manual.example.com";
+  cached.response.proxy->port = 3128;
+  auto save_result =
+      CreateProfileManager().SaveProfile("manual_regenerate_profile", cached);
+  ASSERT_TRUE(save_result.has_value()) << save_result.error();
+
+  env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+  env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+  url_loader_factory_.AddResponse(
+      std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
+      GenerateSuccessResponseJson("fresh-ua"));
+
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "manual_regenerate_profile");
+  cmd.AppendSwitch("regenerate");
+  cmd.AppendSwitch("clawbrowser-require-proxy");
+  auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_FALSE(result->should_exit);
+  ProfileEnvelope saved = ReadSavedProfile("manual_regenerate_profile");
+  EXPECT_TRUE(saved.manual_proxy_bound);
+  ASSERT_TRUE(saved.response.proxy.has_value());
+  EXPECT_EQ(saved.response.proxy->host.value_or(""), "manual.example.com");
+  EXPECT_EQ(cmd.GetSwitchValueASCII("proxy-server"),
+            "http://manual.example.com:3128");
+}
+
 TEST_F(StartupTest, CachedNativeFontsAreRegenerated) {
   WriteCachedProfile("native_fonts_profile");
   ProfileEnvelope envelope = ReadSavedProfile("native_fonts_profile");
