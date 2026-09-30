@@ -3,6 +3,8 @@
 #include "base/base_paths.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/json/json_reader.h"
+#include "base/json/json_writer.h"
 #include "base/path_service.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -233,6 +235,46 @@ TEST(ProfileEnvelopeTest, SerializePreservesProxySchemeWithoutPlaintextSecrets) 
   EXPECT_EQ(reparsed->response.proxy->scheme.value_or(""), "socks5");
   EXPECT_EQ(reparsed->response.proxy->username.value_or(""), "user_abc");
   EXPECT_EQ(reparsed->response.proxy->password.value_or(""), "pass_xyz");
+}
+
+TEST(ProfileEnvelopeTest, ManualProxyBindingSurvivesEncryptedRoundTrip) {
+  ProfileEnvelope envelope;
+  envelope.schema_version = ProfileEnvelope::kCurrentSchemaVersion;
+  envelope.created_at = "2026-04-09T12:00:00Z";
+  envelope.request.platform = "macos";
+  envelope.request.browser = "chrome";
+  envelope.request.country = "US";
+  envelope.response = MakeResponseWithProxy("user_abc", "pass_xyz");
+  envelope.manual_proxy_bound = true;
+
+  std::string serialized = envelope.Serialize();
+  EXPECT_NE(serialized.find("\"manual_proxy_bound\": true"), std::string::npos);
+  EXPECT_EQ(serialized.find("pass_xyz"), std::string::npos);
+
+  auto reparsed = ProfileEnvelope::Parse(serialized);
+  ASSERT_TRUE(reparsed.has_value()) << reparsed.error();
+  EXPECT_TRUE(reparsed->manual_proxy_bound);
+  ASSERT_TRUE(reparsed->response.proxy.has_value());
+  EXPECT_EQ(reparsed->response.proxy->password.value_or(""), "pass_xyz");
+}
+
+TEST(ProfileEnvelopeTest, ManualProxyBindingRequiresProxy) {
+  ProfileEnvelope envelope;
+  envelope.schema_version = ProfileEnvelope::kCurrentSchemaVersion;
+  envelope.created_at = "2026-04-09T12:00:00Z";
+  envelope.request.platform = "macos";
+  envelope.request.browser = "chrome";
+  envelope.request.country = "US";
+  envelope.response = MakeResponseWithProxy("user_abc", "pass_xyz");
+  auto root = base::JSONReader::Read(envelope.Serialize());
+  ASSERT_TRUE(root.has_value());
+  root->GetDict().Set("manual_proxy_bound", true);
+  root->GetDict().FindDict("response")->Remove("proxy");
+  root->GetDict().Remove("encrypted_proxy_credentials");
+  std::string json;
+  ASSERT_TRUE(base::JSONWriter::Write(*root, &json));
+  auto parsed = ProfileEnvelope::Parse(json);
+  EXPECT_FALSE(parsed.has_value());
 }
 
 }  // namespace
