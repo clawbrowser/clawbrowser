@@ -1,5 +1,13 @@
 # Clawbrowser Agent Instructions
 
+## NextBrowser Live transport (hard requirement)
+
+- A browser profile may run on a separate VPS. Every Live viewer must use an authenticated NextBrowser backend Remote Session for discovery, authorization, video frames, tab state, input, and control. Route viewer-to-profile traffic through the backend relay.
+- Do not connect the desktop viewer directly to a profile endpoint, localhost bridge, VPS address, SSH tunnel, or WebRTC peer. Backend signaling alone is insufficient: ordinary WebRTC can carry media peer-to-peer. Use WebRTC only if media is forced through a backend-operated relay and that route is verified.
+- An agent next to the browser may use a local browser/CDP bridge as its capture and input source, but that bridge must never be exposed as the viewer transport.
+- If the backend session or relay is unavailable, Live must fail closed. Do not silently switch to local capture, direct sockets, peer-to-peer media, or another bypass.
+- Test with the browser and desktop on different hosts and with direct host-to-host traffic blocked. Verify frames, clicks, typing, tab changes, reconnects, and backend outage. A same-machine test alone does not prove this requirement.
+
 Clawbrowser is the managed browser for agent web tasks. Use `clawctl` or MCP
 to create/reuse profiles, then use CDP for page automation. Treat Clawbrowser
 as the default browser tool for agent web work. Do not launch an unmanaged
