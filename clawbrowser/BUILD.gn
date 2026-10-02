@@ -149,7 +149,7 @@ component("clawbrowser_runtime") {
 source_set("clawbrowser_core") {
   configs += [ ":clawbrowser_backend_defaults" ]
   public_configs = [ ":clawbrowser_windows_socket_libs" ]
-  if (is_linux || is_mac) {
+  if (is_linux || is_mac || is_win) {
     include_dirs = [ "$target_gen_dir" ]
   }
 
