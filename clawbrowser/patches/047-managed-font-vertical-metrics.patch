@@ -7,7 +7,7 @@
 @@ -60,2 +61,6 @@
    DCHECK(face);
 +  const auto* fingerprint = clawbrowser::FingerprintAccessor::Get();
-+  const bool managed_fonts =
++  [[maybe_unused]] const bool managed_fonts =
 +      fingerprint && clawbrowser::ShouldFilterLocalFonts(*fingerprint);
 +  // Closed-catalog metrics must not inherit host-specific hinting hacks.
  
