@@ -9,7 +9,7 @@ from xml.sax.saxutils import escape
 
 
 def stage(manifest_path, chromium, destination, *, allow_empty_directory=False):
-    manifest = json.loads(manifest_path.read_text())
+    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
     if manifest.get('release_ready') is not False:
         raise ValueError('only an explicitly non-release prototype is accepted')
     revision = subprocess.check_output(
