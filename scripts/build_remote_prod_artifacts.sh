@@ -916,7 +916,8 @@ package_macos_arm64() {
 
   (
     cd "${stage_dir}"
-    tar -czf "${artifact_1}" "${app_name}"
+    # AppleDouble companions are not font assets and break the closed catalog.
+    COPYFILE_DISABLE=1 tar -czf "${artifact_1}" "${app_name}"
   )
 }
 
@@ -1080,11 +1081,11 @@ package_linux_archives() {
 
   (
     cd "${package_root_x64}"
-    tar -czf "${artifact_1}" "$(basename "${bundle_x64}")"
+    COPYFILE_DISABLE=1 tar -czf "${artifact_1}" "$(basename "${bundle_x64}")"
   )
   (
     cd "${package_root_arm64}"
-    tar -czf "${artifact_2}" "$(basename "${bundle_arm64}")"
+    COPYFILE_DISABLE=1 tar -czf "${artifact_2}" "$(basename "${bundle_arm64}")"
   )
 }
 
