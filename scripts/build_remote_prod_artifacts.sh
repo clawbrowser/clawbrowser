@@ -815,6 +815,10 @@ write_linux_wrapper() {
     printf '%s\n' 'set -euo pipefail'
     printf '\n'
     printf '%s\n' 'SELF_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"'
+    printf '%s\n' 'SANDBOX_PATH="${SELF_DIR}/chrome_sandbox"'
+    printf '%s\n' 'if [[ -x "${SANDBOX_PATH}" ]] && [[ "$(stat -c %u "${SANDBOX_PATH}" 2>/dev/null || true)" == 0 ]] && [[ "$(stat -c %a "${SANDBOX_PATH}" 2>/dev/null || true)" == 4755 ]]; then'
+    printf '%s\n' '  export CHROME_DEVEL_SANDBOX="${SANDBOX_PATH}"'
+    printf '%s\n' 'fi'
     printf '%s\n' 'exec "${SELF_DIR}/clawbrowser.real" --disable-features=DialMediaRouteProvider "$@"'
   } >"${wrapper_path}"
 
