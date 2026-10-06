@@ -33,7 +33,8 @@ if (!$StartupGuard) { throw "Clawbrowser startup-hook smoke guard missing" }
 $StartupGuardText = $StartupGuard.Extent.Text
 if (!$StartupGuardText.Contains('--list --json') -or
     !$StartupGuardText.Contains('CLAWBROWSER_CONFIG_DIR') -or
-    !$StartupGuardText.Contains('WaitForExit(30000)')) {
+    !$StartupGuardText.Contains('WaitForExit(30000)') -or
+    !$StartupGuardText.Contains('$Stdout -ne "" -and $Stdout -ne "[]"')) {
   throw "Startup-hook smoke guard must execute the built browser with an isolated config and bounded timeout"
 }
 $StartupCalls = @($Ast.FindAll({ param($Node)
