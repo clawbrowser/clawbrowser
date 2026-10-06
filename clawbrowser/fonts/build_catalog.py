@@ -8,8 +8,8 @@ from stage_fonts import stage
 
 
 def build(manifest, chromium, destination, header):
-    raw=json.loads(manifest.read_text())
-    metadata=json.loads(manifest.with_name('catalog_build.json').read_text())
+    raw=json.loads(manifest.read_text(encoding='utf-8'))
+    metadata=json.loads(manifest.with_name('catalog_build.json').read_text(encoding='utf-8'))
     expected={'catalog_id':raw['catalog_id'],
               'chromium_files':[f['file'] for f in raw['fonts'] if f.get('source','chromium')=='chromium'],
               'vendor_files':[f['file'] for f in raw['fonts'] if f.get('source')=='vendor']}

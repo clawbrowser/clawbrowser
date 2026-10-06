@@ -9,7 +9,10 @@ from xml.sax.saxutils import escape
 
 
 def stage(manifest_path, chromium, destination, *, allow_empty_directory=False):
-    manifest = json.loads(manifest_path.read_text())
+    # The manifest contains non-ASCII copyright metadata. Never depend on the
+    # Windows process locale (commonly cp1252), which would turn UTF-8 © into
+    # mojibake and produce a platform-specific catalog digest.
+    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
     if manifest.get('release_ready') is not False:
         raise ValueError('only an explicitly non-release prototype is accepted')
     revision = subprocess.check_output(
