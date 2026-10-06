@@ -266,7 +266,8 @@ TEST(ProfileEnvelopeTest, ManualProxyBindingRequiresProxy) {
   envelope.request.browser = "chrome";
   envelope.request.country = "US";
   envelope.response = MakeResponseWithProxy("user_abc", "pass_xyz");
-  auto root = base::JSONReader::Read(envelope.Serialize());
+  auto root =
+      base::JSONReader::Read(envelope.Serialize(), base::JSON_PARSE_RFC);
   ASSERT_TRUE(root.has_value());
   root->GetDict().Set("manual_proxy_bound", true);
   root->GetDict().FindDict("response")->Remove("proxy");

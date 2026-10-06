@@ -42,6 +42,18 @@ class StageTests(unittest.TestCase):
         self.assertIsNone(root.find('include'))
         self.assertEqual(root.find('alias').attrib['binding'],'strong')
 
+    def test_manifest_is_read_as_utf8_independent_of_platform_locale(self):
+        self.manifest['copyright'] = '© Clawbrowser'
+        self.manifest_path.write_text(
+            json.dumps(self.manifest, ensure_ascii=False), encoding='utf-8')
+        with patch.object(module.subprocess, 'check_output', return_value='test\n'):
+            result = module.stage(self.manifest_path, self.root, self.output)
+        staged = json.loads(
+            (self.output/'manifest.json').read_text(encoding='utf-8'))
+        self.assertEqual(staged['copyright'], '© Clawbrowser')
+        self.assertEqual(result['manifestSha256'], hashlib.sha256(
+            json.dumps(self.manifest, indent=2).encode('utf-8')).hexdigest())
+
     def test_corrupt(self):
         self.manifest['fonts'][0]['sha256']='0'*64
         with self.assertRaisesRegex(ValueError,'checksum'):

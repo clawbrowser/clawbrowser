@@ -25,6 +25,25 @@ $Calls = @($Ast.FindAll({ param($Node)
   $Node.GetCommandName() -eq "Assert-WindowsInstallerBuildMode"
 }, $true))
 if ($Calls.Count -ne 1) { throw "Build entry point must invoke the guard exactly once" }
+$StartupGuard = $Ast.Find({ param($Node)
+  $Node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+  $Node.Name -eq "Assert-ClawbrowserStartupHook"
+}, $true)
+if (!$StartupGuard) { throw "Clawbrowser startup-hook smoke guard missing" }
+$StartupGuardText = $StartupGuard.Extent.Text
+if (!$StartupGuardText.Contains('--list --json') -or
+    !$StartupGuardText.Contains('CLAWBROWSER_CONFIG_DIR') -or
+    !$StartupGuardText.Contains('WaitForExit(30000)') -or
+    !$StartupGuardText.Contains('$Stdout -ne "" -and $Stdout -ne "[]"')) {
+  throw "Startup-hook smoke guard must execute the built browser with an isolated config and bounded timeout"
+}
+$StartupCalls = @($Ast.FindAll({ param($Node)
+  $Node -is [System.Management.Automation.Language.CommandAst] -and
+  $Node.GetCommandName() -eq "Assert-ClawbrowserStartupHook"
+}, $true))
+if ($StartupCalls.Count -ne 2) {
+  throw "Fresh and staged browser paths must each invoke the startup-hook smoke guard"
+}
 $Stage = $Ast.Find({ param($Node)
   $Node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
   $Node.Name -eq "Stage-WindowsSetupArchive"

@@ -1141,6 +1141,54 @@ function Prepare-WindowsInstallerInputs($OutputDir) {
   Write-Host "WINDOWS_INSTALLER_EXE=$ClawbrowserExe"
 }
 
+function Assert-ClawbrowserStartupHook($OutputDir) {
+  $OutDir = Join-Path $ChromiumSrc $OutputDir
+  $BrowserExe = Join-Path $OutDir "chrome.exe"
+  if (!(Test-Path $BrowserExe -PathType Leaf)) {
+    throw "Built browser not found for startup-hook smoke test: $BrowserExe"
+  }
+
+  $ConfigDir = Join-Path ([System.IO.Path]::GetTempPath()) "clawbrowser-startup-hook-$PID-$([Guid]::NewGuid().ToString('N'))"
+  New-Item -ItemType Directory -Force $ConfigDir | Out-Null
+  try {
+    $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $StartInfo.FileName = $BrowserExe
+    $StartInfo.Arguments = "--list --json"
+    $StartInfo.UseShellExecute = $false
+    $StartInfo.CreateNoWindow = $true
+    $StartInfo.RedirectStandardOutput = $true
+    $StartInfo.RedirectStandardError = $true
+    $StartInfo.EnvironmentVariables["CLAWBROWSER_CONFIG_DIR"] = $ConfigDir
+
+    $Process = New-Object System.Diagnostics.Process
+    $Process.StartInfo = $StartInfo
+    if (!$Process.Start()) {
+      throw "Could not start browser for startup-hook smoke test: $BrowserExe"
+    }
+    if (!$Process.WaitForExit(30000)) {
+      & taskkill.exe /PID $Process.Id /T /F *> $null
+      throw "Built browser ignored --list and did not exit; Clawbrowser startup hook is missing or inactive"
+    }
+
+    $Stdout = $Process.StandardOutput.ReadToEnd().Trim()
+    $Stderr = $Process.StandardError.ReadToEnd().Trim()
+    if ($Process.ExitCode -ne 0) {
+      throw "Clawbrowser startup-hook smoke test failed with exit code $($Process.ExitCode): $Stderr"
+    }
+    # Windows GUI-subsystem executables can successfully inherit redirected
+    # handles while the CRT still exposes no stdout stream. Exiting promptly
+    # with code 0 for this Clawbrowser-only command is the hook proof; an
+    # unpatched Chromium process ignores --list and hits the timeout above.
+    # Validate the payload whenever this toolchain does expose stdout.
+    if ($Stdout -ne "" -and $Stdout -ne "[]") {
+      throw "Clawbrowser startup-hook smoke test returned unexpected output: $Stdout"
+    }
+    Write-Host "CLAWBROWSER_STARTUP_HOOK_SMOKE=pass"
+  } finally {
+    Remove-Item $ConfigDir -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Stage-Clawbrowser($OutputDir, $ArtifactName) {
   $OutDir = Join-Path $ChromiumSrc $OutputDir
   $ChromeExe = Join-Path $OutDir "chrome.exe"
@@ -1306,6 +1354,7 @@ foreach ($Spec in $BuildSpecs) {
 
   if ($StageExistingArtifacts) {
     Write-Host "Generated $($Spec.BuildDir). Staging existing artifacts without building."
+    Assert-ClawbrowserStartupHook $Spec.BuildDir
     Stage-Clawbrowser $Spec.BuildDir $Spec.ArtifactName
     continue
   }
@@ -1321,6 +1370,7 @@ foreach ($Spec in $BuildSpecs) {
   }
   $BuildArgs += "chrome"
   Invoke-AutoninjaWithCacheRetry $Spec.BuildDir $BuildArgs
+  Assert-ClawbrowserStartupHook $Spec.BuildDir
   if ($Spec.Profile -eq "Prod") {
     Prepare-WindowsInstallerInputs $Spec.BuildDir
     $InstallerBuildArgs = @("-C", $Spec.BuildDir)

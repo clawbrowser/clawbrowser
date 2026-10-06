@@ -386,6 +386,7 @@ run_linux_success_scenario() {
   assert_contains "${SCENARIO_RUNNER_BODY}" 'verify_staged_runtime "${bundle_x64}"'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'clawbrowser_remote.sh integration-test'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'write_linux_wrapper "${bundle_dir}/clawbrowser"'
+  assert_contains "${SCENARIO_RUNNER_BODY}" 'export CHROME_DEVEL_SANDBOX="${SANDBOX_PATH}"'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'exec "${SELF_DIR}/clawbrowser.real" --disable-features=DialMediaRouteProvider "$@"'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'write_linux_appimage_apprun() {'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'write_linux_appimage_desktop_file() {'
