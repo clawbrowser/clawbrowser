@@ -184,9 +184,14 @@ async def test_navigator_languages(browser_with_fingerprint):
 
 
 @pytest.mark.asyncio
-async def test_intl_default_locale_matches_primary_language(browser_with_fingerprint):
-    page, data = browser_with_fingerprint
+async def test_intl_default_locale_matches_primary_language(
+    browser_with_ru_locale_fingerprint,
+):
+    page, data = browser_with_ru_locale_fingerprint
     primary = data["response"]["fingerprint"]["language"][0]
+    # Guard against a silent profile refresh back to the en-US mock, which
+    # would make this pass on an en-US host without proving anything.
+    assert primary == "ru-RU", data["response"]["fingerprint"]["language"]
     actual = await page.evaluate("""() => ({
         dateTime: Intl.DateTimeFormat().resolvedOptions().locale,
         number: Intl.NumberFormat().resolvedOptions().locale,

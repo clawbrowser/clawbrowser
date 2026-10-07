@@ -528,6 +528,21 @@ async def browser_with_fingerprint():
 
 
 @pytest_asyncio.fixture
+async def browser_with_ru_locale_fingerprint():
+    """Like browser_with_fingerprint, but with a ru-RU profile.
+
+    The host and CI run en-US, so an en-US profile cannot tell a pinned Intl
+    locale from the host default.
+    """
+    async with _launch_browser(
+        fixture_name="valid_fingerprint_ru_locale.json",
+        backend_mode="mock",
+        skip_verify=True,
+    ) as result:
+        yield result
+
+
+@pytest_asyncio.fixture
 async def browser_with_offset_window_fingerprint():
     """Launch a fingerprinted window at a non-origin host position."""
     async with _launch_browser(
