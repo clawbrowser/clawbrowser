@@ -6,7 +6,9 @@
 
 #include <cmath>
 #include <memory>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "base/base64.h"
 #include "base/files/file_util.h"
@@ -102,14 +104,17 @@ void ApplyTimezoneOverride(const Fingerprint& fingerprint) {
 // from the application locale (OS UI language on Windows and macOS, LANG on
 // Linux) before the fingerprint is known, so a ru-RU profile on an en-US host
 // reported Intl locale en-US next to navigator.languages ru-RU. Pin it to the
-// fingerprint's primary language, as with the timezone above. Renderers load
-// the fingerprint after their resource bundle set the ICU default, so this
-// wins there.
-void ApplyLocaleOverride(const Fingerprint& fingerprint) {
-  if (fingerprint.language.empty()) {
+// fingerprint's primary language. Renderers load the fingerprint after their
+// resource bundle set the ICU default, so this wins there.
+//
+// Child processes only: in the browser process the ICU default also drives
+// base::i18n::IsRTL() and UI formatting, so an ar/he/fa profile would mirror
+// the English browser UI. V8 does not run there.
+void ApplyLocaleOverride(const std::vector<std::string>& language) {
+  if (language.empty()) {
     return;
   }
-  std::string_view tag = fingerprint.language.front();
+  std::string_view tag = language.front();
   tag = tag.substr(0, tag.find(';'));
   tag = base::TrimWhitespaceASCII(tag, base::TRIM_ALL);
   if (tag.empty()) {
@@ -336,7 +341,6 @@ base::expected<void, std::string> LoadFingerprintContents(
   }
 
   ApplyTimezoneOverride(envelope->response.fingerprint);
-  ApplyLocaleOverride(envelope->response.fingerprint);
   FingerprintAccessor::Set(
       ToRuntimeFingerprint(envelope->response.fingerprint),
       ToRuntimeProxyConfig(envelope->response.proxy));
@@ -384,7 +388,7 @@ base::expected<void, std::string> LoadFingerprintFromChildPayload(
   }
 
   ApplyTimezoneOverride(*fingerprint);
-  ApplyLocaleOverride(*fingerprint);
+  ApplyLocaleOverride(fingerprint->language);
   FingerprintAccessor::Set(ToRuntimeFingerprint(*fingerprint),
                           ToRuntimeProxyConfig(proxy));
   return base::ok();
@@ -479,6 +483,9 @@ base::expected<void, std::string> LoadFingerprintFromCommandLine(
       command_line.GetSwitchValuePath(kFingerprintPathSwitch);
   auto result = LoadFingerprint(path);
   if (result.has_value()) {
+    // A child that fell back to the path switch still needs the locale; the
+    // browser process loads through LoadFingerprint() directly.
+    ApplyLocaleOverride(FingerprintAccessor::Get()->language);
     ApplySpoofingPolicyFromCommandLine(command_line);
   }
   return result;

@@ -2,6 +2,7 @@
 
 #include "base/base64.h"
 #include "base/base_paths.h"
+#include "base/check.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -541,11 +542,7 @@ class ScopedICUDefaultLocale {
   icu::Locale saved_;
 };
 
-TEST_F(FingerprintLoaderTest, LoadSetsICUDefaultLocaleFromPrimaryLanguage) {
-  ScopedICUDefaultLocale restore_locale;
-  base::ScopedTempDir temp_dir;
-  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
-
+base::FilePath WriteRussianFingerprint(const base::FilePath& dir) {
   ProfileEnvelope envelope;
   envelope.schema_version = ProfileEnvelope::kCurrentSchemaVersion;
   envelope.created_at = "2026-10-07T12:00:00Z";
@@ -556,10 +553,34 @@ TEST_F(FingerprintLoaderTest, LoadSetsICUDefaultLocaleFromPrimaryLanguage) {
   envelope.response.fingerprint.timezone = "Europe/Moscow";
   envelope.response.fingerprint.language = {"ru-RU", "ru", "en-US", "en"};
 
-  base::FilePath path = temp_dir.GetPath().AppendASCII("fingerprint.json");
-  ASSERT_TRUE(base::WriteFile(path, envelope.Serialize()));
+  base::FilePath path = dir.AppendASCII("fingerprint.json");
+  CHECK(base::WriteFile(path, envelope.Serialize()));
+  return path;
+}
 
-  auto result = LoadFingerprint(path);
+// The browser process keeps the UI locale: there it also decides IsRTL().
+TEST_F(FingerprintLoaderTest, BrowserLoadKeepsICUDefaultLocale) {
+  ScopedICUDefaultLocale restore_locale;
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+  UErrorCode status = U_ZERO_ERROR;
+  icu::Locale::setDefault(icu::Locale("de", "DE"), status);
+
+  auto result = LoadFingerprint(WriteRussianFingerprint(temp_dir.GetPath()));
+  ASSERT_TRUE(result.has_value()) << result.error();
+  EXPECT_STREQ(icu::Locale::getDefault().getLanguage(), "de");
+  EXPECT_STREQ(icu::Locale::getDefault().getCountry(), "DE");
+}
+
+TEST_F(FingerprintLoaderTest, ChildPathFallbackSetsICUDefaultLocale) {
+  ScopedICUDefaultLocale restore_locale;
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchPath(kFingerprintPathSwitch,
+                       WriteRussianFingerprint(temp_dir.GetPath()));
+
+  auto result = LoadFingerprintFromCommandLine(cmd);
   ASSERT_TRUE(result.has_value()) << result.error();
   EXPECT_STREQ(icu::Locale::getDefault().getLanguage(), "ru");
   EXPECT_STREQ(icu::Locale::getDefault().getCountry(), "RU");
