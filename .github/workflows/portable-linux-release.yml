@@ -1,0 +1,124 @@
+name: Publish portable Linux runtime
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Stable release tag whose Linux x64 asset should be packaged
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: portable-linux-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish_portable_amd64:
+    name: Build and publish portable Linux amd64 runtime
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      ASSET_NAME: clawbrowser-portable-linux-amd64-glibc.tar.gz
+    steps:
+      - name: Checkout browser release source
+        uses: actions/checkout@v4
+
+      - name: Checkout the matching portable packager
+        uses: actions/checkout@v4
+        with:
+          repository: clawbrowser/clawctl
+          ref: 1.3.0
+          path: clawctl-tools
+
+      - name: Download and verify Linux browser asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/release" "${RUNNER_TEMP}/browser"
+          gh release download "${RELEASE_TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --dir "${RUNNER_TEMP}/release" \
+            --pattern clawbrowser-linux-x64.tar.gz \
+            --pattern clawbrowser-linux-x64.tar.gz.sha256
+          (
+            cd "${RUNNER_TEMP}/release"
+            sha256sum -c clawbrowser-linux-x64.tar.gz.sha256
+          )
+          tar -xzf "${RUNNER_TEMP}/release/clawbrowser-linux-x64.tar.gz" \
+            -C "${RUNNER_TEMP}/browser"
+
+          mapfile -t binaries < <(find "${RUNNER_TEMP}/browser" -type f -name clawbrowser.real | sort)
+          if [[ ${#binaries[@]} -ne 1 ]]; then
+            echo "::error::expected exactly one clawbrowser.real, found ${#binaries[@]}"
+            exit 1
+          fi
+          mkdir -p clawbrowser-dist-amd64
+          cp -a "$(dirname "${binaries[0]}")/." clawbrowser-dist-amd64/
+          test -x clawbrowser-dist-amd64/clawbrowser.real
+
+      - name: Build runtime image
+        run: |
+          set -euo pipefail
+          docker build \
+            --platform linux/amd64 \
+            --tag clawbrowser-portable-source:"${RELEASE_TAG}" \
+            .
+
+      - name: Build and verify portable archive
+        run: |
+          set -euo pipefail
+          IMAGE_REF=clawbrowser-portable-source:"${RELEASE_TAG}" \
+          VERSION="${RELEASE_TAG}" \
+          OUT_DIR="${RUNNER_TEMP}/portable" \
+          PLATFORM=linux/amd64 \
+            ./clawctl-tools/scripts/build_portable_xvfb_from_runtime_image.sh
+          (
+            cd "${RUNNER_TEMP}/portable"
+            sha256sum -c "${ASSET_NAME}.sha256"
+            tar -tzf "${ASSET_NAME}" | grep -Fx 'linux-amd64-glibc/bin/Xvfb'
+            tar -tzf "${ASSET_NAME}" | grep -Fx 'linux-amd64-glibc/bin/xkbcomp'
+            tar -tzf "${ASSET_NAME}" | grep -Fx 'linux-amd64-glibc/clawbrowser/clawbrowser.real'
+            tar -tzf "${ASSET_NAME}" | grep -Fx 'linux-amd64-glibc/manifest.json'
+          )
+
+      - name: Upload portable assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload "${RELEASE_TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            "${RUNNER_TEMP}/portable/${ASSET_NAME}" \
+            "${RUNNER_TEMP}/portable/${ASSET_NAME}.sha256" \
+            "${RUNNER_TEMP}/portable/${ASSET_NAME%.tar.gz}.manifest.json" \
+            --clobber
+
+      - name: Add portable archive to SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sums_dir="${RUNNER_TEMP}/checksums"
+          mkdir -p "${sums_dir}"
+          gh release download "${RELEASE_TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --dir "${sums_dir}" \
+            --pattern SHA256SUMS || true
+          touch "${sums_dir}/SHA256SUMS"
+          grep -v "  ${ASSET_NAME}$" "${sums_dir}/SHA256SUMS" \
+            > "${sums_dir}/SHA256SUMS.next" || true
+          cat "${RUNNER_TEMP}/portable/${ASSET_NAME}.sha256" \
+            >> "${sums_dir}/SHA256SUMS.next"
+          mv "${sums_dir}/SHA256SUMS.next" "${sums_dir}/SHA256SUMS"
+          gh release upload "${RELEASE_TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            "${sums_dir}/SHA256SUMS" \
+            --clobber
