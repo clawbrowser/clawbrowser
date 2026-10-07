@@ -318,6 +318,7 @@ test("clawbrowser_unittests") {
     "//mojo/core/embedder",
     "//services/network:test_support",
     "//testing/gtest",
+    "//third_party/icu",
   ]
 
   data = [ "test/fixtures/" ]
