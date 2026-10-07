@@ -1,0 +1,130 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+diff --git a/content/renderer/renderer_main.cc b/content/renderer/renderer_main.cc
+--- a/content/renderer/renderer_main.cc
++++ b/content/renderer/renderer_main.cc
+@@ -195,8 +195,10 @@ int RendererMain(MainFunctionParams parameters) {
+ #if BUILDFLAG(IS_WIN)
+   // Keep checked catalog bytes in memory before sandbox lockdown. Never grant
+   // the renderer new filesystem permissions or lazily fall back to host fonts.
++  // Host-font profiles never touch the catalog; their fonts come from
++  // DirectWrite, filtered by the default-Windows allowlist.
+   if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
+-      fp && clawbrowser::ShouldFilterLocalFonts(*fp)) {
++      fp && clawbrowser::UsesManagedFontCatalog(*fp)) {
+     auto fonts = clawbrowser::InitializeWindowsFontCatalogBeforeSandbox();
+     if (!fonts.has_value()) {
+       LOG(ERROR) << "[clawbrowser] renderer font catalog: " << fonts.error();
+diff --git a/third_party/blink/renderer/core/layout/layout_theme_font_provider_win.cc b/third_party/blink/renderer/core/layout/layout_theme_font_provider_win.cc
+--- a/third_party/blink/renderer/core/layout/layout_theme_font_provider_win.cc
++++ b/third_party/blink/renderer/core/layout/layout_theme_font_provider_win.cc
+@@ -44,7 +44,7 @@ static float PointsToPixels(float points) {
+ const AtomicString& LayoutThemeFontProvider::SystemFontFamily(
+     CSSValueID system_font_id) {
+   if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
+-      fp && clawbrowser::ShouldFilterLocalFonts(*fp)) {
++      fp && clawbrowser::UsesManagedFontCatalog(*fp)) {
+     return DefaultGUIFont();
+   }
+   switch (system_font_id) {
+@@ -63,7 +63,7 @@ const AtomicString& LayoutThemeFontProvider::SystemFontFamily(
+ float LayoutThemeFontProvider::SystemFontSize(CSSValueID system_font_id,
+                                               const Document* document) {
+   if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
+-      fp && clawbrowser::ShouldFilterLocalFonts(*fp) &&
++      fp && clawbrowser::UsesManagedFontCatalog(*fp) &&
+       (system_font_id == CSSValueID::kSmallCaption ||
+        system_font_id == CSSValueID::kMenu ||
+        system_font_id == CSSValueID::kStatusBar)) {
+diff --git a/third_party/blink/renderer/platform/fonts/font_metrics.cc b/third_party/blink/renderer/platform/fonts/font_metrics.cc
+--- a/third_party/blink/renderer/platform/fonts/font_metrics.cc
++++ b/third_party/blink/renderer/platform/fonts/font_metrics.cc
+@@ -60,7 +60,7 @@ void FontMetrics::AscentDescentWithHacks(
+   DCHECK(face);
+   const auto* fingerprint = clawbrowser::FingerprintAccessor::Get();
+   [[maybe_unused]] const bool managed_fonts =
+-      fingerprint && clawbrowser::ShouldFilterLocalFonts(*fingerprint);
++      fingerprint && clawbrowser::UsesManagedFontCatalog(*fingerprint);
+   // Closed-catalog metrics must not inherit host-specific hinting hacks.
+ 
+   SkFontMetrics metrics;
+diff --git a/third_party/blink/renderer/platform/fonts/skia/font_cache_skia.cc b/third_party/blink/renderer/platform/fonts/skia/font_cache_skia.cc
+--- a/third_party/blink/renderer/platform/fonts/skia/font_cache_skia.cc
++++ b/third_party/blink/renderer/platform/fonts/skia/font_cache_skia.cc
+@@ -148,7 +148,7 @@ const SimpleFontData* FontCache::GetLastResortFallbackFont(
+     const FontDescription& description) {
+ #if BUILDFLAG(IS_WIN)
+   if (const auto* fp = clawbrowser::FingerprintAccessor::Get();
+-      fp && clawbrowser::ShouldFilterLocalFonts(*fp)) {
++      fp && clawbrowser::UsesManagedFontCatalog(*fp)) {
+     const auto* data = GetFontPlatformData(
+         description, FontFaceCreationParams(AtomicString("Tinos")),
+         AlternateFontName::kLastResort);
+diff --git a/third_party/blink/renderer/platform/fonts/skia/skia_text_metrics.cc b/third_party/blink/renderer/platform/fonts/skia/skia_text_metrics.cc
+--- a/third_party/blink/renderer/platform/fonts/skia/skia_text_metrics.cc
++++ b/third_party/blink/renderer/platform/fonts/skia/skia_text_metrics.cc
+@@ -18,7 +18,7 @@ namespace blink {
+ namespace {
+ bool UsesManagedGlyphBounds() {
+   const auto* fp = clawbrowser::FingerprintAccessor::Get();
+-  return fp && clawbrowser::ShouldFilterLocalFonts(*fp);
++  return fp && clawbrowser::UsesManagedFontCatalog(*fp);
+ }
+ }  // namespace
+ 
+diff --git a/third_party/blink/renderer/platform/fonts/win/font_cache_skia_win.cc b/third_party/blink/renderer/platform/fonts/win/font_cache_skia_win.cc
+--- a/third_party/blink/renderer/platform/fonts/win/font_cache_skia_win.cc
++++ b/third_party/blink/renderer/platform/fonts/win/font_cache_skia_win.cc
+@@ -78,7 +78,12 @@ namespace {
+ 
+ bool UsesManagedCatalog() {
+   const auto* fp = clawbrowser::FingerprintAccessor::Get();
+-  return fp && clawbrowser::ShouldFilterLocalFonts(*fp);
++  return fp && clawbrowser::UsesManagedFontCatalog(*fp);
++}
++
++bool UsesHostFontAllowlist() {
++  const auto* fp = clawbrowser::FingerprintAccessor::Get();
++  return fp && clawbrowser::UsesWindowsHostFonts(*fp);
+ }
+ 
+ const FontPlatformData* CatalogPlatformData(const FontDescription& d,
+@@ -166,6 +171,12 @@ const AtomicString& FontCache::SystemFontFamily() {
+     DEFINE_THREAD_SAFE_STATIC_LOCAL(const AtomicString, family, ("Arimo"));
+     return family;
+   }
++  if (UsesHostFontAllowlist()) {
++    // A customized desktop menu font would identify the host. Windows 10 and
++    // 11 both default to Segoe UI, which the allowlist always carries.
++    DEFINE_THREAD_SAFE_STATIC_LOCAL(const AtomicString, family, ("Segoe UI"));
++    return family;
++  }
+   return MenuFontFamily();
+ }
+ 
+@@ -467,6 +478,14 @@ const FontPlatformData* FontCache::CreateFontPlatformData(
+         font_size);
+   }
+ 
++  // Every family lookup, including the hardcoded and DirectWrite character
++  // fallback, reaches the host here. Refuse families outside the allowlist so
++  // a user-installed or language-pack font can never be selected.
++  if (UsesHostFontAllowlist() &&
++      clawbrowser::IsLocalFontBlocked(creation_params.Family().Utf8())) {
++    return nullptr;
++  }
++
+   DCHECK_EQ(creation_params.CreationType(), kCreateFontByFamily);
+   sk_sp<SkTypeface> typeface;
+ 
+diff --git a/third_party/blink/renderer/platform/fonts/win/font_platform_data_win.cc b/third_party/blink/renderer/platform/fonts/win/font_platform_data_win.cc
+--- a/third_party/blink/renderer/platform/fonts/win/font_platform_data_win.cc
++++ b/third_party/blink/renderer/platform/fonts/win/font_platform_data_win.cc
+@@ -74,7 +74,7 @@ SkFont FontPlatformData::CreateSkFont(
+ 
+   font.setEmbeddedBitmaps(!avoid_embedded_bitmaps_);
+   const auto* fp = clawbrowser::FingerprintAccessor::Get();
+-  if (fp && clawbrowser::ShouldFilterLocalFonts(*fp)) {
++  if (fp && clawbrowser::UsesManagedFontCatalog(*fp)) {
+     // Host ClearType / smoothing preferences must not re-identify a closed
+     // catalog profile. Leave native profiles and explicit web-test controls
+     // unchanged. Match the managed Linux Fontations strike policy.

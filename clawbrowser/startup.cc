@@ -845,9 +845,8 @@ base::expected<StartupResult, std::string> RunStartup(
     }
   }
 
-  // The installed catalog is authoritative even with cached profiles or an
-  // older backend that ignores the capability hint. Keep supported explicit
-  // subsets; replace an entirely incompatible legacy list with the bundle.
+  // The installed runtime decides which fonts exist: the bundled catalog, or
+  // the default Windows families for a Windows fingerprint on a Windows host.
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
   auto font_profile = profile_manager.ReadProfile(fp_id);
   if (!font_profile.has_value()) {
@@ -855,15 +854,15 @@ base::expected<StartupResult, std::string> RunStartup(
         args, "fingerprint_load_failed",
         "failed to load fingerprint profile: " + font_profile.error()));
   }
-  std::vector<std::string> bundled_fonts;
-  for (const auto& name : font_profile->response.fingerprint.fonts) {
-    if (IsBundledLinuxFontName(name)) bundled_fonts.push_back(name);
-  }
-  if (bundled_fonts.empty()) bundled_fonts = LinuxFontCatalogFamilies();
-  if (bundled_fonts != font_profile->response.fingerprint.fonts ||
-      font_profile->request.runtime_font_catalog != kLinuxFontCatalogID) {
-    font_profile->response.fingerprint.fonts = std::move(bundled_fonts);
-    font_profile->request.runtime_font_catalog = kLinuxFontCatalogID;
+  RuntimeFontSelection runtime_fonts = SelectRuntimeFonts(
+      font_profile->response.fingerprint.fonts,
+      font_profile->response.fingerprint.os,
+      font_profile->response.fingerprint.platform, BUILDFLAG(IS_WIN));
+  if (runtime_fonts.fonts != font_profile->response.fingerprint.fonts ||
+      font_profile->request.runtime_font_catalog != runtime_fonts.catalog_id) {
+    font_profile->response.fingerprint.fonts = std::move(runtime_fonts.fonts);
+    font_profile->request.runtime_font_catalog =
+        std::move(runtime_fonts.catalog_id);
     auto saved = profile_manager.SaveProfile(fp_id, *font_profile);
     if (!saved.has_value()) {
       return base::ok(FailManagedFingerprintStartup(

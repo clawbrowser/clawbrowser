@@ -36,6 +36,41 @@ inline bool ShouldFilterLocalFonts(const RuntimeFingerprint& fp) {
          fp.surface_policy.fonts == "override";
 }
 
+// True when a filtered Windows fingerprint runs on a Windows host with only
+// default Windows families allowed (see SelectRuntimeFonts in startup). Such a
+// profile uses the host's DirectWrite fonts, fallback and rendering, filtered
+// by the allowlist, instead of the bundled catalog. A list that contains any
+// other name keeps the catalog, so a stale or hand-edited profile cannot widen
+// what the host exposes.
+inline bool UsesWindowsHostFontsOnHost(const RuntimeFingerprint& fp,
+                                       bool windows_host) {
+  if (!windows_host || !ShouldFilterLocalFonts(fp) ||
+      !IsWindowsFingerprint(fp.os, fp.platform) || fp.fonts.empty()) {
+    return false;
+  }
+  return std::all_of(fp.fonts.begin(), fp.fonts.end(),
+                     [](const std::string& name) {
+                       return IsWindowsDefaultFontName(name);
+                     });
+}
+
+inline bool UsesWindowsHostFonts(const RuntimeFingerprint& fp) {
+  return UsesWindowsHostFontsOnHost(fp, BUILDFLAG(IS_WIN));
+}
+
+// True when glyphs must come from the bundled closed catalog with managed
+// rendering and metrics. Callers that only filter names use
+// ShouldFilterLocalFonts() instead.
+inline bool UsesManagedFontCatalogOnHost(const RuntimeFingerprint& fp,
+                                         bool windows_host) {
+  return ShouldFilterLocalFonts(fp) &&
+         !UsesWindowsHostFontsOnHost(fp, windows_host);
+}
+
+inline bool UsesManagedFontCatalog(const RuntimeFingerprint& fp) {
+  return UsesManagedFontCatalogOnHost(fp, BUILDFLAG(IS_WIN));
+}
+
 // Case-insensitive comparison; CSS family names and the Font Access table
 // disagree on casing for the same physical font.
 inline bool FontNameMatches(std::string_view a, std::string_view b) {

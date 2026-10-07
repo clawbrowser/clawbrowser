@@ -2,6 +2,8 @@
 
 #include <cmath>
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -89,6 +91,97 @@ TEST(LocalFontPolicyTest, LiteralGenericNameDoesNotBypassLocalSourceFilter) {
   EXPECT_TRUE(IsLocalFontBlocked(""));
   EXPECT_FALSE(IsLocalFontBlocked("Arial"));
   FingerprintAccessor::Reset();
+}
+
+RuntimeFingerprint MakeWindowsFingerprint(std::vector<std::string> fonts) {
+  RuntimeFingerprint fp =
+      MakeFingerprint(std::move(fonts), "native_or_allowlist");
+  fp.os = "windows";
+  fp.platform = "Win32";
+  return fp;
+}
+
+TEST(WindowsHostFontsTest, DefaultListCoversCoreFamiliesOnly) {
+  EXPECT_TRUE(IsWindowsDefaultFontName("Segoe UI"));
+  EXPECT_TRUE(IsWindowsDefaultFontName("calibri"));
+  // Language-pack, Office, Win11-only and catalog names stay out.
+  EXPECT_FALSE(IsWindowsDefaultFontName("Meiryo"));
+  EXPECT_FALSE(IsWindowsDefaultFontName("Aptos"));
+  EXPECT_FALSE(IsWindowsDefaultFontName("Segoe UI Variable"));
+  EXPECT_FALSE(IsWindowsDefaultFontName("Arimo"));
+  EXPECT_FALSE(IsWindowsDefaultFontName("Segoe"));
+}
+
+TEST(WindowsHostFontsTest, FullWindowsListCarriesFallbackFamilies) {
+  for (const char* family :
+       {"Segoe UI Emoji", "Segoe UI Symbol", "Microsoft YaHei", "Yu Gothic",
+        "Malgun Gothic", "Nirmala UI", "Leelawadee UI", "Ebrima"}) {
+    EXPECT_TRUE(IsWindowsDefaultFontName(family)) << family;
+  }
+}
+
+TEST(WindowsHostFontsTest, SelectionUsesFullWindowsListOnWindowsHost) {
+  RuntimeFontSelection selection = SelectRuntimeFonts(
+      {"Calibri", "Fira Code", "Segoe UI", "Arimo"}, "windows", "Win32",
+      /*windows_host=*/true);
+  EXPECT_EQ(selection.catalog_id, kWindowsHostFontCatalogID);
+  EXPECT_EQ(selection.fonts, WindowsDefaultFontFamilies());
+
+  selection =
+      SelectRuntimeFonts({"Arimo", "Tinos"}, "", "Win32", /*windows_host=*/true);
+  EXPECT_EQ(selection.catalog_id, kWindowsHostFontCatalogID);
+  EXPECT_EQ(selection.fonts, WindowsDefaultFontFamilies());
+}
+
+TEST(WindowsHostFontsTest, SelectionUsesCatalogOffWindowsOrForOtherOS) {
+  RuntimeFontSelection linux_host = SelectRuntimeFonts(
+      {"Calibri", "Arimo"}, "windows", "Win32", /*windows_host=*/false);
+  EXPECT_EQ(linux_host.catalog_id, kLinuxFontCatalogID);
+  EXPECT_EQ(linux_host.fonts, (std::vector<std::string>{"Arimo"}));
+
+  RuntimeFontSelection mac_profile = SelectRuntimeFonts(
+      {"Helvetica Neue"}, "macos", "MacIntel", /*windows_host=*/true);
+  EXPECT_EQ(mac_profile.catalog_id, kLinuxFontCatalogID);
+  EXPECT_EQ(mac_profile.fonts, LinuxFontCatalogFamilies());
+}
+
+TEST(WindowsHostFontsTest, HostModeRequiresWindowsHostProfileAndDefaults) {
+  const RuntimeFingerprint fp = MakeWindowsFingerprint({"Arial", "Segoe UI"});
+  EXPECT_TRUE(UsesWindowsHostFontsOnHost(fp, /*windows_host=*/true));
+  EXPECT_FALSE(UsesManagedFontCatalogOnHost(fp, /*windows_host=*/true));
+
+  EXPECT_FALSE(UsesWindowsHostFontsOnHost(fp, /*windows_host=*/false));
+  EXPECT_TRUE(UsesManagedFontCatalogOnHost(fp, /*windows_host=*/false));
+
+  RuntimeFingerprint mac = fp;
+  mac.os = "macos";
+  mac.platform = "MacIntel";
+  EXPECT_FALSE(UsesWindowsHostFontsOnHost(mac, /*windows_host=*/true));
+}
+
+TEST(WindowsHostFontsTest, AnyNonDefaultNameKeepsTheCatalog) {
+  // A stale or hand-edited list must not widen the host's exposed fonts.
+  EXPECT_FALSE(UsesWindowsHostFontsOnHost(
+      MakeWindowsFingerprint({"Segoe UI", "Arimo"}), /*windows_host=*/true));
+  EXPECT_FALSE(UsesWindowsHostFontsOnHost(
+      MakeWindowsFingerprint({"Segoe UI", "Fira Code"}),
+      /*windows_host=*/true));
+  EXPECT_FALSE(UsesWindowsHostFontsOnHost(MakeWindowsFingerprint({}),
+                                          /*windows_host=*/true));
+}
+
+TEST(WindowsHostFontsTest, NativePolicyIsNeitherHostNorCatalog) {
+  RuntimeFingerprint fp = MakeWindowsFingerprint({"Segoe UI"});
+  fp.surface_policy.fonts = "native";
+  EXPECT_FALSE(UsesWindowsHostFontsOnHost(fp, /*windows_host=*/true));
+  EXPECT_FALSE(UsesManagedFontCatalogOnHost(fp, /*windows_host=*/true));
+}
+
+TEST(WindowsHostFontsTest, HostModeStillBlocksUnlistedFamilies) {
+  const RuntimeFingerprint fp = MakeWindowsFingerprint({"Segoe UI", "Calibri"});
+  EXPECT_TRUE(IsLocalFontAllowed(fp, "segoe ui"));
+  EXPECT_FALSE(IsLocalFontAllowed(fp, "Meiryo"));
+  EXPECT_FALSE(IsLocalFontAllowed(fp, "Arial"));
 }
 
 // ---------------------------------------------------------------------------
