@@ -184,6 +184,21 @@ async def test_navigator_languages(browser_with_fingerprint):
 
 
 @pytest.mark.asyncio
+async def test_intl_default_locale_matches_primary_language(browser_with_fingerprint):
+    page, data = browser_with_fingerprint
+    primary = data["response"]["fingerprint"]["language"][0]
+    actual = await page.evaluate("""() => ({
+        dateTime: Intl.DateTimeFormat().resolvedOptions().locale,
+        number: Intl.NumberFormat().resolvedOptions().locale,
+    })""")
+    # ICU may resolve a region tag to its base language when it has no
+    # region-specific data, but it must never fall back to the host locale.
+    allowed = {primary, primary.split('-')[0]}
+    assert actual['dateTime'] in allowed, actual
+    assert actual['number'] in allowed, actual
+
+
+@pytest.mark.asyncio
 async def test_navigator_hardware_concurrency(browser_with_fingerprint):
     page, data = browser_with_fingerprint
     fp = data["response"]["fingerprint"]
@@ -207,6 +222,7 @@ async def test_navigator_identity_matches_worker(browser_with_fingerprint, worke
         const probe = async () => ({
             ua: navigator.userAgent, platform: navigator.platform,
             languages: [...navigator.languages],
+            locale: Intl.DateTimeFormat().resolvedOptions().locale,
             cores: navigator.hardwareConcurrency, memory: navigator.deviceMemory,
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             offset: new Date().getTimezoneOffset(),

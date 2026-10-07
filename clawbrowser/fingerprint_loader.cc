@@ -6,9 +6,11 @@
 
 #include <cmath>
 #include <memory>
+#include <string_view>
 
 #include "base/base64.h"
 #include "base/files/file_util.h"
+#include "base/i18n/rtl.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/strings/string_util.h"
@@ -93,6 +95,27 @@ void ApplyTimezoneOverride(const Fingerprint& fingerprint) {
   std::unique_ptr<icu::TimeZone> timezone(
       icu::TimeZone::createTimeZone(icu_timezone));
   icu::TimeZone::adoptDefault(timezone.release());
+}
+
+// Intl.* and toLocale*String() without an explicit locale use V8's default
+// locale, which is the ICU default locale of the process. Chromium derives it
+// from the application locale (OS UI language on Windows and macOS, LANG on
+// Linux) before the fingerprint is known, so a ru-RU profile on an en-US host
+// reported Intl locale en-US next to navigator.languages ru-RU. Pin it to the
+// fingerprint's primary language, as with the timezone above. Renderers load
+// the fingerprint after their resource bundle set the ICU default, so this
+// wins there.
+void ApplyLocaleOverride(const Fingerprint& fingerprint) {
+  if (fingerprint.language.empty()) {
+    return;
+  }
+  std::string_view tag = fingerprint.language.front();
+  tag = tag.substr(0, tag.find(';'));
+  tag = base::TrimWhitespaceASCII(tag, base::TRIM_ALL);
+  if (tag.empty()) {
+    return;
+  }
+  base::i18n::SetICUDefaultLocale(tag);
 }
 
 void ReduceCachedChromeUserAgent(RuntimeFingerprint* runtime) {
@@ -313,6 +336,7 @@ base::expected<void, std::string> LoadFingerprintContents(
   }
 
   ApplyTimezoneOverride(envelope->response.fingerprint);
+  ApplyLocaleOverride(envelope->response.fingerprint);
   FingerprintAccessor::Set(
       ToRuntimeFingerprint(envelope->response.fingerprint),
       ToRuntimeProxyConfig(envelope->response.proxy));
@@ -360,6 +384,7 @@ base::expected<void, std::string> LoadFingerprintFromChildPayload(
   }
 
   ApplyTimezoneOverride(*fingerprint);
+  ApplyLocaleOverride(*fingerprint);
   FingerprintAccessor::Set(ToRuntimeFingerprint(*fingerprint),
                           ToRuntimeProxyConfig(proxy));
   return base::ok();
