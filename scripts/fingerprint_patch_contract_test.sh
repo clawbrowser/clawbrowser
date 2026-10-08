@@ -23,6 +23,7 @@ windows_strike_patch="${repo_root}/clawbrowser/patches/054-managed-windows-font-
 managed_strike_header="${repo_root}/clawbrowser/managed_font_rendering.h"
 windows_system_font_patch="${repo_root}/clawbrowser/patches/055-managed-windows-system-fonts.patch"
 local_collection_patch="${repo_root}/clawbrowser/patches/056-local-font-collection-variations.patch"
+windows_host_font_patch="${repo_root}/clawbrowser/patches/062-windows-host-system-fonts.patch"
 worker_descriptor_patch="${repo_root}/clawbrowser/patches/057-worker-font-descriptor-invalidation.patch"
 size_adjust_patch="${repo_root}/clawbrowser/patches/058-font-size-adjust-invalidation.patch"
 metric_override_patch="${repo_root}/clawbrowser/patches/059-font-metric-override-invalidation.patch"
@@ -267,6 +268,28 @@ grep -A8 'LayoutThemeFontProvider::SystemFontFamily(' "${windows_system_font_pat
   grep -q 'ShouldFilterLocalFonts'
 grep -A15 'LayoutThemeFontProvider::SystemFontSize(' "${windows_system_font_patch}" |
   grep -q 'return DefaultFontSize(document)'
+
+# A Windows fingerprint on a Windows host uses DirectWrite with only default
+# Windows families. Every catalog-only hook must step aside for it, and the
+# family lookup that all character fallback reaches must stay fail-closed.
+grep -A12 'FontCache::CreateFontPlatformData' "${windows_host_font_patch}" |
+  grep -q 'UsesHostFontAllowlist() &&'
+grep -A14 'FontCache::CreateFontPlatformData' "${windows_host_font_patch}" |
+  grep -q 'IsLocalFontBlocked(creation_params.Family().Utf8())'
+grep -A16 'FontCache::SystemFontFamily()' "${windows_host_font_patch}" |
+  grep -Fq '("Segoe UI")'
+for target in content/renderer/renderer_main.cc \
+    platform/fonts/skia/font_cache_skia.cc \
+    platform/fonts/win/font_platform_data_win.cc \
+    core/layout/layout_theme_font_provider_win.cc \
+    platform/fonts/skia/skia_text_metrics.cc \
+    platform/fonts/font_metrics.cc; do
+  awk -v t="${target}" '/^\+\+\+ /{on=index($0,t)>0} on' "${windows_host_font_patch}" |
+    grep -q '^+.*UsesManagedFontCatalog' || {
+      echo "${target} must gate catalog behavior on UsesManagedFontCatalog." >&2
+      exit 1
+    }
+done
 
 # local() TTC faces must clone the actual collection member, not default zero.
 # This checks wiring only; the five-region browser test proves weight changes.
