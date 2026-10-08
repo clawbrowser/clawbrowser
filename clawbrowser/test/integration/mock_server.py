@@ -161,7 +161,9 @@ self.addEventListener('activate', event => event.waitUntil(self.clients.claim())
 self.addEventListener('message', event => event.waitUntil((async () => {
   const result = {
     ua: navigator.userAgent, platform: navigator.platform,
-    languages: [...navigator.languages], cores: navigator.hardwareConcurrency,
+    languages: [...navigator.languages],
+    locale: Intl.DateTimeFormat().resolvedOptions().locale,
+    cores: navigator.hardwareConcurrency,
     memory: navigator.deviceMemory,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     offset: new Date().getTimezoneOffset(),
