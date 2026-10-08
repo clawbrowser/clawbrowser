@@ -204,7 +204,13 @@ source_set("clawbrowser_core") {
   if (is_linux || is_mac || is_win) {
     deps += [ ":clawbrowser_font_catalog" ]
   }
-
+  if (is_win) {
+    sources += [
+      "windows_installed_fonts.cc",
+      "windows_installed_fonts.h",
+    ]
+    libs = [ "dwrite.lib" ]
+  }
 }
 
 # ---------------------------------------------------------------------------
