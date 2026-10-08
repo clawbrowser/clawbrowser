@@ -1,0 +1,189 @@
+{
+  "schema_version": 2,
+  "created_at": "2026-03-23T10:00:00Z",
+  "request": {
+    "platform": "windows",
+    "browser": "chrome",
+    "country": "US",
+    "city": "New York",
+    "connection_type": "residential",
+    "runtime_gpu": "swiftshader"
+  },
+  "response": {
+    "fingerprint": {
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "platform": "Win32",
+      "screen": {
+        "width": 1920,
+        "height": 1080,
+        "avail_width": 1920,
+        "avail_height": 1040,
+        "color_depth": 24,
+        "pixel_ratio": 2
+      },
+      "hardware": {
+        "concurrency": 8,
+        "memory": 8
+      },
+      "webgl": {
+        "vendor": "Google Inc. (Google)",
+        "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device), SwiftShader driver)"
+      },
+      "canvas_seed": 1234567890,
+      "audio_seed": 987654321,
+      "client_rects_seed": 555555555,
+      "timezone": "America/New_York",
+      "language": [
+        "en-US",
+        "en"
+      ],
+      "fonts": [
+        "Arial",
+        "Calibri",
+        "Cambria",
+        "Consolas",
+        "Courier New",
+        "Segoe UI",
+        "Tahoma",
+        "Times New Roman",
+        "Verdana"
+      ],
+      "media_devices": [
+        {
+          "kind": "audioinput",
+          "label": "Microphone (Realtek(R) Audio)",
+          "device_id": "default"
+        },
+        {
+          "kind": "audiooutput",
+          "label": "Speakers (Realtek(R) Audio)",
+          "device_id": "default"
+        },
+        {
+          "kind": "videoinput",
+          "label": "Integrated Camera",
+          "device_id": "abc123"
+        }
+      ],
+      "plugins": [
+        {
+          "name": "PDF Viewer",
+          "description": "Portable Document Format",
+          "filename": "mhjfbmdgcfjbbpaeojofohoefgiehjai"
+        }
+      ],
+      "battery": {
+        "charging": true,
+        "level": 0.87
+      },
+      "speech_voices": [
+        "Microsoft David",
+        "Microsoft Zira"
+      ],
+      "browser_family": "chrome",
+      "browser_version": "120.0.0.0",
+      "engine": "blink",
+      "os": "windows",
+      "os_version": "10.0",
+      "architecture": "x86_64",
+      "device_class": "desktop",
+      "user_agent_data": {
+        "brands": [
+          {
+            "brand": "Chromium",
+            "version": "120"
+          },
+          {
+            "brand": "Google Chrome",
+            "version": "120"
+          },
+          {
+            "brand": "Not/A)Brand",
+            "version": "99"
+          }
+        ],
+        "fullVersionList": [
+          {
+            "brand": "Chromium",
+            "version": "120.0.0.0"
+          },
+          {
+            "brand": "Google Chrome",
+            "version": "120.0.0.0"
+          },
+          {
+            "brand": "Not/A)Brand",
+            "version": "99.0.0.0"
+          }
+        ],
+        "platform": "Windows",
+        "platformVersion": "10.0.0",
+        "architecture": "x86",
+        "bitness": "64",
+        "mobile": false,
+        "model": "",
+        "uaFullVersion": "120.0.0.0"
+      },
+      "audio_codecs": {
+        "mp3": "",
+        "aac": "probably",
+        "opus": "probably"
+      },
+      "video_codecs": {
+        "h264": "",
+        "vp9": "probably",
+        "av1": "probably"
+      },
+      "headers": {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Sec-CH-UA": "\"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\", \"Not/A)Brand\";v=\"99\"",
+        "Sec-CH-UA-Mobile": "?0",
+        "Sec-CH-UA-Platform": "\"Windows\"",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br, zstd",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1"
+      },
+      "surface_policy": {
+        "canvas": {
+          "mode": "override"
+        },
+        "audio": {
+          "mode": "native"
+        },
+        "client_rects": {
+          "mode": "native"
+        },
+        "webgl": {
+          "mode": "native"
+        },
+        "fonts": {
+          "mode": "native_or_allowlist"
+        },
+        "plugins": {
+          "mode": "override"
+        },
+        "media_devices": {
+          "mode": "override"
+        },
+        "speech_voices": {
+          "mode": "override"
+        }
+      }
+    },
+    "proxy": {
+      "scheme": "http",
+      "country": "US",
+      "city": "New York",
+      "connection_type": "residential",
+      "host": "proxy.example.com",
+      "port": 8080,
+      "username": "user",
+      "password": "pass"
+    }
+  }
+}
