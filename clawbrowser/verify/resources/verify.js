@@ -32,26 +32,40 @@ async function detectExpectedFonts(fontsExpected) {
     return width;
   };
   const bases = ['monospace', 'serif', 'sans-serif'];
-  const widths = bases.map(measure);
-  const detected = [];
-  for (const font of fontsExpected) {
-    // A script-specific face can also be the fallback for every generic, so
-    // equal widths alone do not prove it is missing. Try actual local faces.
-    let localLoaded = false;
-    for (const name of [font, `${font} Regular`]) {
-      try {
-        await new FontFace('ClawbrowserVerifyLocal',
-          `local(${JSON.stringify(name)})`).load();
-        localLoaded = true;
-        break;
-      } catch (_) {}
+  const detectOnce = async fonts => {
+    const widths = bases.map(measure);
+    const found = [];
+    for (const font of fonts) {
+      // A script-specific face can also be the fallback for every generic, so
+      // equal widths alone do not prove it is missing. Try actual local faces.
+      let localLoaded = false;
+      for (const name of [font, `${font} Regular`]) {
+        try {
+          await new FontFace('ClawbrowserVerifyLocal',
+            `local(${JSON.stringify(name)})`).load();
+          localLoaded = true;
+          break;
+        } catch (_) {}
+      }
+      if (localLoaded || bases.some((base, index) =>
+        measure(`${JSON.stringify(font)}, ${base}`) !== widths[index])) {
+        found.push(font);
+      }
     }
-    if (localLoaded || bases.some((base, index) =>
-      measure(`${JSON.stringify(font)}, ${base}`) !== widths[index])) {
-      detected.push(font);
-    }
+    return found;
+  };
+  const detected = await detectOnce(fontsExpected);
+  // Large host collections (e.g. a 14 MB CJK .ttc on Windows) can still be
+  // loading during the first pass, which then measures the fallback face.
+  // Re-check only the missing fonts after layout settles.
+  for (let attempt = 0; attempt < 3; ++attempt) {
+    const missing = fontsExpected.filter(font => !detected.includes(font));
+    if (!missing.length) break;
+    await document.fonts.ready;
+    await new Promise(resolve => setTimeout(resolve, 500));
+    detected.push(...await detectOnce(missing));
   }
-  return detected;
+  return fontsExpected.filter(font => detected.includes(font));
 }
 
 function formatProxyLocation(country, city) {
