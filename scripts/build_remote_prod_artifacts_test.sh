@@ -373,7 +373,7 @@ run_linux_success_scenario() {
   assert_contains "${SCENARIO_RUNNER_BODY}" 'install-sysroot.py --arch=arm64'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'calculate_linux_parallel_jobs() {'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'linux_parallel_jobs="$(calculate_linux_parallel_jobs)"'
-  assert_contains "${SCENARIO_RUNNER_BODY}" 'autoninja -C "${build_dir}" -j "${ninja_jobs}" chrome'
+  assert_contains "${SCENARIO_RUNNER_BODY}" 'autoninja -C "${build_dir}" -j "${ninja_jobs}" chrome chrome_sandbox'
   assert_contains "${SCENARIO_RUNNER_BODY}" "setsid bash -c 'set -euo pipefail; build_one \"\$1\" \"\$2\" \"\$3\"'"
   assert_contains "${SCENARIO_RUNNER_BODY}" 'run_parallel_linux_builds() {'
   assert_contains "${SCENARIO_RUNNER_BODY}" 'terminate_linux_build_group() {'
