@@ -12,7 +12,7 @@ COPY_FUNCTION = SOURCE[START:SOURCE.index('\n}\n', START) + 3]
 
 
 class LinuxRuntimeFontsTest(unittest.TestCase):
-    def copy(self, catalog='current', active=True):
+    def copy(self, catalog='current', active=True, sandbox=True):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name)
@@ -26,6 +26,9 @@ class LinuxRuntimeFontsTest(unittest.TestCase):
             (directory / 'manifest.json').write_text('{}')
             (directory / 'font.ttf').write_bytes(b'test font payload')
         (build / 'chrome').write_text('binary fixture')
+        if sandbox:
+            (build / 'chrome_sandbox').write_text('sandbox fixture')
+            (build / 'chrome_sandbox').chmod(0o755)
         stage = root / 'stage'
         result = subprocess.run(['bash', '-c',
             'set -euo pipefail\n'
@@ -39,8 +42,14 @@ class LinuxRuntimeFontsTest(unittest.TestCase):
         result, stage = self.copy()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((stage / 'chrome').is_file())
+        self.assertTrue((stage / 'chrome_sandbox').is_file())
         self.assertTrue((stage / 'clawbrowser-fonts/current/font.ttf').is_file())
         self.assertFalse((stage / 'clawbrowser-fonts/obsolete').exists())
+
+    def test_missing_chrome_sandbox_fails(self):
+        result, _ = self.copy(sandbox=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Missing chrome_sandbox', result.stderr)
 
     def test_missing_active_catalog_fails(self):
         result, _ = self.copy(active=False)
