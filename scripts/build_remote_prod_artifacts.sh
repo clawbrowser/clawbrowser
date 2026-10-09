@@ -534,9 +534,9 @@ build_one() {
   gn gen "${build_dir}"
 
   if [[ -n "${ninja_jobs}" ]]; then
-    autoninja -C "${build_dir}" -j "${ninja_jobs}" chrome
+    autoninja -C "${build_dir}" -j "${ninja_jobs}" chrome chrome_sandbox
   else
-    autoninja -C "${build_dir}" chrome
+    autoninja -C "${build_dir}" chrome chrome_sandbox
   fi
 }
 
@@ -934,6 +934,11 @@ copy_linux_runtime() {
   [[ "${catalog_id}" =~ ^[a-zA-Z0-9_-]+$ ]] || die "Invalid active font catalog id"
   [[ -f "${build_dir}/clawbrowser-fonts/${catalog_id}/manifest.json" ]] || \
     die "Missing active font catalog: ${catalog_id}"
+
+  # The launcher wrapper uses the setuid helper where installed; without it
+  # Ubuntu 24.04+ (no unprivileged user namespaces) cannot start the browser.
+  [[ -x "${build_dir}/chrome_sandbox" ]] || \
+    die "Missing chrome_sandbox in ${build_dir}"
 
   mkdir -p "${stage_dir}"
   rsync -a --prune-empty-dirs \
