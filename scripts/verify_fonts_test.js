@@ -19,7 +19,7 @@ const document = {
       assert.match(this.style.cssText, /font-size:72px/);
       const family = this.style.fontFamily;
       if (family.startsWith('"Arimo"')) return {width: 11};
-      if (family.startsWith('"Late Font"') && ++lateFontMeasurements > 3) {
+      if (family.startsWith('"Late Font"') && ++lateFontMeasurements > 9) {
         return {width: 12};
       }
       const base = family.split(',').at(-1).trim();
