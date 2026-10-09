@@ -385,6 +385,26 @@ bool RuntimeHeadless(const base::CommandLine& command_line) {
   return command_line.HasSwitch("headless");
 }
 
+std::optional<ProxyConfig> ManualProxyForGenerateRequest(
+    const ProfileEnvelope& cached) {
+  if (!cached.response.proxy.has_value()) {
+    return std::nullopt;
+  }
+  const ProxyConfig& saved = *cached.response.proxy;
+  if (!saved.host.has_value() || saved.host->empty() ||
+      !saved.port.has_value() || *saved.port <= 0) {
+    return std::nullopt;
+  }
+  // The backend accepts only these fields for a manual proxy.
+  ProxyConfig manual;
+  manual.scheme = saved.scheme;
+  manual.host = saved.host;
+  manual.port = saved.port;
+  manual.username = saved.username;
+  manual.password = saved.password;
+  return manual;
+}
+
 bool CachedProfileNeedsPrivacyUpgrade(const ProfileEnvelope& cached) {
   const auto& policy = cached.response.fingerprint.surface_policy;
   return policy.canvas.mode != "override" ||
@@ -783,6 +803,13 @@ base::expected<StartupResult, std::string> RunStartup(
     }
     ApplyGenerateRequestOverrides(args, &params);
     ApplyRuntimeRequestHints(*command_line, &params);
+    // A refresh of a manual-proxy profile must name that proxy. Otherwise the
+    // backend aligns timezone and language with a managed exit of its own
+    // while traffic keeps using the user's proxy (e.g. Asia/Krasnoyarsk for a
+    // Moscow mobile exit).
+    if (cached_profile.has_value() && cached_profile->manual_proxy_bound) {
+      params.manual_proxy = ManualProxyForGenerateRequest(*cached_profile);
+    }
 
     // Synchronous API call (blocking — acceptable for pre-launch)
     base::RunLoop run_loop;
@@ -825,6 +852,9 @@ base::expected<StartupResult, std::string> RunStartup(
     envelope.schema_version = ProfileEnvelope::kCurrentSchemaVersion;
     envelope.created_at = base::TimeFormatAsIso8601(base::Time::Now());
     envelope.request = params;
+    // The cached request is replayed in plain text; credentials stay only in
+    // the encrypted proxy envelope.
+    envelope.request.manual_proxy.reset();
     envelope.response = std::move(*api_result);
 
     if (cached_profile.has_value() && cached_profile->manual_proxy_bound) {

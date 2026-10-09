@@ -88,6 +88,10 @@
         "runtime_font_catalog": {
           "type": "string",
           "description": "Exact bundled font catalog capability, absent for legacy runtimes."
+        },
+        "manual_proxy": {
+          "$ref": "#/components/schemas/ProxyConfig",
+          "description": "User-supplied proxy the fingerprint is generated for. The backend aligns timezone and language with this proxy's real exit instead of assigning a managed proxy."
         }
       }
     },

@@ -19,6 +19,31 @@
 
 namespace clawbrowser {
 
+struct ProxyConfig {
+  ProxyConfig();
+  ProxyConfig(const ProxyConfig&);
+  ProxyConfig& operator=(const ProxyConfig&);
+  ProxyConfig(ProxyConfig&&);
+  ProxyConfig& operator=(ProxyConfig&&);
+  ~ProxyConfig();
+
+  std::optional<std::string> scheme;
+  std::optional<std::string> country;
+  std::optional<std::string> city;
+  std::optional<std::string> connection_type;
+  std::optional<std::string> host;
+  std::optional<int> port;
+  std::optional<std::string> username;
+  std::optional<std::string> password;
+
+  static base::expected<ProxyConfig, std::string> FromDict(
+      const base::DictValue& dict);
+  static base::expected<ProxyConfig, std::string> FromJson(
+      const std::string& json);
+  base::DictValue ToDict() const;
+  std::string ToJson() const;
+};
+
 struct GenerateRequest {
   GenerateRequest();
   GenerateRequest(const GenerateRequest&);
@@ -40,6 +65,7 @@ struct GenerateRequest {
   std::optional<std::string> runtime_gpu;
   std::optional<bool> runtime_headless;
   std::optional<std::string> runtime_font_catalog;
+  std::optional<ProxyConfig> manual_proxy;
 
   static base::expected<GenerateRequest, std::string> FromDict(
       const base::DictValue& dict);
@@ -240,31 +266,6 @@ struct SurfacePolicy {
   static base::expected<SurfacePolicy, std::string> FromDict(
       const base::DictValue& dict);
   static base::expected<SurfacePolicy, std::string> FromJson(
-      const std::string& json);
-  base::DictValue ToDict() const;
-  std::string ToJson() const;
-};
-
-struct ProxyConfig {
-  ProxyConfig();
-  ProxyConfig(const ProxyConfig&);
-  ProxyConfig& operator=(const ProxyConfig&);
-  ProxyConfig(ProxyConfig&&);
-  ProxyConfig& operator=(ProxyConfig&&);
-  ~ProxyConfig();
-
-  std::optional<std::string> scheme;
-  std::optional<std::string> country;
-  std::optional<std::string> city;
-  std::optional<std::string> connection_type;
-  std::optional<std::string> host;
-  std::optional<int> port;
-  std::optional<std::string> username;
-  std::optional<std::string> password;
-
-  static base::expected<ProxyConfig, std::string> FromDict(
-      const base::DictValue& dict);
-  static base::expected<ProxyConfig, std::string> FromJson(
       const std::string& json);
   base::DictValue ToDict() const;
   std::string ToJson() const;
