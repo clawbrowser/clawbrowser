@@ -225,7 +225,10 @@ ensure_base_prereqs() {
   require_command python3 "Chromium tooling requires Python 3."
   require_command rsync "rsync is required to sync project files into chromium/src."
   require_command bash "A bash-compatible shell is required."
-  ensure_full_xcode
+  # Only macOS builds need Xcode; a fresh Linux checkout must not require it.
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    ensure_full_xcode
+  fi
 }
 
 ensure_patch_prereqs() {
