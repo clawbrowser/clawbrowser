@@ -133,6 +133,37 @@ TEST(WindowsHostFontsTest, SelectionUsesFullWindowsListOnWindowsHost) {
   EXPECT_EQ(selection.fonts, WindowsDefaultFontFamilies());
 }
 
+TEST(WindowsHostFontsTest, SelectionKeepsOnlyInstalledDefaultFamilies) {
+  // Windows Server lacks many desktop fonts (Candara, Sitka, Yu Gothic...).
+  const std::vector<std::string> installed = {"segoe ui", "Calibri", "Arial",
+                                              "Fira Code", "Segoe UI Emoji"};
+  RuntimeFontSelection selection =
+      SelectRuntimeFonts({"Calibri"}, "windows", "Win32",
+                         /*windows_host=*/true, &installed);
+  EXPECT_EQ(selection.catalog_id, kWindowsHostFontCatalogID);
+  // Default-list order and spelling; never the extra host font.
+  EXPECT_EQ(selection.fonts, (std::vector<std::string>{
+                                 "Arial", "Calibri", "Segoe UI",
+                                 "Segoe UI Emoji"}));
+}
+
+TEST(WindowsHostFontsTest, SelectionWithoutInstalledDefaultsUsesCatalog) {
+  const std::vector<std::string> installed = {"Fira Code"};
+  RuntimeFontSelection selection =
+      SelectRuntimeFonts({"Calibri", "Arimo"}, "windows", "Win32",
+                         /*windows_host=*/true, &installed);
+  EXPECT_EQ(selection.catalog_id, kLinuxFontCatalogID);
+  EXPECT_EQ(selection.fonts, (std::vector<std::string>{"Arimo"}));
+}
+
+TEST(WindowsHostFontsTest, SelectionIgnoresInstalledListOffWindowsHost) {
+  const std::vector<std::string> installed = {"Arial"};
+  RuntimeFontSelection selection =
+      SelectRuntimeFonts({"Arimo"}, "windows", "Win32",
+                         /*windows_host=*/false, &installed);
+  EXPECT_EQ(selection.catalog_id, kLinuxFontCatalogID);
+}
+
 TEST(WindowsHostFontsTest, SelectionUsesCatalogOffWindowsOrForOtherOS) {
   RuntimeFontSelection linux_host = SelectRuntimeFonts(
       {"Calibri", "Arimo"}, "windows", "Win32", /*windows_host=*/false);

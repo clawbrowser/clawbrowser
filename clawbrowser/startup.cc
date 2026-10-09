@@ -1,6 +1,8 @@
 #include "clawbrowser/startup.h"
 
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -34,6 +36,9 @@
 #include "clawbrowser/paths.h"
 #include "clawbrowser/proxy/proxy_config.h"
 #include "clawbrowser/proxy/socks5_auth_proxy_bridge.h"
+#if BUILDFLAG(IS_WIN)
+#include "clawbrowser/windows_installed_fonts.h"
+#endif
 #include "components/version_info/version_info.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "crypto/hash.h"
@@ -854,10 +859,18 @@ base::expected<StartupResult, std::string> RunStartup(
         args, "fingerprint_load_failed",
         "failed to load fingerprint profile: " + font_profile.error()));
   }
+  std::optional<std::vector<std::string>> installed_families;
+#if BUILDFLAG(IS_WIN)
+  if (IsWindowsFingerprint(font_profile->response.fingerprint.os,
+                           font_profile->response.fingerprint.platform)) {
+    installed_families = GetInstalledFontFamilies();
+  }
+#endif
   RuntimeFontSelection runtime_fonts = SelectRuntimeFonts(
       font_profile->response.fingerprint.fonts,
       font_profile->response.fingerprint.os,
-      font_profile->response.fingerprint.platform, BUILDFLAG(IS_WIN));
+      font_profile->response.fingerprint.platform, BUILDFLAG(IS_WIN),
+      installed_families ? &*installed_families : nullptr);
   if (runtime_fonts.fonts != font_profile->response.fingerprint.fonts ||
       font_profile->request.runtime_font_catalog != runtime_fonts.catalog_id) {
     font_profile->response.fingerprint.fonts = std::move(runtime_fonts.fonts);

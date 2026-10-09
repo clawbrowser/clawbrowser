@@ -1,6 +1,7 @@
 #ifndef CLAWBROWSER_FONT_CATALOG_IDENTITY_H_
 #define CLAWBROWSER_FONT_CATALOG_IDENTITY_H_
 
+#include <algorithm>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -110,22 +111,36 @@ struct RuntimeFontSelection {
 // The installed runtime is authoritative even with cached profiles or an
 // older backend that ignores the capability hint.
 //
-// A Windows fingerprint on a Windows host always gets the full default list:
-// a stock Windows install exposes all of it, and the backend's subset would
-// drop the emoji, CJK, Indic and Thai fallback families, which host-font
-// filtering would then render as tofu. Elsewhere, keep supported explicit
-// subsets of the bundle; replace an entirely incompatible legacy list with it.
+// A Windows fingerprint on a Windows host gets the default list, not the
+// backend's subset: that subset drops the emoji, CJK, Indic and Thai fallback
+// families, which host-font filtering would then render as tofu. When the
+// caller knows the host's installed families, keep only those: Windows Server
+// and stripped images lack many desktop fonts, and listing a font the host
+// cannot render contradicts every probe. If none remain, use the bundle.
+// Elsewhere, keep supported explicit subsets of the bundle; replace an
+// entirely incompatible legacy list with it.
 inline RuntimeFontSelection SelectRuntimeFonts(
     const std::vector<std::string>& profile_fonts,
     std::string_view fingerprint_os,
     std::string_view fingerprint_platform,
-    bool windows_host) {
+    bool windows_host,
+    const std::vector<std::string>* installed_families = nullptr) {
   RuntimeFontSelection selection;
   if (windows_host &&
       IsWindowsFingerprint(fingerprint_os, fingerprint_platform)) {
-    selection.catalog_id = kWindowsHostFontCatalogID;
-    selection.fonts = WindowsDefaultFontFamilies();
-    return selection;
+    for (const auto& family : WindowsDefaultFontFamilies()) {
+      if (!installed_families ||
+          std::any_of(installed_families->begin(), installed_families->end(),
+                      [&](const std::string& name) {
+                        return base::EqualsCaseInsensitiveASCII(name, family);
+                      })) {
+        selection.fonts.push_back(family);
+      }
+    }
+    if (!selection.fonts.empty()) {
+      selection.catalog_id = kWindowsHostFontCatalogID;
+      return selection;
+    }
   }
   selection.catalog_id = kLinuxFontCatalogID;
   for (const auto& name : profile_fonts) {

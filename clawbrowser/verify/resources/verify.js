@@ -19,39 +19,56 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 }
 
 async function detectExpectedFonts(fontsExpected) {
-  const measure = family => {
+  const measure = (family, text) => {
     const span = document.createElement('span');
     // Generic monospace otherwise defaults to a different size. Compare three
     // fallbacks so the bundled monospace face can itself be detected too.
     span.style.cssText = 'position:absolute;visibility:hidden;font-size:72px;';
     span.style.fontFamily = family;
-    span.textContent = 'mmmmmmmmmmlliWW0123漢字कกالعربية';
+    span.textContent = text;
     document.body.appendChild(span);
     const width = span.getBoundingClientRect().width;
     span.remove();
     return width;
   };
+  // Measure Latin and the other scripts separately as well: under some
+  // profile locales (e.g. ru-RU on Windows) a mixed run measures the same for
+  // every base and every candidate, which hid installed CJK families such as
+  // Yu Gothic even though their Latin glyphs differ.
+  const samples = ['mmmmmmmmmmlliWW0123', '漢字कกالعربية',
+                   'mmmmmmmmmmlliWW0123漢字कกالعربية'];
   const bases = ['monospace', 'serif', 'sans-serif'];
-  const widths = bases.map(measure);
-  const detected = [];
-  for (const font of fontsExpected) {
-    // A script-specific face can also be the fallback for every generic, so
-    // equal widths alone do not prove it is missing. Try actual local faces.
-    let localLoaded = false;
+  const byWidth = fonts => {
+    const widths = samples.map(text => bases.map(base => measure(base, text)));
+    return fonts.filter(font => samples.some((text, sample) =>
+      bases.some((base, index) =>
+        measure(`${JSON.stringify(font)}, ${base}`, text) !==
+            widths[sample][index])));
+  };
+  const detected = byWidth(fontsExpected);
+  // A script-specific face can also be the fallback for every generic, so
+  // equal widths alone do not prove it is missing. Try actual local faces.
+  for (const font of fontsExpected.filter(font => !detected.includes(font))) {
     for (const name of [font, `${font} Regular`]) {
       try {
         await new FontFace('ClawbrowserVerifyLocal',
           `local(${JSON.stringify(name)})`).load();
-        localLoaded = true;
+        detected.push(font);
         break;
       } catch (_) {}
     }
-    if (localLoaded || bases.some((base, index) =>
-      measure(`${JSON.stringify(font)}, ${base}`) !== widths[index])) {
-      detected.push(font);
-    }
   }
-  return detected;
+  // Large host collections (e.g. a 14 MB CJK .ttc on Windows) can still be
+  // loading during the first pass. Re-measure only the missing fonts after
+  // layout settles.
+  for (let attempt = 0; attempt < 3; ++attempt) {
+    const missing = fontsExpected.filter(font => !detected.includes(font));
+    if (!missing.length) break;
+    await document.fonts.ready;
+    await new Promise(resolve => setTimeout(resolve, 500));
+    detected.push(...byWidth(missing));
+  }
+  return fontsExpected.filter(font => detected.includes(font));
 }
 
 function formatProxyLocation(country, city) {
