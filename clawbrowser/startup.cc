@@ -177,11 +177,13 @@ void ApplyFingerprintWebGLIsolation(const ClawArgs& args,
   // bundled fallback adapter as well; otherwise WebGL reports SwiftShader
   // while navigator.gpu still exposes the host Metal/D3D/Vulkan device.
   command_line->AppendSwitchASCII("use-webgpu-adapter", "swiftshader");
-#if BUILDFLAG(IS_LINUX)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
   // Canvas2D otherwise selects CPU or GPU rasterization independently of the
   // WebGL adapter. Those paths produce different observable pixels even with
-  // identical bundled fonts. Keep one raster path for Linux identities;
-  // vanilla mode above retains the user's acceleration preference.
+  // identical bundled fonts: on Windows a default 2D context and one created
+  // with willReadFrequently hash differently for the same drawing. Keep one
+  // raster path for Linux and Windows identities; vanilla mode above retains
+  // the user's acceleration preference.
   command_line->AppendSwitch("disable-accelerated-2d-canvas");
 #endif
 
