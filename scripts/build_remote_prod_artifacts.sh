@@ -370,8 +370,21 @@ release_build_locks() {
 }
 
 cleanup_on_exit() {
+  local exit_code=$?
+  trap - EXIT
+  # Keep the original failure even if reporting or cleanup also fails.
+  set +e
+  # Bash 3 can report zero here for nounset inside a function. An active
+  # step has not returned successfully, even if it called exit 0 itself.
+  if [[ -n "${active_step:-}" ]]; then
+    (( exit_code != 0 )) || exit_code=1
+    append_summary "FAIL ${active_step} exit=${exit_code}"
+    printf '[prod-artifacts] FAIL %s exit=%s\n' "${active_step}" "${exit_code}"
+    write_status failed "${active_step}" "${exit_code}"
+  fi
   release_build_locks
   cleanup_stage_dirs
+  exit "${exit_code}"
 }
 
 trap cleanup_on_exit EXIT
@@ -426,28 +439,20 @@ mark_runner_started() {
 run_step() {
   local name="$1"
   shift
-
+  active_step="${name}"
   append_summary "START ${name}"
   printf '[prod-artifacts] START %s\n' "${name}"
 
-  # Run the step in a subshell outside any conditional: bash ignores errexit
-  # inside functions called from an `if`, so a failed command in the middle
-  # of a step (for example the staged-runtime integration suite) used to be
-  # swallowed and the step still reported OK.
-  local exit_code=0
-  set +e
-  ( set -euo pipefail; "$@" )
-  exit_code=$?
-  set -e
-  if [[ "${exit_code}" -eq 0 ]]; then
-    append_summary "OK ${name}"
-    printf '[prod-artifacts] OK %s\n' "${name}"
-    return 0
-  fi
-  append_summary "FAIL ${name} exit=${exit_code}"
-  printf '[prod-artifacts] FAIL %s exit=%s\n' "${name}" "${exit_code}"
-  write_status failed "${name}" "${exit_code}"
-  exit "${exit_code}"
+  # A direct call preserves packaging state and lets errexit stop at the
+  # first unhandled failure. Do not put this call (or run_step itself) in an
+  # if/|| condition: bash would suppress errexit throughout the step.
+  # The EXIT handler records failures, including explicit exit and nounset,
+  # without trapping expected nonzero commands run temporarily under set +e.
+  "$@"
+
+  append_summary "OK ${name}"
+  printf '[prod-artifacts] OK %s\n' "${name}"
+  active_step=""
 }
 
 prepare_project() {

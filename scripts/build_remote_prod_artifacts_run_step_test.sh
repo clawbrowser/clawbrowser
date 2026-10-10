@@ -1,25 +1,78 @@
 #!/usr/bin/env bash
-# Behavioural check: a command failing in the middle of a step must fail the
-# step even when later commands in the same step succeed.
+# Exercise real runner functions without a remote machine or Chromium build.
 set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-run_step_src="$(awk '/^run_step\(\) \{/,/^\}/' "${TARGET:-${script_dir}/build_remote_prod_artifacts.sh}" | head -n 200)"
-[[ -n "${run_step_src}" ]] || { echo "FAIL: run_step not found"; exit 1; }
-work="$(mktemp -d)"; trap 'rm -rf "${work}"' EXIT
-cat > "${work}/harness.sh" <<HARNESS
+target="${TARGET:-${script_dir}/build_remote_prod_artifacts.sh}"
+work="$(mktemp -d)"
+trap 'rm -rf "${work}"' EXIT
+extract() { awk -v name="$1" '$0 == name "() {" { inside=1 } inside { print } inside && /^}/ { exit }' "$target"; }
+for function in run_step cleanup_on_exit cleanup_stage_dirs record_artifacts; do
+  extract "$function" >> "$work/functions.sh"
+done
+cat > "$work/harness.sh" <<'HARNESS'
 set -euo pipefail
-append_summary() { :; }
-write_status() { echo "status=\$1 step=\$2 exit=\$3" > "${work}/status"; }
-${run_step_src}
-middle_failure() { false; echo "after the failure"; true; }
-run_step middle middle_failure
-echo "not reached"
+work=$1
+scenario=$2
+source "$3"
+artifact_count=0
+artifact_1="" artifact_2="" artifact_3="" artifact_4=""
+cleanup_dir_1="" cleanup_dir_2="" cleanup_dir_3=""
+artifact_manifest_path="$work/manifest"
+append_summary() { echo "$*" >> "$work/summary"; }
+write_status() { echo "$1 $2 $3 count=$artifact_count" > "$work/status"; }
+release_build_locks() { : > "$work/locks-released"; }
+trap cleanup_on_exit EXIT
+package() {
+  artifact_count=2
+  artifact_1="$work/one.tar.gz" artifact_2="$work/two.tar.gz"
+  cleanup_dir_1="$work/stage-one" cleanup_dir_2="$work/stage-two"
+  mkdir "$cleanup_dir_1" "$cleanup_dir_2"
+  case "$scenario" in
+    middle) false ;;
+    explicit) exit 7 ;;
+    early_success) exit 0 ;;
+    pipeline) false | cat ;;
+    missing) echo "$UNDEFINED_RUNNER_TEST_VARIABLE" ;;
+    handled)
+      set +e
+      false
+      code=$?
+      set -e
+      [[ "$code" == 1 ]]
+      ;;
+  esac
+  echo reached-end >> "$work/summary"
+}
+run_step package package
+[[ "$artifact_count" == 2 ]]
+record_artifacts
+write_status succeeded finished 0
+echo finished >> "$work/summary"
 HARNESS
-set +e
-out="$(bash "${work}/harness.sh" 2>&1)"; code=$?
-set -e
-if [[ "${code}" -eq 0 || "${out}" == *"not reached"* || "${out}" == *"after the failure"* ]]; then
-  echo "FAIL: a failure inside a step was swallowed (exit=${code}): ${out}"; exit 1
-fi
-grep -q "status=failed step=middle" "${work}/status" || { echo "FAIL: status not recorded"; exit 1; }
-echo PASS
+for scenario in ${SCENARIOS:-success handled middle explicit early_success pipeline missing}; do
+  dir="$work/$scenario"; mkdir "$dir"
+  set +e
+  bash "$work/harness.sh" "$dir" "$scenario" "$work/functions.sh" > "$dir/output" 2>&1
+  code=$?
+  set -e
+  [[ -f "$dir/locks-released" && ! -e "$dir/stage-one" && ! -e "$dir/stage-two" ]] || {
+    echo "FAIL $scenario: cleanup or state propagation"; cat "$dir/output"; exit 1;
+  }
+  case "$scenario" in
+    success|handled)
+      [[ "$code" == 0 ]] || { cat "$dir/output"; exit 1; }
+      grep -qx 'succeeded finished 0 count=2' "$dir/status"
+      printf '%s\n' "$dir/one.tar.gz" "$dir/two.tar.gz" > "$dir/expected"
+      cmp "$dir/manifest" "$dir/expected"
+      ;;
+    *)
+      [[ "$code" != 0 ]]
+      [[ "$scenario" != explicit || "$code" == 7 ]]
+      grep -qx "failed package $code count=2" "$dir/status"
+      if grep -qE 'reached-end|finished|OK package' "$dir/summary"; then
+        echo "FAIL $scenario: execution continued after failure"; exit 1
+      fi
+      ;;
+  esac
+  echo "PASS $scenario"
+done
