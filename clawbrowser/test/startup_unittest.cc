@@ -1030,6 +1030,37 @@ TEST_F(StartupTest,
   EXPECT_TRUE(cmd.GetArgs().empty());
 }
 
+TEST_F(StartupTest, CommandLineBeforeUserDataDirRecordsManagedFingerprintDir) {
+  WriteConfigJson("test_key");
+  base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+  cmd.AppendSwitchASCII("fingerprint", "managed_profile");
+
+  ConfigureCommandLineBeforeUserDataDir(&cmd);
+
+  EXPECT_EQ(NormalizePathForComparison(GetManagedFingerprintUserDataDir()),
+            NormalizePathForComparison(
+                CreateProfileManager().GetUserDataDir("managed_profile")));
+  EXPECT_EQ(UserDataDirSwitch(cmd),
+            NormalizePathForComparison(GetManagedFingerprintUserDataDir()));
+}
+
+TEST_F(StartupTest, CommandLineBeforeUserDataDirClearsManagedDirForAuth) {
+  WriteConfigJson("test_key");
+  base::CommandLine managed(base::CommandLine::NO_PROGRAM);
+  managed.AppendSwitchASCII("fingerprint", "managed_profile");
+  ConfigureCommandLineBeforeUserDataDir(&managed);
+  ASSERT_FALSE(GetManagedFingerprintUserDataDir().empty());
+
+  ASSERT_TRUE(base::DeleteFile(GetConfigDir().AppendASCII("config.json")));
+  base::CommandLine auth(base::CommandLine::NO_PROGRAM);
+  auth.AppendSwitchASCII("fingerprint", "managed_profile");
+  ConfigureCommandLineBeforeUserDataDir(&auth);
+
+  EXPECT_TRUE(GetManagedFingerprintUserDataDir().empty());
+  EXPECT_NE(auth.GetSwitchValueASCII("user-data-dir").find("Auth"),
+            std::string::npos);
+}
+
 TEST_F(StartupTest,
        CommandLineBeforeUserDataDirPreservesFingerprintForAuthRelaunch) {
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);

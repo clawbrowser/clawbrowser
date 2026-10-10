@@ -5,6 +5,7 @@
 #include <string>
 
 #include "base/command_line.h"
+#include "base/files/file_path.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/types/expected.h"
 
@@ -56,6 +57,13 @@ base::expected<StartupResult, std::string> ConfigureEarlyStartup(
 // InitializeUserDataDir(), otherwise a fresh launch can bind to the default
 // Chromium profile before Clawbrowser selects the fingerprint/auth profile.
 void ConfigureCommandLineBeforeUserDataDir(base::CommandLine* command_line);
+
+// The per-fingerprint user data directory that the last
+// ConfigureCommandLineBeforeUserDataDir() call selected for a managed
+// fingerprint launch, or an empty path for vanilla, auth and list startups.
+// Windows uses it to override chrome_elf, which only sees the original
+// command line.
+const base::FilePath& GetManagedFingerprintUserDataDir();
 
 }  // namespace clawbrowser
 

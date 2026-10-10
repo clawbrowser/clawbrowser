@@ -54,6 +54,11 @@ namespace clawbrowser {
 
 namespace {
 
+base::FilePath& ManagedFingerprintUserDataDir() {
+  static base::NoDestructor<base::FilePath> dir;
+  return *dir;
+}
+
 void PrintError(const ClawArgs& args, const std::string& code,
                 const std::string& message) {
   // Errors always print to stderr regardless of --verbose
@@ -220,8 +225,9 @@ void ConfigureProfileStartupCommandLine(const ClawArgs& args,
   }
 
   ApplyFingerprintWebGLIsolation(args, command_line);
+  ManagedFingerprintUserDataDir() = profile_manager->GetUserDataDir(fp_id);
   command_line->AppendSwitchPath("user-data-dir",
-                                 profile_manager->GetUserDataDir(fp_id));
+                                 ManagedFingerprintUserDataDir());
 }
 
 base::FilePath GetAuthUserDataDir(ProfileManager* profile_manager) {
@@ -668,6 +674,7 @@ base::expected<std::optional<int>, std::string> HandleBasicStartupComplete(
 }
 
 void ConfigureCommandLineBeforeUserDataDir(base::CommandLine* command_line) {
+  ManagedFingerprintUserDataDir().clear();
   ApplyMacAutomationSwitches(command_line);
 
   ProfileManager profile_manager(GetClawbrowserConfigDir());
@@ -676,6 +683,10 @@ void ConfigureCommandLineBeforeUserDataDir(base::CommandLine* command_line) {
   ClawArgs args = ClawArgs::Parse(*command_line);
   SetVerbose(args.verbose());
   ConfigureProfileStartupCommandLine(args, command_line, &profile_manager);
+}
+
+const base::FilePath& GetManagedFingerprintUserDataDir() {
+  return ManagedFingerprintUserDataDir();
 }
 
 base::expected<StartupResult, std::string> ConfigureEarlyStartup(
