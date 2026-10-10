@@ -370,8 +370,21 @@ release_build_locks() {
 }
 
 cleanup_on_exit() {
+  local exit_code=$?
+  trap - EXIT
+  # Keep the original failure even if reporting or cleanup also fails.
+  set +e
+  # Bash 3 can report zero here for nounset inside a function. An active
+  # step has not returned successfully, even if it called exit 0 itself.
+  if [[ -n "${active_step:-}" ]]; then
+    (( exit_code != 0 )) || exit_code=1
+    append_summary "FAIL ${active_step} exit=${exit_code}"
+    printf '[prod-artifacts] FAIL %s exit=%s\n' "${active_step}" "${exit_code}"
+    write_status failed "${active_step}" "${exit_code}"
+  fi
   release_build_locks
   cleanup_stage_dirs
+  exit "${exit_code}"
 }
 
 trap cleanup_on_exit EXIT
@@ -426,21 +439,20 @@ mark_runner_started() {
 run_step() {
   local name="$1"
   shift
-
+  active_step="${name}"
   append_summary "START ${name}"
   printf '[prod-artifacts] START %s\n' "${name}"
 
-  if "$@"; then
-    append_summary "OK ${name}"
-    printf '[prod-artifacts] OK %s\n' "${name}"
-    return 0
-  else
-    local exit_code=$?
-    append_summary "FAIL ${name} exit=${exit_code}"
-    printf '[prod-artifacts] FAIL %s exit=%s\n' "${name}" "${exit_code}"
-    write_status failed "${name}" "${exit_code}"
-    exit "${exit_code}"
-  fi
+  # A direct call preserves packaging state and lets errexit stop at the
+  # first unhandled failure. Do not put this call (or run_step itself) in an
+  # if/|| condition: bash would suppress errexit throughout the step.
+  # The EXIT handler records failures, including explicit exit and nounset,
+  # without trapping expected nonzero commands run temporarily under set +e.
+  "$@"
+
+  append_summary "OK ${name}"
+  printf '[prod-artifacts] OK %s\n' "${name}"
+  active_step=""
 }
 
 prepare_project() {
@@ -457,6 +469,22 @@ verify_fingerprint_patch_contract() {
 
 verify_staged_runtime() {
   local staged_build_dir="$1"
+
+  # Hosts that deny unprivileged user namespaces need a setuid-root sandbox
+  # helper. The staged bundle's helper is never chown'ed by this script; an
+  # administrator may provide one, and the run is then recorded as
+  # admin-configured rather than as a default-host result.
+  if [[ -n "${CLAWBROWSER_TEST_SANDBOX_HELPER:-}" ]]; then
+    local helper="${CLAWBROWSER_TEST_SANDBOX_HELPER}"
+    if [[ ! -u "${helper}" || "$(stat -c %u "${helper}" 2>/dev/null || stat -f %u "${helper}")" != 0 ]]; then
+      printf '[prod-artifacts] CLAWBROWSER_TEST_SANDBOX_HELPER %s is not setuid root\n' "${helper}" >&2
+      return 1
+    fi
+    export CHROME_DEVEL_SANDBOX="${helper}"
+    append_summary "verification host: admin-configured sandbox helper ${helper}"
+  else
+    append_summary "verification host: default sandbox"
+  fi
 
   cd "${repo_dir}"
   bash scripts/clawbrowser_remote.sh integration-test \

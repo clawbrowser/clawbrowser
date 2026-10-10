@@ -91,6 +91,7 @@ jobs:
         run: |
           bash scripts/fingerprint_patch_contract_test.sh
           bash scripts/build_remote_prod_artifacts_test.sh
+          bash scripts/build_remote_prod_artifacts_run_step_test.sh
           for patch in clawbrowser/patches/*.patch; do
             git apply --numstat "${patch}" >/dev/null
           done
