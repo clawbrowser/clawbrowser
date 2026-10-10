@@ -2,7 +2,7 @@
 diff --git a/chrome/app/chrome_main_delegate.cc b/chrome/app/chrome_main_delegate.cc
 --- a/chrome/app/chrome_main_delegate.cc
 +++ b/chrome/app/chrome_main_delegate.cc
-@@ -551,6 +551,34 @@
+@@ -551,6 +551,38 @@
        chrome::SetInvalidSpecifiedUserDataDir(
            base::FilePath(invalid_user_data_dir_buf));
        command_line->AppendSwitchPath(switches::kUserDataDir, user_data_dir);
@@ -16,8 +16,12 @@ diff --git a/chrome/app/chrome_main_delegate.cc b/chrome/app/chrome_main_delegat
 +    // policy; never override it, refuse to start the managed profile instead.
 +    const base::FilePath& managed_user_data_dir =
 +        clawbrowser::GetManagedFingerprintUserDataDir();
++    // Windows paths are case-insensitive: a policy that names the managed
++    // directory with different case or a trailing separator is not a conflict.
 +    if (!managed_user_data_dir.empty() &&
-+        managed_user_data_dir != user_data_dir) {
++        !base::FilePath::CompareEqualIgnoreCase(
++            managed_user_data_dir.StripTrailingSeparators().value(),
++            user_data_dir.StripTrailingSeparators().value())) {
 +      base::FilePath policy_user_data_dir;
 +      policy::path_parser::CheckUserDataDirPolicy(&policy_user_data_dir);
 +      if (!policy_user_data_dir.empty()) {
