@@ -10,7 +10,7 @@ diff --git a/content/app/content_main.cc b/content/app/content_main.cc
  #include "base/win/process_startup_helper.h"
  #include "base/win/win_util.h"
  #include "base/win/windows_version.h"
-@@ -126,7 +127,16 @@
+@@ -126,7 +127,17 @@
    // HACK: Let Windows know that we have started.  This is needed to suppress
    // the IDC_APPSTARTING cursor from being displayed for a prolonged period
    // while a subprocess is starting.
@@ -21,10 +21,11 @@ diff --git a/content/app/content_main.cc b/content/app/content_main.cc
 +  // USER32 initialization failed with ERROR_DLL_INIT_FAILED (1114) when the
 +  // browser ran as SYSTEM or over OpenSSH, and the delay-load failure crashed
 +  // the network service before a fresh profile's first navigation committed.
++  // The cursor is cosmetic: when the token cannot be read, skip it too.
 +  const std::optional<base::win::AccessToken> token =
 +      base::win::AccessToken::FromCurrentProcess();
-+  if (base::win::IsUser32AndGdi32Available() &&
-+      !(token && token->IsAppContainer())) {
++  if (base::win::IsUser32AndGdi32Available() && token &&
++      !token->IsAppContainer()) {
      PostThreadMessage(GetCurrentThreadId(), WM_NULL, 0, 0);
      MSG msg;
      PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
