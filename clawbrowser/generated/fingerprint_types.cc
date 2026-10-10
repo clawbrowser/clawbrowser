@@ -102,6 +102,60 @@ std::string DictToJson(const base::DictValue& dict) {
 
 }  // namespace
 
+ProxyConfig::ProxyConfig() = default;
+ProxyConfig::ProxyConfig(const ProxyConfig&) = default;
+ProxyConfig& ProxyConfig::operator=(const ProxyConfig&) = default;
+ProxyConfig::ProxyConfig(ProxyConfig&&) = default;
+ProxyConfig& ProxyConfig::operator=(ProxyConfig&&) = default;
+ProxyConfig::~ProxyConfig() = default;
+
+base::expected<ProxyConfig, std::string> ProxyConfig::FromDict(
+    const base::DictValue& dict) {
+  ProxyConfig value;
+
+  if (const std::string* parsed = dict.FindString("scheme")) value.scheme = *parsed;
+
+  if (const std::string* parsed = dict.FindString("country")) value.country = *parsed;
+
+  if (const std::string* parsed = dict.FindString("city")) value.city = *parsed;
+
+  if (const std::string* parsed = dict.FindString("connection_type")) value.connection_type = *parsed;
+
+  if (const std::string* parsed = dict.FindString("host")) value.host = *parsed;
+
+  if (std::optional<int> parsed = dict.FindInt("port")) value.port = *parsed;
+
+  if (const std::string* parsed = dict.FindString("username")) value.username = *parsed;
+
+  if (const std::string* parsed = dict.FindString("password")) value.password = *parsed;
+
+  return base::ok(std::move(value));
+}
+
+base::expected<ProxyConfig, std::string> ProxyConfig::FromJson(
+    const std::string& json) {
+  auto dict = ParseJsonToDict(json);
+  if (!dict.has_value()) return base::unexpected(dict.error());
+  return FromDict(*dict);
+}
+
+base::DictValue ProxyConfig::ToDict() const {
+  base::DictValue dict;
+  if (scheme.has_value()) dict.Set("scheme", *scheme);
+  if (country.has_value()) dict.Set("country", *country);
+  if (city.has_value()) dict.Set("city", *city);
+  if (connection_type.has_value()) dict.Set("connection_type", *connection_type);
+  if (host.has_value()) dict.Set("host", *host);
+  if (port.has_value()) dict.Set("port", *port);
+  if (username.has_value()) dict.Set("username", *username);
+  if (password.has_value()) dict.Set("password", *password);
+  return dict;
+}
+
+std::string ProxyConfig::ToJson() const {
+  return DictToJson(ToDict());
+}
+
 GenerateRequest::GenerateRequest() = default;
 GenerateRequest::GenerateRequest(const GenerateRequest&) = default;
 GenerateRequest& GenerateRequest::operator=(const GenerateRequest&) = default;
@@ -145,6 +199,12 @@ base::expected<GenerateRequest, std::string> GenerateRequest::FromDict(
 
   if (const std::string* parsed = dict.FindString("runtime_font_catalog")) value.runtime_font_catalog = *parsed;
 
+  if (const base::DictValue* parsed_dict = dict.FindDict("manual_proxy")) {
+    auto parsed = ProxyConfig::FromDict(*parsed_dict);
+    if (!parsed.has_value()) return base::unexpected(parsed.error());
+    value.manual_proxy = std::move(*parsed);
+  }
+
   return base::ok(std::move(value));
 }
 
@@ -170,6 +230,7 @@ base::DictValue GenerateRequest::ToDict() const {
   if (runtime_gpu.has_value()) dict.Set("runtime_gpu", *runtime_gpu);
   if (runtime_headless.has_value()) dict.Set("runtime_headless", *runtime_headless);
   if (runtime_font_catalog.has_value()) dict.Set("runtime_font_catalog", *runtime_font_catalog);
+  if (manual_proxy.has_value()) dict.Set("manual_proxy", manual_proxy->ToDict());
   return dict;
 }
 
@@ -676,60 +737,6 @@ base::DictValue SurfacePolicy::ToDict() const {
 }
 
 std::string SurfacePolicy::ToJson() const {
-  return DictToJson(ToDict());
-}
-
-ProxyConfig::ProxyConfig() = default;
-ProxyConfig::ProxyConfig(const ProxyConfig&) = default;
-ProxyConfig& ProxyConfig::operator=(const ProxyConfig&) = default;
-ProxyConfig::ProxyConfig(ProxyConfig&&) = default;
-ProxyConfig& ProxyConfig::operator=(ProxyConfig&&) = default;
-ProxyConfig::~ProxyConfig() = default;
-
-base::expected<ProxyConfig, std::string> ProxyConfig::FromDict(
-    const base::DictValue& dict) {
-  ProxyConfig value;
-
-  if (const std::string* parsed = dict.FindString("scheme")) value.scheme = *parsed;
-
-  if (const std::string* parsed = dict.FindString("country")) value.country = *parsed;
-
-  if (const std::string* parsed = dict.FindString("city")) value.city = *parsed;
-
-  if (const std::string* parsed = dict.FindString("connection_type")) value.connection_type = *parsed;
-
-  if (const std::string* parsed = dict.FindString("host")) value.host = *parsed;
-
-  if (std::optional<int> parsed = dict.FindInt("port")) value.port = *parsed;
-
-  if (const std::string* parsed = dict.FindString("username")) value.username = *parsed;
-
-  if (const std::string* parsed = dict.FindString("password")) value.password = *parsed;
-
-  return base::ok(std::move(value));
-}
-
-base::expected<ProxyConfig, std::string> ProxyConfig::FromJson(
-    const std::string& json) {
-  auto dict = ParseJsonToDict(json);
-  if (!dict.has_value()) return base::unexpected(dict.error());
-  return FromDict(*dict);
-}
-
-base::DictValue ProxyConfig::ToDict() const {
-  base::DictValue dict;
-  if (scheme.has_value()) dict.Set("scheme", *scheme);
-  if (country.has_value()) dict.Set("country", *country);
-  if (city.has_value()) dict.Set("city", *city);
-  if (connection_type.has_value()) dict.Set("connection_type", *connection_type);
-  if (host.has_value()) dict.Set("host", *host);
-  if (port.has_value()) dict.Set("port", *port);
-  if (username.has_value()) dict.Set("username", *username);
-  if (password.has_value()) dict.Set("password", *password);
-  return dict;
-}
-
-std::string ProxyConfig::ToJson() const {
   return DictToJson(ToDict());
 }
 

@@ -12,6 +12,7 @@ from typing import Any
 
 
 SCHEMA_ORDER = [
+    "ProxyConfig",
     "GenerateRequest",
     "Screen",
     "Hardware",
@@ -23,7 +24,6 @@ SCHEMA_ORDER = [
     "UserAgentData",
     "SurfacePolicyRule",
     "SurfacePolicy",
-    "ProxyConfig",
     "Fingerprint",
     "GenerateResponse",
     "ProxyCredentials",

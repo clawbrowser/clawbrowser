@@ -7,6 +7,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/json/json_reader.h"
 #include "base/path_service.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
@@ -27,6 +28,7 @@
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
 #include "services/network/test/test_url_loader_factory.h"
+#include "services/network/test/test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 #if BUILDFLAG(IS_WIN)
@@ -362,6 +364,33 @@ class StartupTest : public testing::Test {
   std::unique_ptr<base::ScopedPathOverride> home_override_;
 #endif
   std::unique_ptr<base::Environment> env_;
+  // Records the body of every fingerprint generate request.
+  void CaptureGenerateRequestBodies() {
+    url_loader_factory_.SetInterceptor(base::BindRepeating(
+        [](std::vector<std::string>* bodies,
+           const network::ResourceRequest& request) {
+          if (request.url.path() == "/v1/fingerprints/generate") {
+            bodies->push_back(network::GetUploadData(request));
+          }
+        },
+        &generate_request_bodies_));
+  }
+
+  base::DictValue LastGenerateRequestBody() {
+    EXPECT_FALSE(generate_request_bodies_.empty());
+    if (generate_request_bodies_.empty()) {
+      return base::DictValue();
+    }
+    std::optional<base::Value> parsed =
+        base::JSONReader::Read(generate_request_bodies_.back(),
+                               base::JSON_PARSE_RFC);
+    EXPECT_TRUE(parsed.has_value() && parsed->is_dict());
+    return parsed.has_value() && parsed->is_dict()
+               ? std::move(*parsed).TakeDict()
+               : base::DictValue();
+  }
+
+  std::vector<std::string> generate_request_bodies_;
   network::TestURLLoaderFactory url_loader_factory_;
 };
 
@@ -512,11 +541,13 @@ TEST_F(StartupTest, CachedNativeCanvasOrHostGPUIsRegenerated) {
       std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate",
       GenerateSuccessResponseJson(user_agent));
 
+  CaptureGenerateRequestBodies();
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
   cmd.AppendSwitchASCII("fingerprint", "legacy_privacy_profile");
   auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
   ASSERT_TRUE(result.has_value()) << result.error();
   EXPECT_FALSE(result->should_exit);
+  EXPECT_EQ(LastGenerateRequestBody().Find("manual_proxy"), nullptr);
 
   ProfileEnvelope saved = ReadSavedProfile("legacy_privacy_profile");
   EXPECT_EQ(saved.response.fingerprint.surface_policy.canvas.mode, "override");
@@ -551,6 +582,7 @@ TEST_F(StartupTest, FingerprintRefreshPreservesBoundManualProxy) {
           "fresh-ua",
           R"({"scheme":"http","host":"gate.nodemaven.com","port":8080,"country":"US"})"));
 
+  CaptureGenerateRequestBodies();
   base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
   cmd.AppendSwitchASCII("fingerprint", "manual_proxy_profile");
   cmd.AppendSwitch("clawbrowser-require-proxy");
@@ -558,7 +590,18 @@ TEST_F(StartupTest, FingerprintRefreshPreservesBoundManualProxy) {
   ASSERT_TRUE(result.has_value()) << result.error();
   EXPECT_FALSE(result->should_exit);
 
+  // The refresh names the user's proxy so the backend aligns geo with it.
+  base::DictValue body = LastGenerateRequestBody();
+  const base::DictValue* manual = body.FindDict("manual_proxy");
+  ASSERT_NE(manual, nullptr);
+  EXPECT_EQ(*manual->FindString("host"), "manual.example.com");
+  EXPECT_EQ(manual->FindInt("port"), 3128);
+  EXPECT_EQ(*manual->FindString("username"), "manual-user");
+  EXPECT_EQ(*manual->FindString("password"), "manual-secret");
+  EXPECT_EQ(manual->Find("country"), nullptr);
+
   ProfileEnvelope saved = ReadSavedProfile("manual_proxy_profile");
+  EXPECT_FALSE(saved.request.manual_proxy.has_value());
   EXPECT_TRUE(saved.manual_proxy_bound);
   EXPECT_EQ(saved.response.fingerprint.user_agent, "fresh-ua");
   ASSERT_TRUE(saved.response.proxy.has_value());
