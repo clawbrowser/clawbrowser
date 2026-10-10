@@ -430,17 +430,24 @@ run_step() {
   append_summary "START ${name}"
   printf '[prod-artifacts] START %s\n' "${name}"
 
-  if "$@"; then
+  # Run the step in a subshell outside any conditional: bash ignores errexit
+  # inside functions called from an `if`, so a failed command in the middle
+  # of a step (for example the staged-runtime integration suite) used to be
+  # swallowed and the step still reported OK.
+  local exit_code=0
+  set +e
+  ( set -euo pipefail; "$@" )
+  exit_code=$?
+  set -e
+  if [[ "${exit_code}" -eq 0 ]]; then
     append_summary "OK ${name}"
     printf '[prod-artifacts] OK %s\n' "${name}"
     return 0
-  else
-    local exit_code=$?
-    append_summary "FAIL ${name} exit=${exit_code}"
-    printf '[prod-artifacts] FAIL %s exit=%s\n' "${name}" "${exit_code}"
-    write_status failed "${name}" "${exit_code}"
-    exit "${exit_code}"
   fi
+  append_summary "FAIL ${name} exit=${exit_code}"
+  printf '[prod-artifacts] FAIL %s exit=%s\n' "${name}" "${exit_code}"
+  write_status failed "${name}" "${exit_code}"
+  exit "${exit_code}"
 }
 
 prepare_project() {
@@ -457,6 +464,22 @@ verify_fingerprint_patch_contract() {
 
 verify_staged_runtime() {
   local staged_build_dir="$1"
+
+  # Hosts that deny unprivileged user namespaces need a setuid-root sandbox
+  # helper. The staged bundle's helper is never chown'ed by this script; an
+  # administrator may provide one, and the run is then recorded as
+  # admin-configured rather than as a default-host result.
+  if [[ -n "${CLAWBROWSER_TEST_SANDBOX_HELPER:-}" ]]; then
+    local helper="${CLAWBROWSER_TEST_SANDBOX_HELPER}"
+    if [[ ! -u "${helper}" || "$(stat -c %u "${helper}" 2>/dev/null || stat -f %u "${helper}")" != 0 ]]; then
+      printf '[prod-artifacts] CLAWBROWSER_TEST_SANDBOX_HELPER %s is not setuid root\n' "${helper}" >&2
+      return 1
+    fi
+    export CHROME_DEVEL_SANDBOX="${helper}"
+    append_summary "verification host: admin-configured sandbox helper ${helper}"
+  else
+    append_summary "verification host: default sandbox"
+  fi
 
   cd "${repo_dir}"
   bash scripts/clawbrowser_remote.sh integration-test \
