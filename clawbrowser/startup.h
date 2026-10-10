@@ -65,6 +65,10 @@ void ConfigureCommandLineBeforeUserDataDir(base::CommandLine* command_line);
 // command line.
 const base::FilePath& GetManagedFingerprintUserDataDir();
 
+// Prints a fatal startup message to stderr in the same format as other
+// Clawbrowser startup errors, for callers that run before logging is set up.
+void PrintStartupError(const std::string& message);
+
 }  // namespace clawbrowser
 
 #endif  // CLAWBROWSER_STARTUP_H_

@@ -25,7 +25,7 @@ diff --git a/chrome/app/chrome_main_delegate.cc b/chrome/app/chrome_main_delegat
 +            "the UserDataDir policy pins every profile to one directory, so a "
 +            "managed fingerprint profile cannot be isolated; refusing to "
 +            "start";
-+        fprintf(stderr, "[clawbrowser] error: %s\n", kPolicyConflict);
++        clawbrowser::PrintStartupError(kPolicyConflict);
 +        LOG(ERROR) << "[clawbrowser] " << kPolicyConflict;
 +        base::Process::TerminateCurrentProcessImmediately(EXIT_FAILURE);
 +      }

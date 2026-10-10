@@ -689,6 +689,10 @@ const base::FilePath& GetManagedFingerprintUserDataDir() {
   return ManagedFingerprintUserDataDir();
 }
 
+void PrintStartupError(const std::string& message) {
+  fprintf(stderr, "[clawbrowser] error: %s\n", message.c_str());
+}
+
 base::expected<StartupResult, std::string> ConfigureEarlyStartup(
     base::CommandLine* command_line) {
   ConfigureCommandLineBeforeUserDataDir(command_line);
