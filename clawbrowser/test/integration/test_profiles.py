@@ -122,7 +122,13 @@ async def test_same_config_fingerprints_run_isolated(tmp_path):
                 processes.append(process)
                 # A launch handed to an existing browser exits here instead of
                 # opening its own DevTools endpoint.
-                _wait_for_cdp_endpoint(port, process, log_path)
+                try:
+                    _wait_for_cdp_endpoint(port, process, log_path)
+                except RuntimeError as error:
+                    raise AssertionError(
+                        f"{fingerprint_id} did not start its own browser "
+                        f"(started: {[launch[0] for launch in launches]}): {error}"
+                    ) from error
                 launches.append((fingerprint_id, process, port))
 
             async with async_playwright() as playwright:
