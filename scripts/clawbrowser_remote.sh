@@ -1277,10 +1277,23 @@ run_integration_tests() {
   python_bin="${INTEGRATION_VENV_DIR}/bin/python3"
   browser_binary="$(integration_browser_binary)"
 
+  # Release validation launches real desktop windows. A detached Linux build
+  # job has no X server, so every headful launch would exit with "Missing X
+  # server or $DISPLAY"; give it a virtual display, or fail clearly.
+  local display_wrapper=()
+  if [[ "$(uname -s)" == "Linux" && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+    if ! command -v xvfb-run >/dev/null 2>&1; then
+      printf 'integration tests need a display: set DISPLAY or install xvfb-run\n' >&2
+      return 1
+    fi
+    display_wrapper=(xvfb-run -a -s "-screen 0 1920x1080x24")
+  fi
+
   (
     cd "${src_dir}"
     CLAWBROWSER_BINARY="${browser_binary}" \
       CLAWBROWSER_PROJECT_DIR="${PROJECT_DIR}" \
+      ${display_wrapper[@]+"${display_wrapper[@]}"} \
       "${python_bin}" clawbrowser/test/integration/run_integration_tests.py
   )
 }
