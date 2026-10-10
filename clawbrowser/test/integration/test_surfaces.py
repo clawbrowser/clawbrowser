@@ -8,11 +8,21 @@ from urllib.parse import urljoin
 import pytest
 
 
+def _uses_bundled_catalog(fp):
+    # The installed runtime decides the font list (SelectRuntimeFonts): only a
+    # Windows fingerprint on a Windows host renders with the host's default
+    # Windows fonts. Every other combination, including a macOS or Linux
+    # fingerprint on a Windows host, is migrated to the bundled catalog.
+    if sys.platform in ('linux', 'darwin'):
+        return True
+    return (fp.get('os') or '').lower() != 'windows' and fp.get('platform') != 'Win32'
+
+
 def _expected_fixture_fonts(fp):
-    # The legacy fixture requests fonts absent from the Linux/macOS bundle. Startup
+    # The legacy fixture requests fonts absent from the bundle. Startup
     # migrates it to this explicit catalog. Keep this expectation independent
     # of the browser's saved JSON so a wrong migration cannot bless itself.
-    if sys.platform in ('linux', 'darwin'):
+    if _uses_bundled_catalog(fp):
         return ['Arimo', 'Tinos', 'Cousine', 'DejaVu Sans',
                 'Noto Sans CJK JP', 'Noto Sans CJK KR', 'Noto Sans CJK SC',
                 'Noto Sans CJK TC', 'Noto Sans CJK HK',
@@ -1268,7 +1278,7 @@ async def test_fonts_detect_all_expected(browser_with_fingerprint):
     page, data = browser_with_fingerprint
     fp = data["response"]["fingerprint"]
 
-    if sys.platform in ('linux', 'darwin'):
+    if _uses_bundled_catalog(fp):
         fonts = _expected_fixture_fonts(fp)
         await page.evaluate('''fonts => fonts.forEach((family, i) => {
             const el = document.createElement('span');
@@ -1386,7 +1396,8 @@ async def test_fonts_hide_non_allowlisted_system_families(browser_with_fingerpri
 async def test_fonts_block_non_allowlisted_local_sources(browser_with_fingerprint):
     """FontFace local() must not bypass the managed font allowlist."""
     page, data = browser_with_fingerprint
-    allowed = {font.casefold() for font in data["response"]["fingerprint"]["fonts"]}
+    fp = data["response"]["fingerprint"]
+    allowed = {font.casefold() for font in _expected_fixture_fonts(fp)}
     candidates = [
         "serif",              # local() treats this as a literal unique name
         "Menlo-Regular",       # macOS PostScript name
@@ -1398,7 +1409,7 @@ async def test_fonts_block_non_allowlisted_local_sources(browser_with_fingerprin
         "LiberationSans",      # Linux PostScript name
         "Ubuntu",              # Linux full name
     ]
-    if sys.platform in ('linux', 'darwin'):
+    if _uses_bundled_catalog(fp):
         # Exact PostScript alias of the now-bundled DejaVu Sans family.
         # Its positive load is covered by the bundled-local-face regression.
         allowed.add('dejavusans')
