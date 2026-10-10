@@ -1,0 +1,21 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+diff --git a/chrome/app/chrome_main_delegate.cc b/chrome/app/chrome_main_delegate.cc
+--- a/chrome/app/chrome_main_delegate.cc
++++ b/chrome/app/chrome_main_delegate.cc
+@@ -551,6 +551,16 @@
+       chrome::SetInvalidSpecifiedUserDataDir(
+           base::FilePath(invalid_user_data_dir_buf));
+       command_line->AppendSwitchPath(switches::kUserDataDir, user_data_dir);
++    }
++    // chrome_elf derives the directory from the original command line, so
++    // the per-fingerprint --user-data-dir that Clawbrowser appends before this
++    // point was ignored: every fingerprint launch shared the default User Data
++    // directory and a second profile was handed to the first one's process.
++    if (base::FilePath clawbrowser_user_data_dir =
++            command_line->GetSwitchValuePath(switches::kUserDataDir);
++        !clawbrowser_user_data_dir.empty() &&
++        clawbrowser_user_data_dir != user_data_dir) {
++      user_data_dir = clawbrowser_user_data_dir;
+     }
+     CHECK(base::PathService::OverrideAndCreateIfNeeded(
+         chrome::DIR_USER_DATA, user_data_dir, false, true));
