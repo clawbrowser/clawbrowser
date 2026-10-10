@@ -1,6 +1,6 @@
 """Windows: a fresh managed profile starts with a sandboxed network service.
 
-Regression for patch 064. The LPAC network service ran the startup cursor
+Regression for patch 064. The AppContainer network service ran the startup cursor
 hack, USER32 failed to initialize (1114) and the service crashed before a
 fresh profile's first navigation committed. Chromium then records
 net.network_service_failed_launch_major_version in Local State and later
@@ -47,21 +47,40 @@ def _network_service_pids(browser_pid):
     return value if isinstance(value, list) else [value]
 
 
-def _is_app_container(pid):
+def _win32():
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
     kernel32.OpenProcess.restype = wintypes.HANDLE
-    process = kernel32.OpenProcess(0x1000, False, pid)  # QUERY_LIMITED_INFORMATION
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    advapi32.OpenProcessToken.argtypes = [
+        wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+    advapi32.OpenProcessToken.restype = wintypes.BOOL
+    advapi32.GetTokenInformation.argtypes = [
+        wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD)]
+    advapi32.GetTokenInformation.restype = wintypes.BOOL
+    return kernel32, advapi32
+
+
+def _is_app_container(pid):
+    process_query_limited_information = 0x1000
+    token_query = 0x0008
+    token_is_app_container = 29  # TOKEN_INFORMATION_CLASS
+    kernel32, advapi32 = _win32()
+    process = kernel32.OpenProcess(process_query_limited_information, False, pid)
     assert process, f"OpenProcess({pid}) failed: {ctypes.get_last_error()}"
     token = wintypes.HANDLE()
     try:
-        assert advapi32.OpenProcessToken(process, 0x0008, ctypes.byref(token)), \
+        assert advapi32.OpenProcessToken(process, token_query, ctypes.byref(token)), \
             f"OpenProcessToken({pid}) failed: {ctypes.get_last_error()}"
         value = wintypes.DWORD()
         returned = wintypes.DWORD()
         assert advapi32.GetTokenInformation(
-            token, 29, ctypes.byref(value), ctypes.sizeof(value),  # TokenIsAppContainer
-            ctypes.byref(returned)), ctypes.get_last_error()
+            token, token_is_app_container, ctypes.byref(value),
+            ctypes.sizeof(value), ctypes.byref(returned)), \
+            f"GetTokenInformation({pid}) failed: {ctypes.get_last_error()}"
         return bool(value.value)
     finally:
         if token:

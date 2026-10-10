@@ -16,7 +16,7 @@ diff --git a/content/app/content_main.cc b/content/app/content_main.cc
    // while a subprocess is starting.
 -  if (base::win::IsUser32AndGdi32Available()) {
 +  //
-+  // Clawbrowser: skip it inside an AppContainer (the LPAC network service).
++  // Clawbrowser: skip it inside an AppContainer (the network service).
 +  // win32k is not disabled there, so IsUser32AndGdi32Available() is true, yet
 +  // USER32 initialization failed with ERROR_DLL_INIT_FAILED (1114) when the
 +  // browser ran as SYSTEM or over OpenSSH, and the delay-load failure crashed
