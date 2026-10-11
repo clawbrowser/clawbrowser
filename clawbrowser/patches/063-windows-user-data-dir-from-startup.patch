@@ -1,0 +1,43 @@
+# Pinned against Chromium revision 28a7a6c409e03c701d3474ef9e3b1f0be6249039 (151.0.7922.109)
+diff --git a/chrome/app/chrome_main_delegate.cc b/chrome/app/chrome_main_delegate.cc
+--- a/chrome/app/chrome_main_delegate.cc
++++ b/chrome/app/chrome_main_delegate.cc
+@@ -551,6 +551,38 @@
+       chrome::SetInvalidSpecifiedUserDataDir(
+           base::FilePath(invalid_user_data_dir_buf));
+       command_line->AppendSwitchPath(switches::kUserDataDir, user_data_dir);
++    }
++    // chrome_elf derives the directory from the original command line, so it
++    // never sees the per-fingerprint --user-data-dir that
++    // ConfigureCommandLineBeforeUserDataDir() selected: every fingerprint
++    // launch shared one User Data directory and a second profile was handed
++    // to the first one's process. Honour only that computed managed
++    // directory. chrome_elf has already applied an enterprise UserDataDir
++    // policy; never override it, refuse to start the managed profile instead.
++    const base::FilePath& managed_user_data_dir =
++        clawbrowser::GetManagedFingerprintUserDataDir();
++    // Windows paths are case-insensitive: a policy that names the managed
++    // directory with different case or a trailing separator is not a conflict.
++    if (!managed_user_data_dir.empty() &&
++        !base::FilePath::CompareEqualIgnoreCase(
++            managed_user_data_dir.StripTrailingSeparators().value(),
++            user_data_dir.StripTrailingSeparators().value())) {
++      base::FilePath policy_user_data_dir;
++      policy::path_parser::CheckUserDataDirPolicy(&policy_user_data_dir);
++      if (!policy_user_data_dir.empty()) {
++        constexpr char kPolicyConflict[] =
++            "the UserDataDir policy pins every profile to one directory, so a "
++            "managed fingerprint profile cannot be isolated; refusing to "
++            "start";
++        clawbrowser::PrintStartupError(kPolicyConflict);
++        LOG(ERROR) << "[clawbrowser] " << kPolicyConflict;
++        base::Process::TerminateCurrentProcessImmediately(EXIT_FAILURE);
++      }
++      user_data_dir = managed_user_data_dir;
++      // An invalid original --user-data-dir makes the branch above replace
++      // the switch with chrome_elf's fallback. Child processes read the
++      // switch, so keep it equal to DIR_USER_DATA.
++      command_line->AppendSwitchPath(switches::kUserDataDir, user_data_dir);
+     }
+     CHECK(base::PathService::OverrideAndCreateIfNeeded(
+         chrome::DIR_USER_DATA, user_data_dir, false, true));
