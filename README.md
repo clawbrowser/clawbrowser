@@ -327,7 +327,7 @@ See **[INSTALL.md](./INSTALL.md)** for the complete installation and recovery gu
 
 - Read the [documentation](https://clawbrowser.ai/docs/) and [FAQ](https://clawbrowser.ai/faq/).
 - Report reproducible problems in [GitHub Issues](https://github.com/clawbrowser/clawbrowser/issues).
-- Join the [Clawbrowser Discord](https://discord.gg/DWuwhYZVn) for community discussion.
+- Join the [Clawbrowser Discord](https://discord.gg/Jpf5wVd9nU) for community discussion.
 - Review product releases in [`clawbrowser/clawbrowser`](https://github.com/clawbrowser/clawbrowser/releases/latest) and bootstrapper releases in [`clawbrowser/clawctl`](https://github.com/clawbrowser/clawctl/releases/latest).
 
 ## License
