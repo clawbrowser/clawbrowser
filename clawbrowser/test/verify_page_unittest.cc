@@ -1,11 +1,54 @@
 #include "base/command_line.h"
 #include "clawbrowser/cli/args.h"
+#include "clawbrowser/generated/fingerprint_types.h"
 #include "clawbrowser/verify/proxy_expectation.h"
 #include "clawbrowser/verify/verify_page.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace clawbrowser {
 namespace {
+
+TEST(VerifyPageTest, PrivateProxyWithoutGeoCannotFallBackToRemoteLookup) {
+  for (const char* host : {"127.0.0.1", "localhost", "LOCALHOST.",
+                           "bridge.localhost", "10.0.0.1", "[::1]"}) {
+    EXPECT_TRUE(ProxyHostRequiresClientGeography(host)) << host;
+  }
+  EXPECT_FALSE(ProxyHostRequiresClientGeography("8.8.8.8"));
+  EXPECT_FALSE(ProxyHostRequiresClientGeography("proxy.example.test"));
+}
+
+TEST(VerifyPageTest, ClientProxyRequiresMatchingPublicExitCountryAndTimezone) {
+  ClientProxyGeo expected;
+  expected.ip = "8.8.8.8";
+  expected.country = "US";
+  expected.timezone = "America/Los_Angeles";
+  base::DictValue observed;
+  observed.Set("ip", expected.ip);
+  observed.Set("country", expected.country);
+  observed.Set("timezone", expected.timezone);
+  auto result = ClientProxyGeoVerificationResult(expected, observed);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->FindBool("match"), true);
+  auto aliased = observed.Clone();
+  expected.timezone = "America/Indiana/Indianapolis";
+  aliased.Set("timezone", "America/Indianapolis");
+  auto alias_result = ClientProxyGeoVerificationResult(expected, aliased);
+  ASSERT_TRUE(alias_result.has_value());
+  EXPECT_EQ(alias_result->FindBool("match"), true);
+  expected.timezone = "America/Los_Angeles";
+  for (const char* field : {"ip", "country", "timezone"}) {
+    auto changed = observed.Clone();
+    changed.Set(field, std::string(field) == "ip" ? "1.1.1.1" :
+                       std::string(field) == "country" ? "DE" : "Europe/Berlin");
+    auto mismatch = ClientProxyGeoVerificationResult(expected, changed);
+    ASSERT_TRUE(mismatch.has_value());
+    EXPECT_EQ(mismatch->FindBool("match"), false);
+  }
+  observed.Set("ip", "127.0.0.1");
+  EXPECT_FALSE(ClientProxyGeoVerificationResult(expected, observed).has_value());
+  observed.Remove("timezone");
+  EXPECT_FALSE(ClientProxyGeoVerificationResult(expected, observed).has_value());
+}
 
 TEST(VerifyPageTest, FailureExitDisabledWithoutAutomationSwitch) {
   base::CommandLine command_line(base::CommandLine::NO_PROGRAM);

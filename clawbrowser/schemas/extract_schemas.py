@@ -21,6 +21,7 @@ except ImportError:
     sys.exit(1)
 
 SCHEMA_ORDER = [
+    "ClientProxyGeo",
     "GenerateRequest",
     "GenerateResponse",
     "Fingerprint",

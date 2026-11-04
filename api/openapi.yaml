@@ -941,10 +941,25 @@ components:
         owner_id:
           type: string
 
+    ClientProxyGeo:
+      type: object
+      description: Public exit identity observed through the manual proxy on the client. Contains no proxy endpoint or credentials.
+      required: [ip, country, timezone]
+      properties:
+        ip:
+          type: string
+        country:
+          type: string
+        city:
+          type: string
+        timezone:
+          type: string
     GenerateRequest:
       type: object
       required: [platform, browser, country]
       properties:
+        client_proxy_geo:
+          $ref: "#/components/schemas/ClientProxyGeo"
         platform:
           type: string
           enum: [linux, macos, windows]
@@ -994,6 +1009,8 @@ components:
       type: object
       required: [fingerprint]
       properties:
+        client_proxy_geo:
+          $ref: "#/components/schemas/ClientProxyGeo"
         fingerprint:
           $ref: '#/components/schemas/Fingerprint'
         proxy:

@@ -12,6 +12,7 @@ from typing import Any
 
 
 SCHEMA_ORDER = [
+    "ClientProxyGeo",
     "ProxyConfig",
     "GenerateRequest",
     "Screen",

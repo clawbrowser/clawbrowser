@@ -8,6 +8,7 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/json/json_reader.h"
+#include "base/json/json_writer.h"
 #include "base/path_service.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
@@ -610,6 +611,61 @@ TEST_F(StartupTest, FingerprintRefreshPreservesBoundManualProxy) {
   EXPECT_EQ(saved.response.proxy->password.value_or(""), "manual-secret");
   EXPECT_EQ(cmd.GetSwitchValueASCII("proxy-server"),
             "http://manual.example.com:3128");
+}
+
+TEST_F(StartupTest, ClientProxyRefreshKeepsLocalEndpointOffTheAPI) {
+  for (const std::string scenario : {"supported", "legacy", "replacement"}) {
+    const std::string id = "client_geo_" + scenario;
+    WriteCachedProfile(id);
+    ProfileEnvelope cached = ReadSavedProfile(id);
+    cached.manual_proxy_bound = true;
+    cached.response.fingerprint.surface_policy.canvas.mode = "native";
+    ASSERT_TRUE(cached.response.proxy.has_value());
+    cached.response.proxy->host = "127.0.0.1";
+    cached.response.proxy->port = 1080;
+    cached.response.proxy->username = "local-user";
+    cached.response.proxy->password = "local-secret";
+    ClientProxyGeo geo;
+    geo.ip = "8.8.8.8";
+    geo.country = "US";
+    geo.timezone = "America/Los_Angeles";
+    cached.request.client_proxy_geo = geo;
+    ASSERT_TRUE(CreateProfileManager().SaveProfile(id, cached).has_value());
+    auto response = base::JSONReader::ReadDict(
+        GenerateSuccessResponseJson("fresh-ua"), base::JSON_PARSE_RFC);
+    ASSERT_TRUE(response.has_value());
+    response->FindDict("fingerprint")->Set("timezone", geo.timezone);
+    if (scenario != "legacy")
+      response->Set("client_proxy_geo", geo.ToDict());
+    if (scenario == "replacement")
+      response->Set("proxy", cached.response.proxy->ToDict());
+    std::string body;
+    base::JSONWriter::Write(*response, &body);
+    env_->SetVar("CLAWBROWSER_API_KEY", "test_key");
+    env_->SetVar("CLAWBROWSER_API_BASE_URL", kConfiguredApiBaseUrl);
+    url_loader_factory_.AddResponse(
+        std::string(kConfiguredApiBaseUrl) + "/v1/fingerprints/generate", body);
+    CaptureGenerateRequestBodies();
+    base::CommandLine cmd(base::CommandLine::NO_PROGRAM);
+    cmd.AppendSwitchASCII("fingerprint", id);
+    cmd.AppendSwitch("clawbrowser-require-proxy");
+    auto result = RunStartup(&cmd, url_loader_factory_.GetSafeWeakWrapper());
+    ASSERT_TRUE(result.has_value()) << result.error();
+    EXPECT_EQ(result->should_exit, scenario != "supported");
+    auto request = LastGenerateRequestBody();
+    EXPECT_EQ(request.Find("manual_proxy"), nullptr);
+    ASSERT_NE(request.FindDict("client_proxy_geo"), nullptr);
+    EXPECT_EQ(*request.FindDict("client_proxy_geo")->FindString("ip"), geo.ip);
+    if (scenario == "supported") {
+      auto saved = ReadSavedProfile(id);
+      ASSERT_TRUE(saved.response.proxy.has_value());
+      EXPECT_EQ(saved.response.proxy->host.value_or(""), "127.0.0.1");
+      EXPECT_EQ(saved.response.proxy->password.value_or(""), "local-secret");
+      ASSERT_TRUE(saved.request.client_proxy_geo.has_value());
+      EXPECT_EQ(saved.response.fingerprint.timezone, geo.timezone);
+    }
+    FingerprintAccessor::Reset();
+  }
 }
 
 TEST_F(StartupTest, ExplicitRegenerationKeepsManualProxyWithoutApiProxy) {

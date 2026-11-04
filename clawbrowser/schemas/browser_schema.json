@@ -10,6 +10,29 @@
     "VerifyProxyResponse"
   ],
   "schemas": {
+    "ClientProxyGeo": {
+      "type": "object",
+      "description": "Public exit identity observed through the manual proxy on the client. Contains no proxy endpoint or credentials.",
+      "required": [
+        "ip",
+        "country",
+        "timezone"
+      ],
+      "properties": {
+        "ip": {
+          "type": "string"
+        },
+        "country": {
+          "type": "string"
+        },
+        "city": {
+          "type": "string"
+        },
+        "timezone": {
+          "type": "string"
+        }
+      }
+    },
     "GenerateRequest": {
       "type": "object",
       "required": [
@@ -18,6 +41,9 @@
         "country"
       ],
       "properties": {
+        "client_proxy_geo": {
+          "$ref": "#/components/schemas/ClientProxyGeo"
+        },
         "platform": {
           "type": "string",
           "enum": [
@@ -101,6 +127,9 @@
         "fingerprint"
       ],
       "properties": {
+        "client_proxy_geo": {
+          "$ref": "#/components/schemas/ClientProxyGeo"
+        },
         "fingerprint": {
           "$ref": "#/components/schemas/Fingerprint"
         },
