@@ -25,6 +25,7 @@ struct ClientProxyGeo;
 // other fixed provider. A valid but changed exit is a definitive failed check.
 std::optional<base::DictValue> ClientProxyGeoVerificationResult(
     const ClientProxyGeo& expected, const base::DictValue& observed);
+bool ProxyHostRequiresClientGeography(const std::string& host);
 
 bool VerifyFailureExitEnabledForCommandLine(
     const base::CommandLine& command_line);

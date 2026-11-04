@@ -9,6 +9,7 @@
 #include "base/logging.h"
 #include "base/process/process.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "base/task/thread_pool.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
@@ -375,6 +376,15 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
       return;
     }
   }
+  if (ProxyHostRequiresClientGeography(proxy->host.value_or(""))) {
+    base::DictValue result;
+    result.Set("match", false);
+    result.Set("actual_country", "N/A");
+    result.Set("error_code", "client_proxy_geo_missing");
+    result.Set("detail", "restart this local proxy profile with client geography enabled");
+    send_result(std::move(result));
+    return;
+  }
   const ProxyExpectation expected = LoadVerifyExpectedProxyLocation(
       GetClawbrowserConfigDir(), proxy->country);
 
@@ -510,6 +520,18 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
           },
           weak_ptr_factory_.GetWeakPtr(), request, std::move(expected_country),
           std::move(expected_city), std::move(request_scheme)));
+}
+
+bool ProxyHostRequiresClientGeography(const std::string& raw_host) {
+  std::string host = base::ToLowerASCII(raw_host);
+  if (!host.empty() && host.back() == '.')
+    host.pop_back();
+  if (host == "localhost" || base::EndsWith(host, ".localhost"))
+    return true;
+  if (host.size() > 2 && host.front() == '[' && host.back() == ']')
+    host = host.substr(1, host.size() - 2);
+  net::IPAddress address;
+  return address.AssignFromIPLiteral(host) && !address.IsPubliclyRoutable();
 }
 
 std::optional<base::DictValue> ClientProxyGeoVerificationResult(

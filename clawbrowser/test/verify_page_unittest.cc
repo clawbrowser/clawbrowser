@@ -8,6 +8,15 @@
 namespace clawbrowser {
 namespace {
 
+TEST(VerifyPageTest, PrivateProxyWithoutGeoCannotFallBackToRemoteLookup) {
+  for (const char* host : {"127.0.0.1", "localhost", "LOCALHOST.",
+                           "bridge.localhost", "10.0.0.1", "[::1]"}) {
+    EXPECT_TRUE(ProxyHostRequiresClientGeography(host)) << host;
+  }
+  EXPECT_FALSE(ProxyHostRequiresClientGeography("8.8.8.8"));
+  EXPECT_FALSE(ProxyHostRequiresClientGeography("proxy.example.test"));
+}
+
 TEST(VerifyPageTest, ClientProxyRequiresMatchingPublicExitCountryAndTimezone) {
   ClientProxyGeo expected;
   expected.ip = "8.8.8.8";
