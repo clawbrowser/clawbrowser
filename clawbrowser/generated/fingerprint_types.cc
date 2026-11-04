@@ -102,6 +102,54 @@ std::string DictToJson(const base::DictValue& dict) {
 
 }  // namespace
 
+ClientProxyGeo::ClientProxyGeo() = default;
+ClientProxyGeo::ClientProxyGeo(const ClientProxyGeo&) = default;
+ClientProxyGeo& ClientProxyGeo::operator=(const ClientProxyGeo&) = default;
+ClientProxyGeo::ClientProxyGeo(ClientProxyGeo&&) = default;
+ClientProxyGeo& ClientProxyGeo::operator=(ClientProxyGeo&&) = default;
+ClientProxyGeo::~ClientProxyGeo() = default;
+
+base::expected<ClientProxyGeo, std::string> ClientProxyGeo::FromDict(
+    const base::DictValue& dict) {
+  ClientProxyGeo value;
+
+  auto ip = RequireString(dict, "ip");
+  if (!ip.has_value()) return base::unexpected(ip.error());
+  value.ip = *ip;
+
+  auto country = RequireString(dict, "country");
+  if (!country.has_value()) return base::unexpected(country.error());
+  value.country = *country;
+
+  if (const std::string* parsed = dict.FindString("city")) value.city = *parsed;
+
+  auto timezone = RequireString(dict, "timezone");
+  if (!timezone.has_value()) return base::unexpected(timezone.error());
+  value.timezone = *timezone;
+
+  return base::ok(std::move(value));
+}
+
+base::expected<ClientProxyGeo, std::string> ClientProxyGeo::FromJson(
+    const std::string& json) {
+  auto dict = ParseJsonToDict(json);
+  if (!dict.has_value()) return base::unexpected(dict.error());
+  return FromDict(*dict);
+}
+
+base::DictValue ClientProxyGeo::ToDict() const {
+  base::DictValue dict;
+  dict.Set("ip", ip);
+  dict.Set("country", country);
+  if (city.has_value()) dict.Set("city", *city);
+  dict.Set("timezone", timezone);
+  return dict;
+}
+
+std::string ClientProxyGeo::ToJson() const {
+  return DictToJson(ToDict());
+}
+
 ProxyConfig::ProxyConfig() = default;
 ProxyConfig::ProxyConfig(const ProxyConfig&) = default;
 ProxyConfig& ProxyConfig::operator=(const ProxyConfig&) = default;
@@ -167,6 +215,12 @@ base::expected<GenerateRequest, std::string> GenerateRequest::FromDict(
     const base::DictValue& dict) {
   GenerateRequest value;
 
+  if (const base::DictValue* parsed_dict = dict.FindDict("client_proxy_geo")) {
+    auto parsed = ClientProxyGeo::FromDict(*parsed_dict);
+    if (!parsed.has_value()) return base::unexpected(parsed.error());
+    value.client_proxy_geo = std::move(*parsed);
+  }
+
   auto platform = RequireString(dict, "platform");
   if (!platform.has_value()) return base::unexpected(platform.error());
   value.platform = *platform;
@@ -217,6 +271,7 @@ base::expected<GenerateRequest, std::string> GenerateRequest::FromJson(
 
 base::DictValue GenerateRequest::ToDict() const {
   base::DictValue dict;
+  if (client_proxy_geo.has_value()) dict.Set("client_proxy_geo", client_proxy_geo->ToDict());
   dict.Set("platform", platform);
   dict.Set("browser", browser);
   dict.Set("country", country);
@@ -1004,6 +1059,12 @@ base::expected<GenerateResponse, std::string> GenerateResponse::FromDict(
     const base::DictValue& dict) {
   GenerateResponse value;
 
+  if (const base::DictValue* parsed_dict = dict.FindDict("client_proxy_geo")) {
+    auto parsed = ClientProxyGeo::FromDict(*parsed_dict);
+    if (!parsed.has_value()) return base::unexpected(parsed.error());
+    value.client_proxy_geo = std::move(*parsed);
+  }
+
   auto fingerprint_dict = RequireDict(dict, "fingerprint");
   if (!fingerprint_dict.has_value()) return base::unexpected(fingerprint_dict.error());
   auto fingerprint = Fingerprint::FromDict(**fingerprint_dict);
@@ -1028,6 +1089,7 @@ base::expected<GenerateResponse, std::string> GenerateResponse::FromJson(
 
 base::DictValue GenerateResponse::ToDict() const {
   base::DictValue dict;
+  if (client_proxy_geo.has_value()) dict.Set("client_proxy_geo", client_proxy_geo->ToDict());
   dict.Set("fingerprint", fingerprint.ToDict());
   if (proxy.has_value()) dict.Set("proxy", proxy->ToDict());
   return dict;

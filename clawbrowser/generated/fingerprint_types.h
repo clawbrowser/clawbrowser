@@ -19,6 +19,27 @@
 
 namespace clawbrowser {
 
+struct ClientProxyGeo {
+  ClientProxyGeo();
+  ClientProxyGeo(const ClientProxyGeo&);
+  ClientProxyGeo& operator=(const ClientProxyGeo&);
+  ClientProxyGeo(ClientProxyGeo&&);
+  ClientProxyGeo& operator=(ClientProxyGeo&&);
+  ~ClientProxyGeo();
+
+  std::string ip;
+  std::string country;
+  std::optional<std::string> city;
+  std::string timezone;
+
+  static base::expected<ClientProxyGeo, std::string> FromDict(
+      const base::DictValue& dict);
+  static base::expected<ClientProxyGeo, std::string> FromJson(
+      const std::string& json);
+  base::DictValue ToDict() const;
+  std::string ToJson() const;
+};
+
 struct ProxyConfig {
   ProxyConfig();
   ProxyConfig(const ProxyConfig&);
@@ -52,6 +73,7 @@ struct GenerateRequest {
   GenerateRequest& operator=(GenerateRequest&&);
   ~GenerateRequest();
 
+  std::optional<ClientProxyGeo> client_proxy_geo;
   std::string platform;
   std::string browser;
   std::string country;
@@ -323,6 +345,7 @@ struct GenerateResponse {
   GenerateResponse& operator=(GenerateResponse&&);
   ~GenerateResponse();
 
+  std::optional<ClientProxyGeo> client_proxy_geo;
   Fingerprint fingerprint;
   std::optional<ProxyConfig> proxy;
 

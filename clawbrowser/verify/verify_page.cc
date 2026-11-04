@@ -1,8 +1,11 @@
 #include "clawbrowser/verify/verify_page.h"
 
+#include <iterator>
+
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/json/json_writer.h"
+#include "base/json/json_reader.h"
 #include "base/logging.h"
 #include "base/process/process.h"
 #include "base/strings/string_number_conversions.h"
@@ -23,6 +26,11 @@
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "content/public/browser/web_contents.h"
+#include "net/base/ip_address.h"
+#include "net/base/load_flags.h"
+#include "net/traffic_annotation/network_traffic_annotation.h"
+#include "services/network/public/cpp/resource_request.h"
+#include "services/network/public/cpp/simple_url_loader.h"
 
 namespace clawbrowser {
 
@@ -353,6 +361,20 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
   }
 
   const std::string proxy_scheme = proxy->scheme.value_or("http");
+  // A server cannot reach a proxy on the user's private network. Use this
+  // profile's network context so the observation traverses the browser proxy.
+  const auto* command_line = base::CommandLine::ForCurrentProcess();
+  ProfileManager profile_manager(GetClawbrowserConfigDir());
+  const std::string fingerprint_id =
+      command_line->GetSwitchValueASCII("fingerprint");
+  if (!fingerprint_id.empty()) {
+    auto profile = profile_manager.ReadProfile(fingerprint_id);
+    if (profile.has_value() && profile->manual_proxy_bound &&
+        profile->request.client_proxy_geo.has_value()) {
+      VerifyClientProxyGeo(*profile->request.client_proxy_geo, 0);
+      return;
+    }
+  }
   const ProxyExpectation expected = LoadVerifyExpectedProxyLocation(
       GetClawbrowserConfigDir(), proxy->country);
 
@@ -488,6 +510,102 @@ void VerifyPageUI::HandleVerifyProxy(const base::ListValue& args) {
           },
           weak_ptr_factory_.GetWeakPtr(), request, std::move(expected_country),
           std::move(expected_city), std::move(request_scheme)));
+}
+
+std::optional<base::DictValue> ClientProxyGeoVerificationResult(
+    const ClientProxyGeo& expected, const base::DictValue& observed) {
+  const std::string* ip = observed.FindString("ip");
+  const std::string* country = observed.FindString("country_code");
+  if (!country)
+    country = observed.FindString("country");
+  const std::string* timezone = observed.FindString("timezone");
+  net::IPAddress address, expected_address;
+  if (!ip || !country || country->size() != 2 || !timezone || timezone->empty() ||
+      !address.AssignFromIPLiteral(*ip) || !address.IsPubliclyRoutable() ||
+      !expected_address.AssignFromIPLiteral(expected.ip)) {
+    return std::nullopt;
+  }
+  const bool match = address == expected_address && *country == expected.country &&
+                     *timezone == expected.timezone;
+  base::DictValue result;
+  result.Set("match", match);
+  result.Set("actual_country", *country);
+  result.Set("expected_country", expected.country);
+  result.Set(address.IsIPv4() ? "ipv4" : "ipv6", *ip);
+  result.Set("detail", match ? "browser exit matches the fingerprint geography"
+                             : "browser exit geography changed; restart the profile");
+  if (!match)
+    result.Set("error_code", "client_proxy_geo_mismatch");
+  return result;
+}
+
+void VerifyPageUI::VerifyClientProxyGeo(ClientProxyGeo expected,
+                                       size_t provider) {
+  static constexpr const char* kProviders[] = {
+      "https://ipinfo.io/json", "https://ipapi.co/json/"};
+  auto fail = [this]() {
+    base::DictValue result;
+    result.Set("match", false);
+    result.Set("actual_country", "N/A");
+    result.Set("error_code", "client_proxy_geo_unavailable");
+    result.Set("detail", "cannot verify the browser proxy exit geography");
+    web_ui()->CallJavascriptFunctionUnsafe("onProxyVerifyResult",
+                                           base::Value(std::move(result)));
+  };
+  auto* partition = web_ui()->GetWebContents()->GetBrowserContext()
+                        ->GetDefaultStoragePartition();
+  if (provider >= std::size(kProviders) || !partition) {
+    fail();
+    return;
+  }
+  auto factory = partition->GetURLLoaderFactoryForBrowserProcess();
+  if (!factory) {
+    fail();
+    return;
+  }
+  auto request = std::make_unique<network::ResourceRequest>();
+  request->url = GURL(kProviders[provider]);
+  request->credentials_mode = network::mojom::CredentialsMode::kOmit;
+  request->redirect_mode = network::mojom::RedirectMode::kError;
+  request->load_flags = net::LOAD_DISABLE_CACHE;
+  const auto annotation = net::DefineNetworkTrafficAnnotation(
+      "clawbrowser_client_proxy_geo", R"(
+        semantics {
+          sender: "Clawbrowser proxy verification"
+          description: "Checks the public exit IP, country and timezone using the active browser proxy."
+          trigger: "User opens the fingerprint verification page."
+          data: "A GET request without cookies or proxy credentials in the body."
+          destination: OTHER
+          destination_other: "ipinfo.io or ipapi.co"
+        }
+        policy {
+          cookies_allowed: NO
+          setting: "Only for manually configured client-side proxy profiles."
+          policy_exception_justification: "User initiated proxy verification."
+        })");
+  client_proxy_loader_ = network::SimpleURLLoader::Create(std::move(request), annotation);
+  client_proxy_loader_->SetTimeoutDuration(base::Seconds(12));
+  client_proxy_loader_->DownloadToString(
+      factory.get(),
+      base::BindOnce(
+          [](base::WeakPtr<VerifyPageUI> self, ClientProxyGeo expected,
+             size_t provider, std::optional<std::string> body) {
+            if (!self)
+              return;
+            auto value = body ? base::JSONReader::ReadDict(*body, base::JSON_PARSE_RFC)
+                              : std::nullopt;
+            auto result = value ? ClientProxyGeoVerificationResult(expected, *value)
+                                : std::nullopt;
+            if (!result.has_value()) {
+              self->VerifyClientProxyGeo(std::move(expected), provider + 1);
+              return;
+            }
+            self->client_proxy_loader_.reset();
+            self->web_ui()->CallJavascriptFunctionUnsafe(
+                "onProxyVerifyResult", base::Value(std::move(*result)));
+          },
+          weak_ptr_factory_.GetWeakPtr(), std::move(expected), provider),
+      65536);
 }
 
 void VerifyPageUI::HandleVerifyComplete(const base::ListValue& args) {

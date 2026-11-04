@@ -247,6 +247,13 @@ TEST(ProfileEnvelopeTest, ManualProxyBindingSurvivesEncryptedRoundTrip) {
   envelope.response = MakeResponseWithProxy("user_abc", "pass_xyz");
   envelope.manual_proxy_bound = true;
 
+  ClientProxyGeo geo;
+  geo.ip = "8.8.8.8";
+  geo.country = "US";
+  geo.timezone = "America/Los_Angeles";
+  envelope.request.client_proxy_geo = geo;
+  envelope.response.client_proxy_geo = geo;
+
   std::string serialized = envelope.Serialize();
   EXPECT_NE(serialized.find("\"manual_proxy_bound\": true"), std::string::npos);
   EXPECT_EQ(serialized.find("pass_xyz"), std::string::npos);
@@ -254,6 +261,10 @@ TEST(ProfileEnvelopeTest, ManualProxyBindingSurvivesEncryptedRoundTrip) {
   auto reparsed = ProfileEnvelope::Parse(serialized);
   ASSERT_TRUE(reparsed.has_value()) << reparsed.error();
   EXPECT_TRUE(reparsed->manual_proxy_bound);
+  ASSERT_TRUE(reparsed->request.client_proxy_geo.has_value());
+  EXPECT_EQ(reparsed->request.client_proxy_geo->ip, geo.ip);
+  ASSERT_TRUE(reparsed->response.client_proxy_geo.has_value());
+  EXPECT_EQ(reparsed->response.client_proxy_geo->timezone, geo.timezone);
   ASSERT_TRUE(reparsed->response.proxy.has_value());
   EXPECT_EQ(reparsed->response.proxy->password.value_or(""), "pass_xyz");
 }

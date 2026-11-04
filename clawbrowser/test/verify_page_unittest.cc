@@ -1,11 +1,38 @@
 #include "base/command_line.h"
 #include "clawbrowser/cli/args.h"
+#include "clawbrowser/generated/fingerprint_types.h"
 #include "clawbrowser/verify/proxy_expectation.h"
 #include "clawbrowser/verify/verify_page.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace clawbrowser {
 namespace {
+
+TEST(VerifyPageTest, ClientProxyRequiresMatchingPublicExitCountryAndTimezone) {
+  ClientProxyGeo expected;
+  expected.ip = "8.8.8.8";
+  expected.country = "US";
+  expected.timezone = "America/Los_Angeles";
+  base::DictValue observed;
+  observed.Set("ip", expected.ip);
+  observed.Set("country", expected.country);
+  observed.Set("timezone", expected.timezone);
+  auto result = ClientProxyGeoVerificationResult(expected, observed);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->FindBool("match"), true);
+  for (const char* field : {"ip", "country", "timezone"}) {
+    auto changed = observed.Clone();
+    changed.Set(field, std::string(field) == "ip" ? "1.1.1.1" :
+                       std::string(field) == "country" ? "DE" : "Europe/Berlin");
+    auto mismatch = ClientProxyGeoVerificationResult(expected, changed);
+    ASSERT_TRUE(mismatch.has_value());
+    EXPECT_EQ(mismatch->FindBool("match"), false);
+  }
+  observed.Set("ip", "127.0.0.1");
+  EXPECT_FALSE(ClientProxyGeoVerificationResult(expected, observed).has_value());
+  observed.Remove("timezone");
+  EXPECT_FALSE(ClientProxyGeoVerificationResult(expected, observed).has_value());
+}
 
 TEST(VerifyPageTest, FailureExitDisabledWithoutAutomationSwitch) {
   base::CommandLine command_line(base::CommandLine::NO_PROGRAM);

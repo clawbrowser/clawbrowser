@@ -824,7 +824,8 @@ base::expected<StartupResult, std::string> RunStartup(
     // backend aligns timezone and language with a managed exit of its own
     // while traffic keeps using the user's proxy (e.g. Asia/Krasnoyarsk for a
     // Moscow mobile exit).
-    if (cached_profile.has_value() && cached_profile->manual_proxy_bound) {
+    if (cached_profile.has_value() && cached_profile->manual_proxy_bound &&
+        !params.client_proxy_geo.has_value()) {
       params.manual_proxy = ManualProxyForGenerateRequest(*cached_profile);
     }
 
@@ -862,6 +863,20 @@ base::expected<StartupResult, std::string> RunStartup(
         code = "fingerprint_api_rate_limited";
       }
       return base::ok(FailManagedFingerprintStartup(args, code, msg));
+    }
+
+    // Client-side geography must never allocate a replacement managed proxy.
+    if (params.client_proxy_geo.has_value()) {
+      const auto& expected = *params.client_proxy_geo;
+      const auto& observed = api_result->client_proxy_geo;
+      if (api_result->proxy.has_value() || !observed.has_value() ||
+          observed->ip != expected.ip || observed->country != expected.country ||
+          observed->timezone != expected.timezone ||
+          api_result->fingerprint.timezone != expected.timezone) {
+        return base::ok(FailManagedFingerprintStartup(
+            args, "client_proxy_geo_mismatch",
+            "backend did not retain the selected proxy's exit geography"));
+      }
     }
 
     // Save profile envelope

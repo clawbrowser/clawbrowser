@@ -2,6 +2,7 @@
 #define CLAWBROWSER_VERIFY_VERIFY_PAGE_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "base/command_line.h"
@@ -11,9 +12,19 @@
 #include "content/public/browser/web_ui_controller.h"
 #include "content/public/browser/web_ui_data_source.h"
 
+namespace network {
+class SimpleURLLoader;
+}
+
 namespace clawbrowser {
 
 class ApiClient;
+struct ClientProxyGeo;
+
+// Returns no result for malformed/non-public observations; callers may try the
+// other fixed provider. A valid but changed exit is a definitive failed check.
+std::optional<base::DictValue> ClientProxyGeoVerificationResult(
+    const ClientProxyGeo& expected, const base::DictValue& observed);
 
 bool VerifyFailureExitEnabledForCommandLine(
     const base::CommandLine& command_line);
@@ -36,6 +47,7 @@ class VerifyPageUI : public content::WebUIController {
  private:
   // Handle "verifyProxy" message from page JS.
   void HandleVerifyProxy(const base::ListValue& args);
+  void VerifyClientProxyGeo(ClientProxyGeo expected, size_t provider);
 
   // Handle "verifyComplete" message — result of all checks.
   void HandleVerifyComplete(const base::ListValue& args);
@@ -52,6 +64,7 @@ class VerifyPageUI : public content::WebUIController {
   bool verification_complete_ = false;
   base::OneShotTimer failure_exit_timer_;
   std::unique_ptr<ApiClient> api_client_;
+  std::unique_ptr<network::SimpleURLLoader> client_proxy_loader_;
   base::WeakPtrFactory<VerifyPageUI> weak_ptr_factory_{this};
 };
 
