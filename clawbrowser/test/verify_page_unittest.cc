@@ -29,6 +29,13 @@ TEST(VerifyPageTest, ClientProxyRequiresMatchingPublicExitCountryAndTimezone) {
   auto result = ClientProxyGeoVerificationResult(expected, observed);
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result->FindBool("match"), true);
+  auto aliased = observed.Clone();
+  expected.timezone = "America/Indiana/Indianapolis";
+  aliased.Set("timezone", "America/Indianapolis");
+  auto alias_result = ClientProxyGeoVerificationResult(expected, aliased);
+  ASSERT_TRUE(alias_result.has_value());
+  EXPECT_EQ(alias_result->FindBool("match"), true);
+  expected.timezone = "America/Los_Angeles";
   for (const char* field : {"ip", "country", "timezone"}) {
     auto changed = observed.Clone();
     changed.Set(field, std::string(field) == "ip" ? "1.1.1.1" :

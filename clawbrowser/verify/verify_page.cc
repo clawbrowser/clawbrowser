@@ -32,6 +32,8 @@
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/simple_url_loader.h"
+#include "third_party/icu/source/common/unicode/unistr.h"
+#include "third_party/icu/source/i18n/unicode/timezone.h"
 
 namespace clawbrowser {
 
@@ -547,8 +549,17 @@ std::optional<base::DictValue> ClientProxyGeoVerificationResult(
       !expected_address.AssignFromIPLiteral(expected.ip)) {
     return std::nullopt;
   }
+  auto canonical_timezone = [](const std::string& value) {
+    UErrorCode status = U_ZERO_ERROR;
+    icu::UnicodeString canonical;
+    icu::TimeZone::getCanonicalID(icu::UnicodeString::fromUTF8(value), canonical,
+                                status);
+    return U_SUCCESS(status) ? canonical : icu::UnicodeString();
+  };
+  const auto observed_timezone = canonical_timezone(*timezone);
   const bool match = address == expected_address && *country == expected.country &&
-                     *timezone == expected.timezone;
+                     !observed_timezone.isEmpty() &&
+                     observed_timezone == canonical_timezone(expected.timezone);
   base::DictValue result;
   result.Set("match", match);
   result.Set("actual_country", *country);
