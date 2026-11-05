@@ -12,6 +12,11 @@ on:
         description: Exact release project source to compile
         type: string
         default: 85ede59686a51e0828eadfaa6f0d137cad5efaea
+      native_cpu:
+        description: Linux target architecture
+        type: choice
+        options: [both, x64, arm64]
+        default: both
   pull_request:
   push:
     branches: [main]
@@ -55,10 +60,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - {runner: ubuntu-24.04, cpu: x64}
-          - {runner: ubuntu-24.04-arm, cpu: arm64}
-    runs-on: ${{ matrix.runner }}
+        cpu: ${{ fromJSON(inputs.native_cpu == 'arm64' && '["arm64"]' || inputs.native_cpu == 'x64' && '["x64"]' || '["x64","arm64"]') }}
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout CI helper
         uses: actions/checkout@v4

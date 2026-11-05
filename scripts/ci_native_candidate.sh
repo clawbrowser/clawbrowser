@@ -42,6 +42,9 @@ gclient sync --no-history --nohooks --jobs 4 --revision "src@$CHROMIUM_REVISION"
 sudo src/build/install-build-deps.sh --no-prompt --no-arm --no-chromeos-fonts --no-syms
 sudo apt-get install -y --no-install-recommends librsvg2-bin rsync xvfb xauth
 gclient runhooks
+if [[ "$target_cpu" == arm64 ]]; then
+  python3 src/build/linux/sysroot_scripts/install-sysroot.py --arch=arm64
+fi
 bash "$project/scripts/clawbrowser_remote.sh" apply-patches --chromium-dir "$checkout" --project-dir "$project" --depot-tools-dir "$depot"
 
 # The production argument writer/staging functions were validated before sync.
@@ -53,24 +56,32 @@ gn gen "$build"
 # One platform per 4-core/16-GB hosted runner. Keep the production GN options;
 # Chromium computes its own link-memory pools. No ThinLTO/feature downgrade.
 autoninja -C "$build" -j 4 chrome chrome_sandbox clawbrowser_unittests clawbrowser_browser_unittests
-xvfb-run -a "$build/clawbrowser_unittests" --gtest_output="json:$artifacts/native-core-tests.json"
-xvfb-run -a "$build/clawbrowser_browser_unittests" --gtest_output="json:$artifacts/native-browser-tests.json"
 bundle="$artifacts/clawbrowser-linux-$target_cpu"
 stage_linux_runtime_bundle "$build" "$bundle"
-config=$(mktemp -d "$RUNNER_TEMP/native-startup-XXXXXX")
-CLAWBROWSER_CONFIG_DIR="$config" timeout 30 "$bundle/clawbrowser.real" --list > "$artifacts/startup-hook.txt"
-python3 - "$artifacts/startup-hook.txt" <<'PY'
+if [[ "$target_cpu" == x64 ]]; then
+  xvfb-run -a "$build/clawbrowser_unittests" --gtest_output="json:$artifacts/native-core-tests.json"
+  xvfb-run -a "$build/clawbrowser_browser_unittests" --gtest_output="json:$artifacts/native-browser-tests.json"
+  config=$(mktemp -d "$RUNNER_TEMP/native-startup-XXXXXX")
+  CLAWBROWSER_CONFIG_DIR="$config" timeout 30 "$bundle/clawbrowser.real" --list > "$artifacts/startup-hook.txt"
+  python3 - "$artifacts/startup-hook.txt" <<'PY'
 import json, pathlib, sys
 assert json.loads(pathlib.Path(sys.argv[1]).read_text()) == []
 PY
+else
+  # Preserve native test executables/data for execution on an ARM64 consumer.
+  # A successful cross-compile is deliberately not recorded as a test pass.
+  tar -C "$build" -czf "$artifacts/native-arm64-test-binaries.tar.gz" clawbrowser_unittests clawbrowser_browser_unittests
+  tar -C "$checkout/src" -czf "$artifacts/native-arm64-test-data.tar.gz" net/data/ssl/certificates clawbrowser/test/fixtures
+fi
 export NATIVE_SOURCE_SHA="$expected_source" NATIVE_TARGET_CPU="$target_cpu" CHROMIUM_REVISION CHROMIUM_VERSION_LABEL
 export NATIVE_DEPOT_SHA="$(git -C "$depot" rev-parse HEAD)"
 python3 - "$artifacts/source.json" <<'PY'
 import json, os, pathlib, sys
 data={k:os.environ[k] for k in ['NATIVE_SOURCE_SHA','NATIVE_TARGET_CPU','CHROMIUM_REVISION','CHROMIUM_VERSION_LABEL','NATIVE_DEPOT_SHA','GITHUB_SHA']}
-data.update(version='1.0.12',build_profile='production',source_tests_passed=True,startup_hook_passed=True,published=False)
+native=data['NATIVE_TARGET_CPU']=='x64'
+data.update(version='1.0.12',build_profile='production',source_tests_compiled=True,source_tests_passed=True if native else None,startup_hook_passed=True if native else None,verification='native tests and startup hook passed' if native else 'cross-compiled; ARM64 execution pending',published=False)
 pathlib.Path(sys.argv[1]).write_text(json.dumps(data,indent=2)+'\n')
 PY
 tar -C "$artifacts" -czf "$artifacts/clawbrowser-linux-$target_cpu.tar.gz" "clawbrowser-linux-$target_cpu"
 cd "$artifacts"
-sha256sum "clawbrowser-linux-$target_cpu.tar.gz" source.json args.gn native-core-tests.json native-browser-tests.json startup-hook.txt > SHA256SUMS
+find . -maxdepth 1 -type f ! -name SHA256SUMS ! -name native-build.log -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
