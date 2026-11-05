@@ -6,7 +6,7 @@ on:
       mode:
         description: Capacity probe or actual no-publication Linux native builds
         type: choice
-        options: [capacity, capacity-macos26, capacity-windows, build-windows, build-linux, build-macos, build-macos-arm, package-linux]
+        options: [capacity, capacity-macos26, capacity-windows, build-windows, build-linux, build-linux-arm, build-macos, build-macos-arm, package-linux]
         default: capacity
       source_sha:
         description: Exact release project source to compile
@@ -21,6 +21,10 @@ on:
         description: Completed native Linux build run to package without publication
         type: string
         default: '42031130414'
+      native_arm_run_id:
+        description: Separate completed ARM Linux build run; empty uses native_run_id
+        type: string
+        default: ''
   pull_request:
   push:
     branches: [main]
@@ -132,7 +136,7 @@ jobs:
       - name: Build candidate image and portable runtime from exact native artifact
         env:
           GH_TOKEN: ${{ github.token }}
-          NATIVE_RUN_ID: ${{ inputs.native_run_id }}
+          NATIVE_RUN_ID: ${{ matrix.cpu == 'arm64' && inputs.native_arm_run_id != '' && inputs.native_arm_run_id || inputs.native_run_id }}
           SOURCE_SHA: ${{ inputs.source_sha }}
           TARGET_CPU: ${{ matrix.cpu }}
         shell: bash
@@ -178,13 +182,13 @@ jobs:
           retention-days: 7
 
   linux-candidate:
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'build-linux'
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'build-linux' || inputs.mode == 'build-linux-arm')
     timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
-        cpu: ${{ fromJSON(inputs.native_cpu == 'arm64' && '["arm64"]' || inputs.native_cpu == 'x64' && '["x64"]' || '["x64","arm64"]') }}
-    runs-on: ubuntu-24.04
+        cpu: ${{ fromJSON((inputs.mode == 'build-linux-arm' || inputs.native_cpu == 'arm64') && '["arm64"]' || inputs.native_cpu == 'x64' && '["x64"]' || '["x64","arm64"]') }}
+    runs-on: ${{ inputs.mode == 'build-linux-arm' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     steps:
       - name: Checkout CI helper
         uses: actions/checkout@v4

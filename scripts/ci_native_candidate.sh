@@ -8,6 +8,7 @@ expected_source=$4
 target_cpu=$5
 [[ "$expected_source" =~ ^[0-9a-f]{40}$ ]]
 [[ "$target_cpu" == x64 || "$target_cpu" == arm64 ]]
+[[ "$RUNNER_ENVIRONMENT" == github-hosted && "$(uname -s)" == Linux ]]
 [[ "$(git -C "$project" rev-parse HEAD)" == "$expected_source" ]]
 [[ "$checkout" == "$RUNNER_TEMP/"* ]]
 mkdir -p "$artifacts" "$checkout"
@@ -36,14 +37,37 @@ export PATH="$depot:$PATH"
 ( source "$depot/bootstrap_python3"; bootstrap_python3 )
 printf 'Workflow: %s\nSource: %s\nChromium: %s\nDepot tools: %s\n' "$GITHUB_SHA" "$expected_source" "$CHROMIUM_REVISION" "$(git -C "$depot" rev-parse HEAD)"
 python3 - "$checkout/.gclient" <<'PY'
-import pathlib, sys
-pathlib.Path(sys.argv[1]).write_text("solutions = [{'name': 'src', 'url': 'https://chromium.googlesource.com/chromium/src.git', 'managed': False, 'custom_deps': {}, 'custom_vars': {}}]\ntarget_os = ['linux']\n")
+import pathlib, platform, sys
+custom={'src/third_party/gperf/cipd':None} if platform.machine()=='aarch64' else {}
+pathlib.Path(sys.argv[1]).write_text("solutions = "+repr([{'name':'src','url':'https://chromium.googlesource.com/chromium/src.git','managed':False,'custom_deps':custom,'custom_vars':{}}])+"\ntarget_os = ['linux']\n")
 PY
 cd "$checkout"
 gclient sync --no-history --nohooks --jobs 4 --revision "src@$CHROMIUM_REVISION"
 [[ "$(git -C src rev-parse HEAD)" == "$CHROMIUM_REVISION" ]]
 sudo src/build/install-build-deps.sh --no-prompt --no-arm --no-chromeos-fonts --no-syms
 sudo apt-get install -y --no-install-recommends librsvg2-bin rsync xvfb xauth
+if [[ "$(uname -m)" == aarch64 ]]; then
+  [[ "$target_cpu" == arm64 ]]
+  # DEPS pins gperf 3.2, but its linux-arm64 CIPD instance is unavailable.
+  # Build that exact upstream release using Chromium's 3pp configure/install
+  # recipe; only the missing host-tool dependency is overridden in .gclient.
+  # Chromium's recipe declares no source modifications beyond package metadata.
+  tool_source="$RUNNER_TEMP/gperf-3.2-source"
+  mkdir -p "$tool_source" "$checkout/src/third_party/gperf/cipd"
+  curl --fail --location --retry 3 https://ftp.gnu.org/gnu/gperf/gperf-3.2.tar.gz -o "$RUNNER_TEMP/gperf-3.2.tar.gz"
+  printf '%s  %s\n' e0ddadebb396906a3e3e4cac2f697c8d6ab92dffa5d365a5bc23c7d41d30ef62 "$RUNNER_TEMP/gperf-3.2.tar.gz" | sha256sum --check
+  tar -xzf "$RUNNER_TEMP/gperf-3.2.tar.gz" -C "$tool_source" --strip-components=1
+  (
+    cd "$tool_source"
+    ./configure --prefix="$checkout/src/third_party/gperf/cipd" --host=aarch64-linux-gnu
+    make -j4
+    make check -j4
+    make install -j4
+  )
+  "$checkout/src/third_party/gperf/cipd/bin/gperf" --version | tee "$artifacts/gperf-version.txt"
+  grep -qx 'GNU gperf 3.2' "$artifacts/gperf-version.txt"
+  printf '%s\n' 'upstream=https://ftp.gnu.org/gnu/gperf/gperf-3.2.tar.gz' 'sha256=e0ddadebb396906a3e3e4cac2f697c8d6ab92dffa5d365a5bc23c7d41d30ef62' 'chromium_3pp_tree=59c15125a0871e4807d232b35a8a9b9d67e81d9f' 'host_tool_only=true' 'upstream_make_check=passed' > "$artifacts/gperf-provenance.txt"
+fi
 gclient runhooks
 if [[ "$target_cpu" == arm64 ]]; then
   python3 src/build/linux/sysroot_scripts/install-sysroot.py --arch=arm64
@@ -61,7 +85,9 @@ gn gen "$build"
 autoninja -C "$build" -j 4 chrome chrome_sandbox clawbrowser_unittests clawbrowser_browser_unittests
 bundle="$artifacts/clawbrowser-linux-$target_cpu"
 stage_linux_runtime_bundle "$build" "$bundle"
-if [[ "$target_cpu" == x64 ]]; then
+native_host=false
+if [[ "$target_cpu/$(uname -m)" == x64/x86_64 || "$target_cpu/$(uname -m)" == arm64/aarch64 ]]; then native_host=true; fi
+if "$native_host"; then
   xvfb-run -a "$build/clawbrowser_unittests" --gtest_output="json:$artifacts/native-core-tests.json"
   xvfb-run -a "$build/clawbrowser_browser_unittests" --gtest_output="json:$artifacts/native-browser-tests.json"
   config=$(mktemp -d "$RUNNER_TEMP/native-startup-XXXXXX")
@@ -70,18 +96,19 @@ if [[ "$target_cpu" == x64 ]]; then
 import json, pathlib, sys
 assert json.loads(pathlib.Path(sys.argv[1]).read_text()) == []
 PY
-else
+fi
+if [[ "$target_cpu" == arm64 ]]; then
   # Preserve native test executables/data for execution on an ARM64 consumer.
   # A successful cross-compile is deliberately not recorded as a test pass.
   tar -C "$build" -czf "$artifacts/native-arm64-test-binaries.tar.gz" clawbrowser_unittests clawbrowser_browser_unittests
   tar -C "$checkout/src" -czf "$artifacts/native-arm64-test-data.tar.gz" net/data/ssl/certificates clawbrowser/test/fixtures
 fi
-export NATIVE_SOURCE_SHA="$expected_source" NATIVE_TARGET_CPU="$target_cpu" CHROMIUM_REVISION CHROMIUM_VERSION_LABEL
+export NATIVE_SOURCE_SHA="$expected_source" NATIVE_TARGET_CPU="$target_cpu" NATIVE_HOST_CPU="$(uname -m)" CHROMIUM_REVISION CHROMIUM_VERSION_LABEL
 export NATIVE_DEPOT_SHA="$(git -C "$depot" rev-parse HEAD)"
 python3 - "$artifacts/source.json" <<'PY'
 import json, os, pathlib, sys
-data={k:os.environ[k] for k in ['NATIVE_SOURCE_SHA','NATIVE_TARGET_CPU','CHROMIUM_REVISION','CHROMIUM_VERSION_LABEL','NATIVE_DEPOT_SHA','GITHUB_SHA']}
-native=data['NATIVE_TARGET_CPU']=='x64'
+data={k:os.environ[k] for k in ['NATIVE_SOURCE_SHA','NATIVE_TARGET_CPU','NATIVE_HOST_CPU','CHROMIUM_REVISION','CHROMIUM_VERSION_LABEL','NATIVE_DEPOT_SHA','GITHUB_SHA']}
+native=(data['NATIVE_TARGET_CPU'],data['NATIVE_HOST_CPU']) in [('x64','x86_64'),('arm64','aarch64')]
 data.update(version='1.0.12',build_profile='production',source_tests_compiled=True,source_tests_passed=True if native else None,startup_hook_passed=True if native else None,verification='native tests and startup hook passed' if native else 'cross-compiled; ARM64 execution pending',published=False)
 pathlib.Path(sys.argv[1]).write_text(json.dumps(data,indent=2)+'\n')
 PY
