@@ -6,7 +6,7 @@ on:
       mode:
         description: Capacity probe or actual no-publication Linux native builds
         type: choice
-        options: [capacity, build-linux, build-macos, package-linux]
+        options: [capacity, capacity-windows, build-linux, build-macos, package-linux]
         default: capacity
       source_sha:
         description: Exact release project source to compile
@@ -29,6 +29,28 @@ permissions:
   contents: read
 
 jobs:
+  windows-capacity:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'capacity-windows'
+    runs-on: windows-2025
+    timeout-minutes: 5
+    steps:
+      - name: Inspect Windows compiler host capacity (no build or installation)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $os=Get-CimInstance Win32_OperatingSystem
+          $disks=@(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | ForEach-Object { @{drive=$_.DeviceID;total_gib=[Math]::Round($_.Size/1GB,2);free_gib=[Math]::Round($_.FreeSpace/1GB,2)} })
+          $vswhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $vs=@(& $vswhere -all -products '*' -format json | ConvertFrom-Json | ForEach-Object { @{path=$_.installationPath;version=$_.installationVersion} })
+          $data=@{cpus=$env:NUMBER_OF_PROCESSORS;memory_gib=[Math]::Round($os.TotalVisibleMemorySize/1MB,2);disks=$disks;visual_studio=$vs;chromium_checked_out=$false;build_started=$false;published=$false}
+          $data | ConvertTo-Json -Depth 6 | Set-Content "$env:RUNNER_TEMP/native-windows-capacity.json"
+          Get-Content "$env:RUNNER_TEMP/native-windows-capacity.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-windows-capacity
+          path: ${{ runner.temp }}/native-windows-capacity.json
+          retention-days: 7
+
   linux-runtime-package:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'package-linux'
     timeout-minutes: 60
