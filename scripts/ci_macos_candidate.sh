@@ -9,15 +9,22 @@ expected_source=$4
 [[ "$expected_source" =~ ^[0-9a-f]{40}$ && "$(git -C "$project" rev-parse HEAD)" == "$expected_source" ]]
 mkdir -p "$checkout" "$artifacts"
 exec > >(tee "$artifacts/native-build.log") 2>&1
+export DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer
+[[ -d "$DEVELOPER_DIR" ]] || { printf '%s\n' 'Pinned hosted Xcode 26.3 is unavailable'; exit 1; }
 
 # Only this disposable GitHub-hosted VM is touched. Preserve the selected Xcode
 # and remove named inactive Xcode apps only until enough build space is free.
 python3 - "$artifacts/host-capacity.json" <<'PY'
-import json, os, pathlib, platform, re, shutil, subprocess, sys
+import json, os, pathlib, platform, plistlib, re, shutil, subprocess, sys
 assert os.environ['RUNNER_ENVIRONMENT']=='github-hosted' and platform.system()=='Darwin'
 apps=pathlib.Path('/Applications').resolve()
-developer=pathlib.Path(subprocess.check_output(['xcode-select','-p'],text=True).strip()).resolve()
+developer=pathlib.Path(os.environ['DEVELOPER_DIR']).resolve()
 active=next(p for p in developer.parents if p.suffix=='.app' and p.parent==apps)
+selected=pathlib.Path(subprocess.check_output(['xcode-select','-p'],text=True).strip()).resolve()
+installed=[p.name for p in apps.glob('Xcode_*.app') if not p.is_symlink()]
+actool=plistlib.loads(subprocess.check_output(['xcrun','actool','--output-format=xml1','--version']))['com.apple.actool.version']['bundle-version']
+assert tuple(map(int,actool.split('.'))) >= (24112,), 'Chromium 151 requires actool from Xcode 26b4 or newer'
+print('Selected hosted Xcode:',active.name,'actool:',actool,flush=True)
 before=shutil.disk_usage(os.getcwd()).free
 removed=[]
 for app in sorted(apps.glob('Xcode_*.app')):
@@ -25,12 +32,12 @@ for app in sorted(apps.glob('Xcode_*.app')):
     if app.is_symlink() or not app.is_dir() or not re.fullmatch(r'Xcode_[0-9.]+\.app',app.name):continue
     target=app.resolve()
     assert target.parent==apps and target==app
-    if target==active or developer.is_relative_to(target):continue
+    if target==active or developer.is_relative_to(target) or selected.is_relative_to(target):continue
     print('Removing inactive hosted-image SDK:',target.name,flush=True)
     subprocess.run(['sudo','/bin/rm','-rf','--',str(target)],check=True)
     removed.append(target.name)
 free=shutil.disk_usage(os.getcwd()).free
-pathlib.Path(sys.argv[1]).write_text(json.dumps({'active_xcode':active.name,'removed_inactive_xcodes':removed,'initial_free_gib':round(before/2**30,2),'build_free_gib':round(free/2**30,2),'corporate_keychain_used':False},indent=2)+'\n')
+pathlib.Path(sys.argv[1]).write_text(json.dumps({'active_xcode':active.name,'actool_version':actool,'installed_xcodes':installed,'removed_inactive_xcodes':removed,'initial_free_gib':round(before/2**30,2),'build_free_gib':round(free/2**30,2),'corporate_keychain_used':False},indent=2)+'\n')
 assert free>=80*2**30,'Hosted Mac still lacks space for the shallow native candidate build'
 PY
 
