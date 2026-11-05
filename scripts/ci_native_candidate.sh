@@ -31,6 +31,9 @@ icon_assets_dir="$project/branding/icons/app/side-bite"
 depot="$RUNNER_TEMP/depot_tools"
 git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$depot"
 export PATH="$depot:$PATH"
+# Auto-updates are disabled for reproducibility, so initialize the official
+# pinned Python shim explicitly before project scripts invoke depot python3.
+( source "$depot/bootstrap_python3"; bootstrap_python3 )
 printf 'Workflow: %s\nSource: %s\nChromium: %s\nDepot tools: %s\n' "$GITHUB_SHA" "$expected_source" "$CHROMIUM_REVISION" "$(git -C "$depot" rev-parse HEAD)"
 python3 - "$checkout/.gclient" <<'PY'
 import pathlib, sys

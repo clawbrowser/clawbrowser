@@ -64,6 +64,7 @@ source "$project/scripts/clawbrowser_pin.conf"
 depot="$RUNNER_TEMP/depot_tools"
 git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$depot"
 export PATH="$depot:$PATH"
+( source "$depot/bootstrap_python3"; bootstrap_python3 )
 python3 - "$checkout/.gclient" <<'PY'
 import pathlib,sys
 pathlib.Path(sys.argv[1]).write_text("solutions = [{'name': 'src', 'url': 'https://chromium.googlesource.com/chromium/src.git', 'managed': False, 'custom_deps': {}, 'custom_vars': {}}]\ntarget_os = ['mac']\n")
