@@ -46,6 +46,11 @@ image="clawbrowser-native-candidate:1.0.12-$arch"
 docker build --platform "linux/$arch" --label "org.opencontainers.image.revision=$source_sha" --label org.opencontainers.image.version=1.0.12 --tag "$image" "$context"
 docker image inspect "$image" > "$output/image-metadata.json"
 docker run --rm --env CLAWBROWSER_CONFIG_DIR=/tmp/candidate-empty-config --entrypoint /opt/clawbrowser/clawbrowser.real "$image" --list > "$output/image-startup.json"
+timeout 60 docker run --rm --env CLAWBROWSER_CONFIG_DIR=/tmp/candidate-empty-config "$image" --list > "$output/image-xvfb-entrypoint.log"
+python3 - "$output/image-xvfb-entrypoint.log" <<'PY'
+import pathlib,sys
+assert '[]' in pathlib.Path(sys.argv[1]).read_text().splitlines(), 'Default Xvfb/dbus image entrypoint did not reach the browser startup hook'
+PY
 python3 - "$output/image-metadata.json" "$output/image-startup.json" "$arch" "$source_sha" <<'PY'
 import json,pathlib,sys
 image=json.loads(pathlib.Path(sys.argv[1]).read_text())[0]
