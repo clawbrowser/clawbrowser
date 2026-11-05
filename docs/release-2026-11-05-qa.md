@@ -44,6 +44,7 @@ NodeMaven traffic-accounting/migration changes are excluded from this release.
 | Native local-proxy geography | New native candidate | PENDING | Matching, timezone alias, fallback, authenticated proxy, mismatch, provider outage, and missing geography cases prepared |
 | Linux Docker and portable runtime | x64, ARM64 distribution paths | PENDING | Build from successful exact native artifacts, then execute default entrypoint and shipped portable wrapper/loader |
 | Full CLI tests and vet | Linux release sources | PASS | nbc 1520 passed / 6 skipped; clawctl 979 passed / 3 skipped; zero failures, vet passed; both final source candidates rebuilt for four targets |
+| Actual final packaged CLI executables and MCP/auth | Native Windows amd64, macOS ARM64, Linux amd64 and ARM64 hosts | PASS | [NBC artifacts](https://github.com/nextbrowser-oss/nextctl/actions/runs/42081068769), [Clawctl artifacts](https://github.com/clawbrowser/clawctl_internal/actions/runs/42082006759): eight exact executables, 36 supported MCP/auth sessions; versions, source metadata and binary hashes matched. Loopback API fixtures, no real accounts or browsers. |
 | Full Windows nbc suite | Final release tree | PASS | 1500 passed, 26 skipped, zero failures; vet and Go temporary-binary cleanup passed. Tested tree 2c6d5d9 equals final merge 3cade3b; runtime code unchanged from c69c128. Original 16 failures and intermediate cleanup failure remain archived. |
 | Full Windows clawctl suite | Final release Go/test sources | PASS | 959 passed, 23 skipped, zero failures; vet and Go cleanup exit 0. Final 36f885b differs from Windows-tested 4625be2 only in CI YAML; final tree equals Linux-tested 925b7c7. Runtime unchanged from baaff8d; original 12 failures retained. |
 | Actual rebuilt Windows clawctl binary | Isolated HOME/USERPROFILE and loopback auth fixture | PASS | Final artifact hash/source/version checked; version command makes the expected auth request without changing the binary or writing updater cache. No real account/profile used. |
@@ -80,6 +81,14 @@ NodeMaven traffic-accounting/migration changes are excluded from this release.
   platform-specific installer/self-update fixtures are not exercised by the
   ordinary Windows unit run. Actual native install/upgrade and proxy execution
   remain separate pending checks above.
+- Packaged CLI protocol checks respect each product's startup contract. NBC
+  used enabled auto-update and both direct and desktop MCP arguments; its
+  server handshakes before returning missing/invalid-key tool errors. Clawctl
+  used an explicitly disabled updater in its isolated test environment; it
+  handshakes with a valid key and rejects missing/invalid keys before starting
+  the stdio server. This does not establish Clawctl updater behavior during MCP
+  startup, provider delivery, or a real browser launch. Candidate runtime code
+  was unchanged for these checks.
 - No stable tag, release upload, registry push, or production deployment is
   implied by the PASS rows. Update this record with final hashes and execution
   evidence before making a release decision.
