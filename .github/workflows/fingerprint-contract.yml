@@ -1,6 +1,7 @@
 name: Fingerprint contract
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [main]
@@ -9,8 +10,38 @@ permissions:
   contents: read
 
 jobs:
+  runner-preflight:
+    if: github.event_name == 'workflow_dispatch'
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Measure clean hosted runner capacity (no Chromium checkout or build)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, platform, shutil, subprocess
+          disk=shutil.disk_usage(os.getcwd())
+          ram=int(subprocess.check_output(['sysctl','-n','hw.memsize'])) if platform.system()=='Darwin' else os.sysconf('SC_PAGE_SIZE')*os.sysconf('SC_PHYS_PAGES')
+          data={'system':platform.system(),'architecture':platform.machine(),'cpus':os.cpu_count(),'memory_gib':round(ram/2**30,2),'disk_total_gib':round(disk.total/2**30,2),'disk_free_gib':round(disk.free/2**30,2),'project_documented_free_disk_gib':150,'chromium_checked_out':False,'build_started':False,'published':False}
+          data['adequate_without_cleanup']=disk.free>=150*2**30 and ram>=8*2**30
+          data['disk_total_below_documented_free_requirement']=disk.total<150*2**30
+          output=pathlib.Path(os.environ['RUNNER_TEMP'])/'native-builder-capacity.json'
+          output.write_text(json.dumps(data,indent=2)+'\n')
+          print(json.dumps(data,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-builder-capacity-${{ matrix.runner }}
+          path: ${{ runner.temp }}/native-builder-capacity.json
+          retention-days: 7
+
   # Numerical/staging portability only: these jobs do not certify a browser artifact.
   raster-portability:
+    if: github.event_name != 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -37,6 +68,7 @@ jobs:
           fi
 
   raster-portability-windows:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -72,6 +104,7 @@ jobs:
           bash scripts/skia_half_test.sh
 
   contract:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
