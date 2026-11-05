@@ -6,7 +6,7 @@ on:
       mode:
         description: Capacity probe or actual no-publication Linux native builds
         type: choice
-        options: [capacity, capacity-windows, build-windows, build-linux, build-macos, package-linux]
+        options: [capacity, capacity-macos26, capacity-windows, build-windows, build-linux, build-macos, package-linux]
         default: capacity
       source_sha:
         description: Exact release project source to compile
@@ -145,12 +145,12 @@ jobs:
           retention-days: 14
 
   runner-preflight:
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'capacity'
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'capacity' || inputs.mode == 'capacity-macos26')
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+        runner: ${{ fromJSON(inputs.mode == 'capacity-macos26' && '["macos-26"]' || '["ubuntu-24.04","ubuntu-24.04-arm","macos-15"]') }}
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Measure clean hosted runner capacity (no Chromium checkout or build)
@@ -163,6 +163,10 @@ jobs:
           data={'system':platform.system(),'architecture':platform.machine(),'cpus':os.cpu_count(),'memory_gib':round(ram/2**30,2),'disk_total_gib':round(disk.total/2**30,2),'disk_free_gib':round(disk.free/2**30,2),'project_documented_free_disk_gib':150,'chromium_checked_out':False,'build_started':False,'published':False}
           data['adequate_without_cleanup']=disk.free>=150*2**30 and ram>=8*2**30
           data['disk_total_below_documented_free_requirement']=disk.total<150*2**30
+          if platform.system()=='Darwin':
+              data['selected_xcode']=subprocess.check_output(['xcode-select','-p'],text=True).strip()
+              data['installed_xcodes']=[p.name for p in pathlib.Path('/Applications').glob('Xcode*.app')]
+              data['xcode_version']=subprocess.check_output(['xcodebuild','-version'],text=True).strip()
           output=pathlib.Path(os.environ['RUNNER_TEMP'])/'native-builder-capacity.json'
           output.write_text(json.dumps(data,indent=2)+'\n')
           print(json.dumps(data,indent=2))
