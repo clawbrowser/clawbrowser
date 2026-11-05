@@ -119,7 +119,7 @@ jobs:
 
   macos-candidate:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'build-macos'
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
@@ -163,6 +163,7 @@ jobs:
             native-artifacts/*.json
             native-artifacts/*.log
             native-artifacts/*.gn
+            native-artifacts/*.txt
             native-artifacts/SHA256SUMS
           if-no-files-found: warn
           retention-days: 14

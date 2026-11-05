@@ -79,8 +79,18 @@ cp "$build/args.gn" "$artifacts/args.gn"
 cd "$checkout/src"
 gn gen "$build"
 autoninja -C "$build" -j 3 chrome clawbrowser_unittests clawbrowser_browser_unittests
-"$build/clawbrowser_unittests" --gtest_output="json:$artifacts/native-core-tests.json"
-"$build/clawbrowser_browser_unittests" --gtest_output="json:$artifacts/native-browser-tests.json"
+if [[ "$(uname -m)" == arm64 ]]; then
+  "$build/clawbrowser_unittests" --gtest_output="json:$artifacts/native-core-tests.json"
+  "$build/clawbrowser_browser_unittests" --gtest_output="json:$artifacts/native-browser-tests.json"
+else
+  # Preserve everything needed to run the ARM tests on an ARM Mac consumer.
+  test_runtime="$artifacts/test-runtime"
+  mkdir -p "$test_runtime"
+  rsync -a --prune-empty-dirs --include='/clawbrowser_unittests' --include='/clawbrowser_browser_unittests' --include='/*.dylib' --include='/*.dat' --include='/*.pak' --include='/*.bin' --include='/Chromium.app/***' --include='/clawbrowser-fonts/***' --include='/resources/***' --exclude='*' "$build/" "$test_runtime/"
+  otool -L "$build/clawbrowser_unittests" "$build/clawbrowser_browser_unittests" > "$artifacts/native-test-dylibs.txt"
+  tar -C "$test_runtime" -czf "$artifacts/native-macos-arm64-tests.tar.gz" .
+  tar -C "$checkout/src" -czf "$artifacts/native-macos-test-data.tar.gz" net/data/ssl/certificates clawbrowser/test/fixtures
+fi
 app="$artifacts/stage/Clawbrowser.app"
 mkdir -p "$app"
 rsync -a "$build/Chromium.app/" "$app/"
@@ -94,13 +104,15 @@ export NATIVE_SOURCE_SHA="$expected_source" CHROMIUM_REVISION CHROMIUM_VERSION_L
 export NATIVE_DEPOT_SHA="$(git -C "$depot" rev-parse HEAD)"
 python3 - "$app/Contents/MacOS/Clawbrowser" "$artifacts/source.json" <<'PY'
 import json,os,pathlib,subprocess,sys,tempfile
-with tempfile.TemporaryDirectory(prefix='native-startup-') as config:
-    result=subprocess.run([sys.argv[1],'--list'],env={**os.environ,'CLAWBROWSER_CONFIG_DIR':config},capture_output=True,text=True,timeout=30,check=True)
-    assert json.loads(result.stdout)==[]
+native=os.uname().machine=='arm64'
+if native:
+    with tempfile.TemporaryDirectory(prefix='native-startup-') as config:
+        result=subprocess.run([sys.argv[1],'--list'],env={**os.environ,'CLAWBROWSER_CONFIG_DIR':config},capture_output=True,text=True,timeout=30,check=True)
+        assert json.loads(result.stdout)==[]
 data={k:os.environ[k] for k in ['NATIVE_SOURCE_SHA','CHROMIUM_REVISION','CHROMIUM_VERSION_LABEL','NATIVE_DEPOT_SHA','GITHUB_SHA']}
-data.update(version='1.0.12',target_cpu='arm64',build_profile='production',source_tests_passed=True,startup_hook_passed=True,signing='ad-hoc candidate',production_ready=False,published=False)
+data.update(version='1.0.12',target_cpu='arm64',host_cpu=os.uname().machine,build_profile='production',source_tests_compiled=True,source_tests_passed=True if native else None,startup_hook_passed=True if native else None,verification='native tests passed' if native else 'cross-compiled; ARM Mac execution pending',signing='ad-hoc candidate',production_ready=False,published=False)
 pathlib.Path(sys.argv[2]).write_text(json.dumps(data,indent=2)+'\n')
 PY
 COPYFILE_DISABLE=1 tar -C "$artifacts/stage" -czf "$artifacts/clawbrowser-macos-arm64.tar.gz" Clawbrowser.app
 cd "$artifacts"
-shasum -a 256 clawbrowser-macos-arm64.tar.gz source.json args.gn native-core-tests.json native-browser-tests.json > SHA256SUMS
+find . -maxdepth 1 -type f ! -name SHA256SUMS ! -name native-build.log -print0 | sort -z | xargs -0 shasum -a 256 > SHA256SUMS
