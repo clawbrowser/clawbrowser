@@ -6,7 +6,7 @@ on:
       mode:
         description: Capacity probe or actual no-publication Linux native builds
         type: choice
-        options: [capacity, build-linux]
+        options: [capacity, build-linux, build-macos]
         default: capacity
       source_sha:
         description: Exact release project source to compile
@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   runner-preflight:
-    if: github.event_name == 'workflow_dispatch' && inputs.mode != 'build-linux'
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'capacity'
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -110,6 +110,56 @@ jobs:
             native-artifacts/*.log
             native-artifacts/*.gn
             native-artifacts/*.txt
+            native-artifacts/SHA256SUMS
+          if-no-files-found: warn
+          retention-days: 14
+
+  macos-candidate:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'build-macos'
+    runs-on: macos-15
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: pipeline
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: source
+          persist-credentials: false
+      - name: Build ad-hoc native Mac candidate (no corporate credentials)
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          /usr/bin/python3 - "$GITHUB_WORKSPACE/pipeline/scripts/ci_macos_candidate.sh" "$GITHUB_WORKSPACE/source" "$RUNNER_TEMP/chromium" "$GITHUB_WORKSPACE/native-artifacts" "$SOURCE_SHA" <<'PY'
+          import os,signal,shutil,subprocess,sys,time
+          builder=subprocess.Popen(['bash',*sys.argv[1:]],start_new_session=True)
+          try:
+              while builder.poll() is None:
+                  if shutil.disk_usage(os.environ['RUNNER_TEMP']).free < 12*2**30:
+                      print('::error::Stopping build to retain a 12-GiB disk reserve.',flush=True)
+                      os.killpg(builder.pid,signal.SIGTERM)
+                      builder.wait(timeout=30)
+                      sys.exit(1)
+                  time.sleep(20)
+              sys.exit(builder.returncode)
+          finally:
+              if builder.poll() is None: os.killpg(builder.pid,signal.SIGTERM)
+          PY
+      - name: Preserve native Mac candidate and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-macos-arm64-${{ inputs.source_sha }}
+          path: |
+            native-artifacts/*.tar.gz
+            native-artifacts/*.json
+            native-artifacts/*.log
+            native-artifacts/*.gn
             native-artifacts/SHA256SUMS
           if-no-files-found: warn
           retention-days: 14
