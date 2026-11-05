@@ -13,7 +13,7 @@ Statuses are a dated snapshot; follow the linked runs for later results.
 | Native ClawBrowser | 1.0.12 | `85ede59686a51e0828eadfaa6f0d137cad5efaea` |
 | Chromium base | 151.0.7922.109 | `28a7a6c409e03c701d3474ef9e3b1f0be6249039` |
 | NextBrowser desktop | 0.2.73-rc.2 | `f94e9c23b383e66161800a2941e539417b767c4b` |
-| nbc | 1.2.40-rc.2 | Recorded separately in the CLI release evidence |
+| nbc | 1.2.40-rc.2 | `3cade3b8dd0d96cca5b0c8c8c56989d408205777`; Windows fixture corrections merged into release branch only |
 | clawctl | 1.3.6-rc.2 | Recorded separately in the CLI release evidence |
 
 This documentation follow-up does not change the native source being built.
@@ -28,11 +28,11 @@ NodeMaven traffic-accounting/migration changes are excluded from this release.
 | Desktop renderer tests | Both app platforms | PASS | 1159 tests per OS in the app CI above |
 | Desktop Node tests | Windows / macOS | PASS | Windows 618 passed, 5 skipped; macOS 623 passed; zero failures. Skips remain visible in CI. |
 | Desktop TypeScript, packaged launch and production modal blur | Both app platforms | PASS | App CI above; this does not test the separate native runtime |
-| Actual installed Windows app and candidate CLI IPC | Per-user install on a disposable VM | PASS | Release evidence records real renderer IPC, isolated storage, and zero renderer errors |
+| Actual installed Windows app and final rebuilt candidate CLI IPC | Per-user install on a disposable VM | PASS | Exact final CLI source above; release evidence records real renderer IPC, isolated storage, zero renderer errors, update and owned/foreign OAuth handler cleanup |
 | Windows app install/update/uninstall | All-users mode | PASS | [Installer QA](https://github.com/nextbrowser-oss/nextbrowser-app/actions/runs/42047329643): owned OAuth handler removed on uninstall, preserved on update, foreign handler preserved |
 | Windows app signature | Distributed installer | PENDING | Current candidate is unsigned; distribution signing decision remains open |
 | macOS app signature/notarization | Actual distribution artifacts | BLOCKED | Candidate is ad-hoc signed. Corporate signing/notarization has not been demonstrated. |
-| Native compilation and C++ tests | Linux x64 and ARM64 | PENDING | [Linux builders](https://github.com/clawbrowser/clawbrowser/actions/runs/42031130414); ARM cross-compilation must be followed by ARM execution |
+| Native compilation and C++ tests | Linux x64 and ARM64 | PENDING | [Linux cross-builders](https://github.com/clawbrowser/clawbrowser/actions/runs/42031130414) and [additional native ARM builder](https://github.com/clawbrowser/clawbrowser/actions/runs/42069348985); cross-compilation must be followed by target execution |
 | Native compilation and C++ tests | Windows amd64 | PENDING | [Windows builder](https://github.com/clawbrowser/clawbrowser/actions/runs/42033783430); local fallback also remains in progress |
 | Native compilation and C++ tests | macOS arm64 | PENDING | [Intel cross-builder](https://github.com/clawbrowser/clawbrowser/actions/runs/42037844724) and [native ARM builder](https://github.com/clawbrowser/clawbrowser/actions/runs/42054605490) use the same native source |
 | Native Mac signing/notarization | ClawBrowser distribution | BLOCKED | Corporate signing access and final distribution validation required; ad-hoc build integrity alone is insufficient |
@@ -41,8 +41,8 @@ NodeMaven traffic-accounting/migration changes are excluded from this release.
 | Native proxy outage/no direct fallback | New native candidate | PENDING | Independent exact-artifact consumers prepared; old-browser canary is not a pass for this source |
 | Native local-proxy geography | New native candidate | PENDING | Matching, timezone alias, fallback, authenticated proxy, mismatch, provider outage, and missing geography cases prepared |
 | Linux Docker and portable runtime | x64, ARM64 distribution paths | PENDING | Build from successful exact native artifacts, then execute default entrypoint and shipped portable wrapper/loader |
-| Full CLI tests and vet | Linux release source | PASS | Recorded in the separate CLI release evidence; cross-built archives do not replace Windows execution |
-| Full Windows nbc suite | Current candidate source | PENDING | Clean Windows VM run started; historical baseline failures are retained until analyzed |
+| Full CLI tests and vet | Linux release source | PASS | nbc 1520 passed, 6 skipped, zero failures; vet passed; final source candidate rebuilt for four targets |
+| Full Windows nbc suite | Final release tree | PASS | 1500 passed, 26 skipped, zero failures; vet and Go temporary-binary cleanup passed. Tested tree 2c6d5d9 equals final merge 3cade3b; runtime code unchanged from c69c128. Original 16 failures and intermediate cleanup failure remain archived. |
 | Real Multilogin launch | Approved vendor test profile via candidate CLI | BLOCKED | API-enabled test workspace/profile access required; mock launcher checks are separate evidence |
 | Helpdesk regression | UI/API fixtures and backend database CI | PASS | Source-level fixture evidence only; does not prove live provider delivery |
 | Helpdesk real inbound/outbound | Approved Discord, GitHub and Gmail sources | BLOCKED | Integration provisioning, configuration, and real threading/recovery checks required |
@@ -65,6 +65,12 @@ NodeMaven traffic-accounting/migration changes are excluded from this release.
 - Fixture Helpdesk delivery and database tests establish implemented behavior
   in that environment; actual external accounts and webhook configuration
   require a separate acceptance check.
+- Windows fixture corrections use the supported explicit data directory,
+  preserve isolated config, and check vendor-secret scrubbing in a portable
+  child process. A Linux case-sensitive filesystem fixture is explicitly
+  skipped on Windows; Unix sticky-bit tests execute on Unix. FFmpeg is installed
+  for media tests. The final successful run also terminates only registered
+  fake browser helpers whose actual image matches this suite's test executable.
 - No stable tag, release upload, registry push, or production deployment is
   implied by the PASS rows. Update this record with final hashes and execution
   evidence before making a release decision.
