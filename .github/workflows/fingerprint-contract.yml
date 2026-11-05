@@ -2,6 +2,16 @@ name: Fingerprint contract
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Capacity probe or actual no-publication Linux native builds
+        type: choice
+        options: [capacity, build-linux]
+        default: capacity
+      source_sha:
+        description: Exact release project source to compile
+        type: string
+        default: 85ede59686a51e0828eadfaa6f0d137cad5efaea
   pull_request:
   push:
     branches: [main]
@@ -11,7 +21,7 @@ permissions:
 
 jobs:
   runner-preflight:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.mode != 'build-linux'
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -38,6 +48,71 @@ jobs:
           name: native-builder-capacity-${{ matrix.runner }}
           path: ${{ runner.temp }}/native-builder-capacity.json
           retention-days: 7
+
+  linux-candidate:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'build-linux'
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: ubuntu-24.04, cpu: x64}
+          - {runner: ubuntu-24.04-arm, cpu: arm64}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout CI helper
+        uses: actions/checkout@v4
+        with:
+          path: pipeline
+          persist-credentials: false
+      - name: Checkout exact release project
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: source
+          persist-credentials: false
+      - name: Compile production browser and run native tests
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          TARGET_CPU: ${{ matrix.cpu }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          free_bytes=$(df -PB1 "$RUNNER_TEMP" | awk 'NR==2 {print $4}')
+          if (( free_bytes < 80 * 1024 * 1024 * 1024 )); then
+            echo "::error::Insufficient initial disk for the space-constrained shallow native build."
+            exit 1
+          fi
+          setsid bash pipeline/scripts/ci_native_candidate.sh "$GITHUB_WORKSPACE/source" "$RUNNER_TEMP/chromium" "$GITHUB_WORKSPACE/native-artifacts" "$SOURCE_SHA" "$TARGET_CPU" &
+          builder=$!
+          trap 'kill -TERM -- "-$builder" 2>/dev/null || true' EXIT
+          while kill -0 "$builder" 2>/dev/null; do
+            free_bytes=$(df -PB1 "$RUNNER_TEMP" | awk 'NR==2 {print $4}')
+            if (( free_bytes < 12 * 1024 * 1024 * 1024 )); then
+              echo "::error::Stopping this build to retain a 12-GiB disk reserve. A larger builder is required."
+              kill -TERM -- "-$builder" 2>/dev/null || true
+              wait "$builder" || true
+              exit 1
+            fi
+            sleep 20
+          done
+          wait "$builder"
+          trap - EXIT
+      - name: Preserve candidate artifacts and diagnostics (never publish)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-${{ matrix.cpu }}-${{ inputs.source_sha }}
+          path: |
+            native-artifacts/*.tar.gz
+            native-artifacts/*.json
+            native-artifacts/*.log
+            native-artifacts/*.gn
+            native-artifacts/*.txt
+            native-artifacts/SHA256SUMS
+          if-no-files-found: warn
+          retention-days: 14
 
   # Numerical/staging portability only: these jobs do not certify a browser artifact.
   raster-portability:
