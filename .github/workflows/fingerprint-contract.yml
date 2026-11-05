@@ -240,6 +240,7 @@ jobs:
             native-artifacts/*.log
             native-artifacts/*.gn
             native-artifacts/*.txt
+            native-artifacts/*.patch
             native-artifacts/SHA256SUMS
           if-no-files-found: warn
           retention-days: 14

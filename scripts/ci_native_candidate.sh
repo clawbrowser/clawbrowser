@@ -35,6 +35,20 @@ export PATH="$depot:$PATH"
 # Auto-updates are disabled for reproducibility, so initialize the official
 # pinned Python shim explicitly before project scripts invoke depot python3.
 ( source "$depot/bootstrap_python3"; bootstrap_python3 )
+if [[ "$(uname -m)" == aarch64 ]]; then
+  # gclient's URL-based custom_deps=None override does not suppress CIPD
+  # package registration. Honor our single explicit host-tool override before
+  # constructing that package; preserve every other dependency and its pins.
+  python3 - "$depot/gclient.py" <<'PY'
+import pathlib,sys
+p=pathlib.Path(sys.argv[1]);text=p.read_text()
+anchor='        for name, dep_value in deps.items():\n            should_process = self.should_process\n'
+assert text.count(anchor)==1,'gclient dependency parser changed; review host-tool override'
+replacement='        for name, dep_value in deps.items():\n            if name == "src/third_party/gperf/cipd" and self.get_custom_deps(name, "required") is None:\n                continue\n            should_process = self.should_process\n'
+p.write_text(text.replace(anchor,replacement))
+PY
+  git -C "$depot" diff -- gclient.py > "$artifacts/gclient-host-tool-override.patch"
+fi
 printf 'Workflow: %s\nSource: %s\nChromium: %s\nDepot tools: %s\n' "$GITHUB_SHA" "$expected_source" "$CHROMIUM_REVISION" "$(git -C "$depot" rev-parse HEAD)"
 python3 - "$checkout/.gclient" <<'PY'
 import pathlib, platform, sys
@@ -66,7 +80,7 @@ if [[ "$(uname -m)" == aarch64 ]]; then
   )
   "$checkout/src/third_party/gperf/cipd/bin/gperf" --version | tee "$artifacts/gperf-version.txt"
   grep -qx 'GNU gperf 3.2' "$artifacts/gperf-version.txt"
-  printf '%s\n' 'upstream=https://ftp.gnu.org/gnu/gperf/gperf-3.2.tar.gz' 'sha256=e0ddadebb396906a3e3e4cac2f697c8d6ab92dffa5d365a5bc23c7d41d30ef62' 'chromium_3pp_tree=59c15125a0871e4807d232b35a8a9b9d67e81d9f' 'host_tool_only=true' 'upstream_make_check=passed' > "$artifacts/gperf-provenance.txt"
+  printf '%s\n' 'upstream=https://ftp.gnu.org/gnu/gperf/gperf-3.2.tar.gz' 'sha256=e0ddadebb396906a3e3e4cac2f697c8d6ab92dffa5d365a5bc23c7d41d30ef62' 'chromium_3pp_tree=59c15125a0871e4807d232b35a8a9b9d67e81d9f' 'host_tool_only=true' 'upstream_make_check=passed' 'gclient_override=gclient-host-tool-override.patch' > "$artifacts/gperf-provenance.txt"
 fi
 gclient runhooks
 if [[ "$target_cpu" == arm64 ]]; then
