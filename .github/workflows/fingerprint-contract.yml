@@ -6,7 +6,7 @@ on:
       mode:
         description: Capacity probe or actual no-publication Linux native builds
         type: choice
-        options: [capacity, capacity-macos26, capacity-windows, build-windows, build-linux, build-macos, package-linux]
+        options: [capacity, capacity-macos26, capacity-windows, build-windows, build-linux, build-macos, build-macos-arm, package-linux]
         default: capacity
       source_sha:
         description: Exact release project source to compile
@@ -241,8 +241,8 @@ jobs:
           retention-days: 14
 
   macos-candidate:
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'build-macos'
-    runs-on: macos-15-intel
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'build-macos' || inputs.mode == 'build-macos-arm')
+    runs-on: ${{ inputs.mode == 'build-macos-arm' && 'macos-26' || 'macos-15-intel' }}
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4

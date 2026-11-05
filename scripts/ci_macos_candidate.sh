@@ -86,19 +86,22 @@ write_prod_args "$build" arm64
 cp "$build/args.gn" "$artifacts/args.gn"
 cd "$checkout/src"
 gn gen "$build"
-autoninja -C "$build" -j 3 chrome clawbrowser_unittests clawbrowser_browser_unittests
+jobs=3
+# Standard ARM Macs have 7 GiB of RAM; bound compiler concurrency accordingly.
+if [[ "$(uname -m)" == arm64 ]]; then jobs=2; fi
+autoninja -C "$build" -j "$jobs" chrome clawbrowser_unittests clawbrowser_browser_unittests
 if [[ "$(uname -m)" == arm64 ]]; then
   "$build/clawbrowser_unittests" --gtest_output="json:$artifacts/native-core-tests.json"
   "$build/clawbrowser_browser_unittests" --gtest_output="json:$artifacts/native-browser-tests.json"
-else
-  # Preserve everything needed to run the ARM tests on an ARM Mac consumer.
+fi
+  # Preserve runtime/data on both hosts so the independent ARM consumer always
+  # executes the same tests, including when the builder itself is ARM-native.
   test_runtime="$artifacts/test-runtime"
   mkdir -p "$test_runtime"
   rsync -a --prune-empty-dirs --include='/clawbrowser_unittests' --include='/clawbrowser_browser_unittests' --include='/*.dylib' --include='/*.dat' --include='/*.pak' --include='/*.bin' --include='/Chromium.app/***' --include='/clawbrowser-fonts/***' --include='/resources/***' --exclude='*' "$build/" "$test_runtime/"
   otool -L "$build/clawbrowser_unittests" "$build/clawbrowser_browser_unittests" > "$artifacts/native-test-dylibs.txt"
   tar -C "$test_runtime" -czf "$artifacts/native-macos-arm64-tests.tar.gz" .
   tar -C "$checkout/src" -czf "$artifacts/native-macos-test-data.tar.gz" net/data/ssl/certificates clawbrowser/test/fixtures
-fi
 app="$artifacts/stage/Clawbrowser.app"
 mkdir -p "$app"
 rsync -a "$build/Chromium.app/" "$app/"
