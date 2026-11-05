@@ -6,7 +6,7 @@ on:
       mode:
         description: Capacity probe or actual no-publication Linux native builds
         type: choice
-        options: [capacity, build-linux, build-macos]
+        options: [capacity, build-linux, build-macos, package-linux]
         default: capacity
       source_sha:
         description: Exact release project source to compile
@@ -17,6 +17,10 @@ on:
         type: choice
         options: [both, x64, arm64]
         default: both
+      native_run_id:
+        description: Completed native Linux build run to package without publication
+        type: string
+        default: '42031130414'
   pull_request:
   push:
     branches: [main]
@@ -25,6 +29,47 @@ permissions:
   contents: read
 
 jobs:
+  linux-runtime-package:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'package-linux'
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: ubuntu-24.04, cpu: x64}
+          - {runner: ubuntu-24.04-arm, cpu: arm64}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: pipeline
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          path: source
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build candidate image and portable runtime from exact native artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RUN_ID: ${{ inputs.native_run_id }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          TARGET_CPU: ${{ matrix.cpu }}
+        shell: bash
+        run: bash pipeline/scripts/package_native_linux_candidate.sh "$GITHUB_WORKSPACE/source" "$GITHUB_WORKSPACE/runtime-artifacts" "$NATIVE_RUN_ID" "$SOURCE_SHA" "$TARGET_CPU"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-linux-runtime-${{ matrix.cpu }}-${{ inputs.source_sha }}
+          path: runtime-artifacts/
+          retention-days: 14
+
   runner-preflight:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'capacity'
     timeout-minutes: 10
