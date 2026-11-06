@@ -109,6 +109,7 @@ jobs:
           python3 scripts/integration_binary_resolution_test.py
           python3 scripts/font_test_assets_test.py
           python3 scripts/compare_canvas_observations_test.py
+          python3 scripts/test_windows_midl_locale.py
           python3 -m json.tool \
             clawbrowser/test/fixtures/valid_fingerprint.json >/dev/null
       - name: Verify exact baseline raster arithmetic

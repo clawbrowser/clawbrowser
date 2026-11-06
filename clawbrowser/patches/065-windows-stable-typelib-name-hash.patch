@@ -1,0 +1,95 @@
+diff --git a/build/toolchain/win/midl.py b/build/toolchain/win/midl.py
+index 9c0d0a4ccf..3bad033273 100644
+--- a/build/toolchain/win/midl.py
++++ b/build/toolchain/win/midl.py
+@@ -5,6 +5,7 @@
+ from __future__ import division
+ 
+ import array
++import ctypes
+ import difflib
+ import filecmp
+ import io
+@@ -22,6 +23,70 @@ import uuid
+ from functools import reduce
+ 
+ 
++def normalize_typelib_library_name(contents, hash_name, user_lcid):
++  """Canonicalize MIDL's locale-dependent library-name index, not COM data."""
++  if contents[:8] != b'MSFT\x02\x00\x01\x00':
++    raise ValueError('Unsupported typelib format')
++  count, = struct.unpack_from('<I', contents, 0x20)
++  lcid, = struct.unpack_from('<I', contents, 0x0c)
++  kind = struct.unpack_from('<I', contents, 0x14)[0] & 0xf
++  library, = struct.unpack_from('<I', contents, 0x38)
++  sections = 0x54 + count * 4
++  hashes, hash_size = struct.unpack_from('<II', contents, sections + 6 * 16)
++  names, name_size = struct.unpack_from('<II', contents, sections + 7 * 16)
++  if hashes + hash_size > len(contents) or names + name_size > len(contents):
++    raise ValueError('Invalid typelib name index bounds')
++  buckets = hash_size // 4
++  if not buckets or hash_size % 4 or buckets & (buckets - 1):
++    raise ValueError('Invalid typelib name index size')
++  entries = []
++  offset = 0
++  while offset < name_size:
++    length = contents[names + offset + 8]
++    size = 12 + ((length + 3) & ~3)
++    if not length or offset + size > name_size:
++      raise ValueError('Invalid typelib name entry')
++    value, = struct.unpack_from('<H', contents, names + offset + 10)
++    entries.append((offset, value))
++    offset += size
++  if library not in dict(entries):
++    raise ValueError('Typelib library name is absent')
++  length = contents[names + library + 8]
++  name = contents[names + library + 12:names + library + 12 + length]
++  if not name.isascii():
++    return contents
++  current = dict(entries)[library]
++  canonical = hash_name(kind, lcid, name) & 0xffff
++  if current == canonical:
++    return contents
++  if current != (hash_name(kind, user_lcid, name) & 0xffff):
++    raise ValueError('MIDL library-name hash is not explained by the host locale')
++
++  def index(values):
++    heads = [0xffffffff] * buckets
++    links = {}
++    for relative, value in values:
++      bucket = value & (buckets - 1)
++      links[relative] = heads[bucket]
++      heads[bucket] = relative
++    return heads, links
++
++  heads, links = index(entries)
++  stored = list(struct.unpack_from('<' + 'I' * buckets, contents, hashes))
++  if stored != heads or any(struct.unpack_from('<I', contents, names + relative + 4)[0] != next_name
++                           for relative, next_name in links.items()):
++    raise ValueError('Unexpected typelib name-index ordering')
++  heads, links = index([(relative, canonical if relative == library else value)
++                        for relative, value in entries])
++  result = bytearray(contents)
++  struct.pack_into('<H', result, names + library + 10, canonical)
++  struct.pack_into('<' + 'I' * buckets, result, hashes, *heads)
++  for relative, next_name in links.items():
++    struct.pack_into('<I', result, names + relative + 4, next_name)
++  return bytes(result)
++
++
++
+ def ZapTimestamp(filename):
+   contents = open(filename, 'rb').read()
+   # midl.exe writes timestamp 2147483647 (2^31 - 1) as creation date into its
+@@ -29,6 +94,11 @@ def ZapTimestamp(filename):
+   # independent, replace that date with a fixed string of the same length.
+   # Also blank out the minor version number.
+   if filename.endswith('.tlb'):
++    hash_name = ctypes.windll.oleaut32.LHashValOfNameSysA
++    hash_name.argtypes = [ctypes.c_int, ctypes.c_uint32, ctypes.c_char_p]
++    hash_name.restype = ctypes.c_uint32
++    contents = normalize_typelib_library_name(
++        contents, hash_name, ctypes.windll.kernel32.GetUserDefaultLCID())
+     # See https://chromium-review.googlesource.com/c/chromium/src/+/693223 for
+     # a fairly complete description of the .tlb binary format.
+     # TLB files start with a 54 byte header. Offset 0x20 stores how many types
