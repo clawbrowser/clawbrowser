@@ -12,14 +12,15 @@ Statuses are a dated snapshot; follow the linked runs for later results.
 
 | Component | Candidate | Source |
 | --- | --- | --- |
-| Native ClawBrowser | 1.0.12 | `85ede59686a51e0828eadfaa6f0d137cad5efaea` |
+| Native ClawBrowser | 1.0.12 | `8eeb132817152c4f0bf5fa72968f39cb226b53f3`; build-only MIDL locale fix in release PR #60 |
 | Chromium base | 151.0.7922.109 | `28a7a6c409e03c701d3474ef9e3b1f0be6249039` |
 | NextBrowser desktop | 0.2.73-rc.2 | `f94e9c23b383e66161800a2941e539417b767c4b` |
 | nbc | 1.2.40-rc.2 | `3cade3b8dd0d96cca5b0c8c8c56989d408205777`; Windows fixture corrections merged into release branch only |
 | clawctl | 1.3.6-rc.2 | `36f885b4b25e23aa3f471edda6a6fb6b2dc8d83a`; test/CI corrections merged into release branch only |
 
 This documentation follow-up does not change the native source being built.
-Do not relabel an existing binary with this document's later commit hash.
+The current native release source includes a build-only follow-up to the
+earlier `85ede59` candidates. No earlier artifact is relabeled as this source.
 NodeMaven traffic-accounting/migration changes are excluded from this release.
 
 ## Results and remaining gates
@@ -35,8 +36,10 @@ NodeMaven traffic-accounting/migration changes are excluded from this release.
 | Windows app signature | Distributed installer | PENDING | Current candidate is unsigned; distribution signing decision remains open |
 | macOS app signature/notarization | Actual distribution artifacts | BLOCKED | Candidate is ad-hoc signed. Corporate signing/notarization has not been demonstrated. |
 | Native compilation and C++ tests | Linux x64 and ARM64 | BLOCKED | [Standard x64-hosted builders](https://github.com/clawbrowser/clawbrowser/actions/runs/42031130414) both stopped at the six-hour hosted execution limit; no native runtime pass. A persistent builder or verified resumable build is needed. The separate ARM-host experiment failed on x64-only host tools after gperf build/check passed. |
-| Native compilation and C++ tests | Windows amd64 | PENDING | [Windows hosted builder](https://github.com/clawbrowser/clawbrowser/actions/runs/42033783430) stopped at the six-hour execution limit. Persistent local fallback remains compiling native core unit tests; browser packaging and runtime acceptance are still outstanding. |
-| Native compilation and C++ tests | macOS arm64 | PENDING | [Intel cross-builder](https://github.com/clawbrowser/clawbrowser/actions/runs/42037844724) and [native ARM builder](https://github.com/clawbrowser/clawbrowser/actions/runs/42054605490) use the same native source |
+| Native compilation and C++ tests | Windows amd64 | PENDING | [Earlier hosted builder](https://github.com/clawbrowser/clawbrowser/actions/runs/42033783430) stopped at six hours. Local core test binary compiled and all 242 tests passed. Production browser compilation resumed at the current source after the MIDL build fix; package/runtime acceptance outstanding. |
+| Native core C++ tests | Local Windows amd64 | PASS | 242 passed, zero failures/errors/disabled. Executed at 85ede59; current source differs only in the MIDL build patch, its regression fixtures, documentation and CI invocation. Browser runtime implementation unchanged. |
+| Windows MIDL reproducibility | Actual Russian-locale host | PASS | [Release-only PR #60](https://github.com/clawbrowser/clawbrowser/pull/60): original action now passes full unchanged output comparison with SDK 26100.7705 and 26100.9457; five actual-typelib regression checks and four CI checks passed. Binary baselines and runtime code unchanged. |
+| Native compilation and C++ tests | macOS arm64 | BLOCKED | Both [Intel cross-builder](https://github.com/clawbrowser/clawbrowser/actions/runs/42037844724) and [native ARM builder](https://github.com/clawbrowser/clawbrowser/actions/runs/42054605490) on the earlier source exceeded the six-hour hosted limit. Persistent build capacity/access is required. |
 | Native Mac signing/notarization | ClawBrowser distribution | BLOCKED | Corporate signing access and final distribution validation required; ad-hoc build integrity alone is insufficient |
 | Native package startup and dependencies | Every intended native target | PENDING | Run the actual extracted/installed candidate on each target OS and architecture |
 | Native clean installation and upgrade | Every intended native target | PENDING | Include copied existing profiles, identity/proxy preservation, restart, and actual update flow |
