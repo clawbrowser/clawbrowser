@@ -3,6 +3,7 @@
 #include <iterator>
 
 #include "base/command_line.h"
+#include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/json/json_writer.h"
 #include "base/json/json_reader.h"
@@ -597,7 +598,7 @@ void VerifyPageUI::VerifyClientProxyGeo(ClientProxyGeo expected,
     return;
   }
   auto request = std::make_unique<network::ResourceRequest>();
-  request->url = GURL(kProviders[provider]);
+  request->url = GURL(base::span(kProviders)[provider]);
   request->credentials_mode = network::mojom::CredentialsMode::kOmit;
   request->redirect_mode = network::mojom::RedirectMode::kError;
   request->load_flags = net::LOAD_DISABLE_CACHE;
